@@ -39,15 +39,15 @@ var runAll = fn(xs, acc = []) match {
 }
 
 [
-	// '/~dynamic-names.json',
-	// '/~inheritance.json',
-	// '/~lambdas.json',
-	'/comments.json', 
+	'/comments.json',
 	'/delimiters.json',
 	'/interpolation.json',
 	'/inverted.json',
 	'/partials.json',
 	'/sections.json',
+	// '/~dynamic-names.json',
+	'/~inheritance.json',
+	// '/~lambdas.json',
 ] /> runAll /> reduce([0,0], score) /> println /> match {
 	[_, 0] => println("All tests passed!")
 	_      => {

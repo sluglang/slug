@@ -20,6 +20,8 @@ val DEFAULT_CTAG = '}}'
 //  VarNode { name:"a.b", escape:true/false }
 //  SectionNode { name:"items", inverted:false, children:[...], raw:"...", otag:"{{", ctag:"}}" }
 //  PartialNode { name:"p", indent:"   " }
+//  ParentNode { name:"p", indent:"   ", children:[...] }
+//  BlockNode { name:"b", children:[...], raw:"...", standalone:true/false, indentLen:0, indentStr:"" }
 
 val TextNode = struct {
 	@str text,
@@ -46,11 +48,30 @@ val PartialNode = struct {
 
 val SectionFrame = struct {
 	@str name,
+	@str kind,
 	@bool inverted,
 	@list nodes,
 	contentStart,
 	@str otag,
 	@str ctag,
+	@bool standalone,
+	@str indent,
+}
+
+val ParentNode = struct {
+	@str name,
+	@str indent,
+	@list children,
+}
+
+val BlockNode = struct {
+	@str name,
+	@list children,
+	@str raw,
+	@bool standalone,
+	@num indentLen,
+	@str indentStr,
+	@bool trailingNl,
 }
 
 var isWs = fn(@str s) {
@@ -66,6 +87,35 @@ var isWs = fn(@str s) {
 				if (c == " " || c == "\t" || c == "\r") {
 					i = i + 1
 					recur()
+				} else {
+					false
+				}
+			}
+		}()
+	}
+}
+
+var isWsOrTags = fn(@str s, @str otag, @str ctag) {
+	if (s == nil || len(s) == 0) {
+		true
+	} else {
+		var i = 0
+		fn() {
+			if (i >= len(s)) {
+				true
+			} else {
+				var c = s[i]
+				if (c == " " || c == "\t" || c == "\r") {
+					i = i + 1
+					recur()
+				} else if (s[i:i + len(otag)] == otag) {
+					var end = s /> indexOf(ctag, i + len(otag))
+					if (end < 0) {
+						false
+					} else {
+						i = end + len(ctag)
+						recur()
+					}
 				} else {
 					false
 				}
@@ -187,6 +237,86 @@ var indentLines = fn(@str text, @str indent) {
 	}
 }
 
+var leadingWsLen = fn(@str line) {
+	var i = 0
+	fn() {
+		if (i >= len(line)) {
+			i
+		} else {
+			var c = line[i]
+			if (c == " " || c == "\t") {
+				i = i + 1
+				recur()
+			} else {
+				i
+			}
+		}
+	}()
+}
+
+var blockIndentInfo = fn(@str raw) {
+	if (raw == nil || raw == "") {
+		{len:0, prefix:""}
+	} else {
+		var lines = raw /> split("\n")
+		var minLen = nil
+		var minPrefix = ""
+		var i = 0
+		fn() {
+			if (i >= len(lines)) {
+				{len: minLen /> ifNil(0), prefix: minPrefix}
+			} else {
+				var line = lines[i]
+				if (line == nil || isWs(line)) {
+					i = i + 1
+					recur()
+				} else {
+					var l = leadingWsLen(line)
+					if (minLen == nil || l < minLen) {
+						minLen = l
+						minPrefix = line[0:l]
+					}
+					i = i + 1
+					recur()
+				}
+			}
+		}()
+	}
+}
+
+var stripIndent = fn(@str text, @num count) {
+	if (count <= 0 || text == nil || text == "") {
+		text /> ifNil("")
+	} else {
+		var out = ""
+		var i = 0
+		var atLineStart = true
+		var removed = 0
+		fn() {
+			if (i >= len(text)) {
+				out
+			} else {
+				var c = text[i]
+				if (atLineStart && (c == " " || c == "\t") && removed < count) {
+					removed = removed + 1
+					i = i + 1
+					recur()
+				} else {
+					out = out + c
+					if (c == "\n") {
+						atLineStart = true
+						removed = 0
+					} else {
+						atLineStart = false
+					}
+					i = i + 1
+					recur()
+				}
+			}
+		}()
+	}
+}
+
 var resolvePartial = fn(partials, @str name) {
 	if (partials == nil) {
 		nil
@@ -204,7 +334,7 @@ var parse = fn(@str template) {
 	var otag = DEFAULT_OTAG
 	var ctag = DEFAULT_CTAG
 
-	var root = SectionFrame { name:"__root__", inverted:false, nodes:[], contentStart:nil, otag:otag, ctag:ctag }
+	var root = SectionFrame { name:"__root__", kind:"root", inverted:false, nodes:[], contentStart:nil, otag:otag, ctag:ctag, standalone:false, indent:"" }
 	var stack = [root]
 
 	var pushNode = fn(stack, node) {
@@ -213,11 +343,11 @@ var parse = fn(@str template) {
 		stack /> update(len(stack) - 1, updated)
 	}
 
-	var openSection = fn(stack, name, inverted, contentStart, ot, ct) {
-		stack :+ SectionFrame { name:name, inverted:inverted, nodes:[], contentStart:contentStart, otag:ot, ctag:ct }
+	var openFrame = fn(stack, kind, name, inverted, contentStart, ot, ct, standalone, indent) {
+		stack :+ SectionFrame { name:name, kind:kind, inverted:inverted, nodes:[], contentStart:contentStart, otag:ot, ctag:ct, standalone:standalone, indent:indent }
 	}
 
-	var closeSection = fn(stack, name, rawInner) {
+	var closeFrame = fn(stack, name, rawInner) {
 		if (len(stack) <= 1) {
 			throw Error { type: "MustacheError", msg: 'Mustache close tag without open: {{' + name + '}}' }
 		}
@@ -226,12 +356,29 @@ var parse = fn(@str template) {
 			throw Error { type: "MustacheError", msg: 'Mustache section mismatch: expected {{' + frame.name + '}} got {{' + name + '}}' }
 		}
 		var parent = stack[0:len(stack) - 1]
-		var node = SectionNode { name:frame.name, inverted:frame.inverted, children:frame.nodes, raw:rawInner, otag:frame.otag, ctag:frame.ctag }
+		var node = match frame.kind {
+			"section" => SectionNode { name:frame.name, inverted:frame.inverted, children:frame.nodes, raw:rawInner, otag:frame.otag, ctag:frame.ctag }
+			"parent" => ParentNode { name:frame.name, indent:frame.indent, children:frame.nodes }
+			"block" => {
+				var info = if(frame.standalone) {blockIndentInfo(rawInner)} else { {len:0, prefix:""} }
+				var indentStr = if (info.prefix == "" && frame.indent != "") { frame.indent } else { info.prefix }
+				BlockNode {
+					name:frame.name,
+					children:frame.nodes,
+					raw:rawInner,
+					standalone:frame.standalone,
+					indentLen:info.len,
+					indentStr:indentStr,
+					trailingNl:false,
+				}
+			}
+			_ => throw Error { type: "MustacheError", msg: "Unknown mustache frame kind: " + frame.kind }
+		}
 		parent /> then(fn(ps) { pushNode(ps, node) })
 	}
 
 	var eligibleStandalone = fn(sig) {
-		sig == "!" || sig == ">" || sig == "#" || sig == "^" || sig == "/" || sig == "="
+		sig == "!" || sig == ">" || sig == "#" || sig == "^" || sig == "/" || sig == "=" || sig == "<" || sig == "$"
 	}
 
 	var i = 0
@@ -266,6 +413,20 @@ var parse = fn(@str template) {
 				var before = template[ls:open]
 				var after = template[tagEnd:le]
 				var standalone = (len(tag) > 0) && eligibleStandalone(sig) && isWs(before) && isWs(after)
+				if (!standalone && (sig == "$" || sig == "/")) {
+					standalone = isWsOrTags(before, otag, ctag) && isWs(after)
+				}
+				var inlineCloseName = ""
+				var inlineCloseHasNl = false
+				if ((sig == "<" || sig == "$") && len(tag) > 1 && isWsOrTags(before, otag, ctag)) {
+					var name = tag[1:] /> trim()
+					var closeTag = otag + "/" + name + ctag
+					var afterTrim = after /> trim()
+					if (afterTrim == closeTag) {
+						inlineCloseName = name
+						inlineCloseHasNl = (le < len(template) && template[le:le + 1] == "\n")
+					}
+				}
 
 				// If this tag is standalone, its line ending is ignored (but not required).
 				// This affects where "section content" begins for the purposes of capturing raw
@@ -277,24 +438,48 @@ var parse = fn(@str template) {
 					}
 
 				// emit text preceding tag; for standalone tags, drop indentation-only prefix on that line
-				var textEnd = if(standalone) {ls} else {open}
+				var textEnd = if(standalone || inlineCloseName != "") {ls} else {open}
 				if (textEnd > i) {
 					stack = stack /> then(fn(st) { pushNode(st, TextNode { text:template[i:textEnd] }) })
 				}
 
 				if (len(tag) > 0) {
-					if (isTriple) {
+					if (inlineCloseName != "") {
+						if (sig == "<") {
+							stack = stack /> then(fn(st) { pushNode(st, ParentNode { name:inlineCloseName, indent:before, children:[] }) })
+						} else {
+							stack = stack /> then(fn(st) { pushNode(st, BlockNode {
+								name:inlineCloseName,
+								children:[],
+								raw:"",
+								standalone:true,
+								indentLen:0,
+								indentStr:before,
+								trailingNl:inlineCloseHasNl,
+							}) })
+						}
+					} else if (isTriple) {
 						stack = stack /> then(fn(st) { pushNode(st, VarNode { name:tag, escape:false }) })
 					} else {
 						match sig {
 							"!" => { }
 							"#" => {
 								var name = tag[1:] /> trim()
-								stack = openSection(stack, name, false, afterStandalone, otag, ctag)
+								stack = openFrame(stack, "section", name, false, afterStandalone, otag, ctag, standalone, "")
 							}
 							"^" => {
 								var name = tag[1:] /> trim()
-								stack = openSection(stack, name, true, afterStandalone, otag, ctag)
+								stack = openFrame(stack, "section", name, true, afterStandalone, otag, ctag, standalone, "")
+							}
+							"<" => {
+								var name = tag[1:] /> trim()
+								var indent = if(standalone) {before} else {""}
+								stack = openFrame(stack, "parent", name, false, afterStandalone, otag, ctag, standalone, indent)
+							}
+							"$" => {
+								var name = tag[1:] /> trim()
+								var indent = if(standalone) {before} else {""}
+								stack = openFrame(stack, "block", name, false, afterStandalone, otag, ctag, standalone, indent)
 							}
 							"/" => {
 								var name = tag[1:] /> trim()
@@ -303,7 +488,7 @@ var parse = fn(@str template) {
 								if (frame.contentStart != nil && frame.contentStart <= open) {
 									raw = template[frame.contentStart:open]
 								}
-								stack = closeSection(stack, name, raw)
+								stack = closeFrame(stack, name, raw)
 							}
 							"&" => {
 								var name = tag[1:] /> trim()
@@ -335,7 +520,7 @@ var parse = fn(@str template) {
 				}
 
 				// advance i; for standalone tags, remove trailing whitespace and optional newline
-				if (standalone) {
+				if (standalone || inlineCloseName != "") {
 					if (le < len(template) && template[le:le + 1] == "\n") {
 						i = le + 1
 					} else {
@@ -374,13 +559,38 @@ var getPartialAst = fn(partials, cache, name) {
 	}
 }
 
-var renderNodesCached = fn(nodes, ctxStack, partials, cache, acc = "", indent = "") match {
+var collectBlocks = fn(nodes, acc = {}) match {
+	[[], ...] => acc
+	[[node, ...rest], ...] => {
+		match node {
+			BlockNode { name } => {
+				var acc2 = acc /> put(name, node)
+				recur(rest, acc2)
+			}
+			_ => recur(rest, acc)
+		}
+	}
+}
+
+var mergeBlocks = fn(inner, outer) {
+	if (inner == nil) {
+		outer /> ifNil({})
+	} else if (outer == nil) {
+		inner
+	} else {
+		outer /> keys() /> reduce(inner, fn(acc, k) {
+			acc /> put(k, outer[k])
+		})
+	}
+}
+
+var renderNodesCached = fn(nodes, ctxStack, partials, cache, blocks, acc = "", indent = "") match {
 	[[], ...] => { {html:acc, cache:cache} }
 	[[node, ...rest], ...] => {
 		match node {
 			TextNode { text } => {
 				var text = indentPartial(text, indent)
-				recur(rest, ctxStack, partials, cache, acc + text)
+				recur(rest, ctxStack, partials, cache, blocks, acc + text)
 			}
 
 			VarNode { name, escape } => {
@@ -388,18 +598,54 @@ var renderNodesCached = fn(nodes, ctxStack, partials, cache, acc = "", indent = 
 				var s = if(v == nil) {""} else {(v /> toString())}
 				var out = if(escape) {htmlEscape(s)} else {s}
 				var indented = indentPartial(out, indent)
-				recur(rest, ctxStack, partials, cache, acc + indented)
+				recur(rest, ctxStack, partials, cache, blocks, acc + indented)
 			}
 
 			PartialNode { name, indent } => {
 				var r = getPartialAst(partials, cache, name)
 				if (r.ast == nil) {
-					recur(rest, ctxStack, partials, r.cache, acc)
+					recur(rest, ctxStack, partials, r.cache, blocks, acc)
 				} else {
 					var localIndent = indent /> ifNil("")
 					var ast = if(localIndent == "") {r.ast} else {parse(indentLines(r.src, localIndent))}
-					var rendered = renderNodesCached(ast, ctxStack, partials, r.cache, "", "")
-					recur(rest, ctxStack, partials, rendered.cache, acc + rendered.html)
+					var rendered = renderNodesCached(ast, ctxStack, partials, r.cache, blocks, "", "")
+					recur(rest, ctxStack, partials, rendered.cache, blocks, acc + rendered.html)
+				}
+			}
+
+			ParentNode { name, indent, children } => {
+				var r = getPartialAst(partials, cache, name)
+				if (r.ast == nil) {
+					recur(rest, ctxStack, partials, r.cache, blocks, acc)
+				} else {
+					var overrideBlocks = collectBlocks(children)
+					var mergedBlocks = mergeBlocks(overrideBlocks, blocks)
+					var localIndent = indent /> ifNil("")
+					var ast = if(localIndent == "") {r.ast} else {parse(indentLines(r.src, localIndent))}
+					var rendered = renderNodesCached(ast, ctxStack, partials, r.cache, mergedBlocks, "", "")
+					recur(rest, ctxStack, partials, rendered.cache, blocks, acc + rendered.html)
+				}
+			}
+
+			BlockNode { name, children, indentLen, indentStr, standalone, trailingNl } => {
+				var override = if(blocks == nil) {nil} else {blocks[name]}
+				if (override == nil) {
+					var inner = renderNodesCached(children, ctxStack, partials, cache, blocks, "")
+					var out = inner.html
+					if (trailingNl && out != "" && out[len(out) - 1] != "\n") {
+						out = out + "\n"
+					}
+					recur(rest, ctxStack, partials, inner.cache, blocks, acc + out)
+				} else {
+					var strippedBlocks = if(blocks == nil) {nil} else {blocks /> remove(name)}
+					var inner = renderNodesCached(override.children, ctxStack, partials, cache, strippedBlocks, "")
+					var stripped = stripIndent(inner.html, override.indentLen)
+					var indented = if(indentStr == "" || stripped == "") {stripped} else {indentLines(stripped, indentStr)}
+					var out = indented
+					if (trailingNl && out != "" && out[len(out) - 1] != "\n") {
+						out = out + "\n"
+					}
+					recur(rest, ctxStack, partials, inner.cache, blocks, acc + out)
 				}
 			}
 
@@ -407,30 +653,30 @@ var renderNodesCached = fn(nodes, ctxStack, partials, cache, acc = "", indent = 
 				var v = lookup(ctxStack, name)
 				if (inverted) {
 					if (isFalsey(v)) {
-						var inner = renderNodesCached(children, ctxStack, partials, cache, "")
-						recur(rest, ctxStack, partials, inner.cache, acc + inner.html)
+						var inner = renderNodesCached(children, ctxStack, partials, cache, blocks, "")
+						recur(rest, ctxStack, partials, inner.cache, blocks, acc + inner.html)
 					} else {
-						recur(rest, ctxStack, partials, cache, acc)
+						recur(rest, ctxStack, partials, cache, blocks, acc)
 					}
 				} else {
 					if (isFalsey(v)) {
-						recur(rest, ctxStack, partials, cache, acc)
+						recur(rest, ctxStack, partials, cache, blocks, acc)
 					} else if (type(v) == LIST_TYPE) {
 						var each = fn(items, acc2, cache2) match {
 							[[], ...] => { {html:acc2, cache:cache2} }
 							[[h, ...t], ...] => {
-								var inner = renderNodesCached(children, ctxStack :+ h, partials, cache2, "")
+								var inner = renderNodesCached(children, ctxStack :+ h, partials, cache2, blocks, "")
 								each(t, acc2 + inner.html, inner.cache)
 							}
 						}
 						var r2 = each(v, "", cache)
-						recur(rest, ctxStack, partials, r2.cache, acc + r2.html)
+						recur(rest, ctxStack, partials, r2.cache, blocks, acc + r2.html)
 					} else if (type(v) == MAP_TYPE) {
-						var inner = renderNodesCached(children, ctxStack :+ v, partials, cache, "")
-						recur(rest, ctxStack, partials, inner.cache, acc + inner.html)
+						var inner = renderNodesCached(children, ctxStack :+ v, partials, cache, blocks, "")
+						recur(rest, ctxStack, partials, inner.cache, blocks, acc + inner.html)
 					} else {
-						var inner = renderNodesCached(children, ctxStack :+ v, partials, cache, "")
-						recur(rest, ctxStack, partials, inner.cache, acc + inner.html)
+						var inner = renderNodesCached(children, ctxStack :+ v, partials, cache, blocks, "")
+						recur(rest, ctxStack, partials, inner.cache, blocks, acc + inner.html)
 					}
 				}
 			}
@@ -443,7 +689,7 @@ var renderNodesCached = fn(nodes, ctxStack, partials, cache, acc = "", indent = 
 @export
 var renderCached = fn(templateOrAst, data, partials = nil, cache = {}) {
 	var ast = if(type(templateOrAst) == STRING_TYPE) {parse(templateOrAst)} else {templateOrAst}
-	renderNodesCached(ast, [data], partials, cache, "")
+	renderNodesCached(ast, [data], partials, cache, {}, "")
 }
 
 @export
