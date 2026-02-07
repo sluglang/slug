@@ -172,6 +172,29 @@ var run = fn(stats, ...modules) match {
 	_ => "Unrecognized modules parameter!"
 }
 
-if(len(argv()) > 0) {
-	run({run:0, fail:0, error:0}, ...argv())
+var args = argm()
+
+if(args.options.v || args.options.version) {
+'''
+slug test v1.0.0
+''' /> println
+} else if(args.options.h || args.options.help) {
+'''
+Slug Test
+
+A simple Slug test runner, will run @test and @testWith tagged functions and report
+any failures.
+
+Usage:
+  slug test [options] [--] <test files...>
+
+Options
+ -h --help      Show this screen.
+ -v --version   Show version.
+ --verbose      Show both pass and fail tests
+''' /> println
+} else {
+	if(len(argv()) > 0) {
+		run({run:0, fail:0, error:0}, ...argv())
+	}
 }
