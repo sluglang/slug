@@ -1,7 +1,7 @@
 var {*} = import (
-	"slug.std",
-	"slug.string",
 	"slug.list",
+	"slug.string",
+	"slug.std",
 )
 var json = import("slug.json")
 

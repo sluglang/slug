@@ -1,12 +1,12 @@
 var {*} = import (
-	"slug.io.tcp",
-	"slug.std",
-	"slug.string",
-	"slug.time",
-	"slug.channel",
-	"slug.web.request",
 	"slug.web.response",
+	"slug.channel",
+	"slug.string",
+	"slug.std",
+	"slug.time",
 )
+var tcp = import("slug.io.tcp")
+var request = import("slug.web.request")
 
 
 @export
@@ -16,20 +16,20 @@ var serve = nursery limit 1000 fn(app, addr = "0.0.0.0", port = 8080) {
 # Server started on {{addr}}:{{port}}
 #
 """ /> println
-	var listener = bind(addr, port)
+	var listener = tcp.bind(addr, port)
 	defer { close(listener) }
 
 	acceptLoop(listener, app)
 }
 
 var acceptLoop = fn(listener, app) {
-	var conn = accept(listener)
+	var conn = tcp.accept(listener)
 	spawn { handleConn(conn, app) }
 	recur(listener, app)
 }
 
 var handleConn = fn(conn, app) {
-	defer { close(conn) }
+	defer { tcp.close(conn) }
 	defer onerror (err) { println("error:", conn, err); nil }
 
 	var maxReq = 100
@@ -45,7 +45,7 @@ var connLoop = fn(conn, app, buf, n, maxReq, idleMs) {
 		match getNextRequest(conn, buf, idleMs) {
 			nil => nil
 			[req, rest] => {
-				var keep = shouldKeepAlive(req)
+				var keep = request.shouldKeepAlive(req)
 
 				var res = req /> app
 
@@ -57,7 +57,7 @@ var connLoop = fn(conn, app, buf, n, maxReq, idleMs) {
 					}
 				}
 
-				write(conn, res /> renderResponse)
+				tcp.write(conn, res /> renderResponse)
 
 				if (keep && (n + 1) < maxReq) {
 					recur(conn, app, rest, n + 1, maxReq, idleMs)
@@ -76,7 +76,7 @@ var getNextRequest = fn(conn, buf, idleMs) {
 		}
 
 		// 1. Parse just the headers first
-		var [req, bodyStart] = parseRequestHeaders(headBuf)
+		var [req, bodyStart] = request.parseRequestHeaders(headBuf)
 
 		var cl = req.headers["content-length"] /> match {
 			nil => 0
@@ -95,7 +95,7 @@ var getNextRequest = fn(conn, buf, idleMs) {
 			var bodyNeeded = cl - bodyAlreadyRead
 
 			var fullBody = if (bodyNeeded <= 0) {
-				bodyStart[:cl]
+				bodyStart[0:cl]
 			} else {
 				bodyStart + readExact(conn, bodyNeeded, 4_096, idleMs)
 			}
@@ -111,7 +111,7 @@ var getNextRequest = fn(conn, buf, idleMs) {
 }
 
 var readWithin = fn(conn, n, ms) {
-	await(spawn { read(conn, n) }, ms)
+	await(spawn { tcp.read(conn, n) }, ms)
 }
 
 var readUntilHeaders = fn(conn, maxBytes, chunkSize, timeoutMs, buf = "") {

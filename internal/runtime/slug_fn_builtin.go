@@ -70,7 +70,8 @@ func fnBuiltinImport() *object.Foreign {
 							for sig := range fg.Functions {
 								if sigSeen[sig] {
 									//return ctx.NewError("import collision for function '%s' with duplicate signature %v while importing '%s'", name, sig, strArg.Value)
-									fmt.Printf("WARNING: import collision for function '%s' with duplicate signature %v while importing '%s'\n", name, sig, strArg.Value)
+									fqn := ctx.CurrentEnv().ModuleFqn
+									fmt.Printf("WARNING: import collision in %s for function '%s' with duplicate signature %v while importing '%s'\n", fqn, name, sig, strArg.Value)
 								}
 							}
 

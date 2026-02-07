@@ -1,12 +1,11 @@
 var {*} = import (
-	"slug.io.tcp",
-	"slug.std",
-	"slug.string",
-	"slug.time",
-	"slug.channel",
-	"slug.io.fs",
-	"slug.web.request",
 	"slug.web.response",
+	"slug.web.request",
+	"slug.io.fs",
+	"slug.channel",
+	"slug.time",
+	"slug.string",
+	"slug.std",
 )
 
 val Route = struct {
@@ -249,7 +248,7 @@ var withLog = fn(handler) {
 		if (req.traceId) { msg = msg :+ req.traceId }
 		if (req.spanId) { msg = msg :+ req.spanId }
 		msg = msg :+ req.path
-		printf("{s} [ {:<4s} ] {:d}ms {:d} {s}", ts, req.method, d(), res.status, msg /> join(" ")) /> println;
+		fmt("{} [ {:<s} ] {:d}ms {:d} {:s}", ts, req.method, d(), res.status, msg /> join(" ")) /> println;
 		res
 	}
 }

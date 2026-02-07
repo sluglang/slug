@@ -1,6 +1,6 @@
 var {*} = import (
-    "slug.std",
     "slug.string",
+    "slug.std",
 )
 
 val Request = struct {
@@ -52,7 +52,7 @@ var parseRequestHeaders = fn(buf) {
     var i = buf /> indexOf("\r\n\r\n")
     if (i < 0) { throw Error { type: "http", msg: "Incomplete headers" } }
 
-    var head = buf[:i]
+    var head = buf[0:i]
     var rest = buf[i + 4:] // This is the start of the body
 
     var lines = head /> split("\r\n")

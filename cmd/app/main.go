@@ -174,19 +174,28 @@ func resolveScript(target string) (string, []byte, string, error) {
 		target + ".slug",
 	}
 
-	if slugHome != "" {
-		searchPaths = append(searchPaths, filepath.Join(slugHome, "lib", target+".slug"))
-	}
-
 	for _, path := range searchPaths {
 		source, err := os.ReadFile(path)
 		if err == nil {
 			absPath, _ := filepath.Abs(path)
 			root := filepath.Dir(absPath)
-			if !strings.HasPrefix(root, path) {
-				root = "."
-			}
 			return absPath, source, root, nil
+		}
+	}
+
+	if slugHome != "" {
+
+		libSearchPaths := []string{
+			filepath.Join(slugHome, "lib", target+".slug"),
+		}
+
+		for _, path := range libSearchPaths {
+			source, err := os.ReadFile(path)
+			if err == nil {
+				absPath, _ := filepath.Abs(path)
+				root := "."
+				return absPath, source, root, nil
+			}
 		}
 	}
 
