@@ -54,6 +54,8 @@ func typeTagForObject(obj object.Object) (string, bool) {
 		return "error", true
 	case object.FUNCTION_OBJ:
 		return "function", true
+	case object.FUNCTION_GROUP_OBJ:
+		return "function", true
 	case object.TASK_HANDLE_OBJ:
 		return "task", true
 	case object.CHANNEL_OBJ:
