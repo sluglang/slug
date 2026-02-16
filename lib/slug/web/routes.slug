@@ -248,7 +248,7 @@ var withLog = fn(handler) {
 		if (req.traceId) { msg = msg :+ req.traceId }
 		if (req.spanId) { msg = msg :+ req.spanId }
 		msg = msg :+ req.path
-		fmt("{} [ {:<s} ] {:d}ms {:d} {:s}", ts, req.method, d(), res.status, msg /> join(" ")) /> println;
+		fmt("{} [ {:<4s} ] {:d}ms {:d} {:s}", ts, req.method, d(), res.status, msg /> join(" ")) /> println;
 		res
 	}
 }
@@ -294,9 +294,10 @@ var withHeader = fn(@fn handler, @str header, @str value) {
 // add a request id for logging
 // ------------------
 
+var requestId = fn() { randomHexString(32) }
+
 @export
-var withRequestId = fn(@fn handler, @fn newRequestId = nil) {
-	newRequestId = if (newRequestId) {newRequestId} else {fn() { randomHexString(32) }}
+var withRequestId = fn(@fn handler, @fn newRequestId = requestId) {
 	fn(req) {
 		var rid = req.headers["x-request-id"]
 
@@ -321,10 +322,11 @@ var withRequestId = fn(@fn handler, @fn newRequestId = nil) {
 // add trace and span ids for logging
 // ------------------
 
+var traceId = fn() { randomHexString(32) }
+var spanId = fn() { randomHexString(16) }
+
 @export
-var withTraceContext = fn(handler, @fn newTraceId = nil, @fn newSpanId = nil) {
-	newTraceId = if (newTraceId) {newTraceId} else {fn() { randomHexString(32) }}
-	newSpanId = if (newSpanId) {newSpanId} else {fn() { randomHexString(16) }}
+var withTraceContext = fn(handler, @fn newTraceId = traceId, @fn newSpanId = spanId) {
 	fn(req) {
 
 		var tp = req.headers["traceparent"]

@@ -10,27 +10,30 @@ var request = import("slug.web.request")
 
 
 @export
-var serve = nursery limit 1000 fn(app, addr = "0.0.0.0", port = 8080) {
+var serve = nursery limit 1000 fn(@fn app, @str addr = cfg("address", "0.0.0.0"), @num port = cfg("port", 8080)) {
 """
 #
 # Server started on {{addr}}:{{port}}
 #
 """ /> println
 	var listener = tcp.bind(addr, port)
-	defer { close(listener) }
+	defer { tcp.close(listener) }
 
 	acceptLoop(listener, app)
 }
 
-var acceptLoop = fn(listener, app) {
+var acceptLoop = fn(listener, @fn app) {
 	var conn = tcp.accept(listener)
 	spawn { handleConn(conn, app) }
 	recur(listener, app)
 }
 
-var handleConn = fn(conn, app) {
+var handleConn = fn(conn, @fn app) {
 	defer { tcp.close(conn) }
-	defer onerror (err) { println("error:", conn, err); nil }
+	defer onerror (err) match {
+		Error{type: 'Timeout'} => { println("error:", conn, err); nil }
+		_                      => { println("error:", conn, err, stacktrace(err)); nil }
+	}
 
 	var maxReq = 100
 	var idleMs = secsToMillis(10)
@@ -38,7 +41,7 @@ var handleConn = fn(conn, app) {
 	connLoop(conn, app, "", 0, maxReq, idleMs)
 }
 
-var connLoop = fn(conn, app, buf, n, maxReq, idleMs) {
+var connLoop = fn(conn, @fn app, buf, n, maxReq, idleMs) {
 	if (n >= maxReq) {
 		nil
 	} else {
@@ -106,7 +109,7 @@ var getNextRequest = fn(conn, buf, idleMs) {
 				""
 			}
 
-			[req /> withBody(fullBody), rest]
+			[req /> request.withBody(fullBody), rest]
 		}
 }
 

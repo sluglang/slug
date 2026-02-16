@@ -9,6 +9,16 @@ var json = import("slug.json")
 // Response shapes (struct-based)
 // -------------------------------
 
+@export
+val Reply = struct {
+	@str view,
+	@str fragment,
+	@map data = {},
+	@num status = 200,
+	@map headers = {},
+}
+
+@export
 val Response = struct {
 	@num status,
 	@map headers,

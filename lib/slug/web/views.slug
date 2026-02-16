@@ -1,0 +1,129 @@
+var {*} = import(
+	"slug.std",
+	"slug.string",
+)
+var fs  = import("slug.io.fs")
+var mustache = import("slug.mustache")
+var response = import("slug.web.response")
+var {Reply, Response} = import("slug.web.response")
+
+val Views = struct {
+  @str root,
+  @bool dev,
+  @map cache,  // name -> template string (or AST later)
+}
+
+@export
+var new = fn(@str root = "views") {
+  Views{
+    root: root,
+    dev: cfg("dev", cfg('dev', true)),
+    cache: {},
+  }
+}
+
+@export
+var render = fn(v, name, data = {}) {
+  var tpl = getTemplate(v, 'pages/', name)
+  var loader = partialsLoader(v, "pages/{{name}}/")
+  mustache.render(tpl, data, loader)
+}
+
+@export
+var renderReply = fn(vx, req, reply) {
+	//   response.html(render(v, name, data))
+	var data = reply.data
+// 	|> views.inject(req)     // global vars, preprocess hooks
+// 	|> views.normalize()     // string keys, safe values
+
+	var html = if ( req.headers['hx-request'] ) {
+		var frag = match reply.fragment {
+			nil => req.headers['hx-target']
+			_   => reply.fragment
+		}
+		render(vx, reply.view + '/' + frag, data)
+	} else {
+		render(vx, reply.view, data)
+	}
+
+	var resp = response.html(html)
+	resp = response.withStatus(resp, reply.status)
+	resp = response.withHeaders(resp, reply.headers)
+	resp
+}
+
+
+var normalize = fn(@str base, @str name) {
+	// if no prefix, treat as pages/
+	// ensure .mustache extension
+	// return logical name like "pages/home.mustache" or "layouts/main.mustache"
+	if (name[-9:] != '.mustache') {
+		base + name + '.mustache'
+	} else {
+		base + name
+	}
+}
+
+var read = fn(v, logicalName) {
+  fs.readFile(v.root + "/" + logicalName)
+}
+
+var getTemplate = fn(v, base, name) {
+  var logical = normalize(base, name)
+
+  if (v.dev) {
+    read(v, logical)
+  } else {
+    match v.cache[logical] {
+      nil => {
+        var s = read(v, logical)
+        // store in cache (persistent update semantics in Slug)
+        // v.cache = put(v.cache, logical, s)   (depending on your map update API)
+        s
+      }
+      s => s
+    }
+  }
+}
+
+/**
+ * partialsLoader creates a loader function for mustache partials with a specific load ordering.
+ * 
+ * Load ordering (in priority):
+ * 1. If partial name starts with 'layouts' (e.g., 'layouts.main'):
+ *    - Strips the 'layouts.' prefix (8 chars)
+ *    - Converts dots to slashes (e.g., 'main.header' -> 'main/header')
+ *    - Loads from 'layouts/' directory
+ * 
+ * 2. If partial name starts with 'partials' (e.g., 'partials.nav'):
+ *    - Strips the 'partials.' prefix (9 chars)
+ *    - Converts dots to slashes (e.g., 'nav.item' -> 'nav/item')
+ *    - Loads from 'partials/' directory
+ * 
+ * 3. Otherwise (no prefix or other prefix):
+ *    - Converts dots to slashes
+ *    - Loads from the view-specific directory (e.g., 'pages/home/')
+ * 
+ * Fallback: If any load fails, falls back to 'partials/' directory with dot-to-slash conversion.
+ * 
+ * Example:
+ *   - 'layouts.main' -> loads from 'layouts/main.mustache'
+ *   - 'partials.nav.item' -> loads from 'partials/nav/item.mustache'
+ *   - 'header' (in pages/home/) -> loads from 'pages/home/header.mustache'
+ * 
+ * @param v - Views instance containing root path and cache
+ * @param view - Base view path for view-specific partials (e.g., 'pages/home/')
+ * @returns A loader function that takes a partial name and returns its template content
+ */
+var partialsLoader = fn(v, @str view) {
+	fn(n) {
+		defer onerror(err) getTemplate(v, 'partials/', n /> replaceAll('.', '/'))
+		if(n[0:7] == 'layouts') {
+			getTemplate(v, 'layouts/', n[8:] /> replaceAll('.', '/'))
+		} else if(n[0:8] == 'partials') {
+			getTemplate(v, 'partials/', n[9:] /> replaceAll('.', '/'))
+		} else {
+			getTemplate(v, view, n /> replaceAll('.', '/'))
+		}
+	}
+}

@@ -153,7 +153,7 @@ var percentDecode = fn(s) { s }
 var parseForm = fn(req) {
     var ct = req.headers["content-type"]
     // Only parse form automatically if body is already a string (small payload)
-    if (type(req.body) == "string" && ct != nil && ct /> startsWith("application/x-www-form-urlencoded")) {
+    if (type(req.body) == STRING_TYPE && ct != nil && ct /> startsWith("application/x-www-form-urlencoded")) {
         req copy { form: parseUrlEncoded(req.body) }
     } else {
         req
