@@ -1552,9 +1552,18 @@ func (e *Task) evalStructSchemaExpression(node *ast.StructSchemaExpression) obje
 		if _, exists := schema.FieldIndex[field.Name]; exists {
 			return e.newErrorfWithPos(field.Token.Position, "duplicate struct field: %s", field.Name)
 		}
-		if field.Hint != "" {
-			if _, ok := object.TypeTags[field.Hint]; !ok {
-				return e.newErrorfWithPos(field.Token.Position, "unknown struct field type hint: %s", field.Hint)
+
+		// Validate field tags (type hints) if present
+		for _, tag := range field.Tags {
+			if tag == nil {
+				continue
+			}
+			if _, ok := object.TypeTags[tag.Name]; !ok {
+				return e.newErrorfWithPos(field.Token.Position, "unknown struct field type hint: %s", tag.Name)
+			}
+			// Only @struct currently supports params, e.g. @struct(User)
+			if tag.Name == "@struct" && len(tag.Args) > 1 {
+				return e.newErrorfWithPos(field.Token.Position, "invalid struct field type hint: %s (too many arguments)", tag.String())
 			}
 		}
 
@@ -1562,7 +1571,7 @@ func (e *Task) evalStructSchemaExpression(node *ast.StructSchemaExpression) obje
 		schema.Fields = append(schema.Fields, object.StructSchemaField{
 			Name:    field.Name,
 			Default: field.Default,
-			Hint:    field.Hint,
+			Tags:    field.Tags,
 		})
 	}
 
@@ -1693,7 +1702,7 @@ func (e *Task) evalStructDefault(schema *object.StructSchema, expr ast.Expressio
 
 func (e *Task) validateStructHints(pos int, schema *object.StructSchema, values map[string]object.Object) object.Object {
 	for _, field := range schema.Fields {
-		if field.Hint == "" {
+		if len(field.Tags) == 0 {
 			continue
 		}
 		value := values[field.Name]
@@ -1704,19 +1713,76 @@ func (e *Task) validateStructHints(pos int, schema *object.StructSchema, values 
 			continue
 		}
 
-		expected, ok := object.TypeTags[field.Hint]
-		if !ok {
-			return e.newErrorfWithPos(pos, "unknown struct field type hint: %s", field.Hint)
-		}
-
-		if field.Hint == object.FUNCTION_TAG {
-			if value.Type() == object.FUNCTION_OBJ || value.Type() == object.FUNCTION_GROUP_OBJ {
+		// All tags must match (intersection semantics)
+		for _, tag := range field.Tags {
+			if tag == nil {
 				continue
 			}
-		}
 
-		if string(value.Type()) != expected {
-			return e.newErrorfWithPos(pos, "struct %s field %s expected %s, got %s", e.structSchemaName(schema), field.Name, field.Hint, value.Type())
+			// @fn: matches FUNCTION or FUNCTION_GROUP
+			if tag.Name == object.FUNCTION_TAG {
+				if value.Type() == object.FUNCTION_OBJ || value.Type() == object.FUNCTION_GROUP_OBJ {
+					continue
+				}
+				return e.newErrorfWithPos(pos, "struct %s field %s expected %s, got %s",
+					e.structSchemaName(schema), field.Name, tag.Name, value.Type())
+			}
+
+			// @struct / @struct(User)
+			if tag.Name == "@struct" {
+				// Plain @struct => accept both struct values and struct schema defs
+				if len(tag.Args) == 0 {
+					if value.Type() == object.STRUCT_OBJ || value.Type() == object.STRUCT_SCHEMA_OBJ {
+						continue
+					}
+					return e.newErrorfWithPos(pos, "struct %s field %s expected %s, got %s",
+						e.structSchemaName(schema), field.Name, tag.Name, value.Type())
+				}
+
+				// @struct(User) => require schema name match (for both StructValue and StructSchema)
+				if len(tag.Args) == 1 {
+					expectedName := ""
+					switch a := tag.Args[0].(type) {
+					case *ast.Identifier:
+						expectedName = a.Value
+					case *ast.StringLiteral:
+						expectedName = strings.Trim(a.Value, "\"")
+					}
+					if expectedName == "" {
+						return e.newErrorfWithPos(pos, "invalid struct field type hint: %s", tag.String())
+					}
+
+					switch v := value.(type) {
+					case *object.StructValue:
+						if v.Schema != nil && v.Schema.Name == expectedName {
+							continue
+						}
+						return e.newErrorfWithPos(pos, "struct %s field %s expected @struct(%s), got %s",
+							e.structSchemaName(schema), field.Name, expectedName, value.Inspect())
+					case *object.StructSchema:
+						if v.Name == expectedName {
+							continue
+						}
+						return e.newErrorfWithPos(pos, "struct %s field %s expected @struct(%s), got %s",
+							e.structSchemaName(schema), field.Name, expectedName, v.Inspect())
+					default:
+						return e.newErrorfWithPos(pos, "struct %s field %s expected @struct(%s), got %s",
+							e.structSchemaName(schema), field.Name, expectedName, value.Type())
+					}
+				}
+
+				return e.newErrorfWithPos(pos, "invalid struct field type hint: %s", tag.String())
+			}
+
+			// Other scalar/container type tags via TypeTags
+			expected, ok := object.TypeTags[tag.Name]
+			if !ok {
+				return e.newErrorfWithPos(pos, "unknown struct field type hint: %s", tag.Name)
+			}
+			if string(value.Type()) != expected {
+				return e.newErrorfWithPos(pos, "struct %s field %s expected %s, got %s",
+					e.structSchemaName(schema), field.Name, tag.Name, value.Type())
+			}
 		}
 	}
 

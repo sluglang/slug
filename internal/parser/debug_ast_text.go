@@ -177,8 +177,8 @@ func RenderASTAsText(node ast.Node, indent int) string {
 		fields := []string{}
 		for _, f := range n.Fields {
 			field := ""
-			if f.Hint != "" {
-				field = f.Hint + " "
+			if f.Tags != nil {
+				field = renderTags(f.Tags)
 			}
 			field += f.Name
 			if f.Default != nil {

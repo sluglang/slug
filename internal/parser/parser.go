@@ -2100,12 +2100,12 @@ func (p *Parser) parseStructSchemaField() *ast.StructField {
 	field := &ast.StructField{Token: p.curToken}
 
 	if p.curTokenIs(token.AT) {
-		tag := p.parseTag()
-		field.Hint = tag.Name
-		if !p.expectPeek(token.IDENT) {
-			return nil
+		// Collect tags (e.g., @int, @str)
+		for p.curTokenIs(token.AT) {
+			tag := p.parseTag()
+			field.Tags = append(field.Tags, tag)
+			p.nextToken()
 		}
-		field.Token = p.curToken
 	} else if !p.curTokenIs(token.IDENT) {
 		p.addErrorAt(p.curToken.Position, "expected identifier for struct field, got %s", p.curToken.Type)
 		return nil

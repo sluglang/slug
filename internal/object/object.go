@@ -56,6 +56,7 @@ var TypeTags = map[string]string{
 	"@map":       MAP_OBJ,
 	"@num":       NUMBER_OBJ,
 	"@str":       STRING_OBJ,
+	"@struct":    STRUCT_OBJ,
 	"@sym":       SYMBOL_OBJ,
 	"@task":      TASK_HANDLE_OBJ,
 	FUNCTION_TAG: FUNCTION_OBJ,
@@ -594,8 +595,59 @@ func evaluateFunctionMatch(params []*ast.FunctionParameter, bound *BoundArgument
 			continue
 		}
 		arg := bound.Values[i]
+
 		// Check for matching tags
 		for _, tag := range param.Tags {
+			// Special handling for @struct / @struct(User)
+			if tag.Name == "@struct" {
+				// nil matches everything (keeps existing semantics)
+				if arg.Type() == NIL_OBJ {
+					score++
+					break
+				}
+
+				// @struct(User) => match schema name for both StructValue and StructSchema
+				if len(tag.Args) == 1 {
+					expected := ""
+					switch t := tag.Args[0].(type) {
+					case *ast.Identifier:
+						expected = t.Value
+					case *ast.StringLiteral:
+						// Allows @struct("User") if someone prefers that style
+						expected = strings.Trim(t.Value, "\"")
+					}
+
+					if expected == "" {
+						// Can't interpret the hint argument => treat as non-match
+						return -1
+					}
+
+					switch v := arg.(type) {
+					case *StructValue:
+						if v.Schema != nil && v.Schema.Name == expected {
+							score++
+							break
+						}
+						return -1
+					case *StructSchema:
+						if v.Name == expected {
+							score++
+							break
+						}
+						return -1
+					default:
+						return -1
+					}
+				}
+
+				// Plain @struct => match both struct values and struct schema definitions
+				if arg.Type() == STRUCT_OBJ || arg.Type() == STRUCT_SCHEMA_OBJ {
+					score++
+					break
+				}
+				return -1
+			}
+
 			if tagType, exists := TypeTags[tag.Name]; exists {
 				// special case the function tag since it can match FUNCTION_OBJ and FUNCTION_GROUP_OBJ
 				if string(arg.Type()) == tagType || (tag.Name == FUNCTION_TAG && arg.Type() == FUNCTION_GROUP_OBJ) {
@@ -753,7 +805,7 @@ func (m *Map) SetTag(tag string, params List) {
 type StructSchemaField struct {
 	Name    string
 	Default ast.Expression
-	Hint    string
+	Tags    []*ast.Tag
 }
 
 type StructSchema struct {
@@ -774,9 +826,14 @@ func (s *StructSchema) Inspect() string {
 	parts := []string{}
 	for _, field := range s.Fields {
 		var b strings.Builder
-		if field.Hint != "" {
-			b.WriteString(field.Hint)
-			b.WriteString(" ")
+		if len(field.Tags) > 0 {
+			for _, t := range field.Tags {
+				if t == nil {
+					continue
+				}
+				b.WriteString(t.String())
+				b.WriteString(" ")
+			}
 		}
 		b.WriteString(field.Name)
 		if field.Default != nil {
