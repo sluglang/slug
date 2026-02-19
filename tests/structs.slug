@@ -31,3 +31,13 @@ match u {
 }
 
 matched /> assertTrue()
+
+var f1 = fn(v) { 'untyped' }
+var f1 = fn(@struct v) { 'struct' }
+
+f1(u) /> assertEqual('struct')
+
+var f2 = fn(@struct v) { 'struct' }
+var f2 = fn(@struct(User) v) { 'user' }
+
+f2(u) /> assertEqual('user')
