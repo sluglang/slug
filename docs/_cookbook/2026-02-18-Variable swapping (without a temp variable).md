@@ -18,8 +18,7 @@ Slug lets you destructure lists, and (in the right scope) redeclare variables. C
 
 #### 1) Swap two variables in-place
 
-```
-slug
+```slug
 var {*} = import("slug.test")
 
 var a = 1
@@ -34,8 +33,7 @@ b /> assertEqual(1)
 
 #### 2) Works with any values (not just numbers)
 
-```
-slug
+```slug
 var {*} = import("slug.test")
 
 var left  = "L"
