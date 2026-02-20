@@ -4,7 +4,7 @@ Lets get Slug installed and ready to run. Pick one path below.
 
 ## Option A: Download a precompiled binary
 
-1. Download the latest release from the Slug [releases page](https://github.com/babyman/slug-lang/releases).
+1. Download the latest release from the Slug [releases page](https://github.com/sluglang/slug/releases).
 2. Extract the archive and locate the `slug` binary.
 3. Add it to your `PATH` and set `SLUG_HOME` (see Local setup below).
 
@@ -27,8 +27,8 @@ What these do:
 If you have Go installed:
 
 ```shell
-git clone https://github.com/babyman/slug-lang.git
-cd slug-lang
+git clone https://github.com/sluglang/slug.git
+cd slug
 make build
 ```
 
@@ -59,5 +59,5 @@ If something is not working, check these first:
 ## Sublime Text syntax highlighting
 
 If you use [Sublime Text](https://www.sublimetext.com/3), install
-[Slug Syntax Highlighting](https://github.com/babyman/slug-lang/tree/master/extras/Slug.sublime-package) by
+[Slug Syntax Highlighting](https://github.com/sluglang/slug/tree/master/extras/Slug.sublime-package) by
 placing the package in your `Packages/User` directory.

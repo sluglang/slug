@@ -47,7 +47,7 @@ navbar:
     - title: ADRs
       url: /adr/
     - title: GitHub
-      url: https://github.com/babyman/slug-lang/
+      url: https://github.com/sluglang
 
 footer:
   links:
@@ -56,7 +56,7 @@ footer:
       url: "./atom.xml"
     - label: "GitHub"
       icon: "fab fa-github"
-      url: https://github.com/babyman/slug-lang/
+      url: https://github.com/sluglang
 
 collections:
   adr:

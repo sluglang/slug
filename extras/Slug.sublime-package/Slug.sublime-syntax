@@ -16,7 +16,7 @@
 # - Bitwise operations
 # - Annotations via @tag syntax
 #
-# For more information, see: https://github.com/babyman/slug
+# For more information, see: https://github.com/sluglang
 #
 name: Slug
 file_extensions:

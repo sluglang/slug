@@ -3,11 +3,11 @@ Slug
 
 A small, opinionated programming language with a functional core, explicit control flow, and structured concurrency.
 
-[![build-test-tag-and-release](https://github.com/babyman/slug-lang/actions/workflows/build-test-tag-and-release.yml/badge.svg)](https://github.com/babyman/slug-lang/actions/workflows/build-test-tag-and-release.yml)
+[![build-test-tag-and-release](https://github.com/sluglang/slug/actions/workflows/build-test-tag-and-release.yml/badge.svg)](https://github.com/sluglang/slug/actions/workflows/build-test-tag-and-release.yml)
 
-[![GitHub watchers](https://img.shields.io/github/watchers/babyman/slug-lang.svg?style=social&label=Watch)](https://GitHub.com/babyman/slug-lang/watchers)
-[![GitHub forks](https://img.shields.io/github/forks/babyman/slug-lang.svg?style=social&label=Fork)](https://GitHub.com/babyman/slug-lang/fork)
-[![GitHub stars](https://img.shields.io/github/stars/babyman/slug-lang?style=social&label=Star)](https://GitHub.com/babyman/slug-lang/stargazers)
+[![GitHub watchers](https://img.shields.io/github/watchers/babyman/slug-lang.svg?style=social&label=Watch)](https://github.com/sluglang/slug/watchers)
+[![GitHub forks](https://img.shields.io/github/forks/babyman/slug-lang.svg?style=social&label=Fork)](https://github.com/sluglang/slug/fork)
+[![GitHub stars](https://img.shields.io/github/stars/babyman/slug-lang?style=social&label=Star)](https://github.com/sluglang/slug/stargazers)
 
 ## Overview
 
@@ -70,7 +70,7 @@ features stabilize.
 Build from source with Go installed:
 
 ```shell
-git clone https://github.com/babyman/slug-lang.git
+git clone https://github.com/sluglang/slug.git
 cd slug-lang
 make build
 ```
