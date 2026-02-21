@@ -196,11 +196,7 @@ func RenderASTAsText(node ast.Node, indent int) string {
 		return fmt.Sprintf("%s {%s}", RenderASTAsText(n.Schema, 0), strings.Join(fields, ", "))
 
 	case *ast.StructCopyExpression:
-		fields := []string{}
-		for _, f := range n.Fields {
-			fields = append(fields, fmt.Sprintf("%s: %s", f.Name, RenderASTAsText(f.Value, 0)))
-		}
-		return fmt.Sprintf("%s copy {%s}", RenderASTAsText(n.Source, 0), strings.Join(fields, ", "))
+		return fmt.Sprintf("%s copy %s", RenderASTAsText(n.Source, 0), RenderASTAsText(n.Fields, 0))
 
 	case *ast.WildcardPattern:
 		return "_"

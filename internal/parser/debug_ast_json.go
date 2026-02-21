@@ -238,18 +238,11 @@ func WalkAST(node ast.Node) interface{} {
 		}
 
 	case *ast.StructCopyExpression:
-		fields := make([]interface{}, len(n.Fields))
-		for i, f := range n.Fields {
-			fields[i] = map[string]interface{}{
-				"name":  f.Name,
-				"value": WalkAST(f.Value),
-			}
-		}
 		return map[string]interface{}{
 			"type":   "StructCopyExpression",
 			"token":  n.TokenLiteral(),
 			"source": WalkAST(n.Source),
-			"fields": fields,
+			"fields": WalkAST(n.Fields),
 		}
 
 	case *ast.IndexExpression:

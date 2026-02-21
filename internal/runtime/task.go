@@ -1653,21 +1653,33 @@ func (e *Task) evalStructCopyExpression(node *ast.StructCopyExpression) object.O
 		values[name] = value
 	}
 
-	seen := make(map[string]struct{}, len(node.Fields))
-	for _, field := range node.Fields {
-		if _, ok := seen[field.Name]; ok {
-			return e.newErrorfWithPos(field.Token.Position, "duplicate field '%s' in struct copy", field.Name)
-		}
-		seen[field.Name] = struct{}{}
+	switch inputData := e.Eval(node.Fields).(type) {
+	case *object.Map:
+		seen := make(map[string]struct{}, len(inputData.Pairs))
+		for _, value := range inputData.Pairs {
+			k := ""
+			switch key := value.Key.(type) {
+			case *object.Symbol:
+				k = key.Name
+			default:
+				k = key.Inspect()
+			}
+			if _, ok := seen[k]; ok {
+				return e.newErrorfWithPos(node.Token.Position, "duplicate field '%s' in struct copy", k)
+			}
+			seen[k] = struct{}{}
 
-		if _, ok := structVal.Schema.FieldIndex[field.Name]; !ok {
-			return e.newErrorfWithPos(field.Token.Position, "unknown field '%s' for struct %s", field.Name, e.structSchemaName(structVal.Schema))
+			if _, ok := structVal.Schema.FieldIndex[k]; !ok {
+				return e.newErrorfWithPos(node.Token.Position, "unknown field '%s' for struct %s", k, e.structSchemaName(structVal.Schema))
+			}
+			val := value.Value
+			if e.isError(val) {
+				return val
+			}
+			values[k] = val
 		}
-		val := e.Eval(field.Value)
-		if e.isError(val) {
-			return val
-		}
-		values[field.Name] = val
+	default:
+		return e.newErrorfWithPos(node.Token.Position, "copy expects a map for data, got %s", inputData.Type())
 	}
 
 	if err := e.validateStructHints(node.Token.Position, structVal.Schema, values); err != nil {

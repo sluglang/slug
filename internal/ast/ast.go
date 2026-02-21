@@ -664,7 +664,7 @@ func (si *StructInitExpression) String() string {
 type StructCopyExpression struct {
 	Token  token.Token // the 'copy' token
 	Source Expression
-	Fields []*StructInitField
+	Fields Expression
 }
 
 func (sc *StructCopyExpression) expressionNode()      {}
@@ -672,13 +672,8 @@ func (sc *StructCopyExpression) TokenLiteral() string { return sc.Token.Literal 
 func (sc *StructCopyExpression) String() string {
 	var out bytes.Buffer
 	out.WriteString(sc.Source.String())
-	out.WriteString(" copy {")
-	parts := []string{}
-	for _, f := range sc.Fields {
-		parts = append(parts, f.String())
-	}
-	out.WriteString(strings.Join(parts, ", "))
-	out.WriteString("}")
+	out.WriteString(" copy ")
+	out.WriteString(sc.Fields.String())
 	return out.String()
 }
 

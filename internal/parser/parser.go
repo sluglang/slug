@@ -2138,15 +2138,9 @@ func (p *Parser) parseStructInitExpression(left ast.Expression) ast.Expression {
 
 func (p *Parser) parseStructCopyExpression(left ast.Expression) ast.Expression {
 	copyExpr := &ast.StructCopyExpression{Token: p.curToken, Source: left}
-	if !p.expectPeek(token.LBRACE) {
-		return nil
-	}
-
-	fields := p.parseStructInitFields()
-	if fields == nil {
-		return nil
-	}
-	copyExpr.Fields = fields
+	precedence := p.curPrecedence()
+	p.nextToken()
+	copyExpr.Fields = p.parseExpression(precedence)
 	return copyExpr
 }
 
@@ -2686,10 +2680,8 @@ func (p *Parser) containsStructSchema(expr ast.Expression) bool {
 		if p.containsStructSchema(e.Source) {
 			return true
 		}
-		for _, field := range e.Fields {
-			if p.containsStructSchema(field.Value) {
-				return true
-			}
+		if p.containsStructSchema(e.Fields) {
+			return true
 		}
 		return false
 	case *ast.FunctionLiteral:
