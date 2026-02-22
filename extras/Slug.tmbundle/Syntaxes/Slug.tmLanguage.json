@@ -62,7 +62,22 @@
         {"name": "keyword.control.slug", "match": "\\b(fn|foreign|match|struct|copy)\\b"},
         {"name": "keyword.control.conditional.slug", "match": "\\b(if|else)\\b"},
         {"name": "keyword.control.flow.slug", "match": "\\b(return|recur|throw|defer|onsuccess|onerror)\\b"},
-        {"name": "keyword.control.concurrent.slug", "match": "\\b(nursery|limit|spawn|select)\\b"},
+        {
+          "name": "meta.nursery-limit.slug",
+          "match": "\\b(nursery)\\s+(limit)\\b",
+          "captures": {
+            "1": {
+              "name": "keyword.control.concurrent.slug"
+            },
+            "2": {
+              "name": "keyword.control.concurrent.slug"
+            }
+          }
+        },
+        {
+          "name": "keyword.control.concurrent.slug",
+          "match": "\\b(nursery|spawn|select)\\b"
+        },
         {"name": "constant.language.boolean.slug", "match": "\\b(true|false)\\b"},
         {"name": "constant.language.nil.slug", "match": "\\bnil\\b"}
       ]
