@@ -121,6 +121,7 @@ var isLower = fn(@str str) {
 @testWith(
 	["slug/test", "/"], ["slug", "test"],
 	["éé|éé", "|"], ["éé", "éé"],
+	["a|b|c", "|", 2], ["a", "b|c"],
 )
 @export
 var split = fn(@str str, @str delimiter, @num max = -1, @num count = 1, @list strs = []) {
@@ -139,7 +140,7 @@ var split = fn(@str str, @str delimiter, @num max = -1, @num count = 1, @list st
 	[["slug", "test"], "."], "slug.test",
 )
 @export
-var join = fn(strs, @str delimiter, @str str = nil) match {
+var join = fn(@list strs, @str delimiter = "", @str str = nil) match {
 	[[], ...] if str == nil => ""
 	[[], ...] => str
 	[[h, ...t], ...] if str == nil => recur(t, delimiter, h)
@@ -176,8 +177,6 @@ var padLeft = fn(@str str, @str with, @num length) {
 	}
 }
 
-var hexDigits= "0123456789abcdef"
-
 @export
 var randomString = fn(length, chars, acc = "") match {
 	[0, ...] => acc
@@ -186,6 +185,76 @@ var randomString = fn(length, chars, acc = "") match {
 
 @export
 var randomHexString = fn(length) {
+	val hexDigits= "0123456789abcdef"
 	randomString(length, hexDigits)
 }
 
+@testWith(
+	['LAST NAME', ' ', true], 'LAST_NAME',
+	['last name', ' ', true], 'LAST_NAME',
+	['LAST NAME'], 'LAST_NAME',
+	['last name'], 'last_name',
+	['l'], 'l',
+	['l n'], 'l_n',
+	['l   n'], 'l___n',
+)
+@export
+var snakeCase = fn(s, sep = ' ', screaming = false) {
+	s
+	/> fn(s) { if(screaming) { toUpper(s) } else { s }}
+	/> split(sep)
+	/> join("_")
+}
+
+@testWith(
+	['LAST NAME'], 'LAST-NAME',
+	['last name'], 'last-name',
+	['l'], 'l',
+	['l n'], 'l-n',
+	['l   n'], 'l---n',
+)
+@export
+var kebabCase = fn(s, sep = ' ') {
+	s
+	/> split(sep)
+	/> join("-")
+}
+
+@testWith(
+	['LAST NAME'], 'LastName',
+	['last name'], 'LastName',
+	['l'], 'L',
+	['l n'], 'LN',
+	['l   n'], 'LN',
+)
+@export
+var pascalCase = fn(s, sep = ' ') {
+	s
+	/> toLower
+	/> split(sep)
+	/> reduce("", fn(a, b) match {
+			_ if len(b) > 0 => a + toUpper(b[0]) + b[1:]
+			_               => a
+		}
+	)
+}
+
+@testWith(
+	['LAST NAME'], 'lastName',
+	['last name'], 'lastName',
+	['l'], 'l',
+	['l n'], 'lN',
+	['l   n'], 'lN',
+)
+@export
+var camelCase = fn(s, sep = ' ') {
+	s
+	/> toLower
+	/> split(sep)
+	/> reduce("", fn(a, b) match {
+			["", ...]       => b
+			_ if len(b) > 0 => a + toUpper(b[0]) + b[1:]
+			_               => a
+		}
+	)
+}
