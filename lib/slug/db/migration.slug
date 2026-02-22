@@ -1,0 +1,205 @@
+var {*} = import(
+	"slug.std",
+	"slug.list",
+	"slug.map",
+	"slug.string",
+	"slug.crypto",
+	"slug.io.db",
+	"slug.io.fs",
+)
+
+val TrackingTableSql = '''
+CREATE TABLE IF NOT EXISTS slug_schema_migrations
+(
+	id         INTEGER PRIMARY KEY,
+	version    VARCHAR(255) NOT NULL,
+	filename   VARCHAR(255) NOT NULL,
+	checksum   VARCHAR(64) NOT NULL,
+	success    BIT NOT NULL DEFAULT 0,
+	applied_at VARCHAR(255) DEFAULT CURRENT_TIMESTAMP
+);
+'''
+
+val TrackingTableIndexSql = '''
+CREATE UNIQUE INDEX idx_slug_schema_migrations_version
+ON slug_schema_migrations (version);
+'''
+
+val DefaultBase = cfg('base-directory', 'db/migrations')
+
+@export
+var Migration = struct {
+	@num id,
+	@str version,
+	@str filename,
+	@str checksum,
+	@bool success,
+	@str appliedAt,
+}
+
+@export
+var status = fn(@num conn, @str base = DefaultBase) {
+	checkTrackingTable(conn)
+	listMigrationFiles(base, fn(m, sql) {
+		defer onerror(err) println(fmtError(m, err))
+		match checkMigrationApplied(conn, m) {
+			true  => println(fmtSuccess(m))
+			false => println(fmtMissing(m))
+		}
+	})
+	conn
+}
+
+@export
+var up = fn(@num conn, @str base = DefaultBase, @str tillVersion = nil) {
+	checkTrackingTable(conn)
+	listMigrationFiles(base, fn(m, sql) {
+			defer onerror(err) {
+				markApplied(conn, m, false)
+				println(fmtError(m, err))
+				throw err
+			}
+			if (checkMigrationApplied(conn, m)) {
+				println(fmtSuccess(m))
+			} else {
+				conn
+				/> applyMigrationSql(sliceUpScript(sql))
+				/> markApplied(m, true)
+				println(fmtApplied(m))
+			}
+		}
+	)
+	conn
+}
+
+@export
+var down = fn(@num conn, @str base = DefaultBase, @num step = 1) {
+	checkTrackingTable(conn)
+	findLatestMigrations(conn, step)
+	/> map(fn(m) {
+		conn
+		/> applyMigrationSql(readDownScript(base + '/' + m.filename))
+		/> deleteMigration(m)
+		println(fmtRollback(m))
+	})
+	conn
+}
+
+var fmtSuccess  = fn(m) { fmt('{} [ EXISTS   ] {}', m.version, m.filename) }
+var fmtApplied  = fn(m) { fmt('{} [ SUCCESS  ] {}', m.version, m.filename) }
+var fmtMissing  = fn(m) { fmt('{} [ MISSING  ] {}', m.version, m.filename) }
+var fmtRollback = fn(m) { fmt('{} [ ROLLBACK ] {}', m.version, m.filename) }
+var fmtError    = fn(m, err) { fmt('{} [ ERROR    ] {}: {}', m.version, m.filename, err.msg) }
+
+var sliceUpScript = fn(@str sql) { sql /> sliceSqlScript('up') }
+
+var readDownScript = fn(@str filepath) { readFile(filepath) /> sliceSqlScript('down') }
+
+var sliceSqlScript = fn(@str sql, @str read) {
+	sql
+	/> split("\n")
+	/> sliceSqlScript
+	/> match {
+		[up, _]   if read == 'up'   => up /> join("\n")
+		[_, down] if read == 'down' => down /> join("\n")
+		_ => ""
+	}
+}
+
+@testWith(
+	[["-- @up", "UP", "-- @down", "DOWN"]], [["-- @up", "UP"], ["-- @down", "DOWN"]],
+	[["-- @down", "DOWN", "-- @up", "UP"]], [["-- @up", "UP"], ["-- @down", "DOWN"]],
+	[["-- @up", "UP", "-- @down", "DOWN", "-- @up", "UP2"]], [["-- @up", "UP", "-- @up", "UP2"], ["-- @down", "DOWN"]],
+)
+var sliceSqlScript = fn(@list strs, readingUp = true, @list up = [], @list down = []) match {
+	[[], ...]                        => [up, down]
+	[[h, ...t], ...] if startUp(h)   => recur(t, true, up :+ h, down)
+	[[h, ...t], ...] if startDown(h) => recur(t, false, up, down :+ h)
+	[[h, ...t], true, ...]           => recur(t, readingUp, up :+ h, down)
+	[[h, ...t], false, ...]          => recur(t, readingUp, up, down :+ h)
+}
+
+var startUp = fn(str) { startTag(str, '@up') }
+
+var startDown = fn(str) { startTag(str, '@down') }
+
+@testWith(
+	['  -- @up  ', '@up'], true,
+	['-- @up', '@up'], true,
+	['-- @DOWN', '@down'], true,
+	['; -- @down', '@down'], false,
+	['@down', '@down'], false,
+	['', '@down'], false,
+)
+var startTag = fn(str, tag) { str /> trim /> startsWith('--') && str /> toLower /> contains(tag) }
+
+var checkTrackingTable = fn(conn) {
+	match exec(conn, TrackingTableSql) {
+		{rowsAffected} if rowsAffected > 0 => exec(conn, TrackingTableIndexSql)
+	}
+}
+
+var applyMigrationSql = fn(conn, sql) {
+	exec(conn, sql)
+	conn
+}
+
+var listMigrationFiles = fn(@str base, @fn f = fn(migration, sql) { migration }) {
+	var baseLen = len(base)
+	listFilesRecursive([base], fn(s) { s[-4:] == '.sql' })
+	/> sort
+	/> map(fn(path) {
+		var sql = readFile(path)
+		var filename = path[baseLen:]
+		var version = filename
+			/> replaceAll('/', ' ')
+			/> trim
+			/> split('__', 2)
+			/> match {
+				[a, _] => replaceAll(a, ' ', '.')
+				_ => throw Error{type: 'Migration', msg: filename + " must contain `<version>__<description>.sql` "}
+			}
+		var m = Migration {
+			version: version,
+			filename: filename,
+			checksum: sha256(sql),
+		}
+		f(m, sql)
+	})
+}
+
+var markApplied = fn(conn, @struct(Migration) m, @bool success) {
+	conn /> exec('insert into slug_schema_migrations (version, filename, checksum, success)'
+		+ 'values (?, ?, ?, ?)', m.version, m.filename, m.checksum, success)
+}
+
+var deleteMigration = fn(conn, @struct(Migration) m) {
+	conn /> exec('delete from slug_schema_migrations where version = ?', m.version)
+}
+
+var findLatestMigrations = fn(conn, @num limit = 1_000_000) {
+	conn /> query('select * from slug_schema_migrations order by version desc limit ?', limit)
+	/> map(fn(v) {
+		val data = v /> keys /> reduce({}, fn(a, k) {
+			put(a, sym(camelCase(k, '_')), v[k])
+		})
+		Migration{} copy data
+	})
+}
+
+var checkMigrationApplied = fn(conn, @struct(Migration) m) {
+	conn /> query('select * from slug_schema_migrations where version = ?', m.version)
+	/> match {
+		[] => false
+		[v] => {
+			if (v['checksum'] != m.checksum) {
+				throw Error{type: 'Migration', msg: "checksum mismatch", data: m}
+			} else if (!v['success']) {
+				throw Error{type: 'Migration', msg: "script failed", data: m}
+			} else {
+				true
+			}
+		}
+	}
+}
+
