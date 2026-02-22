@@ -91,7 +91,6 @@ const (
 	STRUCT    = "STRUCT"
 	COPY      = "COPY"
 	NURSERY   = "NURSERY"
-	LIMIT     = "LIMIT"
 	SPAWN     = "SPAWN"
 	SELECT    = "SELECT"
 )
@@ -131,7 +130,6 @@ var keywords = map[string]TokenType{
 
 	// concurrency
 	"nursery": NURSERY,
-	"limit":   LIMIT,
 	"spawn":   SPAWN,
 	"select":  SELECT,
 }

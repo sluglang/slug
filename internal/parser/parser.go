@@ -589,8 +589,7 @@ func tokenIsSymbolName(t token.TokenType) bool {
 		token.STRUCT,
 		token.COPY,
 		token.NURSERY,
-		token.SPAWN,
-		token.LIMIT:
+		token.SPAWN:
 		return true
 	default:
 		return false
@@ -1721,7 +1720,7 @@ func (p *Parser) parseNurseryExpression() ast.Expression {
 
 	p.nextToken()
 
-	if p.curTokenIs(token.LIMIT) {
+	if p.curToken.Type == token.IDENT && p.curToken.Literal == "limit" {
 		p.nextToken()
 		limit = p.parseExpression(LOWEST)
 		p.nextToken()
