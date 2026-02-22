@@ -6,6 +6,7 @@ import (
 	"slug/internal/dec64"
 	"slug/internal/object"
 	"strconv"
+	"strings"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -79,7 +80,7 @@ func fnIoDbQuery() *object.Foreign {
 			}
 			defer rows.Close()
 
-			return renderRows(rows)
+			return renderRows(ctx, rows)
 		},
 	}
 }
@@ -220,7 +221,7 @@ func fnIoDbRollback() *object.Foreign {
 	}
 }
 
-func renderRows(rows *sql.Rows) object.Object {
+func renderRows(ctx object.EvaluatorContext, rows *sql.Rows) object.Object {
 	columns, _ := rows.Columns()
 	types, _ := rows.ColumnTypes()
 	var resultRows []object.Object
@@ -240,14 +241,14 @@ func renderRows(rows *sql.Rows) object.Object {
 			if i < len(types) {
 				typeName = types[i].DatabaseTypeName()
 			}
-			rowMap.Put(&object.String{Value: col}, mapValue(values[i], typeName))
+			rowMap.Put(&object.String{Value: col}, mapValue(ctx, values[i], typeName))
 		}
 		resultRows = append(resultRows, rowMap)
 	}
 	return &object.List{Elements: resultRows}
 }
 
-func mapValue(v interface{}, dbType string) object.Object {
+func mapValue(ctx object.EvaluatorContext, v interface{}, dbType string) object.Object {
 	if v == nil {
 		return &object.Nil{}
 	}
@@ -269,9 +270,15 @@ func mapValue(v interface{}, dbType string) object.Object {
 			return &object.String{Value: string(x)}
 		}
 	case string:
-		return &object.String{Value: x}
+		switch dbType {
+		case "BIT":
+			return ctx.NativeBoolToBooleanObject(strings.ToLower(x) == "true" || x == "1")
+		default:
+			// Fallback: if it's valid UTF-8, it's probably a string the driver was being shy about
+			return &object.String{Value: x}
+		}
 	case bool:
-		return &object.Boolean{Value: x}
+		return ctx.NativeBoolToBooleanObject(x)
 	case time.Time:
 		return &object.String{Value: x.Format(time.RFC3339)}
 	default:
