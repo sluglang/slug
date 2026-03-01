@@ -1,0 +1,51 @@
+var {*} = import(
+	"slug.std",
+	"slug.test",
+	"slug.io.db",
+)
+var migrate = import("slug.db.migration")
+
+@test
+var testSimpleMigrationWithRollback = fn() {
+	// 1. Connect to an in-memory database
+	val conn = connect(":memory:", SQLITE_DRIVER)
+	defer close(conn)
+
+	// 2. Run the migrations
+	conn
+	/> migrate.up
+
+	var rows = query(conn, "SELECT name, age FROM users")
+	assertEqual(len(rows), 2)
+
+
+	// 3. Rollback the last migration
+	conn
+	/> migrate.down
+
+	var rows = query(conn, "SELECT name, age FROM users")
+	assertEqual(len(rows), 0)
+}
+
+@test
+var testSimpleQaEnvironmentMigrationWithRollback = fn() {
+	// 1. Connect to an in-memory database
+	val conn = connect(":memory:", SQLITE_DRIVER)
+	defer close(conn)
+
+	// 2. Run the migrations
+	conn
+	/> migrate.up(env=['QA'])
+
+	var rows = query(conn, "SELECT name, age FROM users")
+	assertEqual(len(rows), 4)
+
+
+	// 3. Rollback the last migration
+	conn
+	/> migrate.status
+	/> migrate.down
+
+	var rows = query(conn, "SELECT name, age FROM users")
+	assertEqual(len(rows), 2)
+}

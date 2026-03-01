@@ -3,6 +3,18 @@ var {*} = import(
 )
 
 @testWith(
+	[['k'], {}, 'v'], {k: 'v'},
+	[['k', 'k'], {}, 'v'], {k: {k: 'v'}},
+	[['k', 'k'], {k: {j: 1}}, 'v'], {k: {k: 'v', j: 1}},
+)
+@export
+var putNested = fn(@list keys, @map map, value) match {
+	[[h], ...] => put(map, sym(h), value)
+	[[h, ...t], ...] if map[sym(h)] => put(map, sym(h), putNested(t, map[sym(h)], value))
+	[[h, ...t], ...]                => put(map, sym(h), putNested(t, map, value))
+}
+
+@testWith(
 	[{a: 1, b: 2}, {b: 3, c: 4}], {a: 1, b: 3, c: 4},
 	[{a: 1}, {}], {a: 1},
 	[{}, {a: 1}], {a: 1}

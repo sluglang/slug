@@ -11,12 +11,13 @@ var {*} = import(
 val TrackingTableSql = '''
 CREATE TABLE IF NOT EXISTS slug_schema_migrations
 (
-	id         INTEGER PRIMARY KEY,
-	version    VARCHAR(255) NOT NULL,
-	filename   VARCHAR(255) NOT NULL,
-	checksum   VARCHAR(64) NOT NULL,
-	success    BIT NOT NULL DEFAULT 0,
-	applied_at VARCHAR(255) DEFAULT CURRENT_TIMESTAMP
+	id          INTEGER PRIMARY KEY,
+	version     VARCHAR(255) NOT NULL,
+	environment VARCHAR(255) NULL,
+	filename    VARCHAR(255) NOT NULL,
+	checksum    VARCHAR(64) NOT NULL,
+	success     BIT NOT NULL DEFAULT 0,
+	applied_at  VARCHAR(255) DEFAULT CURRENT_TIMESTAMP
 );
 '''
 
@@ -26,11 +27,13 @@ ON slug_schema_migrations (version);
 '''
 
 val DefaultBase = cfg('base-directory', 'db/migrations')
+val DefaultEnv = cfg('environment', [])
 
 @export
 var Migration = struct {
 	@num id,
 	@str version,
+	@str environment,
 	@str filename,
 	@str checksum,
 	@bool success,
@@ -38,20 +41,27 @@ var Migration = struct {
 }
 
 @export
-var status = fn(@num conn, @str base = DefaultBase) {
+var status = fn(@num conn, @list env = DefaultEnv, @str base = DefaultBase) {
 	checkTrackingTable(conn)
 	listMigrationFiles(base, fn(m, sql) {
 		defer onerror(err) println(fmtError(m, err))
-		match checkMigrationApplied(conn, m) {
-			true  => println(fmtSuccess(m))
-			false => println(fmtMissing(m))
+		if (m.environment == nil || indexOf(env, m.environment) > -1) {
+			match checkMigrationApplied(conn, m) {
+				true  => println(fmtExists(m))
+				false => println(fmtMissing(m))
+			}
+		} else {
+			match checkMigrationApplied(conn, m) {
+				true  => println(fmtExistsIneligible(m))
+				false => println(fmtMissingIneligible(m))
+			}
 		}
 	})
 	conn
 }
 
 @export
-var up = fn(@num conn, @str base = DefaultBase, @str tillVersion = nil) {
+var up = fn(@num conn, @list env = DefaultEnv, @str base = DefaultBase) {
 	checkTrackingTable(conn)
 	listMigrationFiles(base, fn(m, sql) {
 			defer onerror(err) {
@@ -59,13 +69,13 @@ var up = fn(@num conn, @str base = DefaultBase, @str tillVersion = nil) {
 				println(fmtError(m, err))
 				throw err
 			}
-			if (checkMigrationApplied(conn, m)) {
-				println(fmtSuccess(m))
-			} else {
-				conn
-				/> applyMigrationSql(sliceUpScript(sql))
-				/> markApplied(m, true)
-				println(fmtApplied(m))
+			if (m.environment == nil || indexOf(env, m.environment) > -1) {
+				if (!checkMigrationApplied(conn, m)) {
+					conn
+					/> applyMigrationSql(sliceUpScript(sql))
+					/> markApplied(m, true)
+					println(fmtApplied(m))
+				}
 			}
 		}
 	)
@@ -73,7 +83,7 @@ var up = fn(@num conn, @str base = DefaultBase, @str tillVersion = nil) {
 }
 
 @export
-var down = fn(@num conn, @str base = DefaultBase, @num step = 1) {
+var down = fn(@num conn, @num step = 1, @str base = DefaultBase) {
 	checkTrackingTable(conn)
 	findLatestMigrations(conn, step)
 	/> map(fn(m) {
@@ -85,11 +95,17 @@ var down = fn(@num conn, @str base = DefaultBase, @num step = 1) {
 	conn
 }
 
-var fmtSuccess  = fn(m) { fmt('{} [ EXISTS   ] {}', m.version, m.filename) }
-var fmtApplied  = fn(m) { fmt('{} [ SUCCESS  ] {}', m.version, m.filename) }
-var fmtMissing  = fn(m) { fmt('{} [ MISSING  ] {}', m.version, m.filename) }
-var fmtRollback = fn(m) { fmt('{} [ ROLLBACK ] {}', m.version, m.filename) }
-var fmtError    = fn(m, err) { fmt('{} [ ERROR    ] {}: {}', m.version, m.filename, err.msg) }
+var fmtEnv = fn(s) match {
+	nil => ''
+	_ => s + ': '
+}
+var fmtExists            = fn(m) { fmt('{} [ APPLIED    ] {}{}', m.version, fmtEnv(m.environment), m.filename) }
+var fmtApplied           = fn(m) { fmt('{} [ SUCCESS    ] {}{}', m.version, fmtEnv(m.environment), m.filename) }
+var fmtMissing           = fn(m) { fmt('{} [ MISSING    ] {}{}', m.version, fmtEnv(m.environment), m.filename) }
+var fmtExistsIneligible  = fn(m) { fmt('{} [ INELIGIBLE ] {}{} - WARNING this migration has been applied in an ineligible environment', m.version, fmtEnv(m.environment), m.filename) }
+var fmtMissingIneligible = fn(m) { fmt('{} [ INELIGIBLE ] {}{}', m.version, fmtEnv(m.environment), m.filename) }
+var fmtRollback          = fn(m) { fmt('{} [ ROLLBACK   ] {}{}', m.version, fmtEnv(m.environment), m.filename) }
+var fmtError        = fn(m, err) { fmt('{} [ ERROR      ] {}{}: {}', m.version, fmtEnv(m.environment), m.filename, err.msg) }
 
 var sliceUpScript = fn(@str sql) { sql /> sliceSqlScript('up') }
 
@@ -151,16 +167,18 @@ var listMigrationFiles = fn(@str base, @fn f = fn(migration, sql) { migration })
 	/> map(fn(path) {
 		var sql = readFile(path)
 		var filename = path[baseLen:]
-		var version = filename
-			/> replaceAll('/', ' ')
-			/> trim
-			/> split('__', 2)
-			/> match {
-				[a, _] => replaceAll(a, ' ', '.')
-				_ => throw Error{type: 'Migration', msg: filename + " must contain `<version>__<description>.sql` "}
-			}
+		var [version, env] = filename
+		/> replaceAll('/', ' ')
+		/> trim
+		/> split('__', 3)
+		/> match {
+			[a, env, _] => [replaceAll(a, ' ', '.'), trim(env)];
+			[a, _] => [replaceAll(a, ' ', '.'), nil];
+			_ => throw Error{type: 'Migration', msg: filename + " must be in the form `<version>__<environment>__<description>.sql` "}
+		}
 		var m = Migration {
 			version: version,
+			environment: env,
 			filename: filename,
 			checksum: sha256(sql),
 		}
@@ -169,8 +187,8 @@ var listMigrationFiles = fn(@str base, @fn f = fn(migration, sql) { migration })
 }
 
 var markApplied = fn(conn, @struct(Migration) m, @bool success) {
-	conn /> exec('insert into slug_schema_migrations (version, filename, checksum, success)'
-		+ 'values (?, ?, ?, ?)', m.version, m.filename, m.checksum, success)
+	conn /> exec('insert into slug_schema_migrations (version, environment, filename, checksum, success)'
+		+ 'values (?, ?, ?, ?, ?)', m.version, m.environment, m.filename, m.checksum, success)
 }
 
 var deleteMigration = fn(conn, @struct(Migration) m) {
@@ -188,7 +206,8 @@ var findLatestMigrations = fn(conn, @num limit = 1_000_000) {
 }
 
 var checkMigrationApplied = fn(conn, @struct(Migration) m) {
-	conn /> query('select * from slug_schema_migrations where version = ?', m.version)
+	conn
+	/> query('select * from slug_schema_migrations where version = ?', m.version)
 	/> match {
 		[] => false
 		[v] => {

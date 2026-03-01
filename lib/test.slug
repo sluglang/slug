@@ -65,7 +65,7 @@ var runTestFn = fn(f, name, stats) {
 				stats /> compute(:fail, fn(k, v) { v + 1})
 			}
 			{type} => {
-				println("  [{{Fail}}ERROR{{Reset}}] {{name}}() threw {{type}}")
+				println("  [{{Fail}}ERROR{{Reset}}] {{name}}() threw {{err}}")
 				stats /> compute(:error, fn(k, v) { v + 1})
 			}
 			_ => {
@@ -194,7 +194,7 @@ Options
  --verbose      Show both pass and fail tests
 ''' /> println
 } else {
-	if(len(argv()) > 0) {
-		run({run:0, fail:0, error:0}, ...argv())
+	if(len(args.positional) > 0) {
+		run({run:0, fail:0, error:0}, ...args.positional)
 	}
 }

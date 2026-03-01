@@ -1,0 +1,61 @@
+var {*} = import(
+	'slug.std',
+	'slug.io.db',
+)
+var migrate = import('slug.db.migration')
+
+var args = argm()
+
+if(args.options.v || args.options.version) {
+'''
+slug migrate v1.0.0
+''' /> println
+} else if(args.options.h || args.options.help) {
+'''
+Slug Migrate
+
+Usage:
+  slug migrate [options] [--] [up|down|status]
+
+Options
+ -h --help      Show this screen.
+ -v --version   Show version.
+ --db           The database connections string.
+ --driver       The database driver, one of the supported drivers defined in slug.io.db
+ --env          The environments to include, multiple values are supported.
+ --step         Number of scripts to rollback with the down command.
+''' /> println
+} else {
+
+	val driver = match args.options.driver {
+		^MYSQL_DRIVER  => MYSQL_DRIVER
+		^PGSQL_DRIVER  => PGSQL_DRIVER
+		_ => SQLITE_DRIVER
+	}
+
+	val connectionString = args.options.db
+
+	var env = match args.options.env {
+		nil => []
+		lst@[...] => lst
+		v => [v]
+	}
+
+	var step = match args.options.step {
+		nil => 1
+		v => toNumber(v)
+	}
+
+	val conn = connect(connectionString, driver)
+	defer db.close(conn)
+
+	if (len(args.positional) > 0) {
+		match args.positional[0] {
+			'up' => migrate.up(conn, env = env)
+			'down' => migrate.down(conn, step)
+			_ => migrate.status(conn, env = env)
+		}
+	} else {
+		migrate.status(conn, env = env)
+	}
+}
