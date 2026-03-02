@@ -18,4 +18,7 @@ foreign searchScopeTags = fn(@str tag)
 foreign docs = fn(value)
 
 @export
+foreign describe = fn(value)
+
+@export
 foreign moduleDocs = fn(@str module)

@@ -1,0 +1,72 @@
+var {*} = import(
+    "slug.meta",
+    "slug.std",
+    "slug.test",
+)
+
+/**
+ * describe should surface docs from bindings.
+ */
+val docValue = 7
+
+@custom
+val tagged = 1
+
+var taggedInfo = describe(tagged)
+taggedInfo[:type] /> assertEqual(:num)
+taggedInfo[:docs] /> assertEqual("")
+taggedInfo[:tags] /> assertEqual(["@custom"])
+taggedInfo[:details] /> assertEqual({})
+
+describe(docValue)[:docs] /> assertEqual("describe should surface docs from bindings.")
+
+var f = fn(@str name, @num count = 1) { count }
+var fInfo = describe(f)
+fInfo[:type] /> assertEqual(:fn)
+fInfo[:details][:foreign] /> assertEqual(false)
+fInfo[:details][:arityMin] /> assertEqual(1)
+fInfo[:details][:arityMax] /> assertEqual(2)
+fInfo[:details][:vargs] /> assertEqual(false)
+
+var params = fInfo[:details][:params]
+params[0][:name] /> assertEqual("name")
+params[0][:tags] /> assertEqual(["@str"])
+params[0][:hasDefault] /> assertEqual(false)
+params[1][:name] /> assertEqual("count")
+params[1][:tags] /> assertEqual(["@num"])
+params[1][:hasDefault] /> assertEqual(true)
+
+val User = struct {
+    name,
+    @num age = 0,
+}
+
+var u = User {
+    name: "Slug",
+    age: 3,
+}
+
+var sInfo = describe(u)
+sInfo[:type] /> assertEqual(:struct)
+sInfo[:details][:structType] /> assertEqual(:User)
+sInfo[:details][:fieldCount] /> assertEqual(2)
+
+var fields = sInfo[:details][:fields]
+fields[0][:name] /> assertEqual("name")
+fields[0][:tags] /> assertEqual([])
+fields[0][:hasDefault] /> assertEqual(false)
+fields[1][:name] /> assertEqual("age")
+fields[1][:tags] /> assertEqual(["@num"])
+fields[1][:hasDefault] /> assertEqual(true)
+
+var x = fn(@num a, ...args) {
+	len(args)
+}
+
+var x = fn(@str a, ...args) {
+	len(args)
+}
+
+var xInfo = describe(x)
+xInfo.type /> assertEqual(:grp)
+xInfo.details.groups /> len /> assertEqual(2)

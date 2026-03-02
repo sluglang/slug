@@ -25,12 +25,15 @@ val ParseResult = struct {
 	[false], "false",
 	[nil], "null",
 	[[1, 2, 3]], "[1,2,3]",
+	[{:type: :fn, :age: 30}], "{\"age\":30,\"type\":\"fn\"}",
+	[{:name: "Alice", :age: 30}], "{\"age\":30,\"name\":\"Alice\"}",
 	[{"name": "Alice", "age": 30}], "{\"age\":30,\"name\":\"Alice\"}",
 )
 @export
 var encode = fn(v) {
 	match (type(v)) {
 		^STRING_TYPE  => encodeString(v)
+		^SYMBOL_TYPE  => encodeSymbol(v)
 		^NUMBER_TYPE  => encodeNumber(v)
 		^BOOLEAN_TYPE => encodeBool(v)
 		^NIL_TYPE     => "null"
@@ -41,9 +44,11 @@ var encode = fn(v) {
 }
 
 @testWith(
-	[{"name": "Alice", "age": 30}, 2], "{\n  \"age\": 30,\n  \"name\": \"Alice\"\n}",
-	[[1, 2, 3], 4], "[\n    1,\n    2,\n    3\n]",
 	["hello", 2], "\"hello\"",
+	[[1, 2, 3], 4], "[\n    1,\n    2,\n    3\n]",
+	[{:type: :fn, :age: 30}, 2], "{\n  \"age\": 30,\n  \"type\": \"fn\"\n}",
+	[{:name: "Alice", :age: 30}, 2], "{\n  \"age\": 30,\n  \"name\": \"Alice\"\n}",
+	[{"name": "Alice", "age": 30}, 2], "{\n  \"age\": 30,\n  \"name\": \"Alice\"\n}",
 )
 @export
 var pretty = fn(v, @num indent = 2) {
@@ -86,6 +91,10 @@ var encodeString = fn(@str s) {
 	"\"" + escaped + "\""
 }
 
+var encodeSymbol = fn(s) {
+	encodeString(label(s))
+}
+
 var encodeNumber = fn(@num n) {
 	toString(n)
 }
@@ -106,25 +115,21 @@ var encodeListItems = fn(@list lst, @str acc) match {
 }
 
 var encodeObject = fn(@map m) {
-	var keys = m /> keys /> sort
-	"{" + encodeObjectPairs(keys, m, "") + "}"
+	var pairs = sortedObjectPairs(m)
+	"{" + encodeObjectPairs(pairs, m, "") + "}"
 }
 
-var encodeObjectPairs = fn(@list keys, @map m, @str acc) match {
+var encodeObjectPairs = fn(@list pairs, @map m, @str acc) match {
 	[[], ...] => acc
-	[[k], ...] => {
-		if (type(k) != STRING_TYPE) {
-			error("json: map keys must be strings, got: " + type(k))
-		} else {
-			acc + encodeString(k) + ":" + encode(m[k])
-		}
+	[[p], ...] => {
+		var keyStr = p[0]
+		var key = p[1]
+		acc + encodeString(keyStr) + ":" + encode(m[key])
 	}
-	[[k, ...rest], ...] => {
-		if (type(k) != STRING_TYPE) {
-			error("json: map keys must be strings, got: " + type(k))
-		} else {
-			recur(rest, m, acc + encodeString(k) + ":" + encode(m[k]) + ",")
-		}
+	[[p, ...rest], ...] => {
+		var keyStr = p[0]
+		var key = p[1]
+		recur(rest, m, acc + encodeString(keyStr) + ":" + encode(m[key]) + ",")
 	}
 }
 
@@ -135,6 +140,7 @@ var encodeObjectPairs = fn(@list keys, @map m, @str acc) match {
 var prettyPrint = fn(v, @num indent, @num depth) {
 	match (type(v)) {
 		^STRING_TYPE  => encodeString(v)
+		^SYMBOL_TYPE  => encodeSymbol(v)
 		^NUMBER_TYPE  => encodeNumber(v)
 		^BOOLEAN_TYPE => encodeBool(v)
 		^NIL_TYPE     => "null"
@@ -161,39 +167,52 @@ var prettyListItems = fn(@list lst, @num indent, @num depth, @str indentStr, @st
 }
 
 var prettyObject = fn(@map m, @num indent, @num depth) {
-	var keys = m /> keys /> sort
-	if (len(keys) == 0) {
+	var pairs = sortedObjectPairs(m)
+	if (len(pairs) == 0) {
 		"{}"
 	} else {
 		var innerIndent = makeIndent(indent, depth + 1)
 		var outerIndent = makeIndent(indent, depth)
-		"{\n" + prettyObjectPairs(keys, m, indent, depth + 1, innerIndent, "") + "\n" + outerIndent + "}"
+		"{\n" + prettyObjectPairs(pairs, m, indent, depth + 1, innerIndent, "") + "\n" + outerIndent + "}"
 	}
 }
 
-var prettyObjectPairs = fn(@list keys, @map m, @num indent, @num depth, @str indentStr, @str acc) {
-	match keys {
+var prettyObjectPairs = fn(@list pairs, @map m, @num indent, @num depth, @str indentStr, @str acc) {
+	match pairs {
 		[] => acc
-		[k] => {
-			if (type(k) != STRING_TYPE) {
-				error("json: map keys must be strings, got: " + type(k))
-			} else {
-				acc + indentStr + encodeString(k) + ": " + prettyPrint(m[k], indent, depth)
-			}
+		[p] => {
+			var keyStr = p[0]
+			var key = p[1]
+			acc + indentStr + encodeString(keyStr) + ": " + prettyPrint(m[key], indent, depth)
 		}
-		[k, ...rest] => {
-			if (type(k) != STRING_TYPE) {
-				error("json: map keys must be strings, got: " + type(k))
-			} else {
-				recur(rest, m, indent, depth, indentStr,
-					acc + indentStr + encodeString(k) + ": " + prettyPrint(m[k], indent, depth) + ",\n")
-			}
+		[p, ...rest] => {
+			var keyStr = p[0]
+			var key = p[1]
+			recur(rest, m, indent, depth, indentStr,
+				acc + indentStr + encodeString(keyStr) + ": " + prettyPrint(m[key], indent, depth) + ",\n")
 		}
 	}
 }
 
 var makeIndent = fn(@num spaces, @num depth) {
 	" " * spaces * depth
+}
+
+var keyToString = fn(k) {
+	match (type(k)) {
+		^STRING_TYPE => k
+		^SYMBOL_TYPE => label(k)
+		_ => error("json: map keys must be strings or symbols, got: " + type(k))
+	}
+}
+
+var sortedObjectPairs = fn(@map m) {
+	var pairs = m /> keys /> map(fn(k) {
+		[keyToString(k), k]
+	})
+	sortWithComparator(pairs, fn(a, b) {
+		compare(a[0], b[0])
+	})
 }
 
 // ===========================

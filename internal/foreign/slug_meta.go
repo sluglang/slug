@@ -2,6 +2,11 @@ package foreign
 
 import (
 	"log/slog"
+	"sort"
+	"strings"
+
+	"slug/internal/ast"
+	"slug/internal/dec64"
 	"slug/internal/object"
 )
 
@@ -206,6 +211,319 @@ func fnMetaModuleDocs() *object.Foreign {
 			return &object.String{Value: module.Doc}
 		},
 	}
+}
+
+func fnMetaDescribe() *object.Foreign {
+	return &object.Foreign{
+		Name: "describe",
+		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+			if len(args) != 1 {
+				return ctx.NewError("describe expects exactly 1 argument: value")
+			}
+
+			original := args[0]
+			resolved := original
+			if ref, ok := original.(*object.BindingRef); ok {
+				if val, ok := resolveBindingValue(ref); ok {
+					resolved = val
+				}
+			}
+
+			result := &object.Map{}
+			result.Put(object.InternSymbol("type"), object.InternSymbol(describeType(resolved)))
+			result.Put(object.InternSymbol("docs"), &object.String{Value: describeDocs(ctx, original)})
+			result.Put(object.InternSymbol("tags"), describeTags(resolved))
+			result.Put(object.InternSymbol("details"), describeDetails(resolved))
+			return result
+		},
+	}
+}
+
+func describeType(value object.Object) string {
+	if value == nil {
+		return "nil"
+	}
+
+	switch value.Type() {
+	case object.NIL_OBJ:
+		return "nil"
+	case object.BOOLEAN_OBJ:
+		return "bool"
+	case object.NUMBER_OBJ:
+		return "num"
+	case object.STRING_OBJ:
+		return "str"
+	case object.BYTE_OBJ:
+		return "bytes"
+	case object.SYMBOL_OBJ:
+		return "sym"
+	case object.LIST_OBJ:
+		return "list"
+	case object.MAP_OBJ:
+		return "map"
+	case object.STRUCT_SCHEMA_OBJ, object.STRUCT_OBJ:
+		return "struct"
+	case object.MODULE_OBJ:
+		return "module"
+	case object.FUNCTION_OBJ, object.FUNCTION_GROUP_OBJ, object.FOREIGN_OBJ:
+		if fg, ok := value.(*object.FunctionGroup); ok {
+			if fg == nil || len(fg.Functions) <= 1 {
+				return "fn"
+			}
+			return "grp"
+		}
+		return "fn"
+	case object.CHANNEL_OBJ:
+		return "chan"
+	case object.TASK_HANDLE_OBJ:
+		return "task"
+	case object.ERROR_OBJ:
+		return "error"
+	default:
+		return strings.ToLower(string(value.Type()))
+	}
+}
+
+func describeDocs(ctx object.EvaluatorContext, value object.Object) string {
+	if value == nil {
+		return ""
+	}
+	if doc, ok := findDocForValue(ctx, value); ok {
+		return doc
+	}
+	if mod, ok := value.(*object.Module); ok {
+		if mod.HasDoc {
+			return mod.Doc
+		}
+	}
+	return ""
+}
+
+func describeTags(value object.Object) *object.List {
+	list := &object.List{Elements: []object.Object{}}
+	if value == nil {
+		return list
+	}
+
+	taggable, ok := value.(object.Taggable)
+	if !ok {
+		return list
+	}
+
+	tags := taggable.GetTags()
+	if len(tags) == 0 {
+		return list
+	}
+
+	names := make([]string, 0, len(tags))
+	for name := range tags {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		list.Elements = append(list.Elements, &object.String{Value: name})
+	}
+	return list
+}
+
+func describeDetails(value object.Object) *object.Map {
+	details := &object.Map{}
+	if value == nil {
+		return details
+	}
+
+	switch v := value.(type) {
+	case *object.StructValue:
+		return describeStructDetails(v)
+	case *object.Function:
+		return describeFunctionDetails(false, v.Signature, v.Parameters)
+	case *object.Foreign:
+		return describeFunctionDetails(true, v.Signature, v.Parameters)
+	case *object.FunctionGroup:
+		return describeFunctionGroupDetails(v)
+	case *object.Module:
+		return describeModuleDetails(v)
+	default:
+		return details
+	}
+}
+
+func describeStructDetails(v *object.StructValue) *object.Map {
+	details := &object.Map{}
+
+	structType := "struct"
+	fields := []object.Object{}
+	fieldCount := 0
+
+	if v.Schema != nil {
+		if v.Schema.Name != "" {
+			structType = v.Schema.Name
+		}
+		fieldCount = len(v.Schema.Fields)
+		fields = make([]object.Object, 0, fieldCount)
+		for _, field := range v.Schema.Fields {
+			fieldMap := &object.Map{}
+			fieldMap.Put(object.InternSymbol("name"), &object.String{Value: field.Name})
+			fieldMap.Put(object.InternSymbol("tags"), tagsFromAstTags(field.Tags))
+			fieldMap.Put(object.InternSymbol("hasDefault"), boolObject(field.Default != nil))
+			fields = append(fields, fieldMap)
+		}
+	}
+
+	details.Put(object.InternSymbol("structType"), object.InternSymbol(structType))
+	details.Put(object.InternSymbol("fields"), &object.List{Elements: fields})
+	details.Put(object.InternSymbol("fieldCount"), &object.Number{Value: dec64.FromInt(fieldCount)})
+	return details
+}
+
+func describeFunctionGroupDetails(group *object.FunctionGroup) *object.Map {
+	if group == nil || len(group.Functions) == 0 {
+		return describeFunctionDetails(false, ast.FSig{}, nil)
+	}
+
+	entries := collectFunctionEntries(group.Functions)
+	if len(entries) == 1 {
+		entry := entries[0]
+		return describeFunctionDetails(isForeignFunction(entry.fn), entry.sig, paramsFromFunctionObject(entry.fn))
+	}
+
+	groups := make([]object.Object, 0, len(entries))
+	for _, entry := range entries {
+		fnMap := &object.Map{}
+		fnMap.Put(object.InternSymbol("type"), object.InternSymbol("fn"))
+		if group.HasDoc {
+			fnMap.Put(object.InternSymbol("docs"), &object.String{Value: group.Doc})
+		} else {
+			fnMap.Put(object.InternSymbol("docs"), &object.String{Value: ""})
+		}
+		fnMap.Put(object.InternSymbol("tags"), describeTags(entry.fn))
+		fnMap.Put(object.InternSymbol("details"), describeFunctionDetails(isForeignFunction(entry.fn), entry.sig, paramsFromFunctionObject(entry.fn)))
+		groups = append(groups, fnMap)
+	}
+
+	details := &object.Map{}
+	details.Put(object.InternSymbol("groups"), &object.List{Elements: groups})
+	return details
+}
+
+func collectFunctionEntries(functions map[ast.FSig]object.Object) []functionEntry {
+	entries := make([]functionEntry, 0, len(functions))
+	for sig, fn := range functions {
+		entries = append(entries, functionEntry{sig: sig, fn: fn})
+	}
+
+	sort.Slice(entries, func(i, j int) bool {
+		if entries[i].sig.Min != entries[j].sig.Min {
+			return entries[i].sig.Min < entries[j].sig.Min
+		}
+		if entries[i].sig.Max != entries[j].sig.Max {
+			return entries[i].sig.Max < entries[j].sig.Max
+		}
+		if entries[i].sig.IsVariadic != entries[j].sig.IsVariadic {
+			return !entries[i].sig.IsVariadic
+		}
+		if entries[i].sig.Tags != entries[j].sig.Tags {
+			return entries[i].sig.Tags < entries[j].sig.Tags
+		}
+		return entries[i].fn.Type() < entries[j].fn.Type()
+	})
+	return entries
+}
+
+type functionEntry struct {
+	sig ast.FSig
+	fn  object.Object
+}
+
+func paramsFromFunctionObject(fn object.Object) []*ast.FunctionParameter {
+	switch f := fn.(type) {
+	case *object.Function:
+		return f.Parameters
+	case *object.Foreign:
+		return f.Parameters
+	default:
+		return nil
+	}
+}
+
+func isForeignFunction(fn object.Object) bool {
+	_, ok := fn.(*object.Foreign)
+	return ok
+}
+
+func describeFunctionDetails(isForeign bool, sig ast.FSig, params []*ast.FunctionParameter) *object.Map {
+	details := &object.Map{}
+	details.Put(object.InternSymbol("foreign"), boolObject(isForeign))
+	details.Put(object.InternSymbol("arityMin"), &object.Number{Value: dec64.FromInt(sig.Min)})
+	details.Put(object.InternSymbol("arityMax"), &object.Number{Value: dec64.FromInt(sig.Max)})
+	details.Put(object.InternSymbol("vargs"), boolObject(sig.IsVariadic))
+
+	paramList := &object.List{Elements: []object.Object{}}
+	if len(params) > 0 {
+		paramList.Elements = make([]object.Object, 0, len(params))
+		for _, param := range params {
+			if param == nil || param.Name == nil {
+				continue
+			}
+			paramMap := &object.Map{}
+			paramMap.Put(object.InternSymbol("name"), &object.String{Value: param.Name.Value})
+			paramMap.Put(object.InternSymbol("tags"), tagsFromAstTags(param.Tags))
+			paramMap.Put(object.InternSymbol("hasDefault"), boolObject(param.Default != nil))
+			paramList.Elements = append(paramList.Elements, paramMap)
+		}
+	}
+
+	details.Put(object.InternSymbol("params"), paramList)
+	return details
+}
+
+func describeModuleDetails(module *object.Module) *object.Map {
+	details := &object.Map{}
+	if module == nil || module.Env == nil {
+		details.Put(object.InternSymbol("exports"), &object.List{Elements: []object.Object{}})
+		return details
+	}
+
+	exports := []string{}
+	for name, binding := range module.Env.Bindings {
+		if binding == nil {
+			continue
+		}
+		if binding.Meta.IsExport && !binding.Meta.IsImport {
+			exports = append(exports, name)
+		}
+	}
+	sort.Strings(exports)
+
+	values := make([]object.Object, 0, len(exports))
+	for _, name := range exports {
+		values = append(values, object.InternSymbol(name))
+	}
+
+	details.Put(object.InternSymbol("exports"), &object.List{Elements: values})
+	return details
+}
+
+func tagsFromAstTags(tags []*ast.Tag) *object.List {
+	list := &object.List{Elements: []object.Object{}}
+	if len(tags) == 0 {
+		return list
+	}
+	list.Elements = make([]object.Object, 0, len(tags))
+	for _, tag := range tags {
+		if tag == nil {
+			continue
+		}
+		list.Elements = append(list.Elements, &object.String{Value: tag.String()})
+	}
+	return list
+}
+
+func boolObject(value bool) *object.Boolean {
+	if value {
+		return object.TRUE
+	}
+	return object.FALSE
 }
 
 func hasTag(binding *object.Binding, tagName string) bool {
