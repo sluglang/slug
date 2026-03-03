@@ -2,6 +2,7 @@ var {*} = import(
 	"slug.string",
 	"slug.std",
 	"slug.list",
+	"slug.bytes",
 )
 
 val Token = struct {
@@ -24,6 +25,7 @@ val ParseResult = struct {
 	[true], "true",
 	[false], "false",
 	[nil], "null",
+	[0x"ff"], "\"b64:/w==\"",
 	[[1, 2, 3]], "[1,2,3]",
 	[{:type: :fn, :age: 30}], "{\"age\":30,\"type\":\"fn\"}",
 	[{:name: "Alice", :age: 30}], "{\"age\":30,\"name\":\"Alice\"}",
@@ -34,6 +36,7 @@ var encode = fn(v) {
 	match (type(v)) {
 		^STRING_TYPE  => encodeString(v)
 		^SYMBOL_TYPE  => encodeSymbol(v)
+		^BYTES_TYPE   => encodeBytes(v)
 		^NUMBER_TYPE  => encodeNumber(v)
 		^BOOLEAN_TYPE => encodeBool(v)
 		^NIL_TYPE     => "null"
@@ -46,6 +49,7 @@ var encode = fn(v) {
 @testWith(
 	["hello", 2], "\"hello\"",
 	[[1, 2, 3], 4], "[\n    1,\n    2,\n    3\n]",
+	[0x"ff", 2], "\"b64:/w==\"",
 	[{:type: :fn, :age: 30}, 2], "{\n  \"age\": 30,\n  \"type\": \"fn\"\n}",
 	[{:name: "Alice", :age: 30}, 2], "{\n  \"age\": 30,\n  \"name\": \"Alice\"\n}",
 	[{"name": "Alice", "age": 30}, 2], "{\n  \"age\": 30,\n  \"name\": \"Alice\"\n}",
@@ -62,6 +66,7 @@ var pretty = fn(v, @num indent = 2) {
 	["false"], false,
 	["null"], nil,
 	["[1,2,3]"], [1, 2, 3],
+	["\"b64:Zm9v\""], 0x"666f6f",
 	["{\"name\":\"Alice\",\"age\":30}"], {"name": "Alice", "age": 30},
 )
 @export
@@ -93,6 +98,10 @@ var encodeString = fn(@str s) {
 
 var encodeSymbol = fn(s) {
 	encodeString(label(s))
+}
+
+var encodeBytes = fn(@bytes b) {
+	encodeString("b64:" + base64Encode(b))
 }
 
 var encodeNumber = fn(@num n) {
@@ -141,6 +150,7 @@ var prettyPrint = fn(v, @num indent, @num depth) {
 	match (type(v)) {
 		^STRING_TYPE  => encodeString(v)
 		^SYMBOL_TYPE  => encodeSymbol(v)
+		^BYTES_TYPE   => encodeBytes(v)
 		^NUMBER_TYPE  => encodeNumber(v)
 		^BOOLEAN_TYPE => encodeBool(v)
 		^NIL_TYPE     => "null"
@@ -196,6 +206,14 @@ var prettyObjectPairs = fn(@list pairs, @map m, @num indent, @num depth, @str in
 
 var makeIndent = fn(@num spaces, @num depth) {
 	" " * spaces * depth
+}
+
+var decodeStringValue = fn(@str value) {
+	if (value /> startsWith("b64:")) {
+		base64Decode(value[4:])
+	} else {
+		value
+	}
 }
 
 var keyToString = fn(k) {
@@ -381,7 +399,7 @@ var parseValue = fn(@list tokens, @num idx) {
 		var tokenType = token.type
 
 		match tokenType {
-			"string" => return ParseResult { value: token.value, nextIdx: idx + 1 }
+			"string" => return ParseResult { value: decodeStringValue(token.value), nextIdx: idx + 1 }
 			"number" => return ParseResult { value: token.value, nextIdx: idx + 1 }
 			"true" => return ParseResult { value: true, nextIdx: idx + 1 }
 			"false" => return ParseResult { value: false, nextIdx: idx + 1 }
