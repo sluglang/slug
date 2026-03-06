@@ -299,20 +299,20 @@ func describeDocs(ctx object.EvaluatorContext, value object.Object) string {
 	return ""
 }
 
-func describeTags(value object.Object) *object.List {
-	list := &object.List{Elements: []object.Object{}}
+func describeTags(value object.Object) *object.Map {
+	result := &object.Map{}
 	if value == nil {
-		return list
+		return result
 	}
 
 	taggable, ok := value.(object.Taggable)
 	if !ok {
-		return list
+		return result
 	}
 
 	tags := taggable.GetTags()
 	if len(tags) == 0 {
-		return list
+		return result
 	}
 
 	names := make([]string, 0, len(tags))
@@ -321,9 +321,12 @@ func describeTags(value object.Object) *object.List {
 	}
 	sort.Strings(names)
 	for _, name := range names {
-		list.Elements = append(list.Elements, &object.String{Value: name})
+		params := tags[name]
+		copied := make([]object.Object, len(params.Elements))
+		copy(copied, params.Elements)
+		result.Put(&object.String{Value: name}, &object.List{Elements: copied})
 	}
-	return list
+	return result
 }
 
 func describeDetails(value object.Object) *object.Map {
@@ -335,6 +338,8 @@ func describeDetails(value object.Object) *object.Map {
 	switch v := value.(type) {
 	case *object.StructValue:
 		return describeStructDetails(v)
+	case *object.StructSchema:
+		return describeStructSchemaDetails(v)
 	case *object.Function:
 		return describeFunctionDetails(false, v.Signature, v.Parameters)
 	case *object.Foreign:
@@ -368,6 +373,33 @@ func describeStructDetails(v *object.StructValue) *object.Map {
 			fieldMap.Put(object.InternSymbol("hasDefault"), boolObject(field.Default != nil))
 			fields = append(fields, fieldMap)
 		}
+	}
+
+	details.Put(object.InternSymbol("structType"), object.InternSymbol(structType))
+	details.Put(object.InternSymbol("fields"), &object.List{Elements: fields})
+	details.Put(object.InternSymbol("fieldCount"), &object.Number{Value: dec64.FromInt(fieldCount)})
+	return details
+}
+
+func describeStructSchemaDetails(schema *object.StructSchema) *object.Map {
+	details := &object.Map{}
+	if schema == nil {
+		return details
+	}
+
+	structType := "struct"
+	if schema.Name != "" {
+		structType = schema.Name
+	}
+
+	fieldCount := len(schema.Fields)
+	fields := make([]object.Object, 0, fieldCount)
+	for _, field := range schema.Fields {
+		fieldMap := &object.Map{}
+		fieldMap.Put(object.InternSymbol("name"), &object.String{Value: field.Name})
+		fieldMap.Put(object.InternSymbol("tags"), tagsFromAstTags(field.Tags))
+		fieldMap.Put(object.InternSymbol("hasDefault"), boolObject(field.Default != nil))
+		fields = append(fields, fieldMap)
 	}
 
 	details.Put(object.InternSymbol("structType"), object.InternSymbol(structType))
@@ -456,12 +488,11 @@ func describeFunctionDetails(isForeign bool, sig ast.FSig, params []*ast.Functio
 	details.Put(object.InternSymbol("foreign"), boolObject(isForeign))
 	details.Put(object.InternSymbol("arityMin"), &object.Number{Value: dec64.FromInt(sig.Min)})
 	details.Put(object.InternSymbol("arityMax"), &object.Number{Value: dec64.FromInt(sig.Max)})
-	details.Put(object.InternSymbol("vargs"), boolObject(sig.IsVariadic))
 
 	paramList := &object.List{Elements: []object.Object{}}
 	if len(params) > 0 {
 		paramList.Elements = make([]object.Object, 0, len(params))
-		for _, param := range params {
+		for idx, param := range params {
 			if param == nil || param.Name == nil {
 				continue
 			}
@@ -469,6 +500,11 @@ func describeFunctionDetails(isForeign bool, sig ast.FSig, params []*ast.Functio
 			paramMap.Put(object.InternSymbol("name"), &object.String{Value: param.Name.Value})
 			paramMap.Put(object.InternSymbol("tags"), tagsFromAstTags(param.Tags))
 			paramMap.Put(object.InternSymbol("hasDefault"), boolObject(param.Default != nil))
+			if sig.IsVariadic && idx == len(params)-1 {
+				paramMap.Put(object.InternSymbol("vargs"), object.TRUE)
+			} else {
+				paramMap.Put(object.InternSymbol("vargs"), object.FALSE)
+			}
 			paramList.Elements = append(paramList.Elements, paramMap)
 		}
 	}
@@ -504,19 +540,35 @@ func describeModuleDetails(module *object.Module) *object.Map {
 	return details
 }
 
-func tagsFromAstTags(tags []*ast.Tag) *object.List {
-	list := &object.List{Elements: []object.Object{}}
+func tagsFromAstTags(tags []*ast.Tag) *object.Map {
+	result := &object.Map{}
 	if len(tags) == 0 {
-		return list
+		return result
 	}
-	list.Elements = make([]object.Object, 0, len(tags))
+
+	names := make([]string, 0, len(tags))
 	for _, tag := range tags {
 		if tag == nil {
 			continue
 		}
-		list.Elements = append(list.Elements, &object.String{Value: tag.String()})
+		names = append(names, tag.Name)
 	}
-	return list
+
+	sort.Strings(names)
+	for _, name := range names {
+		var params []object.Object
+		for _, tag := range tags {
+			if tag == nil || tag.Name != name {
+				continue
+			}
+			for _, arg := range tag.Args {
+				params = append(params, &object.String{Value: arg.String()})
+			}
+			break
+		}
+		result.Put(&object.String{Value: name}, &object.List{Elements: params})
+	}
+	return result
 }
 
 func boolObject(value bool) *object.Boolean {

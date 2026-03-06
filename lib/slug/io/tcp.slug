@@ -4,12 +4,14 @@
 // addr: IP address to bind to (string)
 // port: Port number to listen on (integer)
 @export
+@returns('@num')
 foreign bind = fn(@str addr, @num port)
 
 // accept waits for and accepts an incoming TCP connection
 // Returns: connection ID on success, error on failure
 // listener: ID of the TCP listener to accept connections from (integer)
 @export
+@returns('@num')
 foreign accept = fn(@num listener)
 
 // connect establishes a TCP connection to a remote server
@@ -17,6 +19,7 @@ foreign accept = fn(@num listener)
 // addr: Remote IP address to connect to (string)
 // port: Remote port number to connect to (integer)
 @export
+@returns('@num')
 foreign connect = fn(@str addr, @num port)
 
 // read attempts to read up to maxBytes from a TCP stream
@@ -24,6 +27,7 @@ foreign connect = fn(@str addr, @num port)
 // stream: ID of the TCP connection to read from (integer)
 // maxBytes: Maximum number of bytes to read (integer)
 @export
+@returns('@str')
 foreign read = fn(@num stream, @num maxBytes)
 
 // write sends data over a TCP stream
@@ -31,10 +35,12 @@ foreign read = fn(@num stream, @num maxBytes)
 // stream: ID of the TCP connection to write to (integer)
 // data: String data to send
 @export
+@returns('@num')
 foreign write = fn(@num stream, @str data)
 
 // close terminates a TCP listener or connection
 // Returns: nil
 // handle: ID of the TCP listener or connection to close (integer)
 @export
+@returns('@num')
 foreign close = fn(@num handle)

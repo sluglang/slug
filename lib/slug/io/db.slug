@@ -29,22 +29,29 @@
 @export val PGSQL_DRIVER = "postgres";
 
 @export
+@returns('@num')
 foreign connect = fn(@str connectionString, @str driver)
 
 @export
+@returns('@list')
 foreign query = fn(@num connection, @str sql, ...params)
 
 @export
+@returns('@map')
 foreign exec = fn(@num connection, @str sql, ...params)
 
 @export
+@returns('@num')
 foreign begin = fn(@num connection)
 
 @export
+@returns('@num')
 foreign commit = fn(@num connection)
 
 @export
+@returns('@num')
 foreign rollback = fn(@num connection)
 
 @export
+@returns('nil')
 foreign close = fn(@num connection)

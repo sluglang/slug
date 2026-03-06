@@ -4,6 +4,7 @@
     ["hello slug"], 0x"68656c6c6f20736c7567",
 )
 @export
+@returns('@bytes')
 foreign strToBytes = fn(@str s)
 
 
@@ -12,6 +13,7 @@ foreign strToBytes = fn(@str s)
     [0x"68656c6c6f20736c7567"], "hello slug",
 )
 @export
+@returns('@str')
 foreign bytesToStr = fn(@bytes b)
 
 
@@ -21,6 +23,7 @@ foreign bytesToStr = fn(@bytes b)
     ["a8ff04"], 0x"a8ff04",
 )
 @export
+@returns('@bytes')
 foreign hexStrToBytes = fn(@str hex)
 
 
@@ -29,6 +32,7 @@ foreign hexStrToBytes = fn(@str hex)
     [0x"68656c6c6f20736c7567"], "68656c6c6f20736c7567",
 )
 @export
+@returns('@str')
 foreign bytesToHexStr = fn(@bytes b)
 
 
@@ -37,6 +41,7 @@ foreign bytesToHexStr = fn(@bytes b)
     ["aGVsbG8gc2x1Zw=="], 0x"68656c6c6f20736c7567",
 )
 @export
+@returns('@bytes')
 foreign base64Decode = fn(@str s)
 
 
@@ -45,6 +50,7 @@ foreign base64Decode = fn(@str s)
     [0x"68656c6c6f20736c7567"], "aGVsbG8gc2x1Zw==",
 )
 @export
+@returns('@str')
 foreign base64Encode = fn(@bytes b)
 
 
@@ -52,6 +58,7 @@ foreign base64Encode = fn(@bytes b)
     [0x"ff", 3], 0x"ffffff",
 )
 @export
+@returns('@bytes')
 var repeat = fn(@bytes b, @num count, @bytes acc = 0x"") match {
     [_, 0, ...] => acc
     [...] => recur(b, count - 1, acc + b)
@@ -61,6 +68,7 @@ var repeat = fn(@bytes b, @num count, @bytes acc = 0x"") match {
     [0x"a8ff04"], [168, 255, 4],
 )
 @export
+@returns('@list')
 var bytesToNumbers = fn(@bytes b, i = 0, acc = []) match {
     [b, ...] if len(b) == i  => acc
     [b, ...]                 => recur(b, i + 1, acc :+ b[i])

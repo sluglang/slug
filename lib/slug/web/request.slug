@@ -23,6 +23,7 @@ val Request = struct {
 // -------------------------
 
 @export
+@returns('@struct(Request)')
 var request = fn(method, path, version = "HTTP/1.1", headers = {}, body = "") {
     Request {
         method:  method,
@@ -48,6 +49,7 @@ var request = fn(method, path, version = "HTTP/1.1", headers = {}, body = "") {
 // Note: This now only parses the HEADERS and returns metadata.
 // The body is handled by the caller (the server).
 @export
+@returns('[@struct(Request), @str]')
 var parseRequestHeaders = fn(buf) {
     var i = buf /> indexOf("\r\n\r\n")
     if (i < 0) { throw Error { type: "http", msg: "Incomplete headers" } }
@@ -69,6 +71,7 @@ var parseRequestHeaders = fn(buf) {
 }
 
 @export
+@returns('@struct(Request)')
 var withBody = fn(req, body) {
     req copy { body: body } /> parseForm
 }
@@ -78,26 +81,31 @@ var withBody = fn(req, body) {
 // -------------------------
 
 @export
+@returns('@struct(Request)')
 var withPath = fn(req, path) {
     req copy { path: path }
 }
 
 @export
+@returns('@struct(Request)')
 var withQuery = fn(req, query) {
     req copy { query: query }
 }
 
 @export
+@returns('@struct(Request)')
 var withParams = fn(request, @map params) {
   request copy { params: params }
 }
 
 @export
+@returns('@struct(Request)')
 var withoutParam = fn(request, param) {
 	request copy { params: request.params /> remove(param) }
 }
 
 @export
+@returns('@bool')
 var shouldKeepAlive = fn(req) {
     var c = req.headers["connection"]
     match req.version {
@@ -106,7 +114,9 @@ var shouldKeepAlive = fn(req) {
     }
 }
 
-@export var isRequest = fn(x) match { Request { method, path } => true _ => false }
+@export
+@returns('@bool')
+var isRequest = fn(x) match { Request { method, path } => true _ => false }
 
 // -------------------------
 // Internals

@@ -9,6 +9,7 @@ var {*} = import (
 	[" slug "], "slug",
 )
 @export
+@returns('@str')
 foreign trim = fn(@str str)
 
 @testWith(
@@ -19,6 +20,7 @@ foreign trim = fn(@str str)
 	["éé|éé", "|"], 2,
 )
 @export
+@returns('@num')
 foreign indexOf = fn(@str str, @str seq, @num index = 0)
 
 @testWith(
@@ -27,6 +29,7 @@ foreign indexOf = fn(@str str, @str seq, @num index = 0)
 	["hello slug", "g"], 9,
 )
 @export
+@returns('@num')
 var lastIndexOf = fn(@str str, @str seq, @num index = 0, prev = -1) {
 	var i = indexOf(str, seq, index)
 	if ( i == -1) {
@@ -42,6 +45,7 @@ var lastIndexOf = fn(@str str, @str seq, @num index = 0, prev = -1) {
 	["slug"], "SLUG",
 )
 @export
+@returns('@str')
 foreign toUpper = fn(@str str)
 
 @testWith(
@@ -50,6 +54,7 @@ foreign toUpper = fn(@str str)
 	["SLUG"], "slug",
 )
 @export
+@returns('@str')
 foreign toLower = fn(@str str)
 
 @testWith(
@@ -57,6 +62,7 @@ foreign toLower = fn(@str str)
 	["hello slug", "snail"], false,
 )
 @export
+@returns('@bool')
 var contains = fn(@str str, @str seq) {
 	str /> indexOf(seq) >= 0
 }
@@ -66,6 +72,7 @@ var contains = fn(@str str, @str seq) {
 	["hello slug", "hello"], true,
 )
 @export
+@returns('@bool')
 var startsWith = fn(@str str, @str start) {
 	str[0:len(start)] == start
 }
@@ -75,6 +82,7 @@ var startsWith = fn(@str str, @str start) {
 	["hello slug", "hello"], false,
 )
 @export
+@returns('@bool')
 var endsWith = fn(@str str, @str end) {
 	str[len(str) - len(end):] == end
 }
@@ -86,6 +94,7 @@ var endsWith = fn(@str str, @str end) {
 	["SLUG"], true,
 )
 @export
+@returns('@bool')
 var isUpper = fn(@str str) {
 	if (str != nil && len(str) > 0) {
 		str == str /> toUpper()
@@ -101,6 +110,7 @@ var isUpper = fn(@str str) {
 	["SLUG"], false,
 )
 @export
+@returns('@bool')
 var isLower = fn(@str str) {
 	if (str != nil && len(str) > 0) {
 		str == str /> toLower()
@@ -124,6 +134,7 @@ var isLower = fn(@str str) {
 	["a|b|c", "|", 2], ["a", "b|c"],
 )
 @export
+@returns('@list')
 var split = fn(@str str, @str delimiter, @num max = -1, @num count = 1, @list strs = []) {
 	match str /> indexOf(delimiter) {
 		n if n >= 0 && (max < 0 || count < max) => {
@@ -140,6 +151,7 @@ var split = fn(@str str, @str delimiter, @num max = -1, @num count = 1, @list st
 	[["slug", "test"], "."], "slug.test",
 )
 @export
+@returns('@str')
 var join = fn(@list strs, @str delimiter = "", @str str = nil) match {
 	[[], ...] if str == nil => ""
 	[[], ...] => str
@@ -154,12 +166,14 @@ var join = fn(@list strs, @str delimiter = "", @str str = nil) match {
 	["E &amp; S", "&amp;", "&"], "E & S",
 )
 @export
+@returns('@str')
 var replaceAll = fn(@str str, @str replace, @str with) match {
 	[nil, ...] => nil
 	[...] => str /> split(replace) /> join(with)
 }
 
 @export
+@returns('@str')
 var padRight = fn(@str str, @str with, @num length) {
 	if (length <= len(str)) {
 		str
@@ -169,6 +183,7 @@ var padRight = fn(@str str, @str with, @num length) {
 }
 
 @export
+@returns('@str')
 var padLeft = fn(@str str, @str with, @num length) {
 	if (length <= len(str)) {
 		str
@@ -178,13 +193,15 @@ var padLeft = fn(@str str, @str with, @num length) {
 }
 
 @export
-var randomString = fn(length, chars, acc = "") match {
+@returns('@str')
+var randomString = fn(@num length, @str chars, @str acc = "") match {
 	[0, ...] => acc
 	_ => recur(length - 1, chars, acc + chars[rndRange(0, len(chars))])
 }
 
 @export
-var randomHexString = fn(length) {
+@returns('@str')
+var randomHexString = fn(@num length) {
 	val hexDigits= "0123456789abcdef"
 	randomString(length, hexDigits)
 }
@@ -199,7 +216,8 @@ var randomHexString = fn(length) {
 	['l   n'], 'l___n',
 )
 @export
-var snakeCase = fn(s, sep = ' ', screaming = false) {
+@returns('@str')
+var snakeCase = fn(@str s, @str sep = ' ', screaming = false) {
 	s
 	/> fn(s) { if(screaming) { toUpper(s) } else { s }}
 	/> split(sep)
@@ -214,7 +232,8 @@ var snakeCase = fn(s, sep = ' ', screaming = false) {
 	['l   n'], 'l---n',
 )
 @export
-var kebabCase = fn(s, sep = ' ') {
+@returns('@str')
+var kebabCase = fn(@str s, @str sep = ' ') {
 	s
 	/> split(sep)
 	/> join("-")
@@ -228,7 +247,8 @@ var kebabCase = fn(s, sep = ' ') {
 	['l   n'], 'LN',
 )
 @export
-var pascalCase = fn(s, sep = ' ') {
+@returns('@str')
+var pascalCase = fn(@str s, @str sep = ' ') {
 	s
 	/> toLower
 	/> split(sep)
@@ -247,7 +267,8 @@ var pascalCase = fn(s, sep = ' ') {
 	['l   n'], 'lN',
 )
 @export
-var camelCase = fn(s, sep = ' ') {
+@returns('@str')
+var camelCase = fn(@str s, @str sep = ' ') {
 	s
 	/> toLower
 	/> split(sep)

@@ -3,9 +3,11 @@ var {*} = import(
 )
 
 @export
+@returns('@chan')
 foreign chan = fn(@num capacity = 0)
 
 @export
+@returns('nil')
 foreign close = fn(@chan channel)
 
 @export

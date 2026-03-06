@@ -3,12 +3,15 @@ var {*} = import (
 );
 
 @export
+@returns('@bytes')
 foreign md5 = fn(@bytes bytes);
 
 @export
+@returns('@bytes')
 foreign sha256 = fn(@bytes bytes);
 
 @export
+@returns('@bytes')
 foreign sha512 = fn(@bytes bytes);
 
 
@@ -17,6 +20,7 @@ foreign sha512 = fn(@bytes bytes);
 	[""], "d41d8cd98f00b204e9800998ecf8427e",
 )
 @export
+@returns('@str')
 var md5 = fn(@str str) {
 
 	str /> strToBytes
@@ -30,6 +34,7 @@ var md5 = fn(@str str) {
 	[""], "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
 )
 @export
+@returns('@str')
 var sha256 = fn(@str str) {
 
 	str /> strToBytes
@@ -43,6 +48,7 @@ var sha256 = fn(@str str) {
 	[""], "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e",
 )
 @export
+@returns('@str')
 var sha512 = fn(@str str) {
 
 	str /> strToBytes
@@ -55,6 +61,7 @@ var sha512 = fn(@str str) {
 	["hello", "slug"], "341f4d32b6b1104f0804b4565a805286ff7d3dc95bf1bd90aade8ac72905c71d",
 )
 @export
+@returns('@str')
 var hmacSha256Hex = fn(@str message, @str secret) {
 
 	message /> strToBytes
@@ -67,6 +74,7 @@ var hmacSha256Hex = fn(@str message, @str secret) {
 	["hello", "slug"], "NB9NMraxEE8IBLRWWoBShv99Pclb8b2Qqt6KxykFxx0=",
 )
 @export
+@returns('@str')
 var hmacSha256 = fn(@str message, @str secret) {
 
 	message /> strToBytes
@@ -76,6 +84,7 @@ var hmacSha256 = fn(@str message, @str secret) {
 
 
 @export
+@returns('@bytes')
 var hmacSha256 = fn(@bytes message, @bytes secret) {
 
 	calculateHmacSignature(message, secret, 64, sha256)
@@ -86,6 +95,7 @@ var hmacSha256 = fn(@bytes message, @bytes secret) {
 	["hello", "slug"], "61d76feb488501a02e020bacca460b5b67c51352cff2dd78c70da0871d15b1e40903000d27e3a42b3461a1996dc14b3c2eaa5d9ad3d1e2505bb16fb933e52093",
 )
 @export
+@returns('@str')
 var hmacSha512Hex = fn(@str message, @str secret) {
 
     message /> strToBytes
@@ -98,6 +108,7 @@ var hmacSha512Hex = fn(@str message, @str secret) {
 	["hello", "slug"], "Yddv60iFAaAuAgusykYLW2fFE1LP8t14xw2ghx0VseQJAwANJ+OkKzRhoZltwUs8LqpdmtPR4lBbsW+5M+Ugkw==",
 )
 @export
+@returns('@str')
 var hmacSha512 = fn(@str message, @str secret) {
 
     message /> strToBytes
@@ -107,6 +118,7 @@ var hmacSha512 = fn(@str message, @str secret) {
 
 
 @export
+@returns('@bytes')
 var hmacSha512 = fn(@bytes message, @bytes secret) {
 
 	calculateHmacSignature(message, secret, 128, sha512)

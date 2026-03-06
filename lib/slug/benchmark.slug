@@ -134,6 +134,7 @@ val sampleTimesPerIter = fn(workFn, iters, samples, overheadPerIter) {
  *
  */
 @export
+@returns('@map')
 var micro = fn(
 	@str name,
 	@fn workFn,

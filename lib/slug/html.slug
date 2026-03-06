@@ -6,6 +6,7 @@ var {*} = import(
 	["E &amp; S"], "E & S"
 )
 @export
+@returns('@str')
 var htmlUnescape = fn(str) {
 	str /> replaceAll("&amp;", "&")
 		/> replaceAll("&lt;", "<")
@@ -22,6 +23,7 @@ var htmlUnescape = fn(str) {
 	["<a><a href='h'>hi</a></a>", "a"], "<a href='h'>hi</a>"
 )
 @export
+@returns('@str')
 var extractInnerText = fn(html, tag, start = 0) {
 	if (start < 0) {
 		""

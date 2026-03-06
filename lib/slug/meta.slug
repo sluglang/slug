@@ -3,22 +3,28 @@
 @export var BINDING_PARAMS = 2
 
 @export
+@returns('@bool')
 foreign hasTag = fn(value, @str tag)
 
 @export
+@returns('@list')
 foreign getTag = fn(value, @str tag)
 
 @export
+@returns('@map')
 foreign searchModuleTags = fn(@str module, @str tag, @bool includePrivate = false)
 
 @export
 foreign searchScopeTags = fn(@str tag)
 
 @export
+@returns('@str')
 foreign docs = fn(value)
 
 @export
+@returns('@map')
 foreign describe = fn(value)
 
 @export
+@returns('@str')
 foreign moduleDocs = fn(@str module)

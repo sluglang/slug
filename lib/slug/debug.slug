@@ -1,3 +1,4 @@
 
 @export
+@returns('@str')
 foreign ident = fn(value)

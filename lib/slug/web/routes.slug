@@ -24,6 +24,7 @@ val Router = struct {
 // ------------------
 
 @export
+@returns('@struct(Router)')
 var router = fn() {
 	Router { routes: [] }
 }
@@ -32,6 +33,7 @@ var router = fn() {
 // Introspection
 // ------------------
 
+@returns('@bool')
 @export var isRouter = fn(x) match { Router { routes } => true _ => false }
 
 // ------------------
@@ -43,19 +45,24 @@ var addRoute = fn(r, @str method, @str pattern, @fn handler) {
 }
 
 @export
+@returns('@struct(Router)')
 var head  = fn(r, @str pattern, @fn handler) { addRoute(r, "HEAD",  pattern, handler) }
 
 @export
+@returns('@struct(Router)')
 var get  = fn(r, @str pattern, @fn handler) { addRoute(r, "GET",  pattern, handler) }
 
 @export
+@returns('@struct(Router)')
 var post = fn(r, @str pattern, @fn handler) { addRoute(r, "POST", pattern, handler) }
 
 // mount = any method, prefix
 @export
+@returns('@struct(Router)')
 var mount = fn(r, @str prefix, @fn handler) { addRoute(r, "*", prefix + "/*", handler) }
 
 @export
+@returns('@struct(Router)')
 var mountRouter = fn(r, @str prefix, childRouter) { mount(r, prefix, subrouter(childRouter)) }
 
 // ------------------
@@ -63,6 +70,7 @@ var mountRouter = fn(r, @str prefix, childRouter) { mount(r, prefix, subrouter(c
 // ------------------
 
 @export
+@returns('@struct(Response)')
 var handle = fn(request, r) {
 	match handleRequest(r.routes, request) {
 		nil => notFound()
@@ -130,6 +138,7 @@ var matchRoutePattern = fn(pattern, path) {
 // ------------------
 
 @export
+@returns('@fn')
 var subrouter = fn(router) {
   fn(req) {
 	// remainder captured by mount "/prefix/*"
@@ -157,6 +166,7 @@ var subrouter = fn(router) {
 // ------------------
 
 @export
+@returns('@fn')
 var static = fn(dir, cacheTimeSeconds = 3600) {
 	fn(req) {
 		defer onerror(err) notFound()
@@ -236,6 +246,7 @@ var joinPath = fn(dir, rel) {
 // ------------------
 
 @export
+@returns('@fn')
 var withLog = fn(handler) {
 	fn(req) {
 		var d = delta(clock)
@@ -258,6 +269,7 @@ var withLog = fn(handler) {
 // ------------------
 
 @export
+@returns('@fn')
 var withTimeout = fn(h, ms) {
 	fn(req) {
 		var task = spawn { h(req) }
@@ -270,6 +282,7 @@ var withTimeout = fn(h, ms) {
 // ------------------
 
 @export
+@returns('@fn')
 var withRecover = fn(h) {
 	fn(req) {
 		defer onerror(err) {
@@ -284,6 +297,7 @@ var withRecover = fn(h) {
 // ------------------
 
 @export
+@returns('@fn')
 var withHeader = fn(@fn handler, @str header, @str value) {
 	fn(req) {
 		req /> handler /> withHeader(header, value)
@@ -297,6 +311,7 @@ var withHeader = fn(@fn handler, @str header, @str value) {
 var requestId = fn() { randomHexString(32) }
 
 @export
+@returns('@fn')
 var withRequestId = fn(@fn handler, @fn newRequestId = requestId) {
 	fn(req) {
 		var rid = req.headers["x-request-id"]
@@ -326,6 +341,7 @@ var traceId = fn() { randomHexString(32) }
 var spanId = fn() { randomHexString(16) }
 
 @export
+@returns('@fn')
 var withTraceContext = fn(handler, @fn newTraceId = traceId, @fn newSpanId = spanId) {
 	fn(req) {
 
@@ -372,6 +388,7 @@ var withTraceContext = fn(handler, @fn newTraceId = traceId, @fn newSpanId = spa
 // ------------------
 
 @export
+@returns('@fn')
 var withMaxBody = fn(h, maxBytes = 1_048_576) {
 	fn(req) {
 		// only enforce for methods that may have bodies

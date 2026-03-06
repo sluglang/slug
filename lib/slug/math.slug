@@ -9,6 +9,7 @@ var {*} = import(
 	[4, 5, 3], 5
 )
 @export
+@returns('@num')
 var max = fn(@num a, ...b) {
 	val _max = fn(x, y) {if (x > y) {x} else {y}}
 	searchList(b, a, _max)
@@ -16,6 +17,7 @@ var max = fn(@num a, ...b) {
 
 
 @export
+@returns('@num')
 var max = fn(@num a, @num b) {
 	if (a > b) { a } else { b }
 }
@@ -27,6 +29,7 @@ var max = fn(@num a, @num b) {
 	[6, 5, 4], 4
 )
 @export
+@returns('@num')
 var min = fn(@num a, ...b) {
 	val _min = fn(x, y) {if (x < y) {x} else {y}}
 	searchList(b, a, _min)
@@ -34,6 +37,7 @@ var min = fn(@num a, ...b) {
 
 
 @export
+@returns('@num')
 var clampZero = fn(@num n) {
 	if (n < 0) { 0 } else { n }
 }
@@ -46,6 +50,7 @@ var clampZero = fn(@num n) {
 	[-1.2], -2,
 )
 @export
+@returns('@num')
 foreign floor = fn(@num n)
 
 
@@ -56,6 +61,7 @@ foreign floor = fn(@num n)
 	[-1.2], -1,
 )
 @export
+@returns('@num')
 foreign ceil = fn(@num n)
 
 
@@ -67,6 +73,7 @@ foreign ceil = fn(@num n)
 	[9], 3,
 )
 @export
+@returns('@num')
 foreign sqrt = fn(@num n)
 
 
@@ -75,10 +82,12 @@ foreign sqrt = fn(@num n)
 // max: Maximum value of the range (integer).
 // Returns: a random integer in the specified range.
 @export
+@returns('@num')
 foreign rndRange = fn(@num min, @num max)
 
 
 @export
+@returns('@num')
 var mean = fn(xs) match {
 	[] => 0
 	_ => {
@@ -88,6 +97,7 @@ var mean = fn(xs) match {
 
 
 @export
+@returns('@num')
 var stdev = fn(xs, mean) match {
 	[] => 0
 	[_] => 0
@@ -107,6 +117,7 @@ var stdev = fn(xs, mean) match {
  * percentileSorted: xs must be ascending
  */
 @export
+@returns('@num')
 var percentileSorted = fn(xs, p) match {
 	[[], ...] => 0
 	[[x], ...] => x

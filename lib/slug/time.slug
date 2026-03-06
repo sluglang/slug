@@ -1,22 +1,29 @@
 
 @export
+@returns('@num')
 foreign clock = fn()
 
 @export
+@returns('@str')
 foreign fmtClock = fn(@num millis, @str fmt)
 
 @export
+@returns('@num')
 foreign clockNanos = fn()
 
 @export
+@returns('nil')
 foreign sleep = fn(@num millis)
 
-// delta creates a function that measures time difference between calls
-// Parameters:
-//   f: function that returns a time value
-// Returns:
-//   function that returns time elapsed since first call to f
+/**
+ * delta creates a function that measures time difference between calls
+ * Parameters:
+ *   f: function that returns a time value
+ * Returns:
+ *   function that returns time elapsed since first call to f
+ */
 @export
+@returns('@fn')
 var delta = fn(f) {
 	var start = f()
 	fn() {
@@ -33,6 +40,7 @@ var delta = fn(f) {
 	[1], 1000
 )
 @export
+@returns('@num')
 var secsToMillis = fn(@num secs) {
     secs * 1000
 }
@@ -46,6 +54,7 @@ var secsToMillis = fn(@num secs) {
 	[1], 60000
 )
 @export
+@returns('@num')
 var minsToMillis = fn(@num mins) {
     mins * 60 * 1000
 }

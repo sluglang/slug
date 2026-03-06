@@ -32,6 +32,7 @@ val ParseResult = struct {
 	[{"name": "Alice", "age": 30}], "{\"age\":30,\"name\":\"Alice\"}",
 )
 @export
+@returns('@str')
 var encode = fn(v) {
 	match (type(v)) {
 		^STRING_TYPE  => encodeString(v)
@@ -55,6 +56,7 @@ var encode = fn(v) {
 	[{"name": "Alice", "age": 30}, 2], "{\n  \"age\": 30,\n  \"name\": \"Alice\"\n}",
 )
 @export
+@returns('@str')
 var pretty = fn(v, @num indent = 2) {
 	prettyPrint(v, indent, 0)
 }

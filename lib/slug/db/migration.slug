@@ -41,6 +41,7 @@ var Migration = struct {
 }
 
 @export
+@returns('@num')
 var status = fn(@num conn, @list env = DefaultEnv, @str base = DefaultBase) {
 	checkTrackingTable(conn)
 	listMigrationFiles(base, fn(m, sql) {
@@ -61,6 +62,7 @@ var status = fn(@num conn, @list env = DefaultEnv, @str base = DefaultBase) {
 }
 
 @export
+@returns('@num')
 var up = fn(@num conn, @list env = DefaultEnv, @str base = DefaultBase) {
 	checkTrackingTable(conn)
 	listMigrationFiles(base, fn(m, sql) {
@@ -83,6 +85,7 @@ var up = fn(@num conn, @list env = DefaultEnv, @str base = DefaultBase) {
 }
 
 @export
+@returns('@num')
 var down = fn(@num conn, @num step = 1, @str base = DefaultBase) {
 	checkTrackingTable(conn)
 	findLatestMigrations(conn, step)

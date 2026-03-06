@@ -164,7 +164,8 @@ var lookupIn = fn(ctx, parts, idx = 0) {
 		if (key == ".") {
 			recur(ctx, parts, idx + 1)
 		} else if (type(ctx) == MAP_TYPE) {
-			recur(ctx[key], parts, idx + 1)
+			var value = mapLookup(ctx, key)
+			recur(value, parts, idx + 1)
 		} else {
 			nil
 		}
@@ -182,7 +183,8 @@ var lookup = fn(@list stack, @str name, i = nil) {
 		} else {
 			var parts = name /> split(".")
 			var first = parts[0]
-			if (type(ctx) == MAP_TYPE && ctx[first] != nil) {
+			var value = if(type(ctx) == MAP_TYPE) {mapLookup(ctx, first)} else {nil}
+			if (value != nil) {
 				lookupIn(ctx, parts)
 			} else if (i > 0) {
 				recur(stack, name, i - 1)
@@ -321,11 +323,20 @@ var resolvePartial = fn(partials, @str name) {
 	if (partials == nil) {
 		nil
 	} else if (type(partials) == MAP_TYPE) {
-		partials[name]
+		mapLookup(partials, name)
 	} else if (type(partials) == FUNCTION_TYPE) {
 		partials(name)
 	} else {
 		throw Error { type: "MustacheError", msg: "partials must be a map or a loader function" }
+	}
+}
+
+var mapLookup = fn(@map m, @str key) {
+	var value = m[key]
+	if (value != nil) {
+		value
+	} else {
+		m[sym(key)]
 	}
 }
 
@@ -687,12 +698,14 @@ var renderNodesCached = fn(nodes, ctxStack, partials, cache, blocks, acc = "", i
 }
 
 @export
+@returns('@str')
 var renderCached = fn(templateOrAst, data, partials = nil, cache = {}) {
 	var ast = if(type(templateOrAst) == STRING_TYPE) {parse(templateOrAst)} else {templateOrAst}
 	renderNodesCached(ast, [data], partials, cache, {}, "")
 }
 
 @export
+@returns('@str')
 var render = fn(templateOrAst, data, partials = nil) {
 	renderCached(templateOrAst, data, partials, {}).html
 }

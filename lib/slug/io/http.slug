@@ -1,28 +1,34 @@
 
 @export
+@returns('[@num, @str]')
 foreign request = fn(@str method, @str url, @str body = "", @map headers = {})
 
 @export
+@returns('[@num, @str]')
 var get = fn(@str url, @map headers = {}) {
   request("GET", url, "", headers)
 }
 
 @export
+@returns('[@num, @str]')
 var post = fn(@str body, @str url, @map headers = {}) {
   request("POST", url, body, headers)
 }
 
 @export
+@returns('[@num, @str]')
 var put = fn(@str body, @str url, @map headers = {}) {
   request("PUT", url, body, headers)
 }
 
 @export
+@returns('[@num, @str]')
 var patch = fn(@str body, @str url, @map headers = {}) {
   request("PATCH", url, body, headers)
 }
 
 @export
+@returns('[@num, @str]')
 var delete = fn(@str url, @map headers = {}) {
   request("DELETE", url, "", headers)
 }

@@ -35,23 +35,54 @@ val FormattedResponse = struct {
 // ------------------
 
 @export
+@returns('@struct(Response)')
 var response = fn(@num status, @str body) {
 	Response { status: status, headers: {}, body: body }
 }
 
-@export var ok = fn(@str body) { response(200, body) }
-@export var created = fn(@str body) { response(201, body) }
-@export var accepted = fn(@str body) { response(202, body) }
-@export var noContent = fn() { response(204, "") }
+@export
+@returns('@struct(Response)')
+var ok = fn(@str body) { response(200, body) }
 
-@export var badRequest = fn(@str body) { response(400, body) }
-@export var unauthorized = fn(@str body) { response(401, body) }
-@export var forbidden = fn(@str body) { response(403, body) }
-@export var notFound = fn(@str body = "404 Not Found") { response(404, body) }
-@export var conflict = fn(@str body) { response(409, body) }
-@export var payloadTooLarge = fn(@str body = "413 Payload Too Large") { response(413, body) /> withHeader("Connection", "close") }
+@export
+@returns('@struct(Response)')
+var created = fn(@str body) { response(201, body) }
 
-@export var serverError = fn(@str body = "500 Server Error") { response(500, body) }
+@export
+@returns('@struct(Response)')
+var accepted = fn(@str body) { response(202, body) }
+
+@export
+@returns('@struct(Response)')
+var noContent = fn() { response(204, "") }
+
+@export
+@returns('@struct(Response)')
+var badRequest = fn(@str body) { response(400, body) }
+
+@export
+@returns('@struct(Response)')
+var unauthorized = fn(@str body) { response(401, body) }
+
+@export
+@returns('@struct(Response)')
+var forbidden = fn(@str body) { response(403, body) }
+
+@export
+@returns('@struct(Response)')
+var notFound = fn(@str body = "404 Not Found") { response(404, body) }
+
+@export
+@returns('@struct(Response)')
+var conflict = fn(@str body) { response(409, body) }
+
+@export
+@returns('@struct(Response)')
+var payloadTooLarge = fn(@str body = "413 Payload Too Large") { response(413, body) /> withHeader("Connection", "close") }
+
+@export
+@returns('@struct(Response)')
+var serverError = fn(@str body = "500 Server Error") { response(500, body) }
 
 
 // ------------------
@@ -59,22 +90,26 @@ var response = fn(@num status, @str body) {
 // ------------------
 
 @export
+@returns('@struct(Response)')
 var withStatus = fn(res, @num status) {
   res copy { status: status }
 }
 
 @export
+@returns('@struct(Response)')
 var withBody = fn(res, @str body) {
   res copy { body: body }
 }
 
 @export
+@returns('@struct(Response)')
 var hasHeader = fn(res, key) {
   res.headers[normKey(key)] != nil
 }
 
 // Replace a header (single-value semantics)
 @export
+@returns('@struct(Response)')
 var withHeader = fn(res, @str key, @str value) {
   var k = normKey(key)
   var v = normVal(value)
@@ -84,6 +119,7 @@ var withHeader = fn(res, @str key, @str value) {
 
 // Replace many headers from a map
 @export
+@returns('@struct(Response)')
 var withHeaders = fn(res, @map headersMap) {
   // fold over keys so we normalize each header name
   headersMap /> keys /> reduce(res, fn(acc, rawKey) {
@@ -93,6 +129,7 @@ var withHeaders = fn(res, @map headersMap) {
 
 // Remove a header entirely
 @export
+@returns('@struct(Response)')
 var withoutHeader = fn(res, @str key) {
   var k = normKey(key)
   var hs = remove(res.headers, k)
@@ -107,6 +144,7 @@ var withoutHeader = fn(res, @str key) {
 // Add a header value without clobbering existing values.
 // Upgrades string -> list[string] when needed.
 @export
+@returns('@struct(Response)')
 var addHeader = fn(res, @str key, @str value) {
   var k = normKey(key)
   var v = normVal(value)
@@ -128,23 +166,27 @@ var addSetCookie = fn(res, @str cookieStr) {
 // ------------------
 
 @export
+@returns('@struct(Response)')
 var withContentType = fn(res, @str ct) {
   withHeader(res, "content-type", ct)
 }
 
 @export
+@returns('@struct(Response)')
 var html = fn(@str markup) {
   ok(markup)
   /> withContentType("text/html; charset=utf-8")
 }
 
 @export
+@returns('@struct(Response)')
 var text = fn(@str txt) {
   ok(txt)
   /> withContentType("text/plain; charset=utf-8")
 }
 
 @export
+@returns('@struct(Response)')
 var jsonOk = fn(value) {
   ok(json.encode(value))
   /> withContentType("application/json; charset=utf-8")
@@ -156,12 +198,14 @@ var jsonOk = fn(value) {
 // ------------------
 
 @export
+@returns('@struct(Response)')
 var redirect = fn(@str location) {
   response(302, "")
   /> withHeader("location", location)
 }
 
 @export
+@returns('@struct(Response)')
 var redirectPermanent = fn(@str location) {
   response(301, "")
   /> withHeader("location", location)
@@ -173,6 +217,7 @@ var redirectPermanent = fn(@str location) {
 // ------------------
 
 @export
+@returns('@struct(Response)')
 var noCache = fn(res) {
   res
   /> withHeader("cache-control", "no-store, no-cache, must-revalidate")
@@ -181,6 +226,7 @@ var noCache = fn(res) {
 }
 
 @export
+@returns('@struct(Response)')
 var cacheSeconds = fn(res, @num seconds) {
   withHeader(res, "cache-control", "public, max-age=" + seconds)
 }
@@ -191,11 +237,13 @@ var cacheSeconds = fn(res, @num seconds) {
 // ------------------
 
 @export
+@returns('@struct(Response)')
 var withConnClose = fn(res) {
   res /> withHeader("Connection", "close")
 }
 
 @export
+@returns('@struct(Response)')
 var withConnKeepAlive = fn(res) {
   res /> withHeader("Connection", "keep-alive")
 }
@@ -205,16 +253,19 @@ var withConnKeepAlive = fn(res) {
 // ------------------
 
 @export
+@returns('@struct(Response)')
 var hxTrigger = fn(res, @str eventName) {
   withHeader(res, "hx-trigger", eventName)
 }
 
 @export
+@returns('@struct(Response)')
 var hxRedirect = fn(res, @str location) {
   withHeader(res, "hx-redirect", location)
 }
 
 @export
+@returns('@struct(Response)')
 var hxRetarget = fn(res, @str selector) {
   withHeader(res, "hx-retarget", selector)
 }
@@ -225,6 +276,7 @@ var hxRetarget = fn(res, @str selector) {
 // ------------------
 
 @export
+@returns('@str')
 var cookie = fn(@str name, @str value, @map opts) {
   // opts (all optional):
   // {path, domain, maxAge, expires, secure, httpOnly, sameSite}
@@ -244,11 +296,13 @@ var cookie = fn(@str name, @str value, @map opts) {
 }
 
 @export
+@returns('@struct(Response)')
 var setCookie = fn(res, @str name, @str value, @map opts) {
   addSetCookie(res, cookie(name, value, opts))
 }
 
 @export
+@returns('@struct(Response)')
 var clearCookie = fn(res, @str name, @map opts) {
   // expire immediately
   setCookie(res, name, "", put(opts, "maxAge", 0))
@@ -259,19 +313,31 @@ var clearCookie = fn(res, @str name, @map opts) {
 // Introspection
 // ------------------
 
-@export var isResponse = fn(x) match { Response { status, headers, body } => true _ => false }
-@export var isFormattedResponse = fn(x) match { FormattedResponse { head, body } => true _ => false }
+@export
+@returns('@bool')
+var isResponse = fn(x) match { Response { status, headers, body } => true _ => false }
 
-@export var status = fn(res) { res.status }
-@export var headers = fn(res) { res.headers }
-@export var body = fn(res) { res.body }
+@export
+@returns('@bool')
+var isFormattedResponse = fn(x) match { FormattedResponse { head, body } => true _ => false }
 
+@export
+@returns('@num')
+var status = fn(res) { res.status }
+
+@export
+@returns('@map')
+var headers = fn(res) { res.headers }
+
+@export
+var body = fn(res) { res.body }
 
 // -------------------------
 // Public: formatHead / formatResponse
 // -------------------------
 
 @export
+@returns('@str')
 var formatHead = fn(res) {
 
   var r = ensureContentLength(res)
@@ -286,6 +352,7 @@ var formatHead = fn(res) {
 }
 
 @export
+@returns('@struct(FormattedResponse)')
 var formatResponse = fn(res) {
   // keep response shaping separate from formatting (adds content-length)
   var r = ensureContentLength(res)
@@ -294,6 +361,7 @@ var formatResponse = fn(res) {
 }
 
 @export
+@returns('@struct(FormattedResponse)')
 var renderResponse = fn(res) {
 	res /> formatResponse /> match {
 		FormattedResponse { head, body } => head + body

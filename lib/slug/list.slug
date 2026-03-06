@@ -8,9 +8,11 @@ var {*} = import (
     [["c","a","b"], compare], ["a","b","c"]
 )
 @export
+@returns('@list')
 foreign sortWithComparator = fn(@list lst, @fn comparator)
 
 @export
+@returns('@list')
 var sort = fn(@list lst) {
     sortWithComparator(lst, compare)
 }
@@ -22,6 +24,7 @@ var sort = fn(@list lst) {
     [[[1, 2], [3], [4, 5]]], [1, 2, 3, 4, 5],
 )
 @export
+@returns('@list')
 var flatten = fn(@list lsts) {
     var f = fn(a, b) {
         match b {
@@ -38,6 +41,7 @@ var flatten = fn(@list lsts) {
     [[1, 2], 9], -1
 )
 @export
+@returns('@num')
 var indexOf = fn(@list list, value, @num idx = 0) {
     if(idx > len(list)) {
         -1
@@ -53,6 +57,7 @@ var indexOf = fn(@list list, value, @num idx = 0) {
     [[1,2,3], 5], [1,2,3]
 )
 @export
+@returns('@list')
 var removeValue = fn(@list list, value) {
     match indexOf(list, value) {
         i if i >= 0 => {
@@ -63,6 +68,7 @@ var removeValue = fn(@list list, value) {
 }
 
 @export
+@returns('@list')
 var shuffle = var fisherYatesShuffle = fn(@list list) {
     var _shuffle = fn(list, i) {
         if(i == 0) {
@@ -81,6 +87,7 @@ var shuffle = var fisherYatesShuffle = fn(@list list) {
     ["123"], ["1", "2", "3"]
 )
 @export
+@returns('@list')
 var asList = fn(@str chars, @num i = 0, @list acc = []) {
     if (chars == nil) {
         []

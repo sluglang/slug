@@ -8,6 +8,7 @@ var {*} = import(
 	[['k', 'k'], {k: {j: 1}}, 'v'], {k: {k: 'v', j: 1}},
 )
 @export
+@returns('@map')
 var putNested = fn(@list keys, @map map, value) match {
 	[[h], ...] => put(map, sym(h), value)
 	[[h, ...t], ...] if map[sym(h)] => put(map, sym(h), putNested(t, map[sym(h)], value))
@@ -20,6 +21,7 @@ var putNested = fn(@list keys, @map map, value) match {
 	[{}, {a: 1}], {a: 1}
 )
 @export
+@returns('@map')
 var merge = fn(@map base, @map patch) {
 	patch /> keys() /> reduce(base, fn(acc, k) {
 		acc /> put(k, patch[k])
@@ -32,6 +34,7 @@ var merge = fn(@map base, @map patch) {
 	[{a: {b: 2}}, {a: 1}], {a: 1}
 )
 @export
+@returns('@map')
 var patch = fn(@map base, @map patchData) {
 	patchData /> keys() /> reduce(base, fn(acc, k) {
 		var v1 = acc[k]
@@ -52,6 +55,7 @@ var patch = fn(@map base, @map patchData) {
 	[{k1:1}, {k1:9}], {k1:1} // s1 keys are kept on duplicates
 )
 @export
+@returns('@map')
 var union = fn(@map s1, @map s2) {
 	s1 /> keys() /> reduce(s2, fn(s, k) {
 		s /> put(k, s1[k])
@@ -65,6 +69,7 @@ var union = fn(@map s1, @map s2) {
 	[{k1:1}, {}], {}
 )
 @export
+@returns('@map')
 var intersect = fn(@map s1, @map s2) {
 	s1 /> keys()
 		/> filter(fn(k) { s2[k] == nil })
@@ -76,6 +81,7 @@ var intersect = fn(@map s1, @map s2) {
 	[{k1:1, k2:1}, {k2:2}], {k1:1}
 )
 @export
+@returns('@map')
 var difference = fn(@map s1, @map s2) {
 	s2 /> keys()
 		/> reduce(s1, fn(s, k) { s /> remove(k) })

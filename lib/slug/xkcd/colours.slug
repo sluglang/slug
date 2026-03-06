@@ -3,6 +3,7 @@
 //
 
 @export
+@returns('@map')
 var XkcdColourIndex = {
 	cloudyBlue: "#acc2d9",
 	darkPastelGreen: "#56ae57",
