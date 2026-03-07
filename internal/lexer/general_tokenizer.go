@@ -134,10 +134,16 @@ func (g *GeneralTokenizer) NextToken() token.Token {
 			return newToken(token.ILLEGAL, g.lexer.ch, startPosition)
 		}
 	case '{':
-		tok = g.lexer.handleCompoundToken2(token.LBRACE, '{', token.INTERPOLATION_START, '|', token.MATCH_KEYS_EXACT)
-		if tok.Type == token.INTERPOLATION_START {
+		if g.lexer.peekChar() == '{' && g.lexer.canStartInterpolation() {
+			tok = token.Token{Type: token.INTERPOLATION_START, Literal: "{{", Position: startPosition}
+			g.lexer.readChar()
 			g.lexer.pushInterpolationReturnMode(g.lexer.prevMode)
-		} else if tok.Type == token.LBRACE || tok.Type == token.MATCH_KEYS_EXACT {
+		} else if g.lexer.peekChar() == '|' {
+			tok = token.Token{Type: token.MATCH_KEYS_EXACT, Literal: "{|", Position: startPosition}
+			g.lexer.readChar()
+			g.lexer.braceDepth++
+		} else {
+			tok = newToken(token.LBRACE, g.lexer.ch, startPosition)
 			g.lexer.braceDepth++
 		}
 	case '}':

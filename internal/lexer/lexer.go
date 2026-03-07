@@ -69,6 +69,15 @@ func (l *Lexer) hasInterpolationReturnMode() bool {
 	return len(l.interpolationStack) > 0
 }
 
+func (l *Lexer) canStartInterpolation() bool {
+	switch l.prevMode.(type) {
+	case *SingleLineStringTokenizer, *MultiLineStringTokenizer:
+		return true
+	default:
+		return false
+	}
+}
+
 func (l *Lexer) pushDelimiterBaseline() {
 	l.delimiterBraceBaselines = append(l.delimiterBraceBaselines, l.braceDepth)
 }

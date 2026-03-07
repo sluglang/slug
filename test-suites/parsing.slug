@@ -1,0 +1,41 @@
+var {*} = import(
+	"slug.std",
+	"slug.test",
+	"slug.time",
+	"slug.channel",
+)
+
+@test
+var map_defined_in_a_block_parses_correctly = fn() {
+	val addTotals = fn(i) {
+		match true {
+			_ => {{c: i, d: i}}
+		}
+	}
+	addTotals(1) /> assertEqual({c: 1, d: 1})
+}
+
+@test
+var comma_optional_on_last_list_item = fn() {
+
+	val a = [1,2,3,]
+
+	val b = [1,2,3]
+
+	val c = [
+		1,
+		2,
+		3,
+	]
+
+	val d = [
+		1,
+		2,
+		3
+	]
+
+	len(a) /> assertEqual(3)
+	len(b) /> assertEqual(3)
+	len(c) /> assertEqual(3)
+	len(d) /> assertEqual(3)
+}

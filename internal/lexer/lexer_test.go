@@ -362,3 +362,40 @@ string
 		}
 	}
 }
+
+func TestDoubleBraceOutsideString(t *testing.T) {
+	input := `val x = {{c: 1}}`
+
+	tests := []struct {
+		expectedType    token.TokenType
+		expectedLiteral string
+	}{
+		{token.VAL, "val"},
+		{token.IDENT, "x"},
+		{token.ASSIGN, "="},
+		{token.LBRACE, "{"},
+		{token.LBRACE, "{"},
+		{token.IDENT, "c"},
+		{token.COLON, ":"},
+		{token.NUMBER, "1"},
+		{token.RBRACE, "}"},
+		{token.RBRACE, "}"},
+		{token.EOF, ""},
+	}
+
+	l := New(input)
+
+	for i, tt := range tests {
+		tok := l.NextToken()
+
+		if tok.Type != tt.expectedType {
+			t.Fatalf("tests[%d] - tokentype wrong. expected=%q '%q', got=%q: '%q'",
+				i, tt.expectedType, tt.expectedLiteral, tok.Type, tok.Literal)
+		}
+
+		if tok.Literal != tt.expectedLiteral {
+			t.Fatalf("tests[%d] - literal wrong. expected=%q, got=%q",
+				i, tt.expectedLiteral, tok.Literal)
+		}
+	}
+}
