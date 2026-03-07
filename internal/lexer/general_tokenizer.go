@@ -22,8 +22,9 @@ func (g *GeneralTokenizer) NextToken() token.Token {
 
 	switch g.lexer.ch {
 	case '\n':
-		// If we are inside delimiters, treat newline as whitespace
-		if g.lexer.parenDepth > 0 || g.lexer.bracketDepth > 0 {
+		// If we are inside () or [] and not inside a deeper braced scope than
+		// where that delimiter started, treat newline as whitespace.
+		if baseline, ok := g.lexer.currentDelimiterBaseline(); ok && g.lexer.braceDepth <= baseline {
 			g.lexer.readChar()
 			return g.NextToken()
 		}
@@ -89,6 +90,9 @@ func (g *GeneralTokenizer) NextToken() token.Token {
 		} else if g.lexer.peekChar() == '}' {
 			tok = token.Token{Type: token.MATCH_KEYS_CLOSE, Literal: "|}", Position: startPosition}
 			g.lexer.readChar()
+			if g.lexer.braceDepth > 0 {
+				g.lexer.braceDepth--
+			}
 		} else {
 			tok = newToken(token.BITWISE_OR, g.lexer.ch, startPosition)
 		}
@@ -133,6 +137,8 @@ func (g *GeneralTokenizer) NextToken() token.Token {
 		tok = g.lexer.handleCompoundToken2(token.LBRACE, '{', token.INTERPOLATION_START, '|', token.MATCH_KEYS_EXACT)
 		if tok.Type == token.INTERPOLATION_START {
 			g.lexer.pushInterpolationReturnMode(g.lexer.prevMode)
+		} else if tok.Type == token.LBRACE || tok.Type == token.MATCH_KEYS_EXACT {
+			g.lexer.braceDepth++
 		}
 	case '}':
 		if g.lexer.hasInterpolationReturnMode() && g.lexer.peekChar() == '}' {
@@ -149,23 +155,30 @@ func (g *GeneralTokenizer) NextToken() token.Token {
 				}
 			}
 		} else {
+			if g.lexer.braceDepth > 0 {
+				g.lexer.braceDepth--
+			}
 			tok = newToken(token.RBRACE, g.lexer.ch, g.lexer.position)
 		}
 	case '(':
+		g.lexer.pushDelimiterBaseline()
 		g.lexer.parenDepth++
 		tok = newToken(token.LPAREN, g.lexer.ch, startPosition)
 	case ')':
 		if g.lexer.parenDepth > 0 {
 			g.lexer.parenDepth--
 		}
+		g.lexer.popDelimiterBaseline()
 		tok = newToken(token.RPAREN, g.lexer.ch, startPosition)
 	case '[':
+		g.lexer.pushDelimiterBaseline()
 		g.lexer.bracketDepth++
 		tok = newToken(token.LBRACKET, g.lexer.ch, startPosition)
 	case ']':
 		if g.lexer.bracketDepth > 0 {
 			g.lexer.bracketDepth--
 		}
+		g.lexer.popDelimiterBaseline()
 		tok = newToken(token.RBRACKET, g.lexer.ch, startPosition)
 	case '"':
 		if g.lexer.peekChar() == '"' && g.lexer.peekTwoChars() == '"' {

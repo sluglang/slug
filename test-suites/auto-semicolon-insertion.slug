@@ -114,3 +114,16 @@ var asi_match_case_body_next_line = fn() {
     f(1) /> assertEqual(11)
 }
 
+@test
+var asi_match_case_newline_inside_function_argument = fn() {
+    var sumNonZero = fn(values) {
+        reduce(values, 0, fn(acc, value) {
+            match value {
+                0 => acc
+                _ => acc + value
+            }
+        })
+    }
+
+    sumNonZero([0, 1, 2, 3]) /> assertEqual(6)
+}

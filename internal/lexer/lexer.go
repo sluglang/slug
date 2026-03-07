@@ -19,6 +19,9 @@ type Lexer struct {
 
 	parenDepth   int // Track nesting of ( )
 	bracketDepth int // Track nesting of [ ]
+	braceDepth   int // Track nesting of { } and {| |}
+	// Brace depth baselines captured at each '(' or '[' entry, used for newline handling.
+	delimiterBraceBaselines []int
 
 	interpolationStack []Tokenizer // Return modes for nested interpolations
 }
@@ -64,6 +67,24 @@ func (l *Lexer) popInterpolationReturnMode() Tokenizer {
 
 func (l *Lexer) hasInterpolationReturnMode() bool {
 	return len(l.interpolationStack) > 0
+}
+
+func (l *Lexer) pushDelimiterBaseline() {
+	l.delimiterBraceBaselines = append(l.delimiterBraceBaselines, l.braceDepth)
+}
+
+func (l *Lexer) popDelimiterBaseline() {
+	if len(l.delimiterBraceBaselines) == 0 {
+		return
+	}
+	l.delimiterBraceBaselines = l.delimiterBraceBaselines[:len(l.delimiterBraceBaselines)-1]
+}
+
+func (l *Lexer) currentDelimiterBaseline() (int, bool) {
+	if len(l.delimiterBraceBaselines) == 0 {
+		return 0, false
+	}
+	return l.delimiterBraceBaselines[len(l.delimiterBraceBaselines)-1], true
 }
 
 func (l *Lexer) NextToken() token.Token {
