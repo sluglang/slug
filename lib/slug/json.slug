@@ -62,8 +62,8 @@ var pretty = fn(v, @num indent = 2) {
 }
 
 /**
- * decodes a JSON string; object keys are decoded as string keys, not symbols; use map['key'] not map[:key] for
- * JSON-decoded maps.
+ * decodes a JSON string; object keys are decoded as string keys; prefer dot access (m.name)
+ * for ergonomic field access via dot lookup tolerance.
  */
 @testWith(
 	["\"hello\""], "hello",

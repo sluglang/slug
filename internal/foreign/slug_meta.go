@@ -370,7 +370,11 @@ func describeStructDetails(v *object.StructValue) *object.Map {
 			fieldMap := &object.Map{}
 			fieldMap.Put(object.InternSymbol("name"), &object.String{Value: field.Name})
 			fieldMap.Put(object.InternSymbol("tags"), tagsFromAstTags(field.Tags))
-			fieldMap.Put(object.InternSymbol("hasDefault"), boolObject(field.Default != nil))
+			hasDefault := field.Default != nil
+			fieldMap.Put(object.InternSymbol("hasDefault"), boolObject(hasDefault))
+			if hasDefault {
+				fieldMap.Put(object.InternSymbol("default"), &object.String{Value: describeDefaultValue(field.Default)})
+			}
 			fields = append(fields, fieldMap)
 		}
 	}
@@ -398,7 +402,11 @@ func describeStructSchemaDetails(schema *object.StructSchema) *object.Map {
 		fieldMap := &object.Map{}
 		fieldMap.Put(object.InternSymbol("name"), &object.String{Value: field.Name})
 		fieldMap.Put(object.InternSymbol("tags"), tagsFromAstTags(field.Tags))
-		fieldMap.Put(object.InternSymbol("hasDefault"), boolObject(field.Default != nil))
+		hasDefault := field.Default != nil
+		fieldMap.Put(object.InternSymbol("hasDefault"), boolObject(hasDefault))
+		if hasDefault {
+			fieldMap.Put(object.InternSymbol("default"), &object.String{Value: describeDefaultValue(field.Default)})
+		}
 		fields = append(fields, fieldMap)
 	}
 
@@ -499,7 +507,11 @@ func describeFunctionDetails(isForeign bool, sig ast.FSig, params []*ast.Functio
 			paramMap := &object.Map{}
 			paramMap.Put(object.InternSymbol("name"), &object.String{Value: param.Name.Value})
 			paramMap.Put(object.InternSymbol("tags"), tagsFromAstTags(param.Tags))
-			paramMap.Put(object.InternSymbol("hasDefault"), boolObject(param.Default != nil))
+			hasDefault := param.Default != nil
+			paramMap.Put(object.InternSymbol("hasDefault"), boolObject(hasDefault))
+			if hasDefault {
+				paramMap.Put(object.InternSymbol("default"), &object.String{Value: describeDefaultValue(param.Default)})
+			}
 			if sig.IsVariadic && idx == len(params)-1 {
 				paramMap.Put(object.InternSymbol("vargs"), object.TRUE)
 			} else {
@@ -576,6 +588,41 @@ func boolObject(value bool) *object.Boolean {
 		return object.TRUE
 	}
 	return object.FALSE
+}
+
+func describeDefaultValue(expr ast.Expression) string {
+	if expr == nil {
+		return ""
+	}
+	if s, ok := expr.(*ast.StringLiteral); ok {
+		return `"` + escapeStringLiteral(s.Value) + `"`
+	}
+	return expr.String()
+}
+
+func escapeStringLiteral(value string) string {
+	var out strings.Builder
+	for _, r := range value {
+		switch r {
+		case '\\':
+			out.WriteString(`\\`)
+		case '"':
+			out.WriteString(`\"`)
+		case '\n':
+			out.WriteString(`\n`)
+		case '\r':
+			out.WriteString(`\r`)
+		case '\t':
+			out.WriteString(`\t`)
+		case '\b':
+			out.WriteString(`\b`)
+		case '\f':
+			out.WriteString(`\f`)
+		default:
+			out.WriteRune(r)
+		}
+	}
+	return out.String()
 }
 
 func hasTag(binding *object.Binding, tagName string) bool {
