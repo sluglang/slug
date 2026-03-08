@@ -18,10 +18,6 @@ foreign searchModuleTags = fn(@str module, @str tag, @bool includePrivate = fals
 foreign searchScopeTags = fn(@str tag)
 
 @export
-@returns('@str')
-foreign docs = fn(value)
-
-@export
 @returns('@map')
 foreign describe = fn(value)
 

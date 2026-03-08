@@ -170,23 +170,6 @@ func fnMetaSearchScopeTags() *object.Foreign {
 	}
 }
 
-func fnMetaDocs() *object.Foreign {
-	return &object.Foreign{
-		Name: "docs",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
-			if len(args) != 1 {
-				return ctx.NewError("docs expects exactly 1 argument: value")
-			}
-
-			doc, ok := findDocForValue(ctx, args[0])
-			if !ok {
-				return ctx.Nil()
-			}
-			return &object.String{Value: doc}
-		},
-	}
-}
-
 func fnMetaModuleDocs() *object.Foreign {
 	return &object.Foreign{
 		Name: "moduleDocs",

@@ -17,6 +17,6 @@
  */
 var x = 1
 
-docs(x) /> assertEqual("this is a variable document comment")
+describe(x).docs /> assertEqual("this is a variable document comment")
 
 moduleDocs("document") /> assertEqual("this is a module document comment")
