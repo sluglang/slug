@@ -517,9 +517,10 @@ func (al *ListLiteral) String() string {
 }
 
 type IndexExpression struct {
-	Token token.Token // The [ token
-	Left  Expression
-	Index Expression
+	Token       token.Token // The [ token
+	Left        Expression
+	Index       Expression
+	IsDotLookup bool
 }
 
 func (ie *IndexExpression) expressionNode()      {}

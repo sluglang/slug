@@ -1650,9 +1650,10 @@ func (p *Parser) parseDotIdentifierToIndexExpression(left ast.Expression) ast.Ex
 	mapKey := &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
 	return &ast.IndexExpression{
-		Token: mapKey.Token,
-		Left:  left,
-		Index: &ast.SymbolLiteral{Token: mapKey.Token, Value: mapKey.Value},
+		Token:       mapKey.Token,
+		Left:        left,
+		Index:       &ast.SymbolLiteral{Token: mapKey.Token, Value: mapKey.Value},
+		IsDotLookup: true,
 	}
 }
 

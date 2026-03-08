@@ -391,7 +391,7 @@ func (e *Task) Eval(node ast.Node) object.Object {
 		if e.isError(index) {
 			return index
 		}
-		return e.evalIndexExpression(node.Token.Position, left, index)
+		return e.evalIndexExpression(node.Token.Position, left, index, node.IsDotLookup)
 
 	case *ast.SliceExpression:
 		return e.evalSliceExpression(node)
@@ -2458,7 +2458,7 @@ func (e *Task) objectsEqual(a, b object.Object) bool {
 	return false
 }
 
-func (e *Task) evalMapIndexExpression(pos int, obj, index object.Object) object.Object {
+func (e *Task) evalMapIndexExpression(pos int, obj, index object.Object, isDotLookup bool) object.Object {
 	mapObj := obj.(*object.Map)
 
 	key, ok := index.(object.Hashable)
@@ -2468,6 +2468,15 @@ func (e *Task) evalMapIndexExpression(pos int, obj, index object.Object) object.
 
 	pair, ok := mapObj.Pairs[key.MapKey()]
 	if !ok {
+		// Dot lookup on maps is tolerant: :name first, then "name".
+		if isDotLookup {
+			if symbol, ok := index.(*object.Symbol); ok {
+				strKey := (&object.String{Value: symbol.Name}).MapKey()
+				if strPair, ok := mapObj.Pairs[strKey]; ok {
+					return strPair.Value
+				}
+			}
+		}
 		return object.NIL
 	}
 
@@ -2539,7 +2548,7 @@ func (e *Task) GatherStackTrace(frame *object.StackFrame) []*object.StackFrame {
 	return trace // Already in correct order (most recent first)
 }
 
-func (e *Task) evalIndexExpression(pos int, left, index object.Object) object.Object {
+func (e *Task) evalIndexExpression(pos int, left, index object.Object, isDotLookup bool) object.Object {
 
 	switch {
 	case left.Type() == object.STRING_OBJ:
@@ -2566,7 +2575,7 @@ func (e *Task) evalIndexExpression(pos int, left, index object.Object) object.Ob
 		}
 		return e.evalByteIndexExpression(left, index)
 	case left.Type() == object.MAP_OBJ:
-		return e.evalMapIndexExpression(pos, left, index)
+		return e.evalMapIndexExpression(pos, left, index, isDotLookup)
 	case left.Type() == object.STRUCT_OBJ:
 		return e.evalStructIndexExpression(pos, left, index)
 	default:
