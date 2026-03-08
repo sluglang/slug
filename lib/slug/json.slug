@@ -61,6 +61,10 @@ var pretty = fn(v, @num indent = 2) {
 	prettyPrint(v, indent, 0)
 }
 
+/**
+ * decodes a JSON string; object keys are decoded as string keys, not symbols; use map['key'] not map[:key] for
+ * JSON-decoded maps.
+ */
 @testWith(
 	["\"hello\""], "hello",
 	["42"], 42,
@@ -323,14 +327,77 @@ var parseStringToken = fn(@str s, @num i, @num n, @str acc) {
 					"n" => "\n"
 					"r" => "\r"
 					"t" => "\t"
+					"u" => {
+						var unicodeResult = parseUnicodeEscape(s, i + 2, n)
+						return recur(s, unicodeResult.nextIdx, n, acc + unicodeResult.value)
+					}
 					_ => error("json: invalid escape sequence \\" + nextChar)
 				}
 				recur(s, i + 2, n, acc + unescaped)
 			}
+		} else if (isControlChar(c)) {
+			error("json: unescaped control character in string")
 		} else {
 			recur(s, i + 1, n, acc + c)
 		}
 	}
+}
+
+var parseUnicodeEscape = fn(@str s, @num i, @num n) {
+	if (i + 4 > n) {
+		error("json: invalid unicode escape, expected 4 hex digits")
+	}
+
+	var hi = parseHexToNumber(s, i, i + 4, 0)
+	var next = i + 4
+
+	if (isHighSurrogate(hi)) {
+		if (next + 6 > n || s[next] != "\\" || s[next + 1] != "u") {
+			error("json: invalid unicode escape, lone high surrogate")
+		}
+		var lo = parseHexToNumber(s, next + 2, next + 6, 0)
+		if (!isLowSurrogate(lo)) {
+			error("json: invalid unicode escape, expected low surrogate after high surrogate")
+		}
+		var codePoint = 65536 + ((hi - 55296) * 1024) + (lo - 56320)
+		ParseResult { value: fromCodePoint(codePoint), nextIdx: next + 6 }
+	} else if (isLowSurrogate(hi)) {
+		error("json: invalid unicode escape, lone low surrogate")
+	} else {
+		ParseResult { value: fromCodePoint(hi), nextIdx: next }
+	}
+}
+
+var parseHexToNumber = fn(@str s, @num i, @num end, @num acc) {
+	if (i >= end) {
+		acc
+	} else {
+		var c = s[i]
+		if (!isHexDigit(c)) {
+			error("json: invalid unicode escape, expected hex digit but got '" + c + "'")
+		}
+		recur(s, i + 1, end, acc * 16 + hexDigitToNumber(c))
+	}
+}
+
+var isHexDigit = fn(@str c) {
+	("0123456789ABCDEF" /> indexOf(c /> toUpper())) >= 0
+}
+
+var hexDigitToNumber = fn(@str c) {
+	"0123456789ABCDEF" /> indexOf(c /> toUpper())
+}
+
+var isHighSurrogate = fn(@num n) {
+	n >= 55296 && n <= 56319
+}
+
+var isLowSurrogate = fn(@num n) {
+	n >= 56320 && n <= 57343
+}
+
+var isControlChar = fn(@str c) {
+	c < " "
 }
 
 var parseNumberToken = fn(@str s, @num i, @num n) {

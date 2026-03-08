@@ -87,10 +87,11 @@ func GetForeignFunctions() map[string]*object.Foreign {
 		"slug.std.remove":      fnStdRemove(),
 
 		// string functions
-		"slug.string.indexOf": fnStringIndexOf(),
-		"slug.string.toLower": fnStringToLower(),
-		"slug.string.toUpper": fnStringToUpper(),
-		"slug.string.trim":    fnStringTrim(),
+		"slug.string.indexOf":       fnStringIndexOf(),
+		"slug.string.fromCodePoint": fnStringFromCodePoint(),
+		"slug.string.toLower":       fnStringToLower(),
+		"slug.string.toUpper":       fnStringToUpper(),
+		"slug.string.trim":          fnStringTrim(),
 
 		"slug.sys.exit":      fnSysExit(),
 		"slug.sys.setEnv":    fnSysSetEnv(),

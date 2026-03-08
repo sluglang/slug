@@ -110,3 +110,24 @@ func fnStringToLower() *object.Foreign {
 	},
 	}
 }
+
+func fnStringFromCodePoint() *object.Foreign {
+	return &object.Foreign{Name: "fromCodePoint", Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		if len(args) != 1 {
+			return ctx.NewError("wrong number of arguments. got=%d, want=1", len(args))
+		}
+
+		number, ok := args[0].(*object.Number)
+		if !ok {
+			return ctx.NewError("argument to `fromCodePoint` not supported, got %s", args[0].Type())
+		}
+
+		codePoint := number.Value.ToInt()
+		if codePoint < 0 || codePoint > utf8.MaxRune || (codePoint >= 0xD800 && codePoint <= 0xDFFF) {
+			return ctx.NewError("argument to `fromCodePoint` must be a valid Unicode scalar value, got %d", codePoint)
+		}
+
+		return &object.String{Value: string(rune(codePoint))}
+	},
+	}
+}

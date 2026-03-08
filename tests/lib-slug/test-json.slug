@@ -26,6 +26,10 @@ var decodeTests = [
 	["1e10", 10000000000],
 	["-3E5", -300000],
 	["1e-5", 1e-5],
+
+	// unicode escapes
+	["\"unicode: \\u0041\"", "unicode: A"],
+	["\"surrogate: \\uD83E\\uDD23\"", "surrogate: 🤣"],
 ]
 
 var bidirectionalTests = [
@@ -113,9 +117,12 @@ var invalidJson = [
 	"\"",
 	"\"hello",
 	"\"hello\\",
-	// "\"\\uZZZZ\"",
-	// "\"\\uD800\"",         // lone high surrogate
-	// "\"\\uDD00\"",         // lone low surrogate
+	"\"\\uZZZZ\"",
+	"\"\\uD800\"",         // lone high surrogate
+	"\"\\uDD00\"",         // lone low surrogate
+	"\"\\uD83E\\u0041\"",  // high surrogate not followed by low surrogate
+	"\"\\uD83E\\uD83E\"",  // high surrogate followed by high surrogate
+	"\"\\uDD23\\uD83E\"",  // low surrogate leading
 	"{\"a\":1 \"b\":2}",
 	"[1 2 3]",
 	"{\"a\":1} extra",

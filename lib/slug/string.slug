@@ -58,6 +58,14 @@ foreign toUpper = fn(@str str)
 foreign toLower = fn(@str str)
 
 @testWith(
+	[65], "A",
+	[129315], "🤣",
+)
+@export
+@returns('@str')
+foreign fromCodePoint = fn(@num codePoint)
+
+@testWith(
 	["hello slug", "slug"], true,
 	["hello slug", "snail"], false,
 )
