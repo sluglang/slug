@@ -32,8 +32,8 @@ var acceptLoop = fn(listener, @fn app) {
 var handleConn = fn(conn, @fn app) {
 	defer { tcp.close(conn) }
 	defer onerror (err) match {
-		Error{type: 'Timeout'} => { println("error:", conn, err); nil }
-		_                      => { println("error:", conn, err, stacktrace(err)); nil }
+		Error{type: 'TimeoutError'} => { println("error:", conn, err); nil }
+		_                           => { println("error:", conn, err, stacktrace(err)); nil }
 	}
 
 	var maxReq = 100

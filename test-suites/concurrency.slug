@@ -120,7 +120,7 @@ var test_timeout_throws = fn() {
         var i = await(x, 1)
     }
     var r = runSafe(fn() { f() })
-    r.error.type /> eq("Timeout")
+    r.error.type /> eq("TimeoutError")
     r.error.data.ms /> eq(1)
 }
 
