@@ -300,6 +300,7 @@ var zip = fn(@list lst1, @list lst2, acc = []) {
 )
 @export
 @returns('@bool')
+@throws('@struct(Error{type:TypeError})')
 var toBoolean = fn(v) {
 	match v /> type() {
 		^BOOLEAN_TYPE => v
@@ -309,10 +310,10 @@ var toBoolean = fn(v) {
 			match v /> toLower() {
 				"true", "yes", "1" => true
 				"false", "no", "0" => false
-				_ => throw Error { type: "error", msg: "Cannot convert '{{v}}' to boolean"}
+				_ => throw Error { type: "TypeError", msg: "Cannot convert '{{v}}' to boolean"}
 			}
 		}
-		t => throw Error { type: "error", msg: "Cannot convert type {{t}} to boolean"}
+		t => throw Error { type: "TypeError", msg: "Cannot convert type {{t}} to boolean"}
 	}
 }
 
@@ -333,12 +334,13 @@ foreign parseNumber = fn(@str value)
 )
 @export
 @returns('@num')
+@throws('@struct(Error{type:TypeError})')
 var toNumber = fn(v) {
 	match v /> type() {
 		^NIL_TYPE => nil
 		^NUMBER_TYPE => v
 		^STRING_TYPE => parseNumber(v)
-		t => throw Error { type: "error", msg: "Cannot convert type {{t}} to number"}
+		t => throw Error { type: "TypeError", msg: "Cannot convert type {{t}} to number"}
 	}
 }
 

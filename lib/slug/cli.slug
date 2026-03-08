@@ -3,6 +3,7 @@ var {*} = import(
 )
 
 @export
+@throws('@struct(Error{type:TypeError})')
 var opt = fn(...args) {
 	if ( len(args) == 0 ) {
 		nil
@@ -28,5 +29,5 @@ var convertValue = fn(newValue, targetType) match {
 	[nv, ^BOOLEAN_TYPE] => toBoolean(nv)
 	[nv, ^NUMBER_TYPE]  => toNumber(nv)
 	[nv, ^STRING_TYPE]  => toString(nv)
-	[nv, tt] => throw Error { type: "error", msg: "Cannot convert '{{nv}}' to type {{tt}}"}
+	[nv, tt] => throw Error { type: "TypeError", msg: "Cannot convert '{{nv}}' to type {{tt}}"}
 }

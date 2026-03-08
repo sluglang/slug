@@ -699,6 +699,7 @@ var renderNodesCached = fn(nodes, ctxStack, partials, cache, blocks, acc = "", i
 
 @export
 @returns('@str')
+@throws('@struct(Error{type:MustacheError})')
 var renderCached = fn(templateOrAst, data, partials = nil, cache = {}) {
 	var ast = if(type(templateOrAst) == STRING_TYPE) {parse(templateOrAst)} else {templateOrAst}
 	renderNodesCached(ast, [data], partials, cache, {}, "")
@@ -706,6 +707,7 @@ var renderCached = fn(templateOrAst, data, partials = nil, cache = {}) {
 
 @export
 @returns('@str')
+@throws('@struct(Error{type:MustacheError})')
 var render = fn(templateOrAst, data, partials = nil) {
 	renderCached(templateOrAst, data, partials, {}).html
 }

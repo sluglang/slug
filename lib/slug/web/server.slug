@@ -10,6 +10,7 @@ var request = import("slug.web.request")
 
 
 @export
+@throws('@struct(Error{type:ServerError})')
 var serve = nursery limit 1000 fn(@fn app, @str addr = cfg("address", "0.0.0.0"), @num port = cfg("port", 8080)) {
 """
 #
@@ -91,7 +92,7 @@ var getNextRequest = fn(conn, buf, idleMs) {
 
 		if (cl > maxInMemoryBody) {
 			// For large bodies, we don't read it all.
-			throw Error { type: "http", msg: "Content-Length to large: {{cl}}" }
+			throw Error { type: "ServerError", msg: "Content-Length to large: {{cl}}" }
 		} else {
 			// For small bodies, keep the convenience of a string
 			var bodyAlreadyRead = len(bodyStart)
@@ -121,7 +122,7 @@ var readUntilHeaders = fn(conn, maxBytes, chunkSize, timeoutMs, buf = "") {
 	if (buf /> indexOf("\r\n\r\n") >= 0) {
 		buf
 	} else if (len(buf) >= maxBytes) {
-		throw Error { type: "http", msg: "Request headers too large" }
+		throw Error { type: "ServerError", msg: "Request headers too large" }
 	} else {
 		match readWithin(conn, chunkSize, timeoutMs) {
 			nil => buf

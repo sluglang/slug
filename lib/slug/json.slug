@@ -33,6 +33,7 @@ val ParseResult = struct {
 )
 @export
 @returns('@str')
+@throws('@struct(Error{type:JsonError})')
 var encode = fn(v) {
 	match (type(v)) {
 		^STRING_TYPE  => encodeString(v)
@@ -57,6 +58,7 @@ var encode = fn(v) {
 )
 @export
 @returns('@str')
+@throws('@struct(Error{type:JsonError})')
 var pretty = fn(v, @num indent = 2) {
 	prettyPrint(v, indent, 0)
 }

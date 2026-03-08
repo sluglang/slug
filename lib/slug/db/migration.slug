@@ -42,6 +42,7 @@ var Migration = struct {
 
 @export
 @returns('@num')
+@throws('@struct(Error{type:MigrationError})')
 var status = fn(@num conn, @list env = DefaultEnv, @str base = DefaultBase) {
 	checkTrackingTable(conn)
 	listMigrationFiles(base, fn(m, sql) {
@@ -63,6 +64,7 @@ var status = fn(@num conn, @list env = DefaultEnv, @str base = DefaultBase) {
 
 @export
 @returns('@num')
+@throws('@struct(Error{type:MigrationError})')
 var up = fn(@num conn, @list env = DefaultEnv, @str base = DefaultBase) {
 	checkTrackingTable(conn)
 	listMigrationFiles(base, fn(m, sql) {
@@ -177,7 +179,7 @@ var listMigrationFiles = fn(@str base, @fn f = fn(migration, sql) { migration })
 		/> match {
 			[a, env, _] => [replaceAll(a, ' ', '.'), trim(env)];
 			[a, _] => [replaceAll(a, ' ', '.'), nil];
-			_ => throw Error{type: 'Migration', msg: filename + " must be in the form `<version>__<environment>__<description>.sql` "}
+			_ => throw Error{type: 'MigrationError', msg: filename + " must be in the form `<version>__<environment>__<description>.sql` "}
 		}
 		var m = Migration {
 			version: version,

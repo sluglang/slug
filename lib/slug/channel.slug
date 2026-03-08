@@ -26,10 +26,11 @@ var trySend = fn(@chan channel, payload) {
 }
 
 @export
+@throws('@struct(Error{type:TimeoutError})')
 var recv = fn(@chan channel, @num timeout = 0) {
 	select {
 		recv channel
-		after timeout /> fn(_) { throw Error{ type: "Timeout", data: {ms: timeout, channel: channel} } }
+		after timeout /> fn(_) { throw Error{ type: "TimeoutError", data: {ms: timeout, channel: channel} } }
 	}
 }
 
@@ -42,9 +43,10 @@ var tryRecv = fn(@chan channel) {
 }
 
 @export
+@throws('@struct(Error{type:TimeoutError})')
 var await = fn(@task handle, @num timeout = 0) {
 	select {
 		await handle
-		after timeout /> fn(_) { throw Error{ type: "Timeout", data: {ms: timeout, handle: handle} } }
+		after timeout /> fn(_) { throw Error{ type: "TimeoutError", data: {ms: timeout, handle: handle} } }
 	}
 }
