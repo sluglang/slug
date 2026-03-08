@@ -26,7 +26,8 @@ var isAssertError = fn(v) {
 }
 
 @export
-@returns('@bool', '@struct(Error)')
+@returns('@bool')
+@throws('@struct(Error{type:AssertionError})')
 var assertThrows = fn(@fn f, expected, @str msg = nil) {
     var r = runSafe(f)
     if (r.error == expected) {
@@ -44,7 +45,8 @@ var assertThrows = fn(@fn f, expected, @str msg = nil) {
 }
 
 @export
-@returns('@bool', '@struct(Error)')
+@returns('@bool')
+@throws('@struct(Error{type:AssertionError})')
 var assertErrorType = fn(@fn f, expected, @str msg = nil) {
     var r = runSafe(f)
     if (r.error /> type() == expected) {
@@ -62,7 +64,8 @@ var assertErrorType = fn(@fn f, expected, @str msg = nil) {
 }
 
 @export
-@returns('@bool', '@struct(Error)')
+@returns('@bool')
+@throws('@struct(Error{type:AssertionError})')
 var assert = fn(a, msg = nil) {
     if ( a /> type() == BOOLEAN_TYPE && a ) {
         a
@@ -75,17 +78,20 @@ var assert = fn(a, msg = nil) {
 }
 
 @export
-@returns('@bool', '@struct(Error)')
+@returns('@bool')
+@throws('@struct(Error{type:AssertionError})')
 var assertTrue = assert
 
 @export
-@returns('@bool', '@struct(Error)')
+@returns('@bool')
+@throws('@struct(Error{type:AssertionError})')
 var assertFalse = fn(a, msg = nil) {
     assert( !a, msg)
 }
 
 @export
-@returns('?', '@struct(Error)')
+@returns('?')
+@throws('@struct(Error{type:AssertionError})')
 var assertEqual = fn(value, expected, msg = nil) {
     var t = value /> type()
 
@@ -106,7 +112,8 @@ var assertEqual = fn(value, expected, msg = nil) {
 
 
 @export
-@returns('?', '@struct(Error)')
+@returns('?')
+@throws('@struct(Error{type:AssertionError})')
 var assertNotEqual = fn(value, expected, msg = nil) {
     var t = value /> type()
 
@@ -126,7 +133,8 @@ var assertNotEqual = fn(value, expected, msg = nil) {
 }
 
 @export
-@returns('?', '@struct(Error)')
+@returns('?')
+@throws('@struct(Error{type:AssertionError})')
 var assertLessThan = fn(value, expected, msg = nil) {
     if (value < expected) {
         value
@@ -140,7 +148,8 @@ var assertLessThan = fn(value, expected, msg = nil) {
 
 
 @export
-@returns('?', '@struct(Error)')
+@returns('?')
+@throws('@struct(Error{type:AssertionError})')
 var assertLessThanOrEqual = fn(value, expected, msg = nil) {
     if (value <= expected) {
         value
@@ -153,7 +162,8 @@ var assertLessThanOrEqual = fn(value, expected, msg = nil) {
 }
 
 @export
-@returns('?', '@struct(Error)')
+@returns('?')
+@throws('@struct(Error{type:AssertionError})')
 var assertGreaterThan = fn(value, expected, msg = nil) {
     if (value > expected) {
         value
@@ -166,7 +176,8 @@ var assertGreaterThan = fn(value, expected, msg = nil) {
 }
 
 @export
-@returns('?', '@struct(Error)')
+@returns('?')
+@throws('@struct(Error{type:AssertionError})')
 var assertGreaterThanOrEqual = fn(value, expected, msg = nil) {
     if (value >= expected) {
         value
@@ -179,7 +190,8 @@ var assertGreaterThanOrEqual = fn(value, expected, msg = nil) {
 }
 
 @export
-@returns('?', '@struct(Error)')
+@returns('?')
+@throws('@struct(Error{type:AssertionError})')
 var assertNil = fn(value, msg = nil) {
     if (value == nil) {
         value
@@ -192,7 +204,8 @@ var assertNil = fn(value, msg = nil) {
 }
 
 @export
-@returns('?', '@struct(Error)')
+@returns('?')
+@throws('@struct(Error{type:AssertionError})')
 var assertNotNil = fn(value, msg = nil) {
     if (value != nil) {
         value
@@ -205,7 +218,7 @@ var assertNotNil = fn(value, msg = nil) {
 }
 
 @export
-@returns('@struct(Error)')
+@throws('@struct(Error{type:AssertionError})')
 var fail = fn(msg = nil) {
     if ( !msg ) {
         msg = "Test failed!"
@@ -213,19 +226,11 @@ var fail = fn(msg = nil) {
     throw Error { type: "AssertionError", msg: msg }
 }
 
-@returns('?', '@struct(Error)')
 @export var eq = assertEqual
-@returns('?', '@struct(Error)')
 @export var lt = assertLessThan
-@returns('?', '@struct(Error)')
 @export var lteq = assertLessThanOrEqual
-@returns('?', '@struct(Error)')
 @export var gt = assertGreaterThan
-@returns('?', '@struct(Error)')
 @export var gteq = assertGreaterThanOrEqual
-@returns('@bool', '@struct(Error)')
 @export var throws = assertThrows
-@returns('@bool', '@struct(Error)')
 @export var ok = assertTrue
-@returns('@bool', '@struct(Error)')
 @export var not = assertFalse
