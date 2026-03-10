@@ -3,6 +3,7 @@ package ast
 import (
 	"bytes"
 	"encoding/hex"
+	"fmt"
 	"slug/internal/dec64"
 	"slug/internal/token"
 	"strings"
@@ -13,6 +14,10 @@ type FSig struct {
 	Min        int
 	Max        int
 	IsVariadic bool
+}
+
+func (f *FSig) String() string {
+	return fmt.Sprintf("(%s, Args: %d - %d vargs: %v)", f.Tags, f.Min, f.Max, f.IsVariadic)
 }
 
 // The base Node interface
