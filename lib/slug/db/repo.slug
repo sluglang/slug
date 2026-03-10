@@ -1,0 +1,244 @@
+/**
+ * file-based SQL query loader with named parameter extraction and schema mapping.
+ */
+
+val {*} = import(
+	"slug.string",
+	"slug.list",
+	"slug.std",
+	"slug.map",
+	"slug.io.db",
+	"slug.io.fs",
+)
+
+val lst = import("slug.list")
+
+val DefaultBase = cfg('base-directory', 'db/queries')
+
+// --- keyword detection ---
+val QUERY_KEYWORDS = ["select", "with"]
+val EXEC_KEYWORDS  = ["insert", "update", "delete", "create", "drop", "alter", "replace"]
+
+// --- parser modes ---
+// Tracks what context the parser is currently inside so that
+// ':param' syntax inside literals and comments is ignored.
+val MODE_NORMAL   = :normal
+val MODE_STRING   = :string    // inside '...'
+val MODE_LINE_CMT = :line_cmt  // inside -- ...
+val MODE_BLOCK_CMT = :block_cmt // inside /* ... */
+
+// Return type for extractArgs — explicit contract for downstream consumers
+val SqlQuery = struct {
+  @str  sql,           // rewritten SQL with ? placeholders
+  @list args,          // ordered list of param symbols
+  @sym  type,          // :query (SELECT/WITH) or :exec (INSERT/UPDATE/DELETE/...)
+}
+
+/**
+ * scans base directory recursively for .sql files; builds a nested map mirroring folder structure;
+ * each leaf is a fn(conn, args) ready to call
+ */
+@export
+@returns("@map")
+var loadQueries = fn(@str base = DefaultBase) {
+	var baseLen = len(base)
+	listFilesRecursive([base], fn(s) { s[-4:] == '.sql' })
+	/> reduce({}, fn(repos, path) {
+		var f = readFile(path)
+		/> trim
+		/> mkQueryFunction
+		var keyPath = path[baseLen:-4]
+		/> replaceAll('/', ' ')
+		/> trim
+		/> split(' ')
+		/> putNested(repos, f)
+	})
+}
+
+/**
+ * maps a db result row onto a struct or map; normalises snake_case keys to camelCase by
+ * default; accepts custom key transform fn
+ */
+@export
+@returns("?")
+var into = fn(@map data, target, @fn columnToFieldName = fn(s) { camelCase(s, '_') }) {
+	data = data /> keys /> reduce({}, fn(m, k) {
+		put(m, sym(columnToFieldName(k)), data[k])
+	})
+	match type(target) {
+		^MAP_TYPE => data /> keys /> reduce(target, fn(a, b) { put(a, b, data[b]) } )
+		^STRUCT_TYPE => target{} copy data
+		_ => target copy data
+	}
+}
+
+/**
+ * maps a list of result rows onto a struct or map; normalises snake_case keys to camelCase by
+ * default; accepts custom key transform fn
+ */
+@export
+@returns("@list")
+var into = fn(@list data, toType, @fn columnToFieldName = fn(s) { camelCase(s, '_') }) {
+	data /> map(fn(v) { into(v, toType, columnToFieldName) })
+}
+
+val firstKeyword = fn(sql) {
+  val lower = sql /> toLower /> trim
+  val step  = fn(words) {
+    match words {
+      []        => :unknown
+      [w, ...t] => {
+        val trimmed = trim(w)
+        match trimmed {
+          "" => recur(t)
+          _  => sym(trimmed)
+        }
+      }
+    }
+  }
+  lower /> split(' ') /> step
+}
+
+val sqlType = fn(sql) {
+  val kw  = firstKeyword(sql)
+  val lbl = label(kw)
+  match true {
+    true if QUERY_KEYWORDS /> lst.indexOf(lbl) >= 0 => :query
+    true if EXEC_KEYWORDS  /> lst.indexOf(lbl) >= 0 => :exec
+    _                                           => :exec
+  }
+}
+
+// --- character helpers (reused from original) ---
+
+val isAlphanumeric = fn(@str s) {
+  isLetter(s) || isNumber(s) || s == '_'
+}
+
+val isLetter = fn(@str s) {
+  'abcdefghijklmnopqrstuvwxyz' /> indexOf(s /> toLower) >= 0
+}
+
+val isNumber = fn(@str s) {
+  '0123456789' /> indexOf(s) >= 0
+}
+
+
+// --- core sql query parser ---
+// State:
+//   sql     — remaining input characters
+//   out     — accumulated output SQL (with ? substitutions)
+//   arg     — currently accumulating param name (when in :param)
+//   args    — accumulated param list (symbols)
+//   inArg   — bool: currently reading a :param name
+//   mode    — current parse mode (normal/string/line_cmt/block_cmt)
+//   prev    — previous character (needed for /* */ and -- detection)
+@testWith(
+  // basic cases
+  ["select * from foo where a = :arg1"], SqlQuery{ sql: "select * from foo where a = ?", args: [:arg1], type: :query },
+  ["select * from foo where a = :arg1 and b = :arg2"], SqlQuery{ sql: "select * from foo where a = ? and b = ?", args: [:arg1, :arg2], type: :query },
+  // repeated param
+  ["select * from foo where a = :id or b = :id"], SqlQuery{ sql: "select * from foo where a = ? or b = ?", args: [:id, :id], type: :query },
+  // param inside string literal should be ignored
+  ["select * from foo where a = ':not_a_param' and b = :real"], SqlQuery{ sql: "select * from foo where a = ':not_a_param' and b = ?", args: [:real], type: :query },
+  // exec detection
+  ["insert into foo (a, b) values (:a, :b)"], SqlQuery{ sql: "insert into foo (a, b) values (?, ?)", args: [:a, :b], type: :exec },
+  // no params
+  ["select * from foo"], SqlQuery{ sql: "select * from foo", args: [], type: :query },
+)
+val extractArgs = fn(sql) {
+  val step = fn(sql, out, arg, args, inArg, mode, prev) {
+    match sql {
+      "" => {
+        // flush any in-progress param at end of input
+        val finalArgs = match inArg {
+          true => args :+ sym(arg)
+          _    => args
+        }
+        SqlQuery{
+          sql:  out,
+          args: finalArgs,
+          type: sqlType(out),
+        }
+      }
+      _ => {
+        val c    = sql[0]
+        val rest = sql[1:]
+        val next = if (len(rest) > 0) { rest[0] } else { "" }
+
+        match mode {
+
+          // --- inside single-quoted string: copy verbatim until closing ' ---
+          ^MODE_STRING => match c {
+            "'" => recur(rest, out + c, arg, args, false, MODE_NORMAL, c)
+            _   => recur(rest, out + c, arg, args, false, MODE_STRING, c)
+          }
+
+          // --- inside line comment: copy until newline ---
+          ^MODE_LINE_CMT => match c {
+            "\n" => recur(rest, out + c, arg, args, false, MODE_NORMAL, c)
+            _    => recur(rest, out + c, arg, args, false, MODE_LINE_CMT, c)
+          }
+
+          // --- inside block comment: copy until */ ---
+          ^MODE_BLOCK_CMT => match true {
+            true if prev == "*" && c == "/" =>
+              recur(rest, out + c, arg, args, false, MODE_NORMAL, c)
+            _ =>
+              recur(rest, out + c, arg, args, false, MODE_BLOCK_CMT, c)
+          }
+
+          // --- normal mode ---
+          _ => match true {
+
+            // entering single-quoted string
+            true if c == "'" && !inArg =>
+              recur(rest, out + c, "", args, false, MODE_STRING, c)
+
+            // entering line comment (--)
+            true if c == "-" && next == "-" && !inArg =>
+              recur(rest, out + c, "", args, false, MODE_LINE_CMT, c)
+
+            // entering block comment (/*)
+            true if c == "/" && next == "*" && !inArg =>
+              recur(rest, out + c, "", args, false, MODE_BLOCK_CMT, c)
+
+            // start of a :param
+            true if c == ":" && !inArg =>
+              recur(rest, out + "?", "", args, true, MODE_NORMAL, c)
+
+            // continuing a :param name
+            true if inArg && isAlphanumeric(c) =>
+              recur(rest, out, arg + c, args, true, MODE_NORMAL, c)
+
+            // end of :param — flush and continue
+            true if inArg =>
+              recur(rest, out + c, "", args :+ sym(arg), false, MODE_NORMAL, c)
+
+            // normal character
+            _ =>
+              recur(rest, out + c, "", args, false, MODE_NORMAL, c)
+          }
+        }
+      }
+    }
+  }
+
+  step(sql, "", "", [], false, MODE_NORMAL, "")
+}
+
+// Dispatches to query() or exec() based on extracted sql type.
+val mkQueryFunction = fn(rawSql) {
+  val SqlQuery{ sql, args: queryParams, type: kind } = extractArgs(rawSql)
+
+  fn(conn, args = {}) {
+    val params = match type(args) {
+      ^LIST_TYPE => args
+      _          => queryParams /> map(fn(v) { args[v] })
+    }
+    match kind {
+      :query => conn /> query(sql, ...params)
+      :exec  => conn /> exec(sql, ...params)
+    }
+  }
+}
