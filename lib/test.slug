@@ -35,6 +35,8 @@ var {*} = import(
 	"slug.term.colour",
 )
 
+var {assertEqual} = import("slug.test")
+
 /**
  * @testWith - Allows test inputs and expected outputs to be specified
  */
@@ -60,7 +62,7 @@ var passed = fn(@str msg) {
 var runTestFn = fn(f, name, stats) {
 	defer onerror(err) {
 		match err {
-			Error{type:"AssertionError", msg} => {
+			Error{type: 'AssertionError', msg} => {
 				println("  [{{Fail}}FAIL{{Reset}}] {{name}}(): {{msg}}")
 				stats /> compute(:fail, fn(k, v) { v + 1})
 			}
@@ -81,22 +83,21 @@ var runTestFn = fn(f, name, stats) {
 }
 
 var runTest = fn(f, name, params, expected, stats) {
-	defer onerror(err) {
-		println("  [{{Fail}}ERROR{{Reset}}] {{name}}({{params}}) == threw '{{err}}' expected '{{expected}}'")
-		stats /> compute(:error, fn(k, v) { v + 1}) /> compute(:run, fn(k, v) { v + 1})
+	defer onerror(err) match {
+		Error{type: 'AssertionError'} => {
+			println("  [{{Fail}}FAIL{{Reset}}] {{name}}({{params}}) == '{{out}}' expected '{{expected}}'")
+			stats /> compute(:fail, fn(k, v) { v + 1}) /> compute(:run, fn(k, v) { v + 1})
+		}
+		_ => {
+			println("  [{{Fail}}ERROR{{Reset}}] {{name}}({{params}}) == threw '{{err}}' expected '{{expected}}'")
+			stats /> compute(:error, fn(k, v) { v + 1}) /> compute(:run, fn(k, v) { v + 1})
+		}
 	}
 
 	val out = f(...params)
 
-	match out /> type() {
-		^LIST_TYPE if out /> equals(expected) => passed("{{name}}({{params}}) == {{out}}")
-		^MAP_TYPE if out /> equals(expected)  => passed("{{name}}({{params}}) == {{out}}")
-		_ if out == expected => passed("{{name}}({{params}}) == {{out}}")
-		_ => {
-			stats = stats /> compute(:fail, fn(k, v) { v + 1})
-			println("  [{{Fail}}FAIL{{Reset}}] {{name}}({{params}}) == '{{out}}' expected '{{expected}}'")
-		}
-	}
+	assertEqual(expected, out)
+	passed("{{name}}({{params}}) == {{out}}")
 	stats /> compute(:run, fn(k, v) { v + 1})
 }
 

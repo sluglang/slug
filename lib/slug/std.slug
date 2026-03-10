@@ -54,6 +54,15 @@ var {*} = import(
 @returns('@sym')
 foreign type = fn(val)
 
+@export
+@returns('@bool')
+var isStructInstance = fn(v) {
+	match type(v) {
+		v if type(v) == STRUCT_TYPE => true
+		_ => false
+	}
+}
+
 /**
  * Determine if a variable is defined in the current scope.
  */
@@ -412,6 +421,37 @@ var equals = fn(v1, v2) {
 @returns('@bool')
 var equals = fn(@map m1, @map m2) {
 	if (m1 == nil || m2 == nil) {
+		return false
+	}
+	var check = fn(ks) {
+		match ks {
+			[] => true
+			[k, ...t] if equals(m1[k], m2[k]) => check(t)
+			_ => false
+		}
+	}
+	var k1 = m1 /> keys()
+	var k2 = m2 /> keys()
+	if(len(k1) != len(k2)) {
+		false
+	} else {
+		check(k1 + k2)
+	}
+}
+
+/**
+ * deep equals check for struct types and struct instances
+ */
+@export
+@returns('@bool')
+var structEquals = fn(m1, m2) {
+	if (m1 == nil || m2 == nil) {
+		return false
+	}
+	if (type(m1) != type(m2)) {
+		return false
+	}
+	if (!(isStructInstance(m1) || type(m2) == STRUCT_TYPE)) {
 		return false
 	}
 	var check = fn(ks) {

@@ -93,12 +93,14 @@ var assertFalse = fn(a, msg = nil) {
 @returns('?')
 @throws('@struct(Error{type:AssertionError})')
 var assertEqual = fn(value, expected, msg = nil) {
-    var t = value /> type()
 
-    var same =
-        (t == LIST_TYPE   && equals(value, expected))
-        || (t == MAP_TYPE    && equals(value, expected))
-        || (value == expected)
+	var same = match type(value) {
+		^LIST_TYPE => equals(value, expected)
+		^MAP_TYPE => equals(value, expected)
+		^STRUCT_TYPE => structEquals(value, expected)
+		_ if isStructInstance(value) => structEquals(value, expected)
+		_ => value == expected
+	}
 
     if (same) {
         value
@@ -110,17 +112,18 @@ var assertEqual = fn(value, expected, msg = nil) {
     }
 }
 
-
 @export
 @returns('?')
 @throws('@struct(Error{type:AssertionError})')
 var assertNotEqual = fn(value, expected, msg = nil) {
-    var t = value /> type()
 
-    var same =
-        (t == LIST_TYPE   && equals(value, expected))
-        || (t == MAP_TYPE    && equals(value, expected))
-        || (value == expected)
+	var same = match type(value) {
+		^LIST_TYPE => equals(value, expected)
+		^MAP_TYPE => equals(value, expected)
+		^STRUCT_TYPE => structEquals(value, expected)
+		_ if isStructInstance(value) => structEquals(value, expected)
+		_ => value == expected
+	}
 
     if (!same) {
         value
