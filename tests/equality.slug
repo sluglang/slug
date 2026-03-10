@@ -22,3 +22,20 @@ assert("a" == "a", "string a == a")
 assert("b" != "a", "string b != a")
 assert("a" != "b", "string a != b")
 
+// symbols
+// -------
+assert(:a == :a, "symbol :a == :a")
+assert(:b != :a, "symbol :b != :a")
+assert(:a != :b, "symbol :a != :b")
+
+// struct
+// ------
+var St = struct {
+	@num n = 1,
+}
+var instance = St{}
+assert(St == St, "struct St == St")
+assert(instance == instance, "struct instance == instance")
+assert(St{} != St{}, "struct St{} == St{}")
+
+
