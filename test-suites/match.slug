@@ -28,3 +28,11 @@ var test_match_case_returns_map_without_space_between_braces = fn() {
 	r.c /> assertEqual(7)
 	r.d /> assertEqual(7)
 }
+
+@test
+var test_match_symbol = fn() {
+	match :query {
+		:query => "query"
+		_      => "exec"
+	} /> assertEqual('query')
+}

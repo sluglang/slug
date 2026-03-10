@@ -952,7 +952,7 @@ func (p *Parser) parseMatchPattern() ast.MatchPattern {
 			Token: p.curToken,
 			Value: &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal},
 		}
-	case token.NUMBER, token.STRING, token.TRUE, token.FALSE, token.NIL:
+	case token.NUMBER, token.STRING, token.TRUE, token.FALSE, token.NIL, token.SYMBOL, token.COLON:
 		// Literal patterns (numbers, strings, booleans, nil)
 		expr := p.parseExpression(LOWEST)
 		return &ast.LiteralPattern{Token: p.curToken, Value: expr}

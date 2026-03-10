@@ -254,6 +254,51 @@ match x {
 	}
 }
 
+func TestMatchSymbolPatternParsing(t *testing.T) {
+	input := `
+match :query {
+  :query => "query"
+  _ => "exec"
+}
+`
+
+	l := lexer.New(input)
+	p := New(l, "", input)
+	program := p.ParseProgram()
+	checkParserErrors(t, p)
+
+	if len(program.Statements) != 1 {
+		t.Fatalf("program.Statements does not contain 1 statements. got=%d", len(program.Statements))
+	}
+
+	stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
+	if !ok {
+		t.Fatalf("stmt not *ast.ExpressionStatement. got=%T", program.Statements[0])
+	}
+
+	matchExpr, ok := stmt.Expression.(*ast.MatchExpression)
+	if !ok {
+		t.Fatalf("expression not *ast.MatchExpression. got=%T", stmt.Expression)
+	}
+
+	if len(matchExpr.Cases) != 2 {
+		t.Fatalf("matchExpr.Cases length wrong. got=%d", len(matchExpr.Cases))
+	}
+
+	lit, ok := matchExpr.Cases[0].Pattern.(*ast.LiteralPattern)
+	if !ok {
+		t.Fatalf("first case pattern not *ast.LiteralPattern. got=%T", matchExpr.Cases[0].Pattern)
+	}
+
+	sym, ok := lit.Value.(*ast.SymbolLiteral)
+	if !ok {
+		t.Fatalf("first case literal not *ast.SymbolLiteral. got=%T", lit.Value)
+	}
+	if sym.Value != "query" {
+		t.Fatalf("symbol value wrong. got=%q", sym.Value)
+	}
+}
+
 func TestIntegerLiteralExpression(t *testing.T) {
 	input := "5;"
 
