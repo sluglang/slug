@@ -248,7 +248,7 @@ func (e *Task) Eval(node ast.Node) object.Object {
 		if e.isError(right) {
 			return right
 		}
-		return e.evalPrefixExpression(node.Operator, right)
+		return e.evalPrefixExpression(node.Token.Position, node.Operator, right)
 
 	case *ast.InfixExpression:
 		// Special case for assignment
@@ -290,7 +290,7 @@ func (e *Task) Eval(node ast.Node) object.Object {
 			return right
 		}
 
-		return e.evalInfixExpression(node.Operator, left, right)
+		return e.evalInfixExpression(node.Token.Position, node.Operator, left, right)
 
 	case *ast.IfExpression:
 		return e.evalIfExpression(node)
@@ -531,50 +531,50 @@ func (e *Task) NativeBoolToBooleanObject(input bool) *object.Boolean {
 	return object.FALSE
 }
 
-func (e *Task) evalPrefixExpression(operator string, right object.Object) object.Object {
+func (e *Task) evalPrefixExpression(pos int, operator string, right object.Object) object.Object {
 	switch operator {
 	case "!":
 		return e.evalBangOperatorExpression(right)
 	case "-":
-		return e.evalMinusPrefixOperatorExpression(right)
+		return e.evalMinusPrefixOperatorExpression(pos, right)
 	case "~":
-		return e.evalComplementPrefixOperatorExpression(right)
+		return e.evalComplementPrefixOperatorExpression(pos, right)
 	default:
-		// todo position
-		return e.newErrorf("unknown operator: %s%s", operator, right.Type())
+		return e.newUnaryOperatorErrorWithPos(pos, "unknown operator", operator, right)
 	}
 }
 
 func (e *Task) evalInfixExpression(
+	pos int,
 	operator string,
 	left, right object.Object,
 ) object.Object {
 	switch {
 	case left.Type() == object.NUMBER_OBJ && right.Type() == object.NUMBER_OBJ:
-		return e.evalNumberInfixExpression(operator, left, right)
+		return e.evalNumberInfixExpression(pos, operator, left, right)
 
 	case left.Type() == object.STRING_OBJ && right.Type() == object.STRING_OBJ:
-		return e.evalStringInfixExpression(operator, left, right)
+		return e.evalStringInfixExpression(pos, operator, left, right)
 
 	case left.Type() == object.SYMBOL_OBJ && right.Type() == object.SYMBOL_OBJ:
-		return e.evalSymbolInfixExpression(operator, left, right)
+		return e.evalSymbolInfixExpression(pos, operator, left, right)
 
 	case left.Type() == object.BOOLEAN_OBJ && right.Type() == object.BOOLEAN_OBJ:
-		return e.evalBooleanInfixExpression(operator, left, right)
+		return e.evalBooleanInfixExpression(pos, operator, left, right)
 
 	case operator == "+:" && right.Type() == object.LIST_OBJ:
-		return e.evalListInfixExpression(operator, left, right)
+		return e.evalListInfixExpression(pos, operator, left, right)
 	case operator == ":+" && left.Type() == object.LIST_OBJ:
-		return e.evalListInfixExpression(operator, left, right)
+		return e.evalListInfixExpression(pos, operator, left, right)
 	case left.Type() == object.LIST_OBJ && right.Type() == object.LIST_OBJ:
-		return e.evalListInfixExpression(operator, left, right)
+		return e.evalListInfixExpression(pos, operator, left, right)
 
 	case operator == "+:" && right.Type() == object.BYTE_OBJ && left.Type() == object.NUMBER_OBJ:
-		return e.evalBytesInfixExpression(operator, left, right)
+		return e.evalBytesInfixExpression(pos, operator, left, right)
 	case operator == ":+" && left.Type() == object.BYTE_OBJ && right.Type() == object.NUMBER_OBJ:
-		return e.evalBytesInfixExpression(operator, left, right)
+		return e.evalBytesInfixExpression(pos, operator, left, right)
 	case left.Type() == object.BYTE_OBJ && right.Type() == object.BYTE_OBJ:
-		return e.evalBytesInfixExpression(operator, left, right)
+		return e.evalBytesInfixExpression(pos, operator, left, right)
 	case operator == "&" && left.Type() == object.BYTE_OBJ && right.Type() == object.NUMBER_OBJ:
 		return e.doOp(right, left, AndBytes)
 	case operator == "&" && right.Type() == object.BYTE_OBJ && left.Type() == object.NUMBER_OBJ:
@@ -595,13 +595,11 @@ func (e *Task) evalInfixExpression(
 	case operator == "*" && left.Type() == object.STRING_OBJ && right.Type() == object.NUMBER_OBJ:
 		return e.evalStringMultiplication(left, right)
 	case left.Type() == object.STRING_OBJ || right.Type() == object.STRING_OBJ:
-		return e.evalStringPlusOtherInfixExpression(operator, left, right)
+		return e.evalStringPlusOtherInfixExpression(pos, operator, left, right)
 	case left.Type() != right.Type():
-		return e.newErrorf("type mismatch: %s %s %s",
-			left.Type(), operator, right.Type())
+		return e.newBinaryOperatorErrorWithPos(pos, "type mismatch", operator, left, right)
 	default:
-		return e.newErrorf("unknown operator: %s %s %s",
-			left.Type(), operator, right.Type())
+		return e.newBinaryOperatorErrorWithPos(pos, "unknown operator", operator, left, right)
 	}
 }
 
@@ -618,16 +616,16 @@ func (e *Task) evalBangOperatorExpression(right object.Object) object.Object {
 	}
 }
 
-func (e *Task) evalMinusPrefixOperatorExpression(right object.Object) object.Object {
+func (e *Task) evalMinusPrefixOperatorExpression(pos int, right object.Object) object.Object {
 	if right.Type() != object.NUMBER_OBJ {
-		return e.newErrorf("unknown operator: -%s", right.Type())
+		return e.newUnaryOperatorErrorWithPos(pos, "unknown operator", "-", right)
 	}
 
 	value := right.(*object.Number).Value
 	return &object.Number{Value: value.Neg()}
 }
 
-func (e *Task) evalComplementPrefixOperatorExpression(right object.Object) object.Object {
+func (e *Task) evalComplementPrefixOperatorExpression(pos int, right object.Object) object.Object {
 	switch v := right.(type) {
 	case *object.Number:
 		value := v.Value
@@ -640,7 +638,7 @@ func (e *Task) evalComplementPrefixOperatorExpression(right object.Object) objec
 		}
 		return &object.Bytes{Value: complement}
 	default:
-		return e.newErrorf("unknown operator: -%s", right.Type())
+		return e.newUnaryOperatorErrorWithPos(pos, "unknown operator", "~", right)
 	}
 }
 
@@ -684,6 +682,7 @@ func (e *Task) evalShortCircuitInfixExpression(left object.Object, node *ast.Inf
 }
 
 func (e *Task) evalBooleanInfixExpression(
+	pos int,
 	operator string,
 	left, right object.Object,
 ) object.Object {
@@ -700,12 +699,12 @@ func (e *Task) evalBooleanInfixExpression(
 	case "||":
 		return e.NativeBoolToBooleanObject(leftVal || rightVal)
 	default:
-		return e.newErrorf("unknown operator: %s %s %s",
-			left.Type(), operator, right.Type())
+		return e.newBinaryOperatorErrorWithPos(pos, "unknown operator", operator, left, right)
 	}
 }
 
 func (e *Task) evalNumberInfixExpression(
+	pos int,
 	operator string,
 	left, right object.Object,
 ) object.Object {
@@ -746,12 +745,12 @@ func (e *Task) evalNumberInfixExpression(
 	case "!=":
 		return e.NativeBoolToBooleanObject(!leftVal.Eq(rightVal))
 	default:
-		return e.newErrorf("unknown operator: %s %s %s",
-			left.Type(), operator, right.Type())
+		return e.newBinaryOperatorErrorWithPos(pos, "unknown operator", operator, left, right)
 	}
 }
 
 func (e *Task) evalStringInfixExpression(
+	pos int,
 	operator string,
 	left, right object.Object,
 ) object.Object {
@@ -774,13 +773,13 @@ func (e *Task) evalStringInfixExpression(
 	case ">=":
 		return e.NativeBoolToBooleanObject(leftVal >= rightVal)
 	default:
-		return e.newErrorf("unknown operator: %s %s %s",
-			left.Type(), operator, right.Type())
+		return e.newBinaryOperatorErrorWithPos(pos, "unknown operator", operator, left, right)
 	}
 
 }
 
 func (e *Task) evalSymbolInfixExpression(
+	pos int,
 	operator string,
 	left, right object.Object,
 ) object.Object {
@@ -801,12 +800,12 @@ func (e *Task) evalSymbolInfixExpression(
 	case ">=":
 		return e.NativeBoolToBooleanObject(leftVal >= rightVal)
 	default:
-		return e.newErrorf("unknown operator: %s %s %s",
-			left.Type(), operator, right.Type())
+		return e.newBinaryOperatorErrorWithPos(pos, "unknown operator", operator, left, right)
 	}
 }
 
 func (e *Task) evalStringPlusOtherInfixExpression(
+	pos int,
 	operator string,
 	left, right object.Object,
 ) object.Object {
@@ -817,8 +816,7 @@ func (e *Task) evalStringPlusOtherInfixExpression(
 	case "+":
 		return &object.String{Value: leftVal + rightVal}
 	default:
-		return e.newErrorf("unknown operator: %s %s %s",
-			left.Type(), operator, right.Type())
+		return e.newBinaryOperatorErrorWithPos(pos, "unknown operator", operator, left, right)
 	}
 }
 
@@ -838,6 +836,7 @@ func (e *Task) evalStringMultiplication(
 }
 
 func (e *Task) evalListInfixExpression(
+	pos int,
 	operator string,
 	left, right object.Object,
 ) object.Object {
@@ -873,12 +872,12 @@ func (e *Task) evalListInfixExpression(
 		}
 		return &object.List{Elements: []object.Object{}}
 	default:
-		return e.newErrorf("unknown operator: %s %s %s",
-			left.Type(), operator, right.Type())
+		return e.newBinaryOperatorErrorWithPos(pos, "unknown operator", operator, left, right)
 	}
 }
 
 func (e *Task) evalBytesInfixExpression(
+	pos int,
 	operator string,
 	left, right object.Object,
 ) object.Object {
@@ -928,9 +927,51 @@ func (e *Task) evalBytesInfixExpression(
 		}
 		return &object.Bytes{Value: []byte{}}
 	default:
-		return e.newErrorf("unknown operator: %s %s %s",
-			left.Type(), operator, right.Type())
+		return e.newBinaryOperatorErrorWithPos(pos, "unknown operator", operator, left, right)
 	}
+}
+
+func (e *Task) objectDetails(obj object.Object) (string, string) {
+	if obj == nil {
+		return "<nil>", "<nil>"
+	}
+	value := strings.ReplaceAll(obj.Inspect(), "\n", "\\n")
+	if len(value) > 120 {
+		value = value[:117] + "..."
+	}
+	return string(obj.Type()), value
+}
+
+func (e *Task) newBinaryOperatorErrorWithPos(pos int, kind, operator string, left, right object.Object) *object.Error {
+	leftType, leftValue := e.objectDetails(left)
+	rightType, rightValue := e.objectDetails(right)
+	return e.newErrorfWithPos(
+		pos,
+		"%s: %s %s %s\n    details: left=%s (%s), right=%s (%s), operator=%q",
+		kind,
+		leftType,
+		operator,
+		rightType,
+		leftValue,
+		leftType,
+		rightValue,
+		rightType,
+		operator,
+	)
+}
+
+func (e *Task) newUnaryOperatorErrorWithPos(pos int, kind, operator string, operand object.Object) *object.Error {
+	operandType, operandValue := e.objectDetails(operand)
+	return e.newErrorfWithPos(
+		pos,
+		"%s: %s%s\n    details: operand=%s (%s), operator=%q",
+		kind,
+		operator,
+		operandType,
+		operandValue,
+		operandType,
+		operator,
+	)
 }
 
 func (e *Task) doOp(right object.Object, left object.Object, op ByteOp) object.Object {
