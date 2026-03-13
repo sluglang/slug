@@ -4,10 +4,6 @@
  *
  */
 
-var {*} = import(
-	"slug.string"
-)
-
 /**
  * Constant for NIL_TYPE, `type`
  */
@@ -316,9 +312,9 @@ var toBoolean = fn(v) {
 		^NUMBER_TYPE => v == 1
 		^NIL_TYPE => false
 		^STRING_TYPE => {
-			match v /> toLower() {
-				"true", "yes", "1" => true
-				"false", "no", "0" => false
+			match v {
+				"true", "yes", "TRUE", "YES", "1" => true
+				"false", "no", "FALSE", "NO", "0" => false
 				_ => throw Error { type: "TypeError", msg: "Cannot convert '{{v}}' to boolean"}
 			}
 		}

@@ -1,0 +1,303 @@
+/**
+ * slug.doc.manifest — MANIFEST.ai generator
+ *
+ * Reflects over live Slug modules using slug.meta#describe and renders
+ * a structured MANIFEST.ai file in the Option 3 block format.
+ *
+ * Each exported symbol produces a signature line followed by an indented
+ * block of metadata sub-lines. Only sub-lines with content are emitted —
+ * absent tags produce no output.
+ *
+ * Supported tags
+ *
+ * On functions:
+ *   @returns('@type')       return type annotation; rendered on the signature line
+ *   @effects('fs io ...')   space-separated effect labels; rendered as "effects: ..."
+ *   @throws('@type')        thrown error type; rendered under "errors:" block
+ *   @throwsDesc('...')      cause description paired with @throws; appended to thrown line
+ *
+ * On struct fields:
+ *   @type('@type')          field type annotation; rendered on the field line
+ *   @desc('...')            field description; rendered as ": ..." on the field line
+ *                           field lines are omitted entirely when both tags are absent
+ *
+ * Doc comments:
+ *   The first paragraph of a /** doc comment is extracted and rendered as
+ *   the desc: sub-line. Paragraphs are separated by blank lines. The first
+ *   paragraph lines are joined with spaces into a single desc string.
+ *   Subsequent paragraphs are ignored in MANIFEST output.
+ *
+ * Output format example:
+ *   fn slug.repo#loadQueries(@str base = DefaultBase) -> @map
+ *     desc: "scans base dir for .sql files; returns nested map of query functions"
+ *     effects: fs
+ *     errors:
+ *       thrown: struct(Error) "unexpected filesystem failure"
+ *
+ *   struct slug.repo#SqlQuery{@str sql, @list args, @sym type}
+ *     desc: "result of extractArgs; carries rewritten SQL and inferred statement type"
+ *     field cause @str: "the original error that triggered this one"
+ */
+
+val {*} = import(
+	"slug.std",
+	"slug.string",
+	"slug.list",
+)
+
+val { describe } = import("slug.meta",)
+
+// --- manifest entrypoint ---
+
+/**
+ * generates a MANIFEST.ai file for the given list of module names.
+ *
+ * modules are sorted alphabetically. within each module, symbols are
+ * sorted alphabetically. the output contains two sections: @section modules
+ * lists all module names, @section symbols lists all exported symbols in
+ * the Option 3 block format with indented metadata sub-lines.
+ *
+ * pass the full dotted module names as they would appear in an import statement.
+ */
+@export
+@returns('@str')
+val manifest = fn(@list moduleNames) {
+	val sortedMods = moduleNames /> sort
+
+	val symbolsList = sortedMods /> flatMap(symbols)
+
+	val lines = []
+	:+ '@section modules'
+	+ sortedMods
+	:+ ''
+	:+ '@section symbols'
+	+ symbolsList
+
+	lines /> join("\n")
+}
+
+// --- tag helpers ---
+// Tags may be absent (nil), single-value ([v]), or multi-value ([v1, v2, ...])
+// These helpers normalise to a consistent shape for renderers.
+
+val getTag = fn(tags, name) {
+	match tags[name] {
+		nil  => []
+		v    => v
+	}
+}
+
+val firstTag = fn(tags, name) {
+	match getTag(tags, name) {
+		[]       => nil
+		[v, ...] => v
+	}
+}
+
+// --- indent helper ---
+
+val indent = fn(lines, @str prefix="  ") {
+	lines /> map(fn(l) { prefix + l })
+}
+
+// --- param renderers (unchanged from original) ---
+
+val renderTags = fn(tags) {
+	tags
+	/> keys
+	/> map(fn(k) { k + ' ' })
+	/> join('')
+}
+
+val renderVargs = fn(param) match {
+	{vargs} if vargs => '...'
+	_ => ''
+}
+
+val renderDefault = fn(param) match {
+	{default} => ' = ' + default
+	_ => ''
+}
+
+val renderParams = fn(@list params) {
+	params
+	/> map(fn(v) { renderTags(v.tags) + renderVargs(v) + v.name + renderDefault(v) })
+	/> join(', ')
+}
+
+// --- return type renderer ---
+// Now returns a string for the fn signature line only (no longer inline errors)
+
+val renderReturn = fn(@map details) {
+	match details.tags['@returns'] {
+		nil  => ' -> ?'
+		[v]  => " -> {{v}}"
+		v    => " -> ({{v /> join('|')}})"
+	}
+}
+
+// --- doc comment extraction ---
+// slug.meta#describe strips comment markers and returns clean text.
+// Paragraphs are separated by blank lines — only the first is rendered
+// into the MANIFEST desc field, with internal newlines joined as spaces.
+//
+// Example input:
+//   "scans base directory recursively for .sql files; builds a nested map\n
+//    mirroring folder structure;\neach leaf is a fn(conn, args) ready to call\n
+//    \nmore docs that should not be rendered in the MANIFEST file"
+//
+// Example output:
+//   "scans base directory recursively for .sql files; builds a nested map mirroring folder structure; each leaf is a fn(conn, args) ready to call"
+
+val extractFirstParagraph = fn(docs) {
+	match docs {
+		nil => nil
+		''  => nil
+		_   => {
+			val step = fn(lines, acc) {
+				match lines {
+					[] => acc
+					[h, ...t] => {
+						val line = trim(h)
+						match line {
+							'' => acc        // blank line — end of first paragraph
+							_  => recur(t, acc :+ line)
+						}
+					}
+				}
+			}
+			val firstPara = docs /> split("\n") /> step([])
+			match firstPara {
+				[] => nil
+				_  => firstPara /> join(' ')
+			}
+		}
+	}
+}
+
+// --- block sub-line renderers ---
+// Each produces a list of lines to be indented under the parent entry.
+
+val renderDescLine = fn(docs) {
+	match extractFirstParagraph(docs) {
+		nil => []
+		v   => ["desc: \"{{v}}\""]
+	}
+}
+
+val renderEffectsLine = fn(tags) {
+	match firstTag(tags, '@effects') {
+		nil  => []
+		v    => ["effects: {{v}}"]
+	}
+}
+
+// Renders the errors: block — may produce multiple lines for thrown/returned
+val renderErrorsBlock = fn(tags) {
+	val thrown   = getTag(tags, '@throws')
+// 	val returned = getTag(tags, '@returns')
+
+	val thrownLines = thrown
+		/> map(fn(v) {
+			match firstTag(tags, '@throwsDesc') {
+				nil  => "  thrown: {{v}}"
+				desc => "  thrown: {{v}} \"{{desc}}\""
+			}
+		})
+
+	val errorLines = thrownLines //+ returnedLines
+
+	match errorLines {
+		[] => []
+		_  => ["errors:"] + errorLines
+	}
+}
+
+// Combines all sub-lines for a fn or struct entry
+val renderBlock = fn(tags, docs) {
+	([]
+	+ renderDescLine(docs)
+	+ renderEffectsLine(tags)
+	+ renderErrorsBlock(tags))
+	/> indent
+}
+
+// --- fn renderer ---
+// Produces the signature line + indented block
+
+val renderFnEntry = fn(module, name, h) {
+	val sig   = "fn {{module}}#{{name}}({{renderParams(h.details.params)}}){{renderReturn(h)}}"
+	val block = renderBlock(h.tags, h.docs)
+	[sig] + block
+}
+
+val renderFns = fn(@list groups, @str module, @str name) {
+	groups
+	/> flatMap(fn(h) { renderFnEntry(module, name, h) })
+}
+
+// --- struct renderer ---
+// Produces struct line with field sub-lines
+
+val renderFieldLine = fn(field) {
+	val typeTag = firstTag(field.tags, '@type')
+	val descTag = firstTag(field.tags, '@desc')
+	match [typeTag, descTag] {
+		[nil, nil] => nil       // nothing to add beyond what the signature already shows
+		_ => {
+			val typePart = match typeTag {
+				nil => ''
+				v   => ' {{v}}'
+			}
+			val descPart = match descTag {
+				nil => ''
+				v   => ": \"{{v}}\""
+			}
+			"field {{field.name}}{{typePart}}{{descPart}}"
+		}
+	}
+}
+
+val renderStruct = fn(desc, module, name) {
+	val sig        = "struct {{module}}#{{name}}{" + renderParams(desc.details.fields) + "}"
+	val block      = renderBlock(desc.tags, desc.docs)
+	val fieldLines = desc.details.fields
+		/> map(renderFieldLine)
+		/> filter(fn(l) { l != nil })
+	[sig] + block + fieldLines /> indent
+}
+
+// --- const/other renderer ---
+
+val renderConst = fn(desc, module, name) {
+	val typeLine = "{{label(desc.type)}} {{module}}#{{name}}"
+	val block    = renderBlock(desc.tags, desc.docs)
+	[typeLine] + block
+}
+
+// --- top-level render dispatcher ---
+
+val render = fn(@map desc, @str module, @str name) match {
+	[{type}, ...] if type == :grp    => renderFns(desc.details.groups, module, name)
+	[{type}, ...] if type == :fn     => renderFns([desc], module, name)
+	[{type}, ...] if type == :struct => renderStruct(desc, module, name)
+	_                                => renderConst(desc, module, name)
+}
+
+// --- module symbols renderer ---
+
+val symbols = fn(@str mod) {
+	defer onerror(err) []
+
+	val module = import(mod)
+
+	module
+	/> keys
+	/> sort
+	/> flatMap(fn(k) {
+		module[k]
+		/> describe
+		/> render(mod, label(k))
+		:+ ''    // blank line between entries for readability
+	})
+}

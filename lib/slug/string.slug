@@ -12,6 +12,26 @@ var {*} = import (
 @returns('@str')
 foreign trim = fn(@str str)
 
+
+@testWith(
+	['  a  ', ' '], 'a',
+	['xxaxxx', 'x'], 'a',
+	['xxa', 'x'], 'a',
+	['axxx', 'x'], 'a',
+	['abxxx', 'xx'], 'abx',
+)
+@export
+@returns('@str')
+var trim = fn(@str s, @str prefix) {
+	match s {
+		nil => nil
+		_ if s[0:len(prefix)] == prefix => recur(s[len(prefix):], prefix)
+		_ if s[-len(prefix): len(s)] == prefix => recur(s[0:-len(prefix)], prefix)
+		_ => s
+	}
+}
+
+
 @testWith(
 	["hello slug", "lu"], 7,
 	["hello slug", "l"], 2,

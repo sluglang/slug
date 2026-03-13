@@ -1,0 +1,140 @@
+/**
+ * doc — Slug documentation tool
+ *
+ * Generates MANIFEST.ai or markdown documentation by reflecting over
+ * Slug modules in a source directory.
+ *
+ * Usage:
+ *   slug doc [options] [--] [manifest|markdown]
+ *
+ * Commands:
+ *   manifest   generate a MANIFEST.ai file from source modules (default)
+ *   markdown   generate human-readable markdown documentation
+ *
+ * Options:
+ *   -h --help      show this screen
+ *   -v --version   show version
+ *   --dir          source directory to scan for .slug modules (default: .)
+ *   --out          output file path; omit to print to stdout
+ */
+
+val {*} = import(
+	'slug.std',
+	'slug.string',
+	'slug.list',
+	'slug.io.fs',
+)
+val { writeFile }    = import('slug.io.fs')
+val { manifest }     = import('slug.doc.manifest')
+
+val VERSION = 'slug doc v1.0.0'
+
+val HELP = '''
+slug doc — Slug documentation tool
+
+Usage:
+  slug doc [options] [--] [manifest|markdown]
+
+Commands:
+  manifest   generate a MANIFEST.ai file from source modules (default)
+  markdown   generate human-readable markdown documentation (coming soon)
+
+Options:
+  -h --help      show this screen
+  -v --version   show version
+  --dir          source directory to scan for .slug modules (default: .)
+  --out          output file path; omit to print to stdout
+'''
+
+// --- module discovery ---
+// Scans a directory recursively for .slug files and derives dotted module
+// names from their paths relative to the base directory.
+//
+// e.g. base="lib", path="lib/slug/io/fs.slug" => "slug.io.fs"
+
+val pathToModuleName = fn(base, path) {
+	val baseLen = len(base)
+	path[baseLen:]        // strip base prefix
+	/> replaceAll('/', '.')  // path separators become dots
+	/> replaceAll('\\', '.') // windows path separators
+	/> trim('.')             // strip any leading dot
+	/> fn(s) { s[0:-5] }     // strip .slug suffix (len(".slug") == 5)
+}
+
+val discoverModules = fn(dir) {
+	val base = match endsWith(dir, '/') {
+		true  => dir
+		false => dir + '/'
+	}
+	listFilesRecursive([base], fn(s) { endsWith(s, '.slug') })
+	/> map(fn(path) { pathToModuleName(base, path) })
+	/> sort
+}
+
+// --- output helper ---
+// Writes to file if --out was given, otherwise prints to stdout.
+
+val emit = fn(content, outPath) {
+	match outPath {
+		nil => println(content)
+		_   => {
+			writeFile(content, outPath)
+			println(fmt('written to {}', outPath))
+		}
+	}
+}
+
+// --- commands ---
+
+val runManifest = fn(dir, outPath) {
+	val modules = discoverModules(dir)
+	match modules {
+		[] => {
+			println(fmt('no .slug modules found in {}', dir))
+			import('slug.sys').exit(1)
+		}
+		_ => {
+			println(fmt('generating manifest for {} modules in {}...', len(modules), dir))
+			modules /> manifest /> emit(outPath)
+		}
+	}
+}
+
+val runMarkdown = fn(dir, outPath) {
+	// todo: implement markdown generation via slug.doc.markdown
+	println('markdown generation is not yet implemented')
+	import('slug.sys').exit(1)
+}
+
+// --- entrypoint ---
+
+val args = argm()
+val opts = args.options
+
+match true {
+	true if opts.v || opts.version => println(VERSION)
+	true if opts.h || opts.help    => println(HELP)
+	_ => {
+		val dir     = match opts.dir {
+			nil => '.'
+			v   => v
+		}
+		val outPath = match opts.out {
+			nil => nil
+			v   => v
+		}
+		val command = match args.positional {
+			[]        => 'manifest'
+			[cmd, ...] => cmd
+		}
+		match command {
+			'manifest' => runManifest(dir, outPath)
+			'markdown' => runMarkdown(dir, outPath)
+			_ => {
+				println(fmt('unknown command: {}', command))
+				println(HELP)
+				import('slug.sys').exit(1)
+			}
+		}
+	}
+}
