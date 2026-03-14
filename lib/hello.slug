@@ -1,3 +1,11 @@
+/**
+ * A very simple `Hello Slug` tool example
+ *
+ * Usage:
+ * ```bash
+ * slug hello [name]
+ * ```
+ */
 
 var sayHi = fn(args) match {
     [] => println("Hello Slug!")

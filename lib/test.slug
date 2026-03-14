@@ -6,22 +6,28 @@
  * with multiple inputs and expected outputs.
  *
  * Usage:
- *   1. Tag your functions with either @test or @testWith
- *   2. Run your tests using the test runner
- *   3. View results including passes, failures and errors
+ * 1. Tag your functions with either @test or @testWith
+ * 2. Run your tests using the test runner
+ * 3. View results including passes, failures and errors
  *
- * Example:
- *   @test
- *   var simpleTest = fn() {
- *     assert(1 + 1 == 2)
- *   }
+ * ```bash
+ * slug test [slug files...]
+ * ```
  *
- *   @testWith(
- *     [1, 2, 3], 3,
- *     [7, 9, 8], 9,
- *     [4, 5, 3], 5
- *   )
- *   var max = fn(a, ...b)
+ * Test examples:
+ * ```slug
+ * @test
+ * var simpleTest = fn() {
+ *   assert(1 + 1 == 2)
+ * }
+ *
+ * @testWith(
+ *   [1, 2, 3], 3,
+ *   [7, 9, 8], 9,
+ *   [4, 5, 3], 5
+ * )
+ * var max = fn(a, ...b)
+ * ```
  */
 
 var {*} = import(

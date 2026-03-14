@@ -19,6 +19,9 @@ stress:
 		go run -race ./cmd/app/main.go -log-level none --root ./tests ./tests/boolean-logic.slug || exit 1; \
 	done
 
+generate-docs:
+	go run ./cmd/app/main.go doc --dir ./lib --multiPage --out ./docs/_libraries markdown
+
 test:
 	# e.g. find . \( -name "*.slug" -o -name "*.go" \) | entr -r time make test
 	go test ./... || exit 1
