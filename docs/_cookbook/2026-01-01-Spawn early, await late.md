@@ -1,5 +1,5 @@
 ---
-title: “Spawn early, await late”
+title: Spawn early, await late
 tags: [nursery, spawn, await]
 ---
 
