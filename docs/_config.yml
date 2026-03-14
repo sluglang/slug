@@ -44,6 +44,8 @@ navbar:
       url: /developers-guide.html
     - title: Cookbook
       url: /cookbook/
+    - title: Libs
+      url: /libraries/
     - title: ADRs
       url: /adr/
     - title: GitHub
@@ -65,6 +67,9 @@ collections:
   cookbook:
     output: true
     permalink: /cookbook/:name
+  libraries:
+    output: true
+    permalink: /libraries/:name
 
 # Defaults https://jekyllrb.com/docs/configuration/front-matter-defaults/
 defaults:
@@ -104,6 +109,22 @@ defaults:
           url: /
         - label: Cookbook
           url: /cookbook/
+  - scope:
+      path: ""
+      type: "libraries"
+    values:
+      header_type: post
+      include_on_search: true
+      include_on_feed: true
+      show_date: false
+      show_related: true
+      show_tags: false
+      show_author: true
+      breadcrumb_list:
+        - label: Home
+          url: /
+        - label: Slug Standard Libraries
+          url: /libraries/
 
 
 # Exclude these files from production site

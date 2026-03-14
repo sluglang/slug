@@ -1,0 +1,121 @@
+---
+title: crypto (slug)
+---
+
+## slug.crypto
+
+### Functions
+
+#### `hmacSha256(nil)`
+```slug
+fn slug.crypto#hmacSha256(nil) -> @bytes
+```
+nil
+
+
+#### Examples
+
+```slug
+hmacSha256("hello", "slug")  // => "NB9NMraxEE8IBLRWWoBShv99Pclb8b2Qqt6KxykFxx0="
+```
+
+---
+
+#### `hmacSha256Hex(message, secret)`
+```slug
+fn slug.crypto#hmacSha256Hex(@str message, @str secret) -> @str
+```
+
+| Parameter | Type | Default |
+| --- | --- | --- |
+| `message` | @str  | — |
+| `secret` | @str  | — |
+
+
+#### Examples
+
+```slug
+hmacSha256Hex("hello", "slug")  // => "341f4d32b6b1104f0804b4565a805286ff7d3dc95bf1bd90aade8ac72905c71d"
+```
+
+---
+
+#### `hmacSha512(nil)`
+```slug
+fn slug.crypto#hmacSha512(nil) -> @bytes
+```
+nil
+
+
+#### Examples
+
+```slug
+hmacSha512("hello", "slug")  // => "Yddv60iFAaAuAgusykYLW2fFE1LP8t14xw2ghx0VseQJAwANJ+OkKzRhoZltwUs8LqpdmtPR4lBbsW+5M+Ugkw=="
+```
+
+---
+
+#### `hmacSha512Hex(message, secret)`
+```slug
+fn slug.crypto#hmacSha512Hex(@str message, @str secret) -> @str
+```
+
+| Parameter | Type | Default |
+| --- | --- | --- |
+| `message` | @str  | — |
+| `secret` | @str  | — |
+
+
+#### Examples
+
+```slug
+hmacSha512Hex("hello", "slug")  // => "61d76feb488501a02e020bacca460b5b67c51352cff2dd78c70da0871d15b1e40903000d27e3a42b3461a1996dc14b3c2eaa5d9ad3d1e2505bb16fb933e52093"
+```
+
+---
+
+#### `md5(nil)`
+```slug
+fn slug.crypto#md5(nil) -> @str
+```
+nil
+
+
+#### Examples
+
+```slug
+md5("hello")  // => "5d41402abc4b2a76b9719d911017c592"
+md5("")  // => "d41d8cd98f00b204e9800998ecf8427e"
+```
+
+---
+
+#### `sha256(nil)`
+```slug
+fn slug.crypto#sha256(nil) -> @str
+```
+nil
+
+
+#### Examples
+
+```slug
+sha256("hello")  // => "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+sha256("")  // => "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+```
+
+---
+
+#### `sha512(nil)`
+```slug
+fn slug.crypto#sha512(nil) -> @str
+```
+nil
+
+
+#### Examples
+
+```slug
+sha512("hello")  // => "9b71d224bd62f3785d96d46ad3ea3d73319bfbc2890caadae2dff72519673ca72323c3d99ba5c11d7c7acc6e14b8c5da0c4663475c2e5c3adef46f73bcdec043"
+sha512("")  // => "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e"
+```

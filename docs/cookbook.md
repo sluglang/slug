@@ -1,5 +1,5 @@
 ---
-layout: alphabetical
+layout: cloudtag
 title: Cookbook
 permalink: /cookbook/
 include_collection: cookbook
