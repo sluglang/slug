@@ -1,0 +1,354 @@
+/**
+ * slug.doc.markdown — Markdown API documentation generator
+ *
+ * Reflects over live Slug modules using slug.meta#describe and renders
+ * a single-page markdown file with standard API documentation style.
+ *
+ * Each module gets a level-2 section with its doc comment as a lead paragraph,
+ * followed by subsections for Constants, Structs, and Functions. Overloaded
+ * functions are grouped under a single heading with multiple signature blocks.
+ *
+ * Output is designed for rendering on GitHub, static site generators, or
+ * any standard markdown renderer.
+ */
+
+val {*} = import(
+	"slug.std",
+	"slug.string",
+	"slug.list",
+)
+
+val { describe, moduleDocs } = import("slug.meta")
+
+val firstTag = fn(tags, name) {
+	match getTag(tags, name) {
+		[]       => nil
+		[v, ...] => v
+	}
+}
+
+val getTag = fn(tags, name) {
+	match tags[name] {
+		nil  => []
+		v    => v
+	}
+}
+
+// --- doc comment rendering ---
+// slug.meta#describe returns clean text with comment markers stripped.
+// The full doc comment is treated as markdown and rendered verbatim.
+// Paragraphs are separated by blank lines.
+
+val renderDocs = fn(docs) {
+	match docs {
+		nil => ''
+		''  => ''
+		_   => "\n\n" + trim(docs)
+	}
+}
+
+
+// --- @testWith example renderer ---
+// @testWith pairs are interleaved: [inputs], expected, [inputs], expected, ...
+// Each pair becomes one example call line: fnName(inputs...) // => expected
+
+val renderValue = fn(v) {
+	match type(v) {
+		^STRING_TYPE => '"' + v + '"'
+		^LIST_TYPE   => '[' + (v /> map(renderValue) /> join(', ')) + ']'
+		^NIL_TYPE    => 'nil'
+		^BOOLEAN_TYPE => toString(v)
+		_            => toString(v)
+	}
+}
+
+// Chunk a flat list into pairs: [a, b, c, d] => [[a,b], [c,d]]
+val chunkPairs = fn(lst, acc=[]) {
+	match lst {
+		[]           => acc
+		[a, b, ...t] => recur(t, acc :+ [a, b])
+		[_]          => acc  // odd trailing element — ignore
+	}
+}
+
+val renderTestWithExamples = fn(name, tags) {
+	val testCases = getTag(tags, '@testWith')
+	match testCases {
+		[] => ''
+		_  => {
+			val pairs   = chunkPairs(testCases)
+			val examples = pairs /> map(fn(pair) {
+				val inputs   = pair[0]
+				val expected = pair[1]
+				val argList  = inputs /> map(renderValue) /> join(', ')
+				val expStr   = renderValue(expected)
+				name + '(' + argList + ')  // => ' + expStr
+			})
+			"\n\n#### Examples\n\n" + mdCodeBlock(examples /> join("\n"), 'slug')
+		}
+	}
+}
+
+val renderTags = fn(tags) {
+	tags /> keys /> map(fn(k) { k + ' ' }) /> join('')
+}
+
+val renderVargs = fn(param) match {
+	{vargs} if vargs => '...'
+	_ => ''
+}
+
+val renderDefault = fn(param) match {
+	{default} => ' = ' + default
+	_ => ''
+}
+
+val renderParams = fn(@list params) {
+	params
+	/> map(fn(v) { renderTags(v.tags) + renderVargs(v) + v.name + renderDefault(v) })
+	/> join(', ')
+}
+
+val renderReturnType = fn(details) {
+	match details.tags['@returns'] {
+		nil => '?'
+		[v] => v
+		v   => '(' + (v /> join('|')) + ')'
+	}
+}
+
+// --- markdown primitives ---
+
+val mdCode = fn(s) { '`' + s + '`' }
+
+val mdCodeBlock = fn(s, lang) {
+	'```' + lang + "\n" + s + "\n```"
+}
+
+val mdTable = fn(headers, rows) {
+	val headerRow = '| ' + (headers /> join(' | ')) + ' |'
+	val separator = '| ' + (headers /> map(fn(_) { '---' }) /> join(' | ')) + ' |'
+	val dataRows  = rows /> map(fn(row) { '| ' + (row /> join(' | ')) + ' |' })
+	([headerRow, separator] + dataRows) /> join("\n")
+}
+
+// --- param docs ---
+// Renders a parameter table for a function signature
+
+val renderParamTable = fn(params) {
+	match params {
+		[] => ''
+		[...]  => {
+			val rows = params /> map(fn(p) {
+				val typeTag  = renderTags(p.tags)
+				val typePart = match typeTag { nil => '' v => v }
+				val defPart  = match p {
+					{default} => mdCode(toString(default))
+					_         => '—'
+				}
+				[mdCode(p.name), typePart, defPart]
+			})
+			"\n" + mdTable(['Parameter', 'Type', 'Default'], rows)
+		}
+	}
+}
+
+// --- effects and errors ---
+
+val renderEffectsBadge = fn(tags) {
+	match firstTag(tags, '@effects') {
+		nil => ''
+		v   => "\n**Effects:** " + mdCode(v)
+	}
+}
+
+val renderThrowsNote = fn(tags) {
+	val thrown = getTag(tags, '@throws')
+	match thrown {
+		[] => ''
+		_  => {
+			val throwDesc = firstTag(tags, '@throwsDesc')
+			val types     = thrown /> map(mdCode) /> join(', ')
+			val descPart  = match throwDesc { nil => '' v => ' — ' + v }
+			"\n**Throws:** " + types + descPart
+		}
+	}
+}
+
+// --- function renderers ---
+
+val renderFnSignature = fn(module, name, h) {
+	val ret = renderReturnType(h)
+	"fn " + module + "#" + name + "(" + renderParams(h.details.params) + ") -> " + ret
+}
+
+// Renders all overloads of a function grouped under one heading
+val renderFnSection = fn(module, name, groups) {
+	val firstGroup = groups[0]
+	val paramNames = firstGroup.details.params /> map(fn(p) { p.name }) /> join(', ')
+	val heading    = "#### `" + name + "(" + paramNames + ")`"
+
+	// one code block per overload signature
+	val signatures = groups
+		/> map(fn(h) { renderFnSignature(module, name, h) })
+		/> join("\n")
+	val sigBlock = mdCodeBlock(signatures, 'slug')
+
+	// full doc comment from first overload that has one
+	val docsSource = groups /> find(fn(h) { h.docs != nil && h.docs != '' })
+	val docText    = match docsSource { nil => '' _ => renderDocs(docsSource.docs) }
+
+	// param table, effects, throws
+	val paramTable = renderParamTable(firstGroup.details.params)
+	val effects    = if (firstGroup.tags == nil) {''} else {renderEffectsBadge(firstGroup.tags)}
+	val throws     = if (firstGroup.tags == nil) {''} else {renderThrowsNote(firstGroup.tags)}
+
+	// @testWith examples
+	val examples = renderTestWithExamples(name, firstGroup.tags)
+
+	[heading, '', sigBlock, docText, paramTable, effects, throws, examples]
+	/> filter(fn(l) { l != '' })
+	/> join("\n")
+}
+
+// --- struct renderers ---
+
+val renderStructFields = fn(fields) {
+	match fields {
+		[] => ''
+		[...]  => {
+			val rows = fields /> map(fn(f) {
+				val typeTag = renderTags(f.tags)
+				val descTag = firstTag(f.tags, '@desc')
+				val defPart = match f {
+					{default} => mdCode(toString(default))
+					_         => '—'
+				}
+				[mdCode(f.name), match typeTag { nil => '' v => v }, defPart, match descTag { nil => '' v => v }]
+			})
+			"\n" + mdTable(['Field', 'Type', 'Default', 'Description'], rows)
+		}
+	}
+}
+
+val renderStructSection = fn(desc, module, name) {
+	val sig        = "struct " + module + "#" + name + "{" + renderParams(desc.details.fields) + "}"
+	val heading    = "#### `" + name + "`"
+	val sigBlock   = mdCodeBlock(sig, 'slug')
+	val docText    = renderDocs(desc.docs)
+	val fieldTable = renderStructFields(desc.details.fields)
+
+	[heading, '', sigBlock, docText, fieldTable]
+	/> filter(fn(l) { l != '' })
+	/> join("\n")
+}
+
+// --- const renderers ---
+
+val renderConstSection = fn(desc, module, name) {
+	val typeName = label(desc.type)
+	val heading  = "#### `" + name + "`"
+	val sig      = typeName + " " + module + "#" + name
+	val docText  = renderDocs(desc.docs)
+	heading + "\n\n" + mdCodeBlock(sig, 'slug') + docText
+}
+
+// --- module section ---
+
+val renderModule = fn(@str mod) {
+	defer onerror(err) []
+
+	val module  = import(mod)
+	val modDocs = moduleDocs(mod)
+	val symKeys = module /> keys /> sort
+
+	// partition symbols by kind
+	val fns      = symKeys /> filter(fn(k) {
+		val d = module[k] /> describe
+		match d { {type} if type == :fn || type == :grp => true _ => false }
+	})
+	val structs  = symKeys /> filter(fn(k) {
+		val d = module[k] /> describe
+		match d { {type} if type == :struct => true _ => false }
+	})
+	val consts   = symKeys /> filter(fn(k) {
+		val d = module[k] /> describe
+		match d { {type} if type == :fn || type == :grp || type == :struct => false _ => true }
+	})
+
+	// module header — first paragraph as subtitle, full docs as body
+	val modHeader  = "## " + mod
+	val modBody    = renderDocs(modDocs)
+
+	// constants subsection
+	val constsSection = match consts {
+		[] => ''
+		_  => {
+			val entries = consts /> map(fn(k) {
+				module[k] /> describe /> renderConstSection(mod, label(k))
+			})
+			"\n\n### Constants\n\n" + (entries /> join("\n\n"))
+		}
+	}
+
+	// structs subsection
+	val structsSection = match structs {
+		[] => ''
+		_  => {
+			val entries = structs /> map(fn(k) {
+				module[k] /> describe /> renderStructSection(mod, label(k))
+			})
+			"\n\n### Structs\n\n" + (entries /> join("\n\n"))
+		}
+	}
+
+	// functions subsection
+	val fnsSection = match fns {
+		[] => ''
+		_  => {
+			val entries = fns /> map(fn(k) {
+				val desc   = module[k] /> describe
+				val groups = match desc { [{type}, ...] if type == :grp => desc.details.groups _ => [desc] }
+				renderFnSection(mod, label(k), groups)
+			})
+			"\n\n### Functions\n\n" + (entries /> join("\n\n---\n\n"))
+		}
+	}
+
+	modHeader + modBody + constsSection + structsSection + fnsSection
+}
+
+// --- entrypoint ---
+
+/**
+ * generates a single-page markdown API reference for the given list of module names.
+ *
+ * modules are sorted alphabetically. each module gets a level-2 section with
+ * subsections for Constants, Structs, and Functions. overloaded functions are
+ * grouped under a single heading. all doc comments are rendered in full.
+ *
+ * pass the full dotted module names as they would appear in an import statement.
+ */
+@export
+@returns('@str')
+val markdown = fn(@list moduleNames, @str title = 'Slug API Reference') {
+	val sortedMods = moduleNames /> sort
+
+	val header = [
+		'# ' + title,
+		'',
+		'> Generated by `slug doc markdown`',
+		'',
+		'## Modules',
+		'',
+		sortedMods /> map(fn(m) { '- [' + m + '](#' + (m /> replaceAll('.', '')) + ')' }) /> join("\n"),
+		'',
+		'---',
+	] /> join("\n")
+
+	val body = sortedMods
+		/> map(renderModule)
+		/> join("\n\n---\n\n")
+
+	header + "\n\n" + body + "\n"
+}

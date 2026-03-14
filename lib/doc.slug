@@ -26,6 +26,7 @@ val {*} = import(
 )
 val { writeFile }    = import('slug.io.fs')
 val { manifest }     = import('slug.doc.manifest')
+val { markdown }     = import('slug.doc.markdown')
 
 val VERSION = 'slug doc v1.0.0'
 
@@ -37,13 +38,14 @@ Usage:
 
 Commands:
   manifest   generate a MANIFEST.ai file from source modules (default)
-  markdown   generate human-readable markdown documentation (coming soon)
+  markdown   generate human-readable markdown documentation
 
 Options:
-  -h --help      show this screen
-  -v --version   show version
-  --dir          source directory to scan for .slug modules (default: .)
-  --out          output file path; omit to print to stdout
+  -h --help        show this screen
+  -v --version     show version
+  --dir            source directory to scan for .slug modules (default: .)
+  --out            output file path; omit to print to stdout
+  --title          document title for markdown output (default: Slug API Reference)
 '''
 
 // --- module discovery ---
@@ -100,10 +102,18 @@ val runManifest = fn(dir, outPath) {
 	}
 }
 
-val runMarkdown = fn(dir, outPath) {
-	// todo: implement markdown generation via slug.doc.markdown
-	println('markdown generation is not yet implemented')
-	import('slug.sys').exit(1)
+val runMarkdown = fn(dir, outPath, title) {
+	val modules = discoverModules(dir)
+	match modules {
+		[] => {
+			println(fmt('no .slug modules found in {}', dir))
+			import('slug.sys').exit(1)
+		}
+		_ => {
+			println(fmt('generating markdown for {} modules in {}...', len(modules), dir))
+			modules /> markdown(title) /> emit(outPath)
+		}
+	}
 }
 
 // --- entrypoint ---
@@ -115,21 +125,16 @@ match true {
 	true if opts.v || opts.version => println(VERSION)
 	true if opts.h || opts.help    => println(HELP)
 	_ => {
-		val dir     = match opts.dir {
-			nil => '.'
-			v   => v
-		}
-		val outPath = match opts.out {
-			nil => nil
-			v   => v
-		}
+		val dir     = match opts.dir   { nil => '.' v => v }
+		val outPath = match opts.out   { nil => nil v => v }
+		val title   = match opts.title { nil => 'Slug API Reference' v => v }
 		val command = match args.positional {
-			[]        => 'manifest'
+			[]         => 'manifest'
 			[cmd, ...] => cmd
 		}
 		match command {
 			'manifest' => runManifest(dir, outPath)
-			'markdown' => runMarkdown(dir, outPath)
+			'markdown' => runMarkdown(dir, outPath, title)
 			_ => {
 				println(fmt('unknown command: {}', command))
 				println(HELP)

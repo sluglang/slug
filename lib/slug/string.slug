@@ -147,15 +147,19 @@ var isLower = fn(@str str) {
 	}
 }
 
-// split splits a string into a list of substrings based on a delimiter
-// Parameters:
-//   str: The input string to split
-//   delimiter: The delimiter string to split on
-//   max: Maximum number of splits to perform (-1 for unlimited)
-//   count: Internal counter for number of splits performed
-//   strs: Internal accumulator for storing split strings
-// Returns:
-//   Array of substrings split by the delimiter
+/**
+ * split splits a string into a list of substrings based on a delimiter
+ *
+ * Parameters:
+ * - str: The input string to split
+ * - delimiter: The delimiter string to split on
+ * - max: Maximum number of splits to perform (-1 for unlimited)
+ * - count: Internal counter for number of splits performed
+ * - strs: Internal accumulator for storing split strings
+ *
+ * Returns:
+ * - Array of substrings split by the delimiter
+ */
 @testWith(
 	["slug/test", "/"], ["slug", "test"],
 	["éé|éé", "|"], ["éé", "éé"],
