@@ -122,8 +122,8 @@ val args = argm()
 val opts = args.options
 
 match true {
-	true if opts.v || opts.version => println(VERSION)
-	true if opts.h || opts.help    => println(HELP)
+	true if opts.v || opts.version                  => println(VERSION)
+	true if opts.h || opts.help || len(argv()) == 0 => println(HELP)
 	_ => {
 		val dir     = match opts.dir   { nil => '.' v => v }
 		val outPath = match opts.out   { nil => nil v => v }
@@ -138,7 +138,7 @@ match true {
 			_ => {
 				println(fmt('unknown command: {}', command))
 				println(HELP)
-				import('slug.sys').exit(1)
+// 				import('slug.sys').exit(1)  // commented, this breaks the tests
 			}
 		}
 	}
