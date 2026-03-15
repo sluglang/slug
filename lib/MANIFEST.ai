@@ -17,6 +17,7 @@ slug.html
 slug.io.db
 slug.io.fs
 slug.io.http
+slug.io.stdin
 slug.io.tcp
 slug.json
 slug.list
@@ -305,6 +306,9 @@ fn slug.io.http#request(@str method, @str url, @str body = "", @map headers = {}
 fn slug.io.http#urlDecode(@str str) -> ?
   desc: "decodes a URL-encoded string."
 
+fn slug.io.stdin#readLines() -> @chan(@struct(Full)|@struct(Empty))
+  desc: "Returns a shared singleton channel of stdin line events."
+
 fn slug.io.tcp#accept(@num listener) -> @num
   desc: "waits for an incoming connection on `listener` and returns a connection handle."
 
@@ -436,6 +440,7 @@ fn slug.meta#searchScopeTags(@str tag) -> ?
   desc: "searches all bindings in the current scope for a given tag."
 
 fn slug.mustache#parse(@str template) -> ?
+  desc: "parses a Mustache template string into an AST."
 
 fn slug.mustache#render(templateOrAst, data, partials = nil) -> @str
   desc: "renders a Mustache template and returns the resulting HTML string."

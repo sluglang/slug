@@ -60,6 +60,13 @@ to `render` or `renderCached` to avoid repeated parsing.
 fn slug.mustache#parse(@str template) -> ?
 ```
 
+
+parses a Mustache template string into an AST.
+
+The returned AST can be passed directly to `render` or `renderCached`
+to avoid re-parsing on repeated renders. The AST shape is an
+implementation detail — do not rely on its structure directly.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `template` | @str  | — |
