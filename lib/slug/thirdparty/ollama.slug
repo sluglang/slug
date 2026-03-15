@@ -1,27 +1,90 @@
-// Config keys:
-//   ollama_model      — Ollama model name (e.g. "llama3", "mistral")
-//   ollama_url        — Ollama base URL (default: http://localhost:11434)
+/**
+ * slug.ollama — Ollama LLM client
+ *
+ * Sends chat requests to a locally running Ollama instance via the
+ * `/api/chat` endpoint and returns the model's reply as a string.
+ *
+ * ## Configuration
+ *
+ * | Key             | Default                    | Description              |
+ * |-----------------|----------------------------|--------------------------|
+ * | `ollama_url`    | `http://localhost:11434`   | Ollama base URL          |
+ * | `ollama_model`  | `llama3`                   | Model name to use        |
+ *
+ * ## Quick start
+ *
+ * ```slug
+ * val { ollamaChat } = import("slug.ollama")
+ *
+ * val history = [
+ *   { role: "user", content: "What is Slug?" }
+ * ]
+ *
+ * val reply = ollamaChat(history)
+ * println(reply)
+ * ```
+ *
+ * ## Conversation history
+ *
+ * `history` is a list of `{ role, content }` maps in Ollama's message
+ * format. Roles are `"user"`, `"assistant"`, and `"system"`. Build up
+ * history by appending each turn:
+ *
+ * ```slug
+ * val history1 = history :+ { role: "assistant", content: reply }
+ * val history2 = history1 :+ { role: "user", content: "Tell me more" }
+ * val reply2   = ollamaChat(history2)
+ * ```
+ *
+ * ## System prompt
+ *
+ * Pass `systemPrompt` to prepend a system message before every request.
+ * The system message is injected fresh on each call and never stored in
+ * `history`, so it doesn't grow with the conversation.
+ *
+ * ```slug
+ * ollamaChat(history, systemPrompt: "You are a helpful Slug expert.")
+ * ```
+ *
+ * @effects('net')
+ */
 
 val { get, post }      = import("slug.io.http")
 val { decode, encode } = import("slug.json")
 val { fmt }            = import("slug.std")
 
 val OLLAMA_BASE = cfg("ollama_url", "http://localhost:11434")
-val OLLAMA_API = fmt("{}/api/chat", OLLAMA_BASE)
+val OLLAMA_API  = fmt("{}/api/chat", OLLAMA_BASE)
 
-// Prepends SYSTEM_MSG to history on every call; the system message is
-// never stored in histories so it stays fresh and doesn't bloat history.
+// Prepends the system prompt to history on every call.
+// The system message is never stored in history so it stays fresh
+// and doesn't bloat the conversation over time.
 val buildMessages = fn(history, systemPrompt) {
   match systemPrompt {
     nil => history
-    _   => { { role: "system", content: systemPrompt } +: history }
+    _   => {{ role: "system", content: systemPrompt } +: history}
   }
 }
 
-// history is a list of { role, content } maps
-// Ollama /api/chat expects: { model, messages: [{role, content}...], stream: false }
+/**
+ * sends a chat request to Ollama and returns the model's reply text.
+ *
+ * `history` is a list of `{ role, content }` maps representing the
+ * conversation so far. Roles are `"user"` and `"assistant"`. If
+ * `systemPrompt` is provided it is prepended as a `"system"` message
+ * on every call without being stored in `history`.
+ *
+ * Returns `nil` on error (details printed to stdout).
+ *
+ * @effects('net')
+ */
 @export
-val ollamaChat = fn(@list history, @str systemPrompt = nil, @str model = cfg("ollama_model", "llama3")) {
+@effects('net')
+val ollamaChat = fn(
+  @list history,
+  @str systemPrompt = nil,
+  @str model = cfg("ollama_model", "llama3")
+) {
   val payload        = { model: model, messages: buildMessages(history, systemPrompt), stream: false }
   val [status, body] = post(encode(payload), OLLAMA_API, { "Content-Type": "application/json" })
   match status {

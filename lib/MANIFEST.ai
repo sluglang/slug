@@ -33,6 +33,8 @@ slug.sys
 slug.term.colour
 slug.term.control
 slug.test
+slug.thirdparty.ollama
+slug.thirdparty.telegram
 slug.time
 slug.web.request
 slug.web.response
@@ -967,6 +969,22 @@ fn slug.test#runSafe(@fn f) -> @map
 fn slug.test#throws(@fn f, expected, @str msg = nil) -> @bool
   errors:
     thrown: @struct(Error{type:AssertionError})
+
+fn slug.thirdparty.ollama#ollamaChat(@list history, @str systemPrompt = nil, @str model = cfg(ollama_model, llama3)) -> ?
+  desc: "sends a chat request to Ollama and returns the model's reply text."
+  effects: net
+
+fn slug.thirdparty.telegram#getUpdates(@num offset, @num timeout = 30) -> ?
+  desc: "polls Telegram for new updates starting from `offset`."
+  effects: net
+
+fn slug.thirdparty.telegram#sendMessage(chatId, text, parseMode = "Markdown") -> ?
+  desc: "sends a text message to a Telegram chat."
+  effects: net
+
+fn slug.thirdparty.telegram#sendTyping(chatId) -> ?
+  desc: "sends a `typing` chat action to show the bot is composing a reply."
+  effects: net
 
 fn slug.time#clock() -> @num
   desc: "returns the current wall-clock time in milliseconds since the Unix epoch."
