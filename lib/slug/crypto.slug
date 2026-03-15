@@ -1,6 +1,33 @@
-var {*} = import (
+/**
+ * slug.crypto — cryptographic hash and HMAC functions
+ *
+ * Provides MD5, SHA-256, SHA-512, and HMAC variants. Each algorithm is
+ * available in two forms:
+ *
+ * - `@bytes` in → `@bytes` out — raw digest, useful for chaining or binary protocols
+ * - `@str` in → `@str` out — hex (for hashes) or base64 (for HMACs) encoded output
+ *
+ * The `@str` variants are the most common for web and API use cases.
+ * The `@bytes` variants are lower-level and intended for composition.
+ *
+ * ## Example
+ *
+ * ```slug
+ * val { sha256, hmacSha256 } = import("slug.crypto")
+ *
+ * sha256("hello")
+ * // => "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+ *
+ * hmacSha256("hello", "slug")
+ * // => "NB9NMraxEE8IBLRWWoBShv99Pclb8b2Qqt6KxykFxx0="
+ * ```
+ */
+
+val {*} = import(
 	"slug.bytes",
-);
+)
+
+// --- raw @bytes variants (foreign) ---
 
 @export
 @returns('@bytes')
@@ -14,132 +41,125 @@ foreign sha256 = fn(@bytes bytes);
 @returns('@bytes')
 foreign sha512 = fn(@bytes bytes);
 
+// --- @str convenience variants ---
 
+/**
+ * returns the MD5 hex digest of a string.
+ *
+ * MD5 is not cryptographically secure — use for checksums and legacy
+ * compatibility only, not for security-sensitive applications.
+ */
 @testWith(
 	["hello"], "5d41402abc4b2a76b9719d911017c592",
 	[""], "d41d8cd98f00b204e9800998ecf8427e",
 )
 @export
 @returns('@str')
-var md5 = fn(@str str) {
-
-	str /> strToBytes
-		/> md5
-		/> bytesToHexStr
+val md5 = fn(@str str) {
+	str /> strToBytes /> md5 /> bytesToHexStr
 }
 
-
+/**
+ * returns the SHA-256 hex digest of a string.
+ */
 @testWith(
 	["hello"], "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
 	[""], "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
 )
 @export
 @returns('@str')
-var sha256 = fn(@str str) {
-
-	str /> strToBytes
-		/> sha256
-		/> bytesToHexStr
+val sha256 = fn(@str str) {
+	str /> strToBytes /> sha256 /> bytesToHexStr
 }
 
-
+/**
+ * returns the SHA-512 hex digest of a string.
+ */
 @testWith(
 	["hello"], "9b71d224bd62f3785d96d46ad3ea3d73319bfbc2890caadae2dff72519673ca72323c3d99ba5c11d7c7acc6e14b8c5da0c4663475c2e5c3adef46f73bcdec043",
 	[""], "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e",
 )
 @export
 @returns('@str')
-var sha512 = fn(@str str) {
-
-	str /> strToBytes
-		/> sha512
-		/> bytesToHexStr
+val sha512 = fn(@str str) {
+	str /> strToBytes /> sha512 /> bytesToHexStr
 }
 
-
-@testWith(
-	["hello", "slug"], "341f4d32b6b1104f0804b4565a805286ff7d3dc95bf1bd90aade8ac72905c71d",
-)
-@export
-@returns('@str')
-var hmacSha256Hex = fn(@str message, @str secret) {
-
-	message /> strToBytes
-		/> hmacSha256(strToBytes(secret))
-		/> bytesToHexStr
-}
-
-
+/**
+ * returns the HMAC-SHA256 of a message using a secret key, as a base64 string.
+ */
 @testWith(
 	["hello", "slug"], "NB9NMraxEE8IBLRWWoBShv99Pclb8b2Qqt6KxykFxx0=",
 )
 @export
 @returns('@str')
-var hmacSha256 = fn(@str message, @str secret) {
-
-	message /> strToBytes
-		/> hmacSha256(strToBytes(secret))
-		/> base64Encode
+val hmacSha256 = fn(@str message, @str secret) {
+	message /> strToBytes /> hmacSha256(strToBytes(secret)) /> base64Encode
 }
 
-
-@export
-@returns('@bytes')
-var hmacSha256 = fn(@bytes message, @bytes secret) {
-
-	calculateHmacSignature(message, secret, 64, sha256)
-}
-
-
+/**
+ * returns the HMAC-SHA256 of a message using a secret key, as a hex string.
+ */
 @testWith(
-	["hello", "slug"], "61d76feb488501a02e020bacca460b5b67c51352cff2dd78c70da0871d15b1e40903000d27e3a42b3461a1996dc14b3c2eaa5d9ad3d1e2505bb16fb933e52093",
+	["hello", "slug"], "341f4d32b6b1104f0804b4565a805286ff7d3dc95bf1bd90aade8ac72905c71d",
 )
 @export
 @returns('@str')
-var hmacSha512Hex = fn(@str message, @str secret) {
-
-    message /> strToBytes
-        /> hmacSha512(strToBytes(secret))
-        /> bytesToHexStr
+val hmacSha256Hex = fn(@str message, @str secret) {
+	message /> strToBytes /> hmacSha256(strToBytes(secret)) /> bytesToHexStr
 }
 
+/**
+ * returns the HMAC-SHA256 of a raw byte message using a raw byte key.
+ */
+@export
+@returns('@bytes')
+val hmacSha256 = fn(@bytes message, @bytes secret) {
+	calculateHmacSignature(message, secret, 64, sha256)
+}
 
+/**
+ * returns the HMAC-SHA512 of a message using a secret key, as a base64 string.
+ */
 @testWith(
 	["hello", "slug"], "Yddv60iFAaAuAgusykYLW2fFE1LP8t14xw2ghx0VseQJAwANJ+OkKzRhoZltwUs8LqpdmtPR4lBbsW+5M+Ugkw==",
 )
 @export
 @returns('@str')
-var hmacSha512 = fn(@str message, @str secret) {
-
-    message /> strToBytes
-        /> hmacSha512(strToBytes(secret))
-        /> base64Encode
+val hmacSha512 = fn(@str message, @str secret) {
+	message /> strToBytes /> hmacSha512(strToBytes(secret)) /> base64Encode
 }
 
+/**
+ * returns the HMAC-SHA512 of a message using a secret key, as a hex string.
+ */
+@testWith(
+	["hello", "slug"], "61d76feb488501a02e020bacca460b5b67c51352cff2dd78c70da0871d15b1e40903000d27e3a42b3461a1996dc14b3c2eaa5d9ad3d1e2505bb16fb933e52093",
+)
+@export
+@returns('@str')
+val hmacSha512Hex = fn(@str message, @str secret) {
+	message /> strToBytes /> hmacSha512(strToBytes(secret)) /> bytesToHexStr
+}
 
+/**
+ * returns the HMAC-SHA512 of a raw byte message using a raw byte key.
+ */
 @export
 @returns('@bytes')
-var hmacSha512 = fn(@bytes message, @bytes secret) {
-
+val hmacSha512 = fn(@bytes message, @bytes secret) {
 	calculateHmacSignature(message, secret, 128, sha512)
 }
 
+// --- internal HMAC implementation ---
 
-var calculateHmacSignature = fn(@bytes message, @bytes secret, @num blockSize, @fn algo) {
+val calculateHmacSignature = fn(@bytes message, @bytes secret, @num blockSize, @fn algo) {
+	val key = if (len(secret) > blockSize) { algo(secret) } else { secret }
+	val padLen = blockSize - len(key)
+	val paddedKey = if (padLen > 0) { key + (0x"00" /> repeat(padLen)) } else { key }
 
-    if (len(secret) > blockSize) {
-        secret = algo(secret)
-    }
-
-    if (len(secret) < blockSize) {
-        var padLen = blockSize - len(secret)
-        var pad = 0x"00"
-        secret = secret + (pad /> repeat(padLen))
-    }
-
-    var ipad = 0x"36" /> repeat(blockSize)
-    var opad = 0x"5c" /> repeat(blockSize)
-
-    var inner = algo((secret ^ ipad) + message)
-    algo((secret ^ opad) + inner)
+	val ipad  = 0x"36" /> repeat(blockSize)
+	val opad  = 0x"5c" /> repeat(blockSize)
+	val inner = algo((paddedKey ^ ipad) + message)
+	algo((paddedKey ^ opad) + inner)
 }

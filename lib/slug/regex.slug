@@ -1,35 +1,64 @@
+/**
+ * slug.regex — regular expression matching and extraction
+ *
+ * All functions accept standard regex syntax. Patterns are not compiled
+ * or cached — for performance-sensitive code with repeated matches on
+ * the same pattern, consider pre-processing outside hot paths.
+ *
+ * Patterns use standard Go/RE2 syntax (no lookaheads or backreferences).
+ */
+
+/**
+ * returns true if the pattern matches anywhere in the string.
+ */
 @testWith(
-    ["test", "\d+"], false,
-    ["aaabbb", "b+"], true,
-    ["123", "\d+"], true
+	["test", "\d+"], false,
+	["aaabbb", "b+"], true,
+	["123", "\d+"], true
 )
 @export
 @returns('@bool')
 foreign matches = fn(@str str, @str pattern)
 
-
+/**
+ * returns the byte index range of the first match of `pattern` in `str`
+ * starting from `index`, as `[@list start_end, @list group_ranges]`.
+ *
+ * Returns `nil` if no match is found. The first list contains the start
+ * and end byte indices of the full match. Subsequent lists contain indices
+ * for capture groups.
+ */
 @export
 @returns('[@list, @list]')
-foreign indexOf = fn(@str str, @str pattern, @num index = 0); // return nil or list [left, right]
+foreign indexOf = fn(@str str, @str pattern, @num index = 0)
 
-
+/**
+ * splits `str` into a list of substrings divided by matches of `pattern`.
+ */
 @testWith(
-    ["1|2|3", "\|"], ["1", "2", "3"]
+	["1|2|3", "\|"], ["1", "2", "3"]
 )
 @export
 @returns('@list')
 foreign split = fn(@str str, @str pattern)
 
-
+/**
+ * returns a list of all non-overlapping matches of `pattern` in `str`.
+ */
 @testWith(
-    ["1|2|3", "\d+"], ["1", "2", "3"],
-    ["(foo)", "[a-z]+"], ["foo"]
+	["1|2|3", "\d+"], ["1", "2", "3"],
+	["(foo)", "[a-z]+"], ["foo"]
 )
 @export
 @returns('@list')
 foreign findAll = fn(@str str, @str pattern)
 
-
+/**
+ * returns a list of all matches including capture groups.
+ *
+ * Each entry is a list where the first element is the full match and
+ * subsequent elements are the capture group values.
+ */
 @testWith(
 	["<a href=\"foo\">bar</a>", "<a href=\"(.*?)\">(.*?)</a>"], [["<a href=\"foo\">bar</a>", "foo", "bar"]]
 )
@@ -37,9 +66,13 @@ foreign findAll = fn(@str str, @str pattern)
 @returns('@list')
 foreign findAllGroups = fn(@str str, @str pattern)
 
-
+/**
+ * replaces all matches of `pattern` in `str` with `repl`.
+ *
+ * Use `$1`, `$2` etc. in `repl` to reference capture groups.
+ */
 @testWith(
-    ["1|2|3", "\d+", "x"], "x|x|x"
+	["1|2|3", "\d+", "x"], "x|x|x"
 )
 @export
 @returns('@str')

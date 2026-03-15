@@ -1,55 +1,93 @@
 /**
+ * slug.std — the Slug standard library
  *
- * the slug standard library
+ * Core utilities available to all Slug programs. Provides type constants,
+ * the canonical `Error` struct, collection transforms, type conversions,
+ * string formatting, and common functional helpers.
  *
+ * ## Type constants
+ *
+ * Type symbols returned by `type()` are available as named constants:
+ * `NIL_TYPE`, `BOOLEAN_TYPE`, `NUMBER_TYPE`, `STRING_TYPE`, `LIST_TYPE`,
+ * `MAP_TYPE`, `BYTES_TYPE`, `FUNCTION_TYPE`, `TASK_TYPE`, `STRUCT_TYPE`,
+ * `SYMBOL_TYPE`, `ERROR_TYPE`.
+ *
+ * Use these with pinned patterns for readable type dispatch:
+ * ```slug
+ * match type(v) {
+ *   ^STRING_TYPE => ...
+ *   ^LIST_TYPE   => ...
+ *   _            => ...
+ * }
+ * ```
+ *
+ * ## Error handling
+ *
+ * The canonical error shape is `Error{ type, msg, code, data, cause }`.
+ * Construct errors with `Error{ type: "MyError", msg: "something went wrong" }`
+ * and throw them with `throw`. There is no try/catch — handle errors via
+ * `match` on return values or `defer onerror`.
  */
 
+// --- type constants ---
+
 /**
- * Constant for NIL_TYPE, `type`
+ * Constant for NIL_TYPE, returned by `type(nil)`
  */
-@export val NIL_TYPE = :nil
-@export val BOOLEAN_TYPE = :bool
-@export val NUMBER_TYPE = :number
-@export val STRING_TYPE = :string
-@export val LIST_TYPE = :list
-@export val MAP_TYPE = :map
-@export val BYTES_TYPE = :bytes
+@export val NIL_TYPE      = :nil
+@export val BOOLEAN_TYPE  = :bool
+@export val NUMBER_TYPE   = :number
+@export val STRING_TYPE   = :string
+@export val LIST_TYPE     = :list
+@export val MAP_TYPE      = :map
+@export val BYTES_TYPE    = :bytes
 @export val FUNCTION_TYPE = :function
-@export val TASK_TYPE = :task
-@export val STRUCT_TYPE = :struct
-@export val SYMBOL_TYPE = :symbol
-@export val ERROR_TYPE = :error
+@export val TASK_TYPE     = :task
+@export val STRUCT_TYPE   = :struct
+@export val SYMBOL_TYPE   = :symbol
+@export val ERROR_TYPE    = :error
 
+// --- Error struct ---
 
 /**
- * Standard error payload shape for idiomatic error handling
+ * Standard error payload shape for idiomatic error handling.
+ *
+ * Always set `type` to a stable PascalCase string identifying the error kind
+ * (e.g. `"TypeError"`, `"NotFoundError"`). Use `cause` to chain errors.
  */
 @export val Error = struct {
 	@str type = "Error",
 	@str msg,
-	code = nil,
-	data = nil,
+	code  = nil,
+	data  = nil,
 	cause = nil,
 }
 
+// --- core builtins ---
+
 /**
- * return a string value indicating the type of `val`
+ * returns a symbol indicating the runtime type of `val`.
+ *
+ * Result is one of the `*_TYPE` constants exported by this module.
  */
 @testWith(
-	[nil], NIL_TYPE,
-	[true], BOOLEAN_TYPE,
-	[1], NUMBER_TYPE,
-	[1.1], NUMBER_TYPE,
+	[nil],          NIL_TYPE,
+	[true],         BOOLEAN_TYPE,
+	[1],            NUMBER_TYPE,
+	[1.1],          NUMBER_TYPE,
 	["Hello Slug!"], STRING_TYPE,
-	[[1, 2]], LIST_TYPE,
+	[[1, 2]],       LIST_TYPE,
 	[{key:"value"}], MAP_TYPE,
-	[0x"ff"], BYTES_TYPE,
-	[fn(a){a}], FUNCTION_TYPE,
+	[0x"ff"],       BYTES_TYPE,
+	[fn(a){a}],     FUNCTION_TYPE,
 )
 @export
 @returns('@sym')
 foreign type = fn(val)
 
+/**
+ * returns true if `v` is an instance of a struct (not a struct schema).
+ */
 @export
 @returns('@bool')
 var isStructInstance = fn(v) {
@@ -60,66 +98,96 @@ var isStructInstance = fn(v) {
 }
 
 /**
- * Determine if a variable is defined in the current scope.
+ * returns true if `varName` is defined as a binding in the current scope.
  */
 @testWith(
-	["type"], true,
+	["type"],          true,
 	["__not_defined__"], false
 )
 @export
 @returns('@bool')
 foreign isDefined = fn(@str varName)
 
+/**
+ * formats a string using `{}` placeholders and optional format specifiers.
+ *
+ * Placeholders:
+ * - `{}` — next positional argument
+ * - `{0}`, `{1}` — explicit argument index
+ * - `{:.2f}` — float with 2 decimal places
+ * - `{:d}` — integer (truncates decimals)
+ * - `{:,}` — number with thousands separators
+ * - `{:.1%}` — percentage with 1 decimal place
+ * - `{:>8}` — right-align in width 8
+ * - `{:<10s}` — left-align string in width 10
+ * - `{:^10s}` — centre string in width 10
+ * - `\{` and `\}` — literal braces
+ */
 @testWith(
-	["Hello {}", "Slug"], "Hello Slug",
-	["{1} then {0}", "A", "B"], "B then A",
+	["Hello {}", "Slug"],             "Hello Slug",
+	["{1} then {0}", "A", "B"],       "B then A",
 	["x={:.2f} y={:.2f}", 1.2, 3.4], "x=1.20 y=3.40",
-	["{:d}", 12.5], "12",
-	["{:,}", 1234567], "1,234,567",
-	["{:.1%}", 0.1234], "12.3%",
-	["value=\\{x\}"], "value={x}",
-	["|{:>8}|", 12.3], "|    12.3|",
-	["|{:<10s}|", "Slug"], "|Slug      |",
-	["|{:^10s}|", "Slug"], "|   Slug   |",
+	["{:d}", 12.5],                   "12",
+	["{:,}", 1234567],                "1,234,567",
+	["{:.1%}", 0.1234],               "12.3%",
+	["value=\\{x\\}"],                "value={x}",
+	["|{:>8}|", 12.3],                "|    12.3|",
+	["|{:<10s}|", "Slug"],            "|Slug      |",
+	["|{:^10s}|", "Slug"],            "|   Slug   |",
 )
 @export
 @returns('@str')
 foreign fmt = fn(@str str, ...args)
 
-// get the list of keys used a map
+/**
+ * returns a list of all keys in a map.
+ *
+ * Key order is not guaranteed. For sorted keys use `slug.list#sort`.
+ */
 @testWith(
-	[{}], [],
+	[{}],    [],
 	[{k:1}], [:k]
 )
 @export
 @returns('@list')
 foreign keys = fn(map)
 
+/**
+ * converts a string to a symbol.
+ */
 @testWith(
-	["foo"], :foo,
-	["foo bar"], :"foo bar",
+	["foo"],          :foo,
+	["foo bar"],      :"foo bar",
 	["Content-Type"], :"Content-Type"
 )
 @export
 @returns('@sym')
 foreign sym = fn(@str name)
 
+/**
+ * returns the string label of a symbol.
+ */
 @testWith(
-	[:foo], "foo",
-	[sym("a b")], "a b"
+	[:foo],          "foo",
+	[sym("a b")],    "a b"
 )
 @export
 @returns('@str')
 foreign label = fn(symbol)
 
-// get a value from a map, nil if not present
+/**
+ * returns the value for `key` in `map`, or `nil` if absent.
+ */
 @testWith(
-	[{}, :k], nil,
+	[{}, :k],   nil,
 	[{k:1}, :k], 1
 )
 @export
 foreign get = fn(@map map, key)
 
+/**
+ * returns a new map with `key` set to `value`.
+ */
 @testWith(
 	[{}, :k, "v"], {k:"v"}
 )
@@ -127,8 +195,11 @@ foreign get = fn(@map map, key)
 @returns('@map')
 foreign put = fn(@map map, key, value)
 
+/**
+ * returns a new map with `key` removed. No-op if key is absent.
+ */
 @testWith(
-	[{}, :k], {},
+	[{}, :k],    {},
 	[{k:1}, :k], {},
 	[{k:1}, :j], {k:1}
 )
@@ -136,6 +207,9 @@ foreign put = fn(@map map, key, value)
 @returns('@map')
 foreign remove = fn(@map map, key)
 
+/**
+ * returns a new list with the element at `index` replaced by `value`.
+ */
 @testWith(
 	[[1,2,3], 1, 99], [1,99,3]
 )
@@ -143,146 +217,203 @@ foreign remove = fn(@map map, key)
 @returns('@list')
 foreign update = fn(@list list, @num index, value)
 
+/**
+ * returns a new list with elements at `index1` and `index2` swapped.
+ */
 @testWith(
-	[[1,2],0,1], [2,1]
+	[[1,2], 0, 1], [2,1]
 )
 @export
 @returns('@list')
 foreign swap = fn(@list list, @num index1, @num index2)
 
+/**
+ * applies `f(key, currentValue)` to the value at `key` and returns the updated map.
+ *
+ * If `key` is absent, `currentValue` is `nil`.
+ */
 @testWith(
-	[{k:1}, :k, fn(k, v) { v + 1 }], {k:2},
-	[{}, :k, fn(k, v) { v == nil }], {k:true}
+	[{k:1}, :k, fn(k, v) { v + 1 }],   {k:2},
+	[{}, :k, fn(k, v) { v == nil }],    {k:true}
 )
 @export
 @returns('@map')
-var compute = fn(@map map, key, f) {
-    map /> put(key, f(key, map[key]))
+val compute = fn(@map map, key, f) {
+	map /> put(key, f(key, map[key]))
 }
 
+// --- collection transforms ---
+
+/**
+ * applies `f` to each element of `vs` and returns the resulting list.
+ */
 @testWith(
 	[[1,2], fn(n) {n * 2}], [2,4]
 )
 @export
 @returns('@list')
-var map = fn(@list vs, @fn f, acc = []) match {
+val map = fn(@list vs, @fn f, acc = []) match {
 	[[], ...] => acc
 	[[h, ...t], ...] => recur(t, f, acc :+ h /> f())
 }
 
+/**
+ * applies `f` to each element of `vs` and concatenates the resulting lists.
+ *
+ * `f` must return a list or a single value (which is treated as a one-element list).
+ */
 @testWith(
-	[[1, 2, 3], fn(n) { [n, n] }], [1, 1, 2, 2, 3, 3],
+	[[1, 2, 3], fn(n) { [n, n] }],                            [1, 1, 2, 2, 3, 3],
 	[[1, 2, 3], fn(n) { if (n % 2 == 0) { [n] } else { [] } }], [2]
 )
 @export
 @returns('@list')
-var flatMap = fn(@list vs, @fn f) {
+val flatMap = fn(@list vs, @fn f) {
 	vs /> reduce([], fn(acc, v) {
 		match f(v) {
 			[...items] => acc + items
-			item => acc :+ item
+			item       => acc :+ item
 		}
 	})
 }
 
+/**
+ * returns a new list containing only elements for which `f` returns true.
+ */
 @testWith(
-	[[1,2,3,4], fn(v) { v % 2 == 0}], [2,4]
+	[[1,2,3,4], fn(v) { v % 2 == 0 }], [2,4]
 )
 @export
 @returns('@list')
-var filter = fn(@list vs, @fn f, @list acc = []) match {
+val filter = fn(@list vs, @fn f, @list acc = []) match {
 	[[], ...] => acc
 	[[h, ...t], ...] if h /> f() => recur(t, f, acc :+ h)
 	[[h, ...t], ...] => recur(t, f, acc)
 }
 
+/**
+ * folds `vs` left with `f`, starting from initial value `v`.
+ */
 @testWith(
-	[[], 0, fn(a,b) {a+b}], 0,
+	[[], 0, fn(a,b) {a+b}],    0,
 	[[1,2,3], 0, fn(a,b) {a+b}], 6,
 	[[1,2,3], 9, fn(a,b) {a+b}], 15,
 )
 @export
-var reduce = fn(@list vs, v, @fn f) match {
+val reduce = fn(@list vs, v, @fn f) match {
 	[[], ...] => v
 	[[h, ...t], ...] => recur(t, f(v, h), f)
 }
 
+/**
+ * returns the first element of `xs` for which `f` returns true, or `nil`.
+ */
 @export
-var find = fn(@list xs, @fn f) match {
+val find = fn(@list xs, @fn f) match {
 	[[], ...] => nil
 	[[h, ...t], ...] => {
-		if (f(h)) {
-			h
-		} else {
-			recur(t, f)
-		}
+		if (f(h)) { h } else { recur(t, f) }
 	}
 }
 
+/**
+ * applies `f` to `m` and returns the result. Useful for call-chain threading.
+ *
+ * `m /> then(fn(v) { ... })` is equivalent to `(fn(v) { ... })(m)`.
+ */
 @testWith(
-	[1, fn(v) {v*2}], 2,
+	[1, fn(v) {v*2}],          2,
 	[{n:"Slug"}, fn(v) {v.n}], "Slug",
 )
 @export
-var then = fn(m, @fn f) {
+val then = fn(m, @fn f) {
 	f(m)
 }
 
+/**
+ * generates a list of numbers from `start` (inclusive) to `end` (exclusive) by `step`.
+ *
+ * Returns an empty list if the range direction contradicts the step sign.
+ */
 @testWith(
-	[0, 0], [],
-	[0, 2], [0, 1],
-	[0, 6, 2], [0, 2, 4],
-	[0, 6, -2], [],
-	[6, 0, -2], [6, 4, 2]
+	[0, 0],      [],
+	[0, 2],      [0, 1],
+	[0, 6, 2],   [0, 2, 4],
+	[0, 6, -2],  [],
+	[6, 0, -2],  [6, 4, 2]
 )
 @export
 @returns('@list')
-var range = fn(@num start, @num end, @num step = 1, @list acc = []) {
-	if ((start < end && step > 0)
-		|| (start > end && step < 0)) {
+val range = fn(@num start, @num end, @num step = 1, @list acc = []) {
+	if ((start < end && step > 0) || (start > end && step < 0)) {
 		recur(start + step, end, step, acc :+ start)
 	} else {
 		acc
 	}
 }
 
+/**
+ * returns a function that increments and returns a counter on each call.
+ *
+ * The counter starts at `start`. Each call returns the next value.
+ *
+ * ```slug
+ * val c = counter(0)
+ * c()  // => 0
+ * c()  // => 1
+ * c()  // => 2
+ * ```
+ */
 @export
 @returns('@fn')
-var counter = fn(@num start = 0) {
-    var count = start - 1
-    fn() {
-        count = count + 1
-    }
+val counter = fn(@num start = 0) {
+	var count = start - 1
+	fn() { count = count + 1 }
 }
 
+/**
+ * zips a list with the results of calling `f` for each element.
+ *
+ * Returns a list of `[element, f()]` pairs. `f` is called once per element.
+ */
 @testWith(
 	[["a", "b"], fn(){1}], [["a", 1], ["b", 1]]
 )
 @export
 @returns('@list')
-var zipWith = fn(@list lst, f) {
+val zipWith = fn(@list lst, f) {
 	lst /> map(fn(v) { [v, f()] })
 }
 
+/**
+ * zips a list with its zero-based indices.
+ *
+ * Returns a list of `[element, index]` pairs.
+ */
 @testWith(
-	[[]], [],
+	[[]],         [],
 	[["a", "b"]], [["a", 0], ["b", 1]]
 )
 @export
 @returns('@list')
-var zipWithIndex = fn(@list lst) {
+val zipWithIndex = fn(@list lst) {
 	lst /> zipWith(counter(0))
 }
 
+/**
+ * zips two lists into a list of `[a, b]` pairs.
+ *
+ * Stops at the shorter list. Extra elements from the longer list are discarded.
+ */
 @testWith(
-	[[], []], [],
-	[[1], []], [],
-	[[], [1]], [],
-	[[1], [2]], [[1, 2]]
+	[[], []],    [],
+	[[1], []],   [],
+	[[], [1]],   [],
+	[[1], [2]],  [[1, 2]]
 )
 @export
 @returns('@list')
-var zip = fn(@list lst1, @list lst2, acc = []) {
+val zip = fn(@list lst1, @list lst2, acc = []) {
 	if (len(lst1) == 0 || len(lst2) == 0) {
 		acc
 	} else {
@@ -290,212 +421,250 @@ var zip = fn(@list lst1, @list lst2, acc = []) {
 	}
 }
 
+// --- type conversions ---
+
+/**
+ * converts a value to `@bool`.
+ *
+ * Numeric `1` → `true`, `0` → `false`. Strings `"true"`, `"yes"`, `"1"`,
+ * `"TRUE"`, `"YES"` → `true`; `"false"`, `"no"`, `"0"`, `"FALSE"`, `"NO"`
+ * → `false`. Other string values throw `TypeError`.
+ */
 @testWith(
-	[nil], false,
-	[0], false,
-	[1], true,
-	[true], true,
-	[false], false,
-	["true"], true,
-	["yes"], true,
-	["1"], true,
+	[nil],     false,
+	[0],       false,
+	[1],       true,
+	[true],    true,
+	[false],   false,
+	["true"],  true,
+	["yes"],   true,
+	["1"],     true,
 	["false"], false,
-	["no"], false,
-	["0"], false
+	["no"],    false,
+	["0"],     false
 )
 @export
 @returns('@bool')
 @throws('@struct(Error{type:TypeError})')
-var toBoolean = fn(v) {
+val toBoolean = fn(v) {
 	match v /> type() {
 		^BOOLEAN_TYPE => v
-		^NUMBER_TYPE => v == 1
-		^NIL_TYPE => false
-		^STRING_TYPE => {
+		^NUMBER_TYPE  => v == 1
+		^NIL_TYPE     => false
+		^STRING_TYPE  => {
 			match v {
-				"true", "yes", "TRUE", "YES", "1" => true
-				"false", "no", "FALSE", "NO", "0" => false
-				_ => throw Error { type: "TypeError", msg: "Cannot convert '{{v}}' to boolean"}
+				"true", "yes", "TRUE", "YES", "1"   => true
+				"false", "no", "FALSE", "NO", "0"   => false
+				_ => throw Error { type: "TypeError", msg: "Cannot convert '{{v}}' to boolean" }
 			}
 		}
-		t => throw Error { type: "TypeError", msg: "Cannot convert type {{t}} to boolean"}
+		t => throw Error { type: "TypeError", msg: "Cannot convert type {{t}} to boolean" }
 	}
 }
 
+/**
+ * parses a numeric string to a number. Throws on invalid input.
+ */
 @testWith(
-	["1"], 1,
+	["1"],   1,
 	["1.1"], 1.1
 )
 @export
 @returns('@num')
 foreign parseNumber = fn(@str value)
 
+/**
+ * converts a value to `@num`.
+ *
+ * Passes through numbers, parses numeric strings, returns `nil` for `nil`.
+ * Throws `TypeError` for other types.
+ */
 @testWith(
-	[nil], nil,
-	[1], 1,
-	[1.1], 1.1,
-	["1"], 1,
+	[nil],   nil,
+	[1],     1,
+	[1.1],   1.1,
+	["1"],   1,
 	["1.1"], 1.1
 )
 @export
 @returns('@num')
 @throws('@struct(Error{type:TypeError})')
-var toNumber = fn(v) {
+val toNumber = fn(v) {
 	match v /> type() {
-		^NIL_TYPE => nil
+		^NIL_TYPE    => nil
 		^NUMBER_TYPE => v
 		^STRING_TYPE => parseNumber(v)
-		t => throw Error { type: "TypeError", msg: "Cannot convert type {{t}} to number"}
-	}
-}
-
-@testWith(
-	[nil], nil,
-	["str"], "str",
-	[1.1], "1.1",
-	[true], "true"
-)
-@export
-@returns('@str')
-var toString = fn(v) {
-	match v /> type() {
-		^NIL_TYPE => nil
-		^STRING_TYPE => v
-		t => v + ""
-	}
-}
-
-@testWith(
-    [[], []], true,
-    [[1], []], false,
-    [[], [1]], false,
-    [[1], [2]], false,
-    [[[1], [1]], [[1], [2]]], false,
-    [[[1], [2]], [[1], [2]]], true
-)
-@export
-@returns('@bool')
-var equals = fn(@list a, @list b, @num idx = 0) {
-    if (a == nil || b == nil) {
-        false
-    } else if(idx >= len(a) && len(a) == len(b)) {
-        true
-    } else if(type(a[idx]) == LIST_TYPE && type(b[idx]) == LIST_TYPE ) {
-        equals(a[idx], b[idx]) && equals(a, b, idx + 1)
-    } else if(type(a[idx]) == MAP_TYPE && type(b[idx]) == MAP_TYPE ) {
-        equals(a[idx], b[idx]) && equals(a, b, idx + 1)
-    } else if(a[idx] == b[idx]) {
-        recur(a, b, idx + 1)
-    } else {
-        false
-    }
-}
-
-@testWith(
-	[1, 2], false,
-	[1, 1], true,
-	["1", "2"], false,
-	["1", "1"], true,
-	[true, true], true,
-	[false, true], false,
-)
-@returns('@bool')
-var equals = fn(v1, v2) {
-	v1 == v2
-}
-
-@testWith(
-	[nil, nil], false,
-	[{}, nil], false,
-	[nil, {}], false,
-	[{}, {}], true,
-	[{k1:1}, {k1:1}], true,
-	[{k1:1}, {}], false,
-	[{k1:1}, {k2:2}], false
-)
-@export
-@returns('@bool')
-var equals = fn(@map m1, @map m2) {
-	if (m1 == nil || m2 == nil) {
-		return false
-	}
-	var check = fn(ks) {
-		match ks {
-			[] => true
-			[k, ...t] if equals(m1[k], m2[k]) => check(t)
-			_ => false
-		}
-	}
-	var k1 = m1 /> keys()
-	var k2 = m2 /> keys()
-	if(len(k1) != len(k2)) {
-		false
-	} else {
-		check(k1 + k2)
+		t => throw Error { type: "TypeError", msg: "Cannot convert type {{t}} to number" }
 	}
 }
 
 /**
- * deep equals check for struct types and struct instances
+ * converts a value to a string representation.
+ *
+ * Returns `nil` for `nil`, passes through strings, and uses string
+ * concatenation (`v + ""`) for all other types.
  */
+@testWith(
+	[nil],   nil,
+	["str"], "str",
+	[1.1],   "1.1",
+	[true],  "true"
+)
+@export
+@returns('@str')
+val toString = fn(v) {
+	match v /> type() {
+		^NIL_TYPE    => nil
+		^STRING_TYPE => v
+		_            => v + ""
+	}
+}
+
+// --- equality ---
+
+/**
+ * deep equality for lists, recursively comparing nested lists and maps.
+ */
+@testWith(
+	[[], []],              true,
+	[[1], []],             false,
+	[[], [1]],             false,
+	[[1], [2]],            false,
+	[[[1], [1]], [[1], [2]]], false,
+	[[[1], [2]], [[1], [2]]], true
+)
 @export
 @returns('@bool')
-var structEquals = fn(m1, m2) {
+val equals = fn(@list a, @list b, @num idx = 0) {
+	if (a == nil || b == nil) {
+		false
+	} else if (idx >= len(a) && len(a) == len(b)) {
+		true
+	} else if (type(a[idx]) == LIST_TYPE && type(b[idx]) == LIST_TYPE) {
+		equals(a[idx], b[idx]) && equals(a, b, idx + 1)
+	} else if (type(a[idx]) == MAP_TYPE && type(b[idx]) == MAP_TYPE) {
+		equals(a[idx], b[idx]) && equals(a, b, idx + 1)
+	} else if (a[idx] == b[idx]) {
+		recur(a, b, idx + 1)
+	} else {
+		false
+	}
+}
+
+/**
+ * value equality for non-collection types. Equivalent to `==`.
+ */
+@testWith(
+	[1, 2],   false,
+	[1, 1],   true,
+	["1","2"], false,
+	["1","1"], true,
+	[true, true],  true,
+	[false, true], false,
+)
+@returns('@bool')
+val equals = fn(v1, v2) {
+	v1 == v2
+}
+
+/**
+ * deep equality for maps, recursively comparing values for all keys.
+ */
+@testWith(
+	[nil, nil],        false,
+	[{}, nil],         false,
+	[nil, {}],         false,
+	[{}, {}],          true,
+	[{k1:1}, {k1:1}],  true,
+	[{k1:1}, {}],      false,
+	[{k1:1}, {k2:2}],  false
+)
+@export
+@returns('@bool')
+val equals = fn(@map m1, @map m2) {
 	if (m1 == nil || m2 == nil) {
 		return false
 	}
-	if (type(m1) != type(m2)) {
-		return false
-	}
-	if (!(isStructInstance(m1) || type(m2) == STRUCT_TYPE)) {
-		return false
-	}
-	var check = fn(ks) {
+	val check = fn(ks) {
 		match ks {
 			[] => true
 			[k, ...t] if equals(m1[k], m2[k]) => check(t)
 			_ => false
 		}
 	}
-	var k1 = m1 /> keys()
-	var k2 = m2 /> keys()
-	if(len(k1) != len(k2)) {
-		false
-	} else {
-		check(k1 + k2)
+	val k1 = m1 /> keys()
+	val k2 = m2 /> keys()
+	if (len(k1) != len(k2)) { false } else { check(k1 + k2) }
+}
+
+/**
+ * deep equality for struct types and struct instances.
+ *
+ * Returns `false` if either value is `nil`, if their types differ, or
+ * if neither is a struct instance or struct schema.
+ */
+@export
+@returns('@bool')
+val structEquals = fn(m1, m2) {
+	if (m1 == nil || m2 == nil) { return false }
+	if (type(m1) != type(m2)) { return false }
+	if (!(isStructInstance(m1) || type(m2) == STRUCT_TYPE)) { return false }
+	val check = fn(ks) {
+		match ks {
+			[] => true
+			[k, ...t] if equals(m1[k], m2[k]) => check(t)
+			_ => false
+		}
 	}
+	val k1 = m1 /> keys()
+	val k2 = m2 /> keys()
+	if (len(k1) != len(k2)) { false } else { check(k1 + k2) }
 }
 
+// --- nil helpers ---
+
+/**
+ * calls `f()` and returns the result if `v` is `nil`; returns `v` otherwise.
+ */
 @export
-var ifNil = fn(v, @fn f) match {
+val ifNil = fn(v, @fn f) match {
 	[nil, ...] => f()
-	_ => v
+	_          => v
 }
 
+/**
+ * returns `default` if `v` is `nil`; returns `v` otherwise.
+ */
 @export
-var ifNil = fn(v, default) {
-	v /> ifNil(fn() {default})
+val ifNil = fn(v, default) {
+	v /> ifNil(fn() { default })
 }
 
+/**
+ * returns `default` if `v` is `nil`; calls `f(v)` and returns the result otherwise.
+ */
 @export
-var nonNil = fn(v, @fn f, default = nil) match {
+val nonNil = fn(v, @fn f, default = nil) match {
 	[nil, ...] => default
-	[...] => f(v)
+	[...]      => f(v)
 }
 
+// --- comparison and arithmetic helpers ---
+
+/**
+ * returns -1 if `a < b`, 1 if `a > b`, 0 if equal.
+ *
+ * Compatible with sort comparator contracts.
+ */
 @export
 @returns('@num')
-var compare = fn(a, b) {
-    if (a < b) {
-        -1
-    } else if (a > b) {
-        1
-    } else {
-        0
-    }
+val compare = fn(a, b) {
+	if (a < b) { -1 } else if (a > b) { 1 } else { 0 }
 }
 
-
+/**
+ * returns `a` if `a < b`, otherwise returns `0`.
+ */
 @testWith(
 	[1, 1], 0,
 	[1, 2], 1,
@@ -503,10 +672,6 @@ var compare = fn(a, b) {
 )
 @export
 @returns('@num')
-var zeroIfAbove = fn(@num a, @num b) {
-	if ( a < b ) {
-		a
-	} else {
-		0
-	}
+val zeroIfAbove = fn(@num a, @num b) {
+	if (a < b) { a } else { 0 }
 }

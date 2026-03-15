@@ -1,19 +1,38 @@
 /**
+ * slug.benchmark — micro-benchmarking for Slug functions
  *
- * slug.benchmark
- * Slug-native micro benchmarking (no opts maps)
+ * Provides tools to measure and compare the performance of Slug functions
+ * with statistical rigour. Each benchmark runs a warmup phase, calibrates
+ * iteration count to fill a target sample window, then collects multiple
+ * samples to compute percentile statistics.
  *
+ * Overhead from the benchmarking harness itself is measured and subtracted
+ * by default, giving a cleaner picture of the work under test.
+ *
+ * ## Quick start
+ *
+ * ```slug
+ * val { micro, printResult, compare, printCompareReport } = import("slug.benchmark")
+ *
+ * val result = micro("string concat", fn() { "hello" + " " + "world" })
+ * result /> printResult
+ * ```
+ *
+ * ## Units
+ *
+ * Results are reported in nanoseconds by default. Use `UnitUs` or `UnitMs`
+ * for slower workloads.
  */
 
-var {*} = import(
+val {*} = import(
 	"slug.std",
 	"slug.time",
 	"slug.math",
 )
 
 @export val UnitNs = "ns"
-@export val UnitUs = "us"
 @export val UnitMs = "ms"
+@export val UnitUs = "us"
 
 val msToNs = fn(@num ms) { ms * 1_000_000 }
 
@@ -107,7 +126,6 @@ val measureOverheadPerIter = fn(iters, samples) {
 	}
 
 	val xs = collect(samples, [])
-	// median overhead in ns
 	percentileSorted(sortAsc(xs), 50)
 }
 
@@ -126,16 +144,29 @@ val sampleTimesPerIter = fn(workFn, iters, samples, overheadPerIter) {
 // ---------------- Public API ----------------
 
 /**
+ * runs a single micro-benchmark and returns a result map with statistics.
  *
- * micro(name, workFn, warmupMs=100, sampleMs=200, samples=20, minIters=1, maxIters=10000000, subtractOverhead=true, unit="ns")
+ * Warms up the JIT/runtime for `warmupMs`, then calibrates iteration count
+ * so each sample takes approximately `sampleMs` to collect. Runs `samples`
+ * measurements and computes percentile statistics on the results.
  *
- * returns:
- * { name, unit, itersPerSample, samples, stats:{...}, raw:{timesPerIter:[...] } }
+ * Returns a map with the shape:
+ * ```
+ * {
+ *   name, unit, itersPerSample, samples,
+ *   stats: { min, p50, p90, p99, max, mean, stdev },
+ *   raw:   { timesPerIter: [...] }
+ * }
+ * ```
  *
+ * Pass the result to `printResult` for formatted console output.
+ *
+ * @effects('time')
  */
 @export
 @returns('@map')
-var micro = fn(
+@effects('time')
+val micro = fn(
 	@str name,
 	@fn workFn,
 	@num warmupMs = 100,
@@ -170,8 +201,18 @@ var micro = fn(
 	}
 }
 
+/**
+ * prints a formatted summary of a `micro` result to stdout.
+ *
+ * ```
+ * string concat
+ *   p50: 42 ns  p90: 51  p99: 78
+ *   mean: 44  stdev: 8  min: 38  max: 91
+ *   iters/sample: 10000  samples: 20
+ * ```
+ */
 @export
-var printResult = fn(res) {
+val printResult = fn(res) {
 	val s = res.stats
 	println(res.name)
 	fmt("  p50: {:d} {}  p90: {:d}  p99: {:d}", s.p50, res.unit, s.p90, s.p99) /> println
@@ -180,11 +221,27 @@ var printResult = fn(res) {
 }
 
 /**
- * compare(work, benches, ...same defaults...)
- * benches: [ {name:"x", fun: fn(){...}}, ... ]
+ * benchmarks a list of named functions and returns results sorted by p50.
+ *
+ * Each entry in `benches` must be a map with `name` (@str) and `fun` (@fn) fields.
+ * All benchmarks share the same timing parameters. Results include a `ratio`
+ * field showing performance relative to the fastest (lowest p50) entry.
+ *
+ * Pass the result to `printCompareReport` for formatted console output.
+ *
+ * ```slug
+ * val report = compare([
+ *   { name: "concat", fun: fn() { "a" + "b" } },
+ *   { name: "fmt",    fun: fn() { fmt("{}{}", "a", "b") } },
+ * ])
+ * report /> printCompareReport
+ * ```
+ *
+ * @effects('time')
  */
 @export
-var compare = fn(
+@effects('time')
+val compare = fn(
 	@list benches,
 	@num warmupMs = 100,
 	@num sampleMs = 200,
@@ -196,49 +253,38 @@ var compare = fn(
 ) {
 	val results =
 		benches /> map(fn(b) {
-			micro(
-				b.name,
-				b.fun,
-				warmupMs,
-				sampleMs,
-				samples,
-				minIters,
-				maxIters,
-				subtractOverhead,
-				unit
-			)
+			micro(b.name, b.fun, warmupMs, sampleMs, samples, minIters, maxIters, subtractOverhead, unit)
 		})
-	// sort by p50
 	val sorted = sortByP50(results)
-
 	val base = sorted[0].stats.p50
-
-	val withRatio =
-		sorted /> map(fn(r) {
-			r /> put("ratio", r.stats.p50 / base)
-		})
-
+	val withRatio = sorted /> map(fn(r) { r /> put("ratio", r.stats.p50 / base) })
 	{ results: withRatio }
 }
 
 val sortByP50 = fn(results) {
-	// insertion sort on results by stats.p50
 	val insert = fn(sorted, r, acc = []) match {
 		[[], ...] => acc :+ r
 		[[h, ...t], ...] if (r.stats.p50 <= h.stats.p50) => (acc :+ r :+ h) + t
 		[[h, ...t], ...] => recur(t, r, acc :+ h)
 	}
-
 	val go = fn(xs, acc = []) match {
 		[[], ...] => acc
 		[[h, ...t], ...] => recur(t, insert(acc, h))
 	}
-
 	go(results, [])
 }
 
+/**
+ * prints a formatted comparison report to stdout.
+ *
+ * ```
+ * Benchmark report
+ *   concat         : p50 38 ns  x1.0
+ *   fmt            : p50 91 ns  x2.4
+ * ```
+ */
 @export
-var printCompareReport = fn(report) {
+val printCompareReport = fn(report) {
 	println("Benchmark report")
 	report.results /> map(fn(r) {
 		fmt("  %{:<15s}: p50 {:d} {}  x{:.1f}", r.name, r.stats.p50, r.unit, r.ratio) /> println

@@ -1,151 +1,210 @@
-var {*} = import(
-    "slug.std",
+/**
+ * slug.io.fs — filesystem I/O
+ *
+ * Read, write, and navigate the filesystem. File handles from `openFile`
+ * must be closed with `closeFile` — use `defer closeFile(handle)` for safety.
+ *
+ * ## Simple file operations
+ *
+ * ```slug
+ * val { readFile, writeFile, exists } = import("slug.io.fs")
+ *
+ * val content = readFile("config.toml")
+ * writeFile("output.txt", "hello\n")
+ * ```
+ *
+ * ## Streaming reads
+ *
+ * ```slug
+ * val { openFile, readLines, closeFile, READ_MODE } = import("slug.io.fs")
+ *
+ * val handle = openFile("data.csv", READ_MODE)
+ * defer closeFile(handle)
+ * val lines = readLines(handle)
+ * ```
+ *
+ * ## File modes
+ *
+ * - `READ_MODE`   — open for reading (`"r"`)
+ * - `WRITE_MODE`  — open for writing, truncates existing content (`"w"`)
+ * - `APPEND_MODE` — open for appending (`"a"`)
+ *
+ * @effects('fs')
+ */
+
+val {*} = import(
+	"slug.std",
 )
 
-// readFile reads entire file content as a string
-// Parameters:
-//   path: path to the file to read
-// Returns:
-//   string content of file, or error if file cannot be read
+@export val READ_MODE   = "r"
+@export val WRITE_MODE  = "w"
+@export val APPEND_MODE = "a"
+
+/**
+ * reads the entire contents of a file and returns it as a string.
+ *
+ * @effects('fs')
+ */
 @export
 @returns('@str')
 foreign readFile = fn(@str path)
 
-// writeFile writes string content to a file
-// Parameters:
-//   contents: string data to write
-//   path: path to file to write
-// Returns:
-//   nil on success, error if write fails
+/**
+ * writes `contents` to a file, creating or truncating it.
+ *
+ * @effects('fs')
+ */
 @export
 @returns('nil')
 foreign writeFile = fn(@str contents, @str path)
 
-// appendFile appends string content to end of file
-// Parameters:
-//   contents: string data to append
-//   path: path to file to append to
-// Returns:
-//   nil on success, error if write fails
+/**
+ * appends `contents` to the end of a file, creating it if absent.
+ *
+ * Returns the number of bytes written.
+ *
+ * @effects('fs')
+ */
 @export
 @returns('@num')
 foreign appendFile = fn(@str contents, @str path)
 
-// info gets information about a file
-// Parameters:
-//   path: path to file to get info for
-// Returns:
-//   object containing file metadata
+/**
+ * returns metadata about a file or directory as a map.
+ *
+ * The map contains at minimum `name`, `size`, `isDir`, and `modTime` fields.
+ *
+ * @effects('fs')
+ */
 @export
 @returns('@map')
 foreign info = fn(@str path)
 
-// exists checks if a file exists and is accessible
-// Parameters:
-//   path: path to check
-// Returns:
-//   true if file exists and is accessible, false otherwise
+/**
+ * returns true if `path` exists and is accessible.
+ *
+ * @effects('fs')
+ */
 @export
 @returns('@bool')
 foreign exists = fn(@str path)
 
+/**
+ * creates all directories in the given path(s), including intermediates.
+ *
+ * Returns true on success.
+ *
+ * @effects('fs')
+ */
 @export
 @returns('@bool')
-foreign mkDirs = fn(... path)
+foreign mkDirs = fn(...path)
 
-// isDir checks if path points to a directory
-// Parameters:
-//   path: path to check
-// Returns:
-//   true if path is a directory, false otherwise
+/**
+ * returns true if `path` is a directory.
+ *
+ * @effects('fs')
+ */
 @export
 @returns('@bool')
 foreign isDir = fn(@str path)
 
-// ls lists contents of a directory (non-recursively)
-// Parameters:
-//   path: directory path to list
-// Returns:
-//   list of filenames in the directory
+/**
+ * returns a list of filenames in a directory (non-recursive).
+ *
+ * @effects('fs')
+ */
 @export
 @returns('@list')
 foreign ls = fn(@str path)
 
-// rm removes a file or empty directory
-// Parameters:
-//   path: path to remove
-// Returns:
-//   nil on success, error if removal fails
+/**
+ * removes a file or empty directory at `path`.
+ *
+ * @effects('fs')
+ */
 @export
 @returns('nil')
 foreign rm = fn(@str path)
 
-@export val READ_MODE = "r"
-@export val WRITE_MODE = "w"
-@export val APPEND_MODE = "a"
-
-// openFile opens a file in specified mode
-// Parameters:
-//   path: path to file to open
-//   mode: "r" for read, "w" for write, "a" for append
-// Returns:
-//   file handle number on success, error if open fails
+/**
+ * opens a file in the specified mode and returns a file handle.
+ *
+ * Always close the handle with `closeFile`. Use `defer closeFile(handle)`
+ * to ensure it is closed even if an error occurs.
+ *
+ * @effects('fs')
+ */
 @export
 @returns('@num')
 foreign openFile = fn(@str path, @str mode)
 
-// readLine reads the next line from an open file
-// Parameters:
-//   handle: file handle from openFile
-// Returns:
-//   string containing next line, or error if read fails
+/**
+ * reads the next line from an open file handle.
+ *
+ * Returns `nil` at end of file. The returned string includes the trailing
+ * newline — use `str[0:-1]` to strip it.
+ *
+ * @effects('fs')
+ */
 @export
 @returns('@str')
 foreign readLine = fn(@num handle)
 
-// readBytes reads a fixed number of bytes from file
-// Parameters:
-//   handle: file handle from openFile
-//   count: number of bytes to read
-// Returns:
-//   string containing read bytes, or error if read fails
-
-// write writes string content to an open file
-// Parameters:
-//   handle: file handle from openFile
-//   content: string data to write
-// Returns:
-//   number of bytes written, or error if write fails
+/**
+ * writes `content` to an open file handle.
+ *
+ * Returns the number of bytes written.
+ *
+ * @effects('fs')
+ */
 @export
 @returns('@num')
 foreign write = fn(@num handle, @str content)
 
-// closeFile closes an open file handle
-// Parameters:
-//   handle: file handle to close
-// Returns:
-//   nil on success, error if close fails
+/**
+ * closes an open file handle.
+ *
+ * @effects('fs')
+ */
 @export
 @returns('nil')
 foreign closeFile = fn(@num handle)
 
+/**
+ * reads all remaining lines from an open file handle into a list.
+ *
+ * Trailing newlines are stripped from each line. Returns an empty list
+ * if the file is already at EOF.
+ */
 @export
 @returns('@list')
-var readLines = fn(@num file, lines = []) {
+val readLines = fn(@num file, lines = []) {
 	match file /> readLine {
 		nil => lines
-		str => readLines(file, lines :+ str[0:-1]) // -1 to trim the newline
+		str => readLines(file, lines :+ str[0:-1])
 	}
 }
 
+/**
+ * recursively collects all files under the given path(s) matching `filter`.
+ *
+ * `path` is a list of starting paths. Directories are expanded recursively.
+ * `filter` receives each file path and returns true to include it.
+ *
+ * ```slug
+ * listFilesRecursive(["src"], fn(s) { endsWith(s, ".slug") })
+ * // => ["src/main.slug", "src/lib/util.slug", ...]
+ * ```
+ */
 @export
 @returns('@list')
-var listFilesRecursive = fn(@list path, @fn filter = fn(s) {true}, acc = []) {
+val listFilesRecursive = fn(@list path, @fn filter = fn(s) { true }, acc = []) {
 	match path {
 		[] => acc
 		[h, ...t] => {
 			if (h /> isDir) {
-				var files = ls(h) /> map(fn(v) {h + "/" + v})
+				val files = ls(h) /> map(fn(v) { h + "/" + v })
 				recur(t + files, filter, acc)
 			} else if (h /> filter) {
 				recur(t, filter, acc :+ h)

@@ -1,46 +1,104 @@
+/**
+ * slug.io.tcp — low-level TCP networking
+ *
+ * Raw TCP socket operations for building servers and clients. Connection
+ * and listener handles are numeric values — always close them when done.
+ *
+ * ## TCP server example
+ *
+ * ```slug
+ * val { bind, accept, read, write, close } = import("slug.io.tcp")
+ *
+ * val listener = bind("0.0.0.0", 8080)
+ * defer close(listener)
+ *
+ * nursery {
+ *   spawn {
+ *     val conn = accept(listener)
+ *     defer close(conn)
+ *     val data = read(conn, 4096)
+ *     write(conn, "HTTP/1.1 200 OK\r\n\r\nHello!")
+ *   }
+ * }
+ * ```
+ *
+ * ## TCP client example
+ *
+ * ```slug
+ * val conn = connect("example.com", 80)
+ * defer close(conn)
+ * write(conn, "GET / HTTP/1.0\r\n\r\n")
+ * val response = read(conn, 4096)
+ * ```
+ *
+ * For HTTP use cases, prefer `slug.io.http`. For web servers, prefer
+ * `slug.web.server`.
+ *
+ * @effects('io net')
+ */
 
-// bind creates a TCP server socket bound to the specified address and port
-// Returns: listener ID on success, error on failure
-// addr: IP address to bind to (string)
-// port: Port number to listen on (integer)
+/**
+ * binds a TCP listener to `addr:port` and returns a listener handle.
+ *
+ * Use `accept` to wait for incoming connections.
+ * Use `defer close(listener)` to release the port when done.
+ *
+ * @effects('io net')
+ */
 @export
 @returns('@num')
 foreign bind = fn(@str addr, @num port)
 
-// accept waits for and accepts an incoming TCP connection
-// Returns: connection ID on success, error on failure
-// listener: ID of the TCP listener to accept connections from (integer)
+/**
+ * waits for an incoming connection on `listener` and returns a connection handle.
+ *
+ * Blocks until a client connects. Use in a `spawn` or `nursery` block
+ * for concurrent connection handling.
+ *
+ * @effects('io net')
+ */
 @export
 @returns('@num')
 foreign accept = fn(@num listener)
 
-// connect establishes a TCP connection to a remote server
-// Returns: connection ID on success, error on failure
-// addr: Remote IP address to connect to (string)
-// port: Remote port number to connect to (integer)
+/**
+ * connects to a TCP server at `addr:port` and returns a connection handle.
+ *
+ * Use `defer close(conn)` to release the connection.
+ *
+ * @effects('io net')
+ */
 @export
 @returns('@num')
 foreign connect = fn(@str addr, @num port)
 
-// read attempts to read up to maxBytes from a TCP stream
-// Returns: string containing read data, nil on EOF, error on failure
-// stream: ID of the TCP connection to read from (integer)
-// maxBytes: Maximum number of bytes to read (integer)
+/**
+ * reads up to `maxBytes` from a TCP stream.
+ *
+ * Returns the data read as a string, or `nil` on EOF.
+ *
+ * @effects('io net')
+ */
 @export
 @returns('@str')
 foreign read = fn(@num stream, @num maxBytes)
 
-// write sends data over a TCP stream
-// Returns: number of bytes written on success, error on failure
-// stream: ID of the TCP connection to write to (integer)
-// data: String data to send
+/**
+ * sends `data` over a TCP stream.
+ *
+ * Returns the number of bytes written.
+ *
+ * @effects('io net')
+ */
 @export
 @returns('@num')
 foreign write = fn(@num stream, @str data)
 
-// close terminates a TCP listener or connection
-// Returns: nil
-// handle: ID of the TCP listener or connection to close (integer)
+/**
+ * closes a TCP listener or connection handle.
+ *
+ * @effects('io net')
+ */
 @export
 @returns('@num')
 foreign close = fn(@num handle)

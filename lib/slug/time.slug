@@ -1,61 +1,95 @@
+/**
+ * slug.time — time and duration utilities
+ *
+ * Wall-clock access, sleep, formatting, and duration conversion helpers.
+ * All time values are in milliseconds unless the function name specifies
+ * otherwise (e.g. `clockNanos`).
+ */
 
+/**
+ * returns the current wall-clock time in milliseconds since the Unix epoch.
+ *
+ * @effects('time')
+ */
 @export
+@effects('time')
 @returns('@num')
 foreign clock = fn()
 
+/**
+ * returns the current time as a nanosecond counter.
+ *
+ * Intended for high-resolution timing. The epoch is implementation-defined
+ * — use differences between two calls rather than absolute values.
+ *
+ * @effects('time')
+ */
+@export
+@effects('time')
+@returns('@num')
+foreign clockNanos = fn()
+
+/**
+ * formats a millisecond timestamp using a format string.
+ *
+ * Format follows standard Go time layout conventions.
+ */
 @export
 @returns('@str')
 foreign fmtClock = fn(@num millis, @str fmt)
 
+/**
+ * suspends execution for `millis` milliseconds.
+ *
+ * @effects('time')
+ */
 @export
-@returns('@num')
-foreign clockNanos = fn()
-
-@export
+@effects('time')
 @returns('nil')
 foreign sleep = fn(@num millis)
 
 /**
- * delta creates a function that measures time difference between calls
- * Parameters:
- *   f: function that returns a time value
- * Returns:
- *   function that returns time elapsed since first call to f
+ * returns a function that measures elapsed time since it was created.
+ *
+ * `f` should be a time source function (e.g. `clock` or `clockNanos`).
+ * Each call to the returned function returns the elapsed time since `delta`
+ * was first called.
+ *
+ * ```slug
+ * val { delta, clock } = import("slug.time")
+ *
+ * val elapsed = delta(clock)
+ * // ... do some work ...
+ * println(elapsed())  // => milliseconds elapsed
+ * ```
  */
 @export
 @returns('@fn')
-var delta = fn(f) {
-	var start = f()
-	fn() {
-		f() - start
-	}
+val delta = fn(f) {
+	val start = f()
+	fn() { f() - start }
 }
 
-// secsToMillis converts seconds to milliseconds
-// Parameters:
-//   secs: number of seconds
-// Returns:
-//   equivalent milliseconds value
+/**
+ * converts seconds to milliseconds.
+ */
 @testWith(
 	[1], 1000
 )
 @export
 @returns('@num')
-var secsToMillis = fn(@num secs) {
-    secs * 1000
+val secsToMillis = fn(@num secs) {
+	secs * 1000
 }
 
-// minsToMillis converts minutes to milliseconds 
-// Parameters:
-//   mins: number of minutes
-// Returns:
-//   equivalent milliseconds value
+/**
+ * converts minutes to milliseconds.
+ */
 @testWith(
 	[1], 60000
 )
 @export
 @returns('@num')
-var minsToMillis = fn(@num mins) {
-    mins * 60 * 1000
+val minsToMillis = fn(@num mins) {
+	mins * 60 * 1000
 }
-

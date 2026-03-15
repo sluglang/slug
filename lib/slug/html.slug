@@ -1,20 +1,53 @@
-var {*} = import(
+/**
+ * slug.html — basic HTML utilities
+ *
+ * Lightweight helpers for working with HTML fragments. Not a full HTML
+ * parser — intended for simple extraction and unescaping tasks on
+ * well-formed markup.
+ */
+
+val {*} = import(
 	"slug.string"
 )
 
+/**
+ * decodes common HTML entities in a string.
+ *
+ * Handles `&amp;`, `&lt;`, `&gt;`, `&quot;`, and `&#39;`.
+ * Does not handle numeric entities beyond `&#39;` or named entities
+ * beyond the five listed above.
+ */
 @testWith(
 	["E &amp; S"], "E & S"
 )
 @export
 @returns('@str')
-var htmlUnescape = fn(str) {
+val htmlUnescape = fn(str) {
 	str /> replaceAll("&amp;", "&")
 		/> replaceAll("&lt;", "<")
 		/> replaceAll("&gt;", ">")
 		/> replaceAll("&quot;", "\"")
-		/> replaceAll("&#39;", "'")   // numeric apostrophe
+		/> replaceAll("&#39;", "'")
 }
 
+/**
+ * extracts the inner content of the first matching tag in an HTML string.
+ *
+ * Handles nested tags of the same type correctly — the inner content is
+ * everything between the outermost opening and closing tag. Returns an
+ * empty string if the tag is not found or `start` is negative.
+ *
+ * The `start` parameter can be used to search from a specific character
+ * offset, enabling successive extractions from the same document.
+ *
+ * ```slug
+ * extractInnerText("<div><p>hello</p></div>", "p")
+ * // => "hello"
+ *
+ * extractInnerText("<a href='h'><a>hi</a></a>", "a")
+ * // => "<a>hi</a>"
+ * ```
+ */
 @testWith(
 	["<a>hi</a>", "a", -1], "",
 	["<a>hi</a>", "div"], "",
@@ -24,19 +57,19 @@ var htmlUnescape = fn(str) {
 )
 @export
 @returns('@str')
-var extractInnerText = fn(html, tag, start = 0) {
+val extractInnerText = fn(html, tag, start = 0) {
 	if (start < 0) {
 		""
 	} else {
-		var startTag = "<" + tag
-		var endTag = "</{{tag}}>"
+		val startTag = "<" + tag
+		val endTag = "</{{tag}}>"
 
-		var openIdx = html /> indexOf(startTag, start)
+		val openIdx = html /> indexOf(startTag, start)
 		if (openIdx < 0) {
 			""
-		} else { 
-			var openIdx = html /> indexOf(">", openIdx)
-			var endIdx = html /> indexOf(endTag, openIdx + 1)
+		} else {
+			val openIdx = html /> indexOf(">", openIdx)
+			val endIdx = html /> indexOf(endTag, openIdx + 1)
 			if (endIdx < 0) {
 				""
 			} else {
@@ -46,27 +79,20 @@ var extractInnerText = fn(html, tag, start = 0) {
 	}
 }
 
-var findEndTag = fn(html, startTag, endTag, startPos, i, depth = 1) {
+val findEndTag = fn(html, startTag, endTag, startPos, i, depth = 1) {
 	if (i < len(html) && depth > 0) {
-		var nextOpen = html /> indexOf(startTag, i)
-		var nextClose = html /> indexOf(endTag, i)
+		val nextOpen  = html /> indexOf(startTag, i)
+		val nextClose = html /> indexOf(endTag, i)
 		if (nextClose == -1) {
 			""
 		} else if (nextOpen != -1 && nextOpen < nextClose) {
-			var nextEnd = html /> indexOf(">", nextOpen) + 1
+			val nextEnd = html /> indexOf(">", nextOpen) + 1
 			recur(html, startTag, endTag, startPos, nextEnd, depth + 1)
 		} else {
-			var nextEnd = nextClose + len(endTag)
+			val nextEnd = nextClose + len(endTag)
 			recur(html, startTag, endTag, startPos, nextEnd, depth - 1)
 		}
 	} else {
 		html[startPos + 1: i - len(endTag)]
 	}
 }
-
-
-
-
-
-
-

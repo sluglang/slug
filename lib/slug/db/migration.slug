@@ -1,4 +1,57 @@
-var {*} = import(
+/**
+ * slug.db.migration — SQL schema migration runner
+ *
+ * Applies, rolls back, and reports on versioned SQL migration scripts
+ * stored as `.sql` files on the filesystem.
+ *
+ * ## File naming convention
+ *
+ * Migration files must follow the pattern:
+ * ```
+ * <version>__<description>.sql
+ * <version>__<environment>__<description>.sql
+ * ```
+ *
+ * Examples:
+ * ```
+ * db/migrations/001__create_users.sql
+ * db/migrations/002__production__add_index.sql
+ * ```
+ *
+ * Files are sorted and applied in ascending version order.
+ *
+ * ## Script sections
+ *
+ * Each `.sql` file may contain `-- @up` and `-- @down` section markers.
+ * The `up` section is applied on `up`, the `down` section on `down`.
+ * If no markers are present, the entire file is treated as the `up` script.
+ *
+ * ```sql
+ * -- @up
+ * CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);
+ *
+ * -- @down
+ * DROP TABLE users;
+ * ```
+ *
+ * ## Tracking table
+ *
+ * Applied migrations are recorded in a `slug_schema_migrations` table
+ * which is created automatically on first run. Each entry stores the
+ * version, environment, filename, SHA-256 checksum, and success status.
+ *
+ * ## Configuration
+ *
+ * Default base directory and environment can be set via `cfg`:
+ * ```
+ * base-directory = db/migrations
+ * environment    = production
+ * ```
+ *
+ * @effects('fs db')
+ */
+
+val {*} = import(
 	"slug.std",
 	"slug.list",
 	"slug.map",
@@ -27,23 +80,35 @@ ON slug_schema_migrations (version);
 '''
 
 val DefaultBase = cfg('base-directory', 'db/migrations')
-val DefaultEnv = cfg('environment', [])
+val DefaultEnv  = cfg('environment', [])
 
+/**
+ * represents a migration record as stored in the tracking table.
+ */
 @export
-var Migration = struct {
-	@num id,
-	@str version,
-	@str environment,
-	@str filename,
-	@str checksum,
+val Migration = struct {
+	@num  id,
+	@str  version,
+	@str  environment,
+	@str  filename,
+	@str  checksum,
 	@bool success,
-	@str appliedAt,
+	@str  appliedAt,
 }
 
+/**
+ * prints the status of all migration files against the database.
+ *
+ * Each migration is reported as APPLIED, MISSING, or INELIGIBLE (for
+ * environments not in `env`). Applied migrations whose checksum no longer
+ * matches the file will throw `MigrationError`.
+ *
+ * Returns the connection handle for chaining.
+ */
 @export
 @returns('@num')
 @throws('@struct(Error{type:MigrationError})')
-var status = fn(@num conn, @list env = DefaultEnv, @str base = DefaultBase) {
+val status = fn(@num conn, @list env = DefaultEnv, @str base = DefaultBase) {
 	checkTrackingTable(conn)
 	listMigrationFiles(base, fn(m, sql) {
 		defer onerror(err) println(fmtError(m, err))
@@ -62,33 +127,49 @@ var status = fn(@num conn, @list env = DefaultEnv, @str base = DefaultBase) {
 	conn
 }
 
+/**
+ * applies all pending eligible migrations in ascending version order.
+ *
+ * Skips already-applied migrations and migrations for ineligible environments.
+ * On failure, records the migration as failed and rethrows the error.
+ *
+ * Returns the connection handle for chaining.
+ */
 @export
 @returns('@num')
 @throws('@struct(Error{type:MigrationError})')
-var up = fn(@num conn, @list env = DefaultEnv, @str base = DefaultBase) {
+val up = fn(@num conn, @list env = DefaultEnv, @str base = DefaultBase) {
 	checkTrackingTable(conn)
 	listMigrationFiles(base, fn(m, sql) {
-			defer onerror(err) {
-				markApplied(conn, m, false)
-				println(fmtError(m, err))
-				throw err
-			}
-			if (m.environment == nil || indexOf(env, m.environment) > -1) {
-				if (!checkMigrationApplied(conn, m)) {
-					conn
-					/> applyMigrationSql(sliceUpScript(sql))
-					/> markApplied(m, true)
-					println(fmtApplied(m))
-				}
+		defer onerror(err) {
+			markApplied(conn, m, false)
+			println(fmtError(m, err))
+			throw err
+		}
+		if (m.environment == nil || indexOf(env, m.environment) > -1) {
+			if (!checkMigrationApplied(conn, m)) {
+				conn
+				/> applyMigrationSql(sliceUpScript(sql))
+				/> markApplied(m, true)
+				println(fmtApplied(m))
 			}
 		}
-	)
+	})
 	conn
 }
 
+/**
+ * rolls back the most recently applied migrations.
+ *
+ * Applies the `-- @down` section of each rolled-back migration script
+ * and removes its entry from the tracking table. `step` controls how
+ * many migrations to roll back (default 1).
+ *
+ * Returns the connection handle for chaining.
+ */
 @export
 @returns('@num')
-var down = fn(@num conn, @num step = 1, @str base = DefaultBase) {
+val down = fn(@num conn, @num step = 1, @str base = DefaultBase) {
 	checkTrackingTable(conn)
 	findLatestMigrations(conn, step)
 	/> map(fn(m) {
@@ -100,26 +181,31 @@ var down = fn(@num conn, @num step = 1, @str base = DefaultBase) {
 	conn
 }
 
-var fmtEnv = fn(s) match {
+// --- formatting helpers ---
+
+val fmtEnv = fn(s) match {
 	nil => ''
-	_ => s + ': '
+	_   => s + ': '
 }
-var fmtExists            = fn(m) { fmt('{} [ APPLIED    ] {}{}', m.version, fmtEnv(m.environment), m.filename) }
-var fmtApplied           = fn(m) { fmt('{} [ SUCCESS    ] {}{}', m.version, fmtEnv(m.environment), m.filename) }
-var fmtMissing           = fn(m) { fmt('{} [ MISSING    ] {}{}', m.version, fmtEnv(m.environment), m.filename) }
-var fmtExistsIneligible  = fn(m) { fmt('{} [ INELIGIBLE ] {}{} - WARNING this migration has been applied in an ineligible environment', m.version, fmtEnv(m.environment), m.filename) }
-var fmtMissingIneligible = fn(m) { fmt('{} [ INELIGIBLE ] {}{}', m.version, fmtEnv(m.environment), m.filename) }
-var fmtRollback          = fn(m) { fmt('{} [ ROLLBACK   ] {}{}', m.version, fmtEnv(m.environment), m.filename) }
-var fmtError        = fn(m, err) { fmt('{} [ ERROR      ] {}{}: {}', m.version, fmtEnv(m.environment), m.filename, err.msg) }
 
-var sliceUpScript = fn(@str sql) { sql /> sliceSqlScript('up') }
+val fmtExists            = fn(m) { fmt('{} [ APPLIED    ] {}{}', m.version, fmtEnv(m.environment), m.filename) }
+val fmtApplied           = fn(m) { fmt('{} [ SUCCESS    ] {}{}', m.version, fmtEnv(m.environment), m.filename) }
+val fmtMissing           = fn(m) { fmt('{} [ MISSING    ] {}{}', m.version, fmtEnv(m.environment), m.filename) }
+val fmtExistsIneligible  = fn(m) { fmt('{} [ INELIGIBLE ] {}{} - WARNING this migration has been applied in an ineligible environment', m.version, fmtEnv(m.environment), m.filename) }
+val fmtMissingIneligible = fn(m) { fmt('{} [ INELIGIBLE ] {}{}', m.version, fmtEnv(m.environment), m.filename) }
+val fmtRollback          = fn(m) { fmt('{} [ ROLLBACK   ] {}{}', m.version, fmtEnv(m.environment), m.filename) }
+val fmtError        = fn(m, err) { fmt('{} [ ERROR      ] {}{}: {}', m.version, fmtEnv(m.environment), m.filename, err.msg) }
 
-var readDownScript = fn(@str filepath) { readFile(filepath) /> sliceSqlScript('down') }
+// --- script slicing ---
 
-var sliceSqlScript = fn(@str sql, @str read) {
+val sliceUpScript = fn(@str sql) { sql /> sliceSqlScript('up') }
+
+val readDownScript = fn(@str filepath) { readFile(filepath) /> sliceSqlScript('down') }
+
+val sliceSqlScript = fn(@str sql, @str read) {
 	sql
 	/> split("\n")
-	/> sliceSqlScript
+	/> sliceSqlLines
 	/> match {
 		[up, _]   if read == 'up'   => up /> join("\n")
 		[_, down] if read == 'down' => down /> join("\n")
@@ -132,75 +218,80 @@ var sliceSqlScript = fn(@str sql, @str read) {
 	[["-- @down", "DOWN", "-- @up", "UP"]], [["-- @up", "UP"], ["-- @down", "DOWN"]],
 	[["-- @up", "UP", "-- @down", "DOWN", "-- @up", "UP2"]], [["-- @up", "UP", "-- @up", "UP2"], ["-- @down", "DOWN"]],
 )
-var sliceSqlScript = fn(@list strs, readingUp = true, @list up = [], @list down = []) match {
-	[[], ...]                        => [up, down]
-	[[h, ...t], ...] if startUp(h)   => recur(t, true, up :+ h, down)
+val sliceSqlLines = fn(@list strs, readingUp = true, @list up = [], @list down = []) match {
+	[[], ...]                         => [up, down]
+	[[h, ...t], ...] if startUp(h)   => recur(t, true,  up :+ h, down)
 	[[h, ...t], ...] if startDown(h) => recur(t, false, up, down :+ h)
-	[[h, ...t], true, ...]           => recur(t, readingUp, up :+ h, down)
-	[[h, ...t], false, ...]          => recur(t, readingUp, up, down :+ h)
+	[[h, ...t], true, ...]            => recur(t, readingUp, up :+ h, down)
+	[[h, ...t], false, ...]           => recur(t, readingUp, up, down :+ h)
 }
 
-var startUp = fn(str) { startTag(str, '@up') }
-
-var startDown = fn(str) { startTag(str, '@down') }
+val startUp   = fn(str) { startTag(str, '@up') }
+val startDown = fn(str) { startTag(str, '@down') }
 
 @testWith(
-	['  -- @up  ', '@up'], true,
-	['-- @up', '@up'], true,
-	['-- @DOWN', '@down'], true,
+	['  -- @up  ', '@up'],   true,
+	['-- @up', '@up'],       true,
+	['-- @DOWN', '@down'],   true,
 	['; -- @down', '@down'], false,
-	['@down', '@down'], false,
-	['', '@down'], false,
+	['@down', '@down'],      false,
+	['', '@down'],           false,
 )
-var startTag = fn(str, tag) { str /> trim /> startsWith('--') && str /> toLower /> contains(tag) }
+val startTag = fn(str, tag) {
+	str /> trim /> startsWith('--') && str /> toLower /> contains(tag)
+}
 
-var checkTrackingTable = fn(conn) {
+// --- database helpers ---
+
+val checkTrackingTable = fn(conn) {
 	match exec(conn, TrackingTableSql) {
 		{rowsAffected} if rowsAffected > 0 => exec(conn, TrackingTableIndexSql)
 	}
 }
 
-var applyMigrationSql = fn(conn, sql) {
+val applyMigrationSql = fn(conn, sql) {
 	exec(conn, sql)
 	conn
 }
 
-var listMigrationFiles = fn(@str base, @fn f = fn(migration, sql) { migration }) {
-	var baseLen = len(base)
+val listMigrationFiles = fn(@str base, @fn f = fn(migration, sql) { migration }) {
+	val baseLen = len(base)
 	listFilesRecursive([base], fn(s) { s[-4:] == '.sql' })
 	/> sort
 	/> map(fn(path) {
-		var sql = readFile(path)
-		var filename = path[baseLen:]
-		var [version, env] = filename
+		val sql      = readFile(path)
+		val filename = path[baseLen:]
+		val [version, env] = filename
 		/> replaceAll('/', ' ')
 		/> trim
 		/> split('__', 3)
 		/> match {
-			[a, env, _] => [replaceAll(a, ' ', '.'), trim(env)];
-			[a, _] => [replaceAll(a, ' ', '.'), nil];
-			_ => throw Error{type: 'MigrationError', msg: filename + " must be in the form `<version>__<environment>__<description>.sql` "}
+			[a, env, _] => [replaceAll(a, ' ', '.'), trim(env)]
+			[a, _]      => [replaceAll(a, ' ', '.'), nil]
+			_ => throw Error{ type: 'MigrationError', msg: filename + " must be in the form `<version>__<environment>__<description>.sql`" }
 		}
-		var m = Migration {
-			version: version,
+		val m = Migration {
+			version:     version,
 			environment: env,
-			filename: filename,
-			checksum: sha256(sql),
+			filename:    filename,
+			checksum:    sha256(sql),
 		}
 		f(m, sql)
 	})
 }
 
-var markApplied = fn(conn, @struct(Migration) m, @bool success) {
-	conn /> exec('insert into slug_schema_migrations (version, environment, filename, checksum, success)'
-		+ 'values (?, ?, ?, ?, ?)', m.version, m.environment, m.filename, m.checksum, success)
+val markApplied = fn(conn, @struct(Migration) m, @bool success) {
+	conn /> exec(
+		'insert into slug_schema_migrations (version, environment, filename, checksum, success) values (?, ?, ?, ?, ?)',
+		m.version, m.environment, m.filename, m.checksum, success
+	)
 }
 
-var deleteMigration = fn(conn, @struct(Migration) m) {
+val deleteMigration = fn(conn, @struct(Migration) m) {
 	conn /> exec('delete from slug_schema_migrations where version = ?', m.version)
 }
 
-var findLatestMigrations = fn(conn, @num limit = 1_000_000) {
+val findLatestMigrations = fn(conn, @num limit = 1_000_000) {
 	conn /> query('select * from slug_schema_migrations order by version desc limit ?', limit)
 	/> map(fn(v) {
 		val data = v /> keys /> reduce({}, fn(a, k) {
@@ -210,20 +301,19 @@ var findLatestMigrations = fn(conn, @num limit = 1_000_000) {
 	})
 }
 
-var checkMigrationApplied = fn(conn, @struct(Migration) m) {
+val checkMigrationApplied = fn(conn, @struct(Migration) m) {
 	conn
 	/> query('select * from slug_schema_migrations where version = ?', m.version)
 	/> match {
 		[] => false
 		[v] => {
 			if (v['checksum'] != m.checksum) {
-				throw Error{type: 'Migration', msg: "checksum mismatch", data: m}
+				throw Error{ type: 'MigrationError', msg: "checksum mismatch", data: m }
 			} else if (!v['success']) {
-				throw Error{type: 'Migration', msg: "script failed", data: m}
+				throw Error{ type: 'MigrationError', msg: "script failed", data: m }
 			} else {
 				true
 			}
 		}
 	}
 }
-

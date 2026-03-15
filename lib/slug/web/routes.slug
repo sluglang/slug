@@ -1,4 +1,66 @@
-var {*} = import (
+/**
+ * slug.web.routes — HTTP router and middleware
+ *
+ * Pattern-based HTTP routing with composable middleware wrappers.
+ * Routes are registered on a `Router` and dispatched via `handle`.
+ *
+ * ## Quick start
+ *
+ * ```slug
+ * val { router, get, post, handle, withLog, withRecover } = import("slug.web.routes")
+ * val { html, jsonOk, notFound } = import("slug.web.response")
+ *
+ * val r = router()
+ * /> get("/",           fn(req) { html("<h1>Hello</h1>") })
+ * /> get("/users/:id",  fn(req) { jsonOk({ id: req.params["id"] }) })
+ * /> post("/users",     fn(req) { jsonOk(req.body) })
+ *
+ * val app = r /> handle /> withLog /> withRecover
+ * ```
+ *
+ * ## Route patterns
+ *
+ * - Exact match: `"/users"` matches only `/users`
+ * - Named param: `"/users/:id"` captures the segment as `req.params["id"]`
+ * - Wildcard mount: `"/static/*"` matches any path starting with `/static/`
+ *   and captures the remainder as `req.params["*"]`
+ *
+ * ## Middleware
+ *
+ * Middleware wraps a handler function `fn(req) -> Response` and returns
+ * a new handler with the same signature. Chain middleware with `/>`:
+ *
+ * ```slug
+ * val app = fn(req) { handle(req, r) }
+ * /> withLog
+ * /> withRecover
+ * /> withMaxBody(512_000)
+ * /> withRequestId
+ * ```
+ *
+ * ## Subrouters
+ *
+ * Mount a child router at a prefix with `mountRouter`. The child router
+ * sees paths relative to the mount point:
+ *
+ * ```slug
+ * val api = router()
+ * /> get("/users",    usersHandler)
+ * /> get("/users/:id", userHandler)
+ *
+ * val r = router()
+ * /> mountRouter("/api", api)
+ * ```
+ *
+ * ## Static files
+ *
+ * ```slug
+ * val r = router()
+ * /> mount("/static", static("public"))
+ * ```
+ */
+
+val {*} = import(
 	"slug.web.response",
 	"slug.web.request",
 	"slug.io.fs",
@@ -11,83 +73,108 @@ var {*} = import (
 val Route = struct {
 	@str method,
 	@str pattern,
-	@fn handler,
+	@fn  handler,
 }
 
 val Router = struct {
 	@list routes,
 }
 
+// --- constructors ---
 
-// ------------------
-// Core constructors
-// ------------------
-
+/**
+ * creates an empty `Router`.
+ */
 @export
 @returns('@struct(Router)')
-var router = fn() {
+val router = fn() {
 	Router { routes: [] }
 }
 
-// ------------------
-// Introspection
-// ------------------
-
+/**
+ * returns true if `x` is a `Router` struct instance.
+ */
+@export
 @returns('@bool')
-@export var isRouter = fn(x) match { Router { routes } => true _ => false }
-
-// ------------------
-// Basic modifiers
-// ------------------
-
-var addRoute = fn(r, @str method, @str pattern, @fn handler) {
-  r copy { routes: r.routes :+ Route { method: method, pattern: pattern, handler: handler } }
+val isRouter = fn(x) match {
+	Router { routes } => true
+	_ => false
 }
 
+// --- route registration ---
+
+val addRoute = fn(r, @str method, @str pattern, @fn handler) {
+	r copy { routes: r.routes :+ Route { method: method, pattern: pattern, handler: handler } }
+}
+
+/**
+ * registers a `HEAD` route on `r` and returns the updated router.
+ */
 @export
 @returns('@struct(Router)')
-var head  = fn(r, @str pattern, @fn handler) { addRoute(r, "HEAD",  pattern, handler) }
+val head = fn(r, @str pattern, @fn handler) { addRoute(r, "HEAD", pattern, handler) }
 
+/**
+ * registers a `GET` route on `r` and returns the updated router.
+ */
 @export
 @returns('@struct(Router)')
-var get  = fn(r, @str pattern, @fn handler) { addRoute(r, "GET",  pattern, handler) }
+val get = fn(r, @str pattern, @fn handler) { addRoute(r, "GET", pattern, handler) }
 
+/**
+ * registers a `POST` route on `r` and returns the updated router.
+ */
 @export
 @returns('@struct(Router)')
-var post = fn(r, @str pattern, @fn handler) { addRoute(r, "POST", pattern, handler) }
+val post = fn(r, @str pattern, @fn handler) { addRoute(r, "POST", pattern, handler) }
 
-// mount = any method, prefix
+/**
+ * mounts `handler` at `prefix/*`, matching any method.
+ *
+ * The path remainder after the prefix is available as `req.params["*"]`.
+ */
 @export
 @returns('@struct(Router)')
-var mount = fn(r, @str prefix, @fn handler) { addRoute(r, "*", prefix + "/*", handler) }
+val mount = fn(r, @str prefix, @fn handler) {
+	addRoute(r, "*", prefix + "/*", handler)
+}
 
+/**
+ * mounts a child `Router` at `prefix`, handling paths relative to the prefix.
+ *
+ * Equivalent to `mount(r, prefix, subrouter(childRouter))`.
+ */
 @export
 @returns('@struct(Router)')
-var mountRouter = fn(r, @str prefix, childRouter) { mount(r, prefix, subrouter(childRouter)) }
+val mountRouter = fn(r, @str prefix, childRouter) {
+	mount(r, prefix, subrouter(childRouter))
+}
 
-// ------------------
-// Public
-// ------------------
+// --- dispatch ---
 
+/**
+ * dispatches `request` through the router's routes and returns a `Response`.
+ *
+ * Returns a 404 Not Found response if no route matches.
+ * Route handlers receive the request with `params` populated from URL pattern segments.
+ */
 @export
 @returns('@struct(Response)')
-var handle = fn(request, r) {
+val handle = fn(request, r) {
 	match handleRequest(r.routes, request) {
-		nil => notFound()
+		nil      => notFound()
 		response => response
 	}
 }
 
-// ------------------
-// Internals
-// ------------------
+// --- internals ---
 
-var handleRequest = fn(@list routes, request) match {
+val handleRequest = fn(@list routes, request) match {
 	[[], ...] => nil
 	[[route, ...t], ...] => {
 		if (route.method == request.method || route.method == "*") {
 			match matchRoutePattern(route.pattern, request.path) {
-				nil => recur(t, request)
+				nil    => recur(t, request)
 				params => request /> withParams(params) /> route.handler
 			}
 		} else {
@@ -96,29 +183,25 @@ var handleRequest = fn(@list routes, request) match {
 	}
 }
 
-var matchRoutePattern = fn(pattern, path) {
-	// prefix mount: "/static/*"
+val matchRoutePattern = fn(pattern, path) {
 	if (pattern /> endsWith("/*")) {
-		var base = pattern[0:-2] // strip "/*"
-
+		val base = pattern[0:-2]
 		if (path == base) {
 			{ "*": "" }
 		} else if (path /> startsWith(base + "/")) {
-			{ "*": path[len(base):] }          // remainder begins with "/..."
+			{ "*": path[len(base):] }
 		} else {
 			nil
 		}
 	} else {
-		// existing exact-segment matcher
-		var ps = pattern /> split("/")
-		var xs = path    /> split("/")
-
+		val ps = pattern /> split("/")
+		val xs = path    /> split("/")
 		if (len(ps) != len(xs)) {
 			nil
 		} else {
 			ps /> zip(xs) /> reduce({}, fn(params, pair) {
-				var p = pair[0]
-				var x = pair[1]
+				val p = pair[0]
+				val x = pair[1]
 				if (p == nil) {
 					params
 				} else if (p /> startsWith(":")) {
@@ -133,197 +216,176 @@ var matchRoutePattern = fn(pattern, path) {
 	}
 }
 
-// ------------------
-// subrouters, allows router nesting
-// ------------------
+// --- subrouters ---
 
+/**
+ * wraps a `Router` as a handler function for use with `mount`.
+ *
+ * Strips the mount prefix from the path and clears the `"*"` param
+ * before dispatching to the inner router.
+ */
 @export
 @returns('@fn')
-var subrouter = fn(router) {
-  fn(req) {
-	// remainder captured by mount "/prefix/*"
-	var rest = req.params["*"]
-	if (rest == nil || rest == "") {
-		rest = "/"
-	}
-
-	// normalize so inner routes can be defined like "/users/:id"
-	if (rest[0:1] != "/") {
-		rest = "/" + rest
-	}
-
-	req /> withPath(rest)
-		// IMPORTANT: clear the "*" param so it doesn't leak into inner router
-		// (optional, but usually nicer)
+val subrouter = fn(router) {
+	fn(req) {
+		var rest = req.params["*"]
+		if (rest == nil || rest == "") { rest = "/" }
+		if (rest[0:1] != "/") { rest = "/" + rest }
+		req
+		/> withPath(rest)
 		/> withoutParam("*")
-		/> handle(router) 
-  }
+		/> handle(router)
+	}
 }
 
+// --- static file handler ---
 
-// ------------------
-// static file handler
-// ------------------
-
+/**
+ * returns a handler that serves static files from `dir`.
+ *
+ * Intended for use with `mount`: `mount("/static", static("public"))`.
+ * Files are served with the appropriate `Content-Type` based on extension
+ * and cached for `cacheTimeSeconds` seconds (default 1 hour).
+ *
+ * Returns 404 for missing files, path traversal attempts (`..`), and
+ * non-GET/HEAD requests. `HEAD` requests return headers without a body.
+ */
 @export
 @returns('@fn')
-var static = fn(dir, cacheTimeSeconds = 3600) {
+val static = fn(dir, cacheTimeSeconds = 3600) {
 	fn(req) {
 		defer onerror(err) notFound()
-		
+
 		if (req.method != "GET" && req.method != "HEAD") {
 			nil
 		} else {
-			// remainder supplied by mount("/static", ...)
 			var rel = req.params["*"]
-
-			// mount captured remainder like "/app.css" (or "")
-			if (rel == nil || rel == "" || rel == "/") {
-				rel = "/index.html"
-			}
-			
-			if (rel[0:1] == "/") {
-				rel = rel[1:]
-			}
+			if (rel == nil || rel == "" || rel == "/") { rel = "/index.html" }
+			if (rel[0:1] == "/") { rel = rel[1:] }
 
 			if (!isSafeRelPath(rel)) {
 				notFound()
 			} else {
-				var full = joinPath(dir, rel)
-				var body = readFile(full)
-
+				val full = joinPath(dir, rel)
+				val body = readFile(full)
 				match req.method {
 					"HEAD" => html("")
-					_ => html(body)
+					_      => html(body)
 				}
-					/> withContentType(rel /> ext /> contentType)
-					/> cacheSeconds(cacheTimeSeconds)
+				/> withContentType(rel /> ext /> contentType)
+				/> cacheSeconds(cacheTimeSeconds)
 			}
 		}
 	}
 }
 
-var ext = fn(path) {
-	var i = path /> lastIndexOf(".")
-	if (i < 0) {
-		"" 
-	} else {
-		path[i:] 
-	}
+val ext = fn(path) {
+	val i = path /> lastIndexOf(".")
+	if (i < 0) { "" } else { path[i:] }
 }
 
-var contentType = fn(path) match {
-	".css"  => "text/css; charset=utf-8";
-	".js"   => "text/javascript; charset=utf-8";
-	".html" => "text/html; charset=utf-8";
-	".htm"  => "text/html; charset=utf-8";
-	".txt"  => "text/plain; charset=utf-8";
-	".svg"  => "image/svg+xml";
-	".json" => "application/json; charset=utf-8";
-	".png"  => "image/png";
-	".jpg"  => "image/jpeg";
-	".jpeg" => "image/jpeg";
-	".gif"  => "image/gif";
-	".ico"  => "image/x-icon";
-	_       => "application/octet-stream";
+val contentType = fn(path) match {
+	".css"  => "text/css; charset=utf-8"
+	".js"   => "text/javascript; charset=utf-8"
+	".html" => "text/html; charset=utf-8"
+	".htm"  => "text/html; charset=utf-8"
+	".txt"  => "text/plain; charset=utf-8"
+	".svg"  => "image/svg+xml"
+	".json" => "application/json; charset=utf-8"
+	".png"  => "image/png"
+	".jpg"  => "image/jpeg"
+	".jpeg" => "image/jpeg"
+	".gif"  => "image/gif"
+	".ico"  => "image/x-icon"
+	_       => "application/octet-stream"
 }
 
+val isSafeRelPath = fn(p) { !(p /> contains("..")) }
 
-// prevent .. traversal (v0: simple + effective)
-var isSafeRelPath = fn(p) {
-	// normalize separators first if you have that; this covers the common case
-	!(p /> contains(".."))
-}
-
-// join dir + rel path (assumes dir has no trailing slash issues; adjust if needed)
-var joinPath = fn(dir, rel) {
+val joinPath = fn(dir, rel) {
 	if (dir /> endsWith("/")) { dir + rel } else { dir + "/" + rel }
 }
 
+// --- middleware ---
 
-// ------------------
-// logging wrapper
-// ------------------
-
+/**
+ * wraps `handler` with request/response logging to stdout.
+ *
+ * Logs timestamp, method, elapsed time (ms), status code, path, and
+ * any request ID / trace ID / span ID present on the request.
+ */
 @export
 @returns('@fn')
-var withLog = fn(handler) {
+val withLog = fn(handler) {
 	fn(req) {
-		var d = delta(clock)
-
-		var res = handler(req)
-
-		var ts = fmtClock(clock(), "2006-01-02 15:04:05.000")
+		val d   = delta(clock)
+		val res = handler(req)
+		val ts  = fmtClock(clock(), "2006-01-02 15:04:05.000")
 		var msg = []
 		if (req.requestId) { msg = msg :+ req.requestId }
-		if (req.traceId) { msg = msg :+ req.traceId }
-		if (req.spanId) { msg = msg :+ req.spanId }
+		if (req.traceId)   { msg = msg :+ req.traceId }
+		if (req.spanId)    { msg = msg :+ req.spanId }
 		msg = msg :+ req.path
-		fmt("{} [ {:<4s} ] {:d}ms {:d} {:s}", ts, req.method, d(), res.status, msg /> join(" ")) /> println;
+		fmt("{} [ {:<4s} ] {:d}ms {:d} {:s}", ts, req.method, d(), res.status, msg /> join(" ")) /> println
 		res
 	}
 }
 
-// ------------------
-// timeout wrapper
-// ------------------
-
+/**
+ * wraps `handler` with a timeout of `ms` milliseconds.
+ *
+ * If the handler does not return within the timeout, a `TimeoutError` is thrown.
+ */
 @export
 @returns('@fn')
-var withTimeout = fn(h, ms) {
+val withTimeout = fn(h, ms) {
 	fn(req) {
-		var task = spawn { h(req) }
+		val task = spawn { h(req) }
 		await(task, ms)
 	}
 }
 
-// ------------------
-// simple error handling wrapper
-// ------------------
-
+/**
+ * wraps `handler` so that any thrown error returns a 500 Server Error response.
+ *
+ * Use as the outermost middleware layer to prevent unhandled errors from
+ * crashing the connection.
+ */
 @export
 @returns('@fn')
-var withRecover = fn(h) {
+val withRecover = fn(h) {
 	fn(req) {
-		defer onerror(err) {
-			serverError()
-		}
+		defer onerror(err) { serverError() }
 		h(req)
 	}
 }
 
-// ------------------
-// add a response header
-// ------------------
-
+/**
+ * wraps `handler` to add a fixed response header to every response.
+ */
 @export
 @returns('@fn')
-var withHeader = fn(@fn handler, @str header, @str value) {
+val withHeader = fn(@fn handler, @str header, @str value) {
 	fn(req) {
 		req /> handler /> withHeader(header, value)
 	}
 }
 
-// ------------------
-// add a request id for logging
-// ------------------
-
-var requestId = fn() { randomHexString(32) }
-
+/**
+ * wraps `handler` to attach a request ID to every request and response.
+ *
+ * Uses the incoming `X-Request-Id` header if present, otherwise generates
+ * a new random hex ID. The ID is attached to `req.requestId` and returned
+ * as the `X-Request-Id` response header.
+ */
 @export
 @returns('@fn')
-var withRequestId = fn(@fn handler, @fn newRequestId = requestId) {
+val withRequestId = fn(@fn handler, @fn newRequestId = fn() { randomHexString(32) }) {
 	fn(req) {
 		var rid = req.headers["x-request-id"]
+		if (rid == nil) { rid = newRequestId() }
 
-		if (rid == nil) {
-			rid = newRequestId()
-		}
-
-		// attach to request
-		req = req copy { requestId: rid }
-
-		var res = handler(req)
+		val res = req copy { requestId: rid } /> handler
 
 		if (res != nil) {
 			res /> withHeader("X-Request-Id", rid)
@@ -333,76 +395,69 @@ var withRequestId = fn(@fn handler, @fn newRequestId = requestId) {
 	}
 }
 
-// ------------------
-// add trace and span ids for logging
-// ------------------
-
-var traceId = fn() { randomHexString(32) }
-var spanId = fn() { randomHexString(16) }
-
+/**
+ * wraps `handler` to propagate W3C `traceparent` trace context.
+ *
+ * Extracts or generates a `traceId` and creates a new `spanId` for each
+ * request. Attaches both to `req.traceId` and `req.spanId`. Returns the
+ * `traceparent` header on the response for downstream propagation.
+ *
+ * Format: `00-<traceId>-<spanId>-01`
+ */
 @export
 @returns('@fn')
-var withTraceContext = fn(handler, @fn newTraceId = traceId, @fn newSpanId = spanId) {
+val withTraceContext = fn(
+	handler,
+	@fn newTraceId = fn() { randomHexString(32) },
+	@fn newSpanId  = fn() { randomHexString(16) }
+) {
 	fn(req) {
-
-		var tp = req.headers["traceparent"]
-
-		var traceId = ""
+		val tp = req.headers["traceparent"]
+		var traceId  = ""
 		var parentId = ""
 
 		if (tp != nil) {
-			// Parse existing: 00-traceid-spanid-flags
-			var parts = tp /> split("-")
+			val parts = tp /> split("-")
 			if (len(parts) >= 3) {
-				traceId = parts[1]
+				traceId  = parts[1]
 				parentId = parts[2]
 			}
 		}
 
-		// If no incoming trace, start a new one
-		if (traceId == "") {
-			traceId = newTraceId()
-		}
+		if (traceId == "") { traceId = newTraceId() }
 
-		// Generate a new span ID for this specific execution unit
-		var currentSpanId = newSpanId()
-
-		// Construct the new traceparent for downstream/response
-		// 00 is the version, 01 means "sampled" (recorded)
-		var newTraceParent = "00-" + traceId + "-" + currentSpanId + "-01"
-
-		// Attach to request context so internal logic can use it
-		var res = req copy { traceId: traceId, spanId: currentSpanId } /> handler
+		val currentSpanId    = newSpanId()
+		val newTraceParent   = "00-" + traceId + "-" + currentSpanId + "-01"
+		val res              = req copy { traceId: traceId, spanId: currentSpanId } /> handler
 
 		if (res != nil) {
 			res /> withHeader("traceparent", newTraceParent)
-		} else{
+		} else {
 			res
 		}
 	}
 }
 
-
-// ------------------
-// enforce a maximum request body size
-// ------------------
-
+/**
+ * wraps `handler` to enforce a maximum request body size.
+ *
+ * Checks `Content-Length` for `POST`, `PUT`, and `PATCH` requests.
+ * Returns 413 Payload Too Large if the declared size exceeds `maxBytes`.
+ * Default limit is 1MB (1_048_576 bytes).
+ */
 @export
 @returns('@fn')
-var withMaxBody = fn(h, maxBytes = 1_048_576) {
+val withMaxBody = fn(h, maxBytes = 1_048_576) {
 	fn(req) {
-		// only enforce for methods that may have bodies
 		if (req.method == "POST" || req.method == "PUT" || req.method == "PATCH") {
-			var cl = req.headers["content-length"]
-
+			val cl = req.headers["content-length"]
 			if (cl != nil) {
-				var n = cl /> toNumber
+				val n = cl /> toNumber
 				if (n > maxBytes) {
 					return payloadTooLarge()
 				}
 			}
 		}
-
 		h(req)
 	}
 }

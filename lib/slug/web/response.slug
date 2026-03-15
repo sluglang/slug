@@ -1,23 +1,84 @@
-var {*} = import (
+/**
+ * slug.web.response — HTTP response construction and formatting
+ *
+ * Provides the `Response` and `Reply` structs, constructor helpers for
+ * all common HTTP status codes, header management, cookie support,
+ * HTMX helpers, and HTTP wire-format serialisation.
+ *
+ * ## Quick start
+ *
+ * ```slug
+ * val { ok, html, jsonOk, notFound, redirect, withHeader } = import("slug.web.response")
+ *
+ * // simple text response
+ * ok("Hello, World!")
+ *
+ * // HTML response
+ * html("<h1>Hello</h1>")
+ *
+ * // JSON response
+ * jsonOk({ name: "Alice", age: 30 })
+ *
+ * // chaining modifiers
+ * ok("done")
+ * /> withHeader("x-custom", "value")
+ * /> noCache
+ * ```
+ *
+ * ## Response struct
+ *
+ * `Response{ status, headers, body }` — header names are always lowercase.
+ * Use `withHeader`, `withHeaders`, `addHeader`, and `withoutHeader` to
+ * manage headers rather than constructing the map directly.
+ *
+ * ## Reply struct
+ *
+ * `Reply` is a higher-level descriptor used with the views layer.
+ * It carries a view name, optional HTMX fragment name, template data,
+ * status code, and extra headers. Pass a `Reply` to `renderReply` in
+ * `slug.web.views` to produce a `Response`.
+ *
+ * ## Cookie options
+ *
+ * The `cookie` function accepts an `opts` map with optional keys:
+ * `path`, `domain`, `maxAge`, `expires`, `secure` (@bool), `httpOnly` (@bool),
+ * `sameSite` (`"Lax"` | `"Strict"` | `"None"`).
+ *
+ * ## HTMX
+ *
+ * `hxTrigger`, `hxRedirect`, and `hxRetarget` add the corresponding
+ * HTMX response headers (`HX-Trigger`, `HX-Redirect`, `HX-Retarget`).
+ */
+
+val {*} = import(
 	"slug.list",
 	"slug.string",
 	"slug.std",
 )
-var json = import("slug.json")
+val json = import("slug.json")
 
-// -------------------------------
-// Response shapes (struct-based)
-// -------------------------------
+// --- response shapes ---
 
+/**
+ * higher-level view descriptor for use with `slug.web.views#renderReply`.
+ *
+ * Set `fragment` to render an HTMX partial instead of the full page.
+ * Extra `headers` are merged into the final response.
+ */
 @export
 val Reply = struct {
 	@str view,
 	@str fragment,
-	@map data = {},
-	@num status = 200,
+	@map data    = {},
+	@num status  = 200,
 	@map headers = {},
 }
 
+/**
+ * raw HTTP response value. Construct via the helper functions, not directly.
+ *
+ * Header names are always normalised to lowercase.
+ */
 @export
 val Response = struct {
 	@num status,
@@ -30,427 +91,479 @@ val FormattedResponse = struct {
 	body,
 }
 
-// ------------------
-// Core constructors
-// ------------------
+// --- core constructors ---
 
+/**
+ * constructs a `Response` with the given status and body.
+ */
 @export
 @returns('@struct(Response)')
-var response = fn(@num status, @str body) {
+val response = fn(@num status, @str body) {
 	Response { status: status, headers: {}, body: body }
 }
 
+/**
+ * 200 OK response.
+ */
 @export
 @returns('@struct(Response)')
-var ok = fn(@str body) { response(200, body) }
+val ok = fn(@str body) { response(200, body) }
 
+/**
+ * 201 Created response.
+ */
 @export
 @returns('@struct(Response)')
-var created = fn(@str body) { response(201, body) }
+val created = fn(@str body) { response(201, body) }
 
+/**
+ * 202 Accepted response.
+ */
 @export
 @returns('@struct(Response)')
-var accepted = fn(@str body) { response(202, body) }
+val accepted = fn(@str body) { response(202, body) }
 
+/**
+ * 204 No Content response.
+ */
 @export
 @returns('@struct(Response)')
-var noContent = fn() { response(204, "") }
+val noContent = fn() { response(204, "") }
 
+/**
+ * 400 Bad Request response.
+ */
 @export
 @returns('@struct(Response)')
-var badRequest = fn(@str body) { response(400, body) }
+val badRequest = fn(@str body) { response(400, body) }
 
+/**
+ * 401 Unauthorized response.
+ */
 @export
 @returns('@struct(Response)')
-var unauthorized = fn(@str body) { response(401, body) }
+val unauthorized = fn(@str body) { response(401, body) }
 
+/**
+ * 403 Forbidden response.
+ */
 @export
 @returns('@struct(Response)')
-var forbidden = fn(@str body) { response(403, body) }
+val forbidden = fn(@str body) { response(403, body) }
 
+/**
+ * 404 Not Found response.
+ */
 @export
 @returns('@struct(Response)')
-var notFound = fn(@str body = "404 Not Found") { response(404, body) }
+val notFound = fn(@str body = "404 Not Found") { response(404, body) }
 
+/**
+ * 409 Conflict response.
+ */
 @export
 @returns('@struct(Response)')
-var conflict = fn(@str body) { response(409, body) }
+val conflict = fn(@str body) { response(409, body) }
 
+/**
+ * 413 Payload Too Large response. Also sets `Connection: close`.
+ */
 @export
 @returns('@struct(Response)')
-var payloadTooLarge = fn(@str body = "413 Payload Too Large") { response(413, body) /> withHeader("Connection", "close") }
-
-@export
-@returns('@struct(Response)')
-var serverError = fn(@str body = "500 Server Error") { response(500, body) }
-
-
-// ------------------
-// Basic modifiers
-// ------------------
-
-@export
-@returns('@struct(Response)')
-var withStatus = fn(res, @num status) {
-  res copy { status: status }
+val payloadTooLarge = fn(@str body = "413 Payload Too Large") {
+	response(413, body) /> withHeader("Connection", "close")
 }
 
+/**
+ * 500 Internal Server Error response.
+ */
 @export
 @returns('@struct(Response)')
-var withBody = fn(res, @str body) {
-  res copy { body: body }
-}
+val serverError = fn(@str body = "500 Server Error") { response(500, body) }
 
+// --- basic modifiers ---
+
+/**
+ * returns a new response with `status` replaced.
+ */
 @export
 @returns('@struct(Response)')
-var hasHeader = fn(res, key) {
-  res.headers[normKey(key)] != nil
+val withStatus = fn(res, @num status) {
+	res copy { status: status }
 }
 
-// Replace a header (single-value semantics)
+/**
+ * returns a new response with `body` replaced.
+ */
 @export
 @returns('@struct(Response)')
-var withHeader = fn(res, @str key, @str value) {
-  var k = normKey(key)
-  var v = normVal(value)
-  var hs = res.headers /> put(k, v)
-  res copy { headers: hs }
+val withBody = fn(res, @str body) {
+	res copy { body: body }
 }
 
-// Replace many headers from a map
+/**
+ * returns true if the response has a header with the given key.
+ *
+ * Key comparison is case-insensitive.
+ */
+@export
+@returns('@bool')
+val hasHeader = fn(res, key) {
+	res.headers[normKey(key)] != nil
+}
+
+/**
+ * returns a new response with `key` set to `value`, replacing any existing value.
+ *
+ * Header keys are normalised to lowercase.
+ */
 @export
 @returns('@struct(Response)')
-var withHeaders = fn(res, @map headersMap) {
-  // fold over keys so we normalize each header name
-  headersMap /> keys /> reduce(res, fn(acc, rawKey) {
-	acc /> withHeader(rawKey, headersMap[rawKey])
-  })
+val withHeader = fn(res, @str key, @str value) {
+	val k  = normKey(key)
+	val hs = res.headers /> put(k, value)
+	res copy { headers: hs }
 }
 
-// Remove a header entirely
+/**
+ * returns a new response with all headers from `headersMap` applied.
+ *
+ * Each key is normalised to lowercase. Existing headers with the same
+ * key are replaced.
+ */
 @export
 @returns('@struct(Response)')
-var withoutHeader = fn(res, @str key) {
-  var k = normKey(key)
-  var hs = remove(res.headers, k)
-  res copy { headers: hs }
+val withHeaders = fn(res, @map headersMap) {
+	headersMap /> keys /> reduce(res, fn(acc, rawKey) {
+		acc /> withHeader(rawKey, headersMap[rawKey])
+	})
 }
 
-
-// ------------------
-// Repeated headers
-// ------------------
-
-// Add a header value without clobbering existing values.
-// Upgrades string -> list[string] when needed.
+/**
+ * returns a new response with `key` removed from headers.
+ */
 @export
 @returns('@struct(Response)')
-var addHeader = fn(res, @str key, @str value) {
-  var k = normKey(key)
-  var v = normVal(value)
-
-  var cur = res.headers /> get(k)
-  var next = toList(cur) :+ v
-
-  var hs = res.headers /> put(k, next)
-  res copy { headers: hs }
+val withoutHeader = fn(res, @str key) {
+	res copy { headers: remove(res.headers, normKey(key)) }
 }
 
-var addSetCookie = fn(res, @str cookieStr) {
-  addHeader(res, "set-cookie", cookieStr)
-}
-
-
-// ------------------
-// Content helpers
-// ------------------
-
+/**
+ * adds a header value without replacing existing values for the same key.
+ *
+ * Upgrades a single string value to a list when a second value is added.
+ * This is the correct way to set multiple `Set-Cookie` headers.
+ */
 @export
 @returns('@struct(Response)')
-var withContentType = fn(res, @str ct) {
-  withHeader(res, "content-type", ct)
+val addHeader = fn(res, @str key, @str value) {
+	val k    = normKey(key)
+	val cur  = res.headers /> get(k)
+	val next = toList(cur) :+ value
+	res copy { headers: res.headers /> put(k, next) }
 }
 
+// --- content helpers ---
+
+/**
+ * sets the `content-type` header.
+ */
 @export
 @returns('@struct(Response)')
-var html = fn(@str markup) {
-  ok(markup)
-  /> withContentType("text/html; charset=utf-8")
+val withContentType = fn(res, @str ct) {
+	withHeader(res, "content-type", ct)
 }
 
+/**
+ * 200 OK response with `Content-Type: text/html; charset=utf-8`.
+ */
 @export
 @returns('@struct(Response)')
-var text = fn(@str txt) {
-  ok(txt)
-  /> withContentType("text/plain; charset=utf-8")
+val html = fn(@str markup) {
+	ok(markup) /> withContentType("text/html; charset=utf-8")
 }
 
+/**
+ * 200 OK response with `Content-Type: text/plain; charset=utf-8`.
+ */
 @export
 @returns('@struct(Response)')
-var jsonOk = fn(value) {
-  ok(json.encode(value))
-  /> withContentType("application/json; charset=utf-8")
+val text = fn(@str txt) {
+	ok(txt) /> withContentType("text/plain; charset=utf-8")
 }
 
-
-// ------------------
-// Redirects
-// ------------------
-
+/**
+ * 200 OK response with JSON-encoded `value` and `Content-Type: application/json`.
+ */
 @export
 @returns('@struct(Response)')
-var redirect = fn(@str location) {
-  response(302, "")
-  /> withHeader("location", location)
+val jsonOk = fn(value) {
+	ok(json.encode(value)) /> withContentType("application/json; charset=utf-8")
 }
 
+// --- redirects ---
+
+/**
+ * 302 Found redirect to `location`.
+ */
 @export
 @returns('@struct(Response)')
-var redirectPermanent = fn(@str location) {
-  response(301, "")
-  /> withHeader("location", location)
+val redirect = fn(@str location) {
+	response(302, "") /> withHeader("location", location)
 }
 
-
-// ------------------
-// Cache control
-// ------------------
-
+/**
+ * 301 Moved Permanently redirect to `location`.
+ */
 @export
 @returns('@struct(Response)')
-var noCache = fn(res) {
-  res
-  /> withHeader("cache-control", "no-store, no-cache, must-revalidate")
-  /> withHeader("pragma", "no-cache")
-  /> withHeader("expires", "0")
+val redirectPermanent = fn(@str location) {
+	response(301, "") /> withHeader("location", location)
 }
 
+// --- cache control ---
+
+/**
+ * sets headers to prevent all caching.
+ */
 @export
 @returns('@struct(Response)')
-var cacheSeconds = fn(res, @num seconds) {
-  withHeader(res, "cache-control", "public, max-age=" + seconds)
+val noCache = fn(res) {
+	res
+	/> withHeader("cache-control", "no-store, no-cache, must-revalidate")
+	/> withHeader("pragma", "no-cache")
+	/> withHeader("expires", "0")
 }
 
-
-// ------------------
-// connection
-// ------------------
-
+/**
+ * sets `Cache-Control: public, max-age=<seconds>`.
+ */
 @export
 @returns('@struct(Response)')
-var withConnClose = fn(res) {
-  res /> withHeader("Connection", "close")
+val cacheSeconds = fn(res, @num seconds) {
+	withHeader(res, "cache-control", "public, max-age=" + seconds)
 }
 
+// --- connection ---
+
+/**
+ * sets `Connection: close`.
+ */
 @export
 @returns('@struct(Response)')
-var withConnKeepAlive = fn(res) {
-  res /> withHeader("Connection", "keep-alive")
+val withConnClose = fn(res) {
+	res /> withHeader("Connection", "close")
 }
 
-// ------------------
-// HTMX helpers
-// ------------------
-
+/**
+ * sets `Connection: keep-alive`.
+ */
 @export
 @returns('@struct(Response)')
-var hxTrigger = fn(res, @str eventName) {
-  withHeader(res, "hx-trigger", eventName)
+val withConnKeepAlive = fn(res) {
+	res /> withHeader("Connection", "keep-alive")
 }
 
+// --- HTMX helpers ---
+
+/**
+ * sets the `HX-Trigger` response header to trigger a client-side event.
+ */
 @export
 @returns('@struct(Response)')
-var hxRedirect = fn(res, @str location) {
-  withHeader(res, "hx-redirect", location)
+val hxTrigger = fn(res, @str eventName) {
+	withHeader(res, "hx-trigger", eventName)
 }
 
+/**
+ * sets the `HX-Redirect` response header for a client-side redirect.
+ */
 @export
 @returns('@struct(Response)')
-var hxRetarget = fn(res, @str selector) {
-  withHeader(res, "hx-retarget", selector)
+val hxRedirect = fn(res, @str location) {
+	withHeader(res, "hx-redirect", location)
 }
 
+/**
+ * sets the `HX-Retarget` response header to override the HTMX swap target.
+ */
+@export
+@returns('@struct(Response)')
+val hxRetarget = fn(res, @str selector) {
+	withHeader(res, "hx-retarget", selector)
+}
 
-// ------------------
-// Cookies (string builder + helpers)
-// ------------------
+// --- cookies ---
 
+/**
+ * builds a `Set-Cookie` header value string.
+ *
+ * `opts` may contain: `path`, `domain`, `maxAge`, `expires`,
+ * `secure` (@bool), `httpOnly` (@bool), `sameSite` (`"Lax"|"Strict"|"None"`).
+ */
 @export
 @returns('@str')
-var cookie = fn(@str name, @str value, @map opts) {
-  // opts (all optional):
-  // {path, domain, maxAge, expires, secure, httpOnly, sameSite}
-  // sameSite: "Lax" | "Strict" | "None"
-
-  var parts = [ name + "=" + value ]
-
-  if (get(opts, "path") != nil)      { parts = parts :+ "Path=" + get(opts, "path") }
-  if (get(opts, "domain") != nil)    { parts = parts :+ "Domain=" + get(opts, "domain") }
-  if (get(opts, "maxAge") != nil)    { parts = parts :+ "Max-Age=" + get(opts, "maxAge") }
-  if (get(opts, "expires") != nil)   { parts = parts :+ "Expires=" + get(opts, "expires") } // format upstream
-  if (get(opts, "secure") == true)   { parts = parts :+ "Secure" }
-  if (get(opts, "httpOnly") == true) { parts = parts :+ "HttpOnly" }
-  if (get(opts, "sameSite") != nil)  { parts = parts :+ "SameSite=" + get(opts, "sameSite") }
-
-  string.join(parts, "; ")
+val cookie = fn(@str name, @str value, @map opts) {
+	var parts = [name + "=" + value]
+	if (get(opts, "path")     != nil)   { parts = parts :+ "Path="     + get(opts, "path") }
+	if (get(opts, "domain")   != nil)   { parts = parts :+ "Domain="   + get(opts, "domain") }
+	if (get(opts, "maxAge")   != nil)   { parts = parts :+ "Max-Age="  + get(opts, "maxAge") }
+	if (get(opts, "expires")  != nil)   { parts = parts :+ "Expires="  + get(opts, "expires") }
+	if (get(opts, "secure")   == true)  { parts = parts :+ "Secure" }
+	if (get(opts, "httpOnly") == true)  { parts = parts :+ "HttpOnly" }
+	if (get(opts, "sameSite") != nil)   { parts = parts :+ "SameSite=" + get(opts, "sameSite") }
+	import("slug.string").join(parts, "; ")
 }
 
+/**
+ * adds a `Set-Cookie` header to `res` using `cookie(name, value, opts)`.
+ *
+ * Multiple cookies can be set by calling `setCookie` repeatedly —
+ * `addHeader` semantics ensure values are not clobbered.
+ */
 @export
 @returns('@struct(Response)')
-var setCookie = fn(res, @str name, @str value, @map opts) {
-  addSetCookie(res, cookie(name, value, opts))
+val setCookie = fn(res, @str name, @str value, @map opts) {
+	addHeader(res, "set-cookie", cookie(name, value, opts))
 }
 
+/**
+ * expires a cookie immediately by setting `Max-Age=0`.
+ */
 @export
 @returns('@struct(Response)')
-var clearCookie = fn(res, @str name, @map opts) {
-  // expire immediately
-  setCookie(res, name, "", put(opts, "maxAge", 0))
+val clearCookie = fn(res, @str name, @map opts) {
+	setCookie(res, name, "", put(opts, "maxAge", 0))
 }
 
+// --- introspection ---
 
-// ------------------
-// Introspection
-// ------------------
-
+/**
+ * returns true if `x` is a `Response` struct instance.
+ */
 @export
 @returns('@bool')
-var isResponse = fn(x) match { Response { status, headers, body } => true _ => false }
+val isResponse = fn(x) match {
+	Response { status, headers, body } => true
+	_ => false
+}
 
+/**
+ * returns true if `x` is a `FormattedResponse` struct instance.
+ */
 @export
 @returns('@bool')
-var isFormattedResponse = fn(x) match { FormattedResponse { head, body } => true _ => false }
+val isFormattedResponse = fn(x) match {
+	FormattedResponse { head, body } => true
+	_ => false
+}
 
+/**
+ * returns the status code of a response.
+ */
 @export
 @returns('@num')
-var status = fn(res) { res.status }
+val status = fn(res) { res.status }
 
+/**
+ * returns the headers map of a response.
+ */
 @export
 @returns('@map')
-var headers = fn(res) { res.headers }
+val headers = fn(res) { res.headers }
 
+/**
+ * returns the body of a response.
+ */
 @export
-var body = fn(res) { res.body }
+val body = fn(res) { res.body }
 
-// -------------------------
-// Public: formatHead / formatResponse
-// -------------------------
+// --- HTTP wire format ---
 
+/**
+ * formats the response head (status line + headers) as an HTTP/1.1 string.
+ *
+ * Automatically adds `Content-Length` if not already present.
+ */
 @export
 @returns('@str')
-var formatHead = fn(res) {
-
-  var r = ensureContentLength(res)
-
-  var statusLine =
-	"HTTP/1.1 " + r.status + " " + reasonPhrase(r.status) + "\r\n"
-
-  var headerLines = formatAllHeaderLines(r)
-  var headersText = join(headerLines, "")
-
-  statusLine + headersText + "\r\n"
+val formatHead = fn(res) {
+	val r          = ensureContentLength(res)
+	val statusLine = "HTTP/1.1 " + r.status + " " + reasonPhrase(r.status) + "\r\n"
+	val headerLines = formatAllHeaderLines(r)
+	statusLine + join(headerLines, "") + "\r\n"
 }
 
+/**
+ * formats a response into a `FormattedResponse{ head, body }`.
+ *
+ * Automatically adds `Content-Length` if not already present.
+ */
 @export
 @returns('@struct(FormattedResponse)')
-var formatResponse = fn(res) {
-  // keep response shaping separate from formatting (adds content-length)
-  var r = ensureContentLength(res)
-
-  FormattedResponse { head: formatHead(r), body: r.body }
+val formatResponse = fn(res) {
+	val r = ensureContentLength(res)
+	FormattedResponse { head: formatHead(r), body: r.body }
 }
 
+/**
+ * renders a response to a complete HTTP/1.1 wire-format string (head + body).
+ */
 @export
-@returns('@struct(FormattedResponse)')
-var renderResponse = fn(res) {
+@returns('@str')
+val renderResponse = fn(res) {
 	res /> formatResponse /> match {
 		FormattedResponse { head, body } => head + body
 	}
 }
 
+// --- internals ---
 
-// ----------
-// Internals
-// ----------
+val normKey = fn(k) { k /> toLower /> trim }
 
-
-var normKey = fn(k) {
-  k /> toLower /> trim
-}
-
-var normVal = fn(v) {
-  // Keep strict: expect string. If you want coercion, do it explicitly.
-  v
-}
-
-// Convert header value to list form for appending
-var toList = fn(x) {
-  match x /> type {
-	^NIL_TYPE  => []
-	^LIST_TYPE => x
-	_          => [x]
-  }
-}
-
-// Keep it small; fall back to empty/unknown if missing.
-var reasonPhrase = fn(status) match {
-  200 => "OK"
-  201 => "Created"
-  202 => "Accepted"
-  204 => "No Content"
-
-  301 => "Moved Permanently"
-  302 => "Found"
-
-  400 => "Bad Request"
-  401 => "Unauthorized"
-  403 => "Forbidden"
-  404 => "Not Found"
-  409 => "Conflict"
-
-  500 => "Internal Server Error"
-  _   => ""
-}
-
-// -------------------------
-// Header formatting helpers
-// -------------------------
-
-// Ensure Content-Length exists for string bodies (unless already provided).
-var ensureContentLength = fn(res) {
-  if (hasHeader(res, "content-length")) {
-	res
-  } else {
-	// If you later support bytes, compute byte length, not char length.
-	var n = len(res.body) /> toString
-	withHeader(res, "content-length", n)
-  }
-}
-
-// Convert one header entry into one-or-many header lines (with CRLF).
-var formatHeaderLines = fn(key, rawVal) {
-  var k = normKey(key)
-
-  match rawVal /> type {
-	^LIST_TYPE => {
-	  // each value becomes its own header line
-	  rawVal /> map(fn(v) { k + ": " + v + "\r\n" })
+val toList = fn(x) {
+	match x /> type {
+		^NIL_TYPE  => []
+		^LIST_TYPE => x
+		_          => [x]
 	}
-	^NIL_TYPE => {
-	  []
-	}
-	_ => {
-	  [ k + ": " + rawVal + "\r\n" ]
-	}
-  }
 }
 
-// Return a list of header lines, deterministically ordered by key.
-var formatAllHeaderLines = fn(res) {
-  var ks = res.headers /> keys /> sort
+val reasonPhrase = fn(status) match {
+	200 => "OK"
+	201 => "Created"
+	202 => "Accepted"
+	204 => "No Content"
+	301 => "Moved Permanently"
+	302 => "Found"
+	400 => "Bad Request"
+	401 => "Unauthorized"
+	403 => "Forbidden"
+	404 => "Not Found"
+	409 => "Conflict"
+	413 => "Payload Too Large"
+	500 => "Internal Server Error"
+	_   => ""
+}
 
-  // flatten list[list[string]] -> list[string]
-  ks /> flatMap(fn(k) {
-	formatHeaderLines(k, get(res.headers, k))
-  })
+val ensureContentLength = fn(res) {
+	if (hasHeader(res, "content-length")) {
+		res
+	} else {
+		withHeader(res, "content-length", len(res.body) /> toString)
+	}
+}
+
+val formatHeaderLines = fn(key, rawVal) {
+	val k = normKey(key)
+	match rawVal /> type {
+		^LIST_TYPE => rawVal /> map(fn(v) { k + ": " + v + "\r\n" })
+		^NIL_TYPE  => []
+		_          => [k + ": " + rawVal + "\r\n"]
+	}
+}
+
+val formatAllHeaderLines = fn(res) {
+	val ks = res.headers /> keys /> sort
+	ks /> flatMap(fn(k) { formatHeaderLines(k, get(res.headers, k)) })
 }

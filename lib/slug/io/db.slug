@@ -1,57 +1,139 @@
+/**
+ * slug.io.db — relational database access
+ *
+ * Connect to SQLite, MySQL, or PostgreSQL databases and execute queries
+ * and statements. Connection handles are numeric values returned by `connect`
+ * and passed to all subsequent operations.
+ *
+ * Always close connections with `defer close(conn)` or explicit `close(conn)`.
+ *
+ * ## SQLite examples
+ *
+ * ```slug
+ * val { connect, query, exec, close, SQLITE_DRIVER } = import("slug.io.db")
+ *
+ * // in-memory database
+ * val conn = connect(":memory:", SQLITE_DRIVER)
+ * defer close(conn)
+ *
+ * // file database with options
+ * val conn = connect("file:app.db?cache=shared&mode=rwc", SQLITE_DRIVER)
+ * defer close(conn)
+ * ```
+ *
+ * ## MySQL example
+ *
+ * ```slug
+ * val conn = connect("user:pass@tcp(localhost:3306)/dbname?charset=utf8mb4&parseTime=True", MYSQL_DRIVER)
+ * defer close(conn)
+ * ```
+ *
+ * ## PostgreSQL example
+ *
+ * ```slug
+ * val conn = connect("postgres://user:password@localhost/dbname?sslmode=disable", PGSQL_DRIVER)
+ * defer close(conn)
+ * ```
+ *
+ * ## Transactions
+ *
+ * ```slug
+ * val tx = begin(conn)
+ * exec(tx, "INSERT INTO ...")
+ * commit(tx)
+ * ```
+ *
+ * @effects('db')
+ */
 
 /**
- *
- * var con = ":memory:"
- *   /> connect(SQLITE_DRIVER)
- *
- * open a file with optional parameters (e.g. `?cache=shared&mode=rwc`)
- *
- * var con = "file:filename.db"
- *   /> connect(SQLITE_DRIVER)
- *
+ * driver string for SQLite3 connections.
  */
-@export val SQLITE_DRIVER = "sqlite3";
+@export val SQLITE_DRIVER = "sqlite3"
 
 /**
- *
- * var con = "user:pass@tcp(localhost:3306)/dbname?charset=utf8mb4&parseTime=True"
- *   /> connect(MYSQL_DRIVER)
- *
+ * driver string for MySQL connections.
  */
-@export val MYSQL_DRIVER = "mysql";
+@export val MYSQL_DRIVER = "mysql"
 
 /**
- *
- * var con = "postgres://user:password@localhost/dbname?sslmode=disable"
- *   /> connect(PGSQL_DRIVER)
- *
+ * driver string for PostgreSQL connections.
  */
-@export val PGSQL_DRIVER = "postgres";
+@export val PGSQL_DRIVER = "postgres"
 
+/**
+ * opens a database connection and returns a connection handle.
+ *
+ * `connectionString` format depends on the driver — see module doc for examples.
+ * Use `defer close(conn)` to ensure the connection is released.
+ *
+ * @effects('db')
+ */
 @export
 @returns('@num')
 foreign connect = fn(@str connectionString, @str driver)
 
+/**
+ * executes a SQL query and returns the result rows as a list of string-keyed maps.
+ *
+ * Use `...params` to pass positional `?` parameter values.
+ * For named parameters, use `slug.db.repo`.
+ *
+ * @effects('db')
+ */
 @export
 @returns('@list')
 foreign query = fn(@num connection, @str sql, ...params)
 
+/**
+ * executes a SQL statement and returns a result map.
+ *
+ * The result map contains `rowsAffected` and `lastInsertId` where supported
+ * by the driver. Use `...params` to pass positional `?` parameter values.
+ *
+ * @effects('db')
+ */
 @export
 @returns('@map')
 foreign exec = fn(@num connection, @str sql, ...params)
 
+/**
+ * begins a transaction and returns a transaction handle.
+ *
+ * Pass the transaction handle to `query`, `exec`, `commit`, or `rollback`
+ * in place of a connection handle.
+ *
+ * @effects('db')
+ */
 @export
 @returns('@num')
 foreign begin = fn(@num connection)
 
+/**
+ * commits a transaction.
+ *
+ * @effects('db')
+ */
 @export
 @returns('@num')
 foreign commit = fn(@num connection)
 
+/**
+ * rolls back a transaction.
+ *
+ * @effects('db')
+ */
 @export
 @returns('@num')
 foreign rollback = fn(@num connection)
 
+/**
+ * closes a database connection or transaction handle.
+ *
+ * Always close connections when done. Use `defer close(conn)` for safety.
+ *
+ * @effects('db')
+ */
 @export
 @returns('nil')
 foreign close = fn(@num connection)

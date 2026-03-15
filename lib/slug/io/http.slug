@@ -1,41 +1,118 @@
+/**
+ * slug.io.http — HTTP client
+ *
+ * Makes outbound HTTP requests and returns `[@num status, @str body]`.
+ * All methods are convenience wrappers around `request`.
+ *
+ * ## Example
+ *
+ * ```slug
+ * val { get, post } = import("slug.io.http")
+ * val { decode }    = import("slug.json")
+ *
+ * val [status, body] = get("https://api.example.com/users")
+ * match status {
+ *   200 => decode(body) /> println
+ *   _   => println("error: " + status)
+ * }
+ *
+ * val [status, body] = post(
+ *   encode({ name: "Alice" }),
+ *   "https://api.example.com/users",
+ *   { "Content-Type": "application/json" }
+ * )
+ * ```
+ *
+ * Note: `post`, `put`, and `patch` take the body as the **first** argument,
+ * before the URL. This is designed for call-chain usage:
+ * ```slug
+ * encode(payload) /> post("https://api.example.com/data")
+ * ```
+ *
+ * @effects('net')
+ */
 
+/**
+ * makes an HTTP request and returns `[status, body]`.
+ *
+ * The low-level entry point — prefer the method-specific helpers for
+ * common cases.
+ *
+ * @effects('net')
+ */
 @export
 @returns('[@num, @str]')
 foreign request = fn(@str method, @str url, @str body = "", @map headers = {})
 
+/**
+ * makes a GET request and returns `[status, body]`.
+ *
+ * @effects('net')
+ */
 @export
 @returns('[@num, @str]')
-var get = fn(@str url, @map headers = {}) {
-  request("GET", url, "", headers)
+val get = fn(@str url, @map headers = {}) {
+	request("GET", url, "", headers)
 }
 
+/**
+ * makes a POST request and returns `[status, body]`.
+ *
+ * Note: `body` is the first argument to support call-chain style:
+ * `encode(payload) /> post("https://...")`
+ *
+ * @effects('net')
+ */
 @export
 @returns('[@num, @str]')
-var post = fn(@str body, @str url, @map headers = {}) {
-  request("POST", url, body, headers)
+val post = fn(@str body, @str url, @map headers = {}) {
+	request("POST", url, body, headers)
 }
 
+/**
+ * makes a PUT request and returns `[status, body]`.
+ *
+ * Note: `body` is the first argument to support call-chain style.
+ *
+ * @effects('net')
+ */
 @export
 @returns('[@num, @str]')
-var put = fn(@str body, @str url, @map headers = {}) {
-  request("PUT", url, body, headers)
+val put = fn(@str body, @str url, @map headers = {}) {
+	request("PUT", url, body, headers)
 }
 
+/**
+ * makes a PATCH request and returns `[status, body]`.
+ *
+ * Note: `body` is the first argument to support call-chain style.
+ *
+ * @effects('net')
+ */
 @export
 @returns('[@num, @str]')
-var patch = fn(@str body, @str url, @map headers = {}) {
-  request("PATCH", url, body, headers)
+val patch = fn(@str body, @str url, @map headers = {}) {
+	request("PATCH", url, body, headers)
 }
 
+/**
+ * makes a DELETE request and returns `[status, body]`.
+ *
+ * @effects('net')
+ */
 @export
 @returns('[@num, @str]')
-var delete = fn(@str url, @map headers = {}) {
-  request("DELETE", url, "", headers)
+val delete = fn(@str url, @map headers = {}) {
+	request("DELETE", url, "", headers)
 }
 
+/**
+ * decodes a URL-encoded string.
+ *
+ * Note: not yet implemented — returns the input string unchanged.
+ */
 @export
-var urlDecode = fn(@str str) {
-
-  // todo implement me!
-  str
+val urlDecode = fn(@str str) {
+	// todo implement me!
+	str
 }

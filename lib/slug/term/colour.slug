@@ -1,14 +1,54 @@
 /**
+ * slug.term.colour — terminal colour and text effect library
  *
- * A terminal colours library inspired by the python `colorist` library.
+ * Wraps strings with ANSI escape codes for coloured terminal output.
+ * Inspired by the Python [colorist](https://jakob-bagterp.github.io/colorist-for-python/)
+ * library. See also the [ANSI escape code reference](https://en.wikipedia.org/wiki/ANSI_escape_code#Colors).
  *
- * See also:
- *  - Colorist https://jakob-bagterp.github.io/colorist-for-python/
- *  - the wikipedia page https://en.wikipedia.org/wiki/ANSI_escape_code#Colors
+ * ## Quick start
  *
+ * ```slug
+ * val { red, green, effectBold, bgBlue } = import("slug.term.colour")
+ *
+ * "Hello" /> red /> println
+ * "Success" /> green /> effectBold /> println
+ * "Warning" /> bgBlue /> println
+ * ```
+ *
+ * ## Colour functions
+ *
+ * Each named colour is available as a function taking a string and returning
+ * the ANSI-wrapped string. Text colours: `black`, `red`, `green`, `yellow`,
+ * `blue`, `magenta`, `cyan`, `white` and bright variants (`brightRed` etc.).
+ * Background variants are prefixed with `bg` (`bgRed`, `bgBrightBlue` etc.).
+ *
+ * ## Extended colour support
+ *
+ * For terminals supporting 256 colours or true colour:
+ * - **VGA (0–255):** `vga(str, code)`, `bgVga(str, code)`
+ * - **RGB:** `rgb(str, r, g, b)`, `bgRgb(str, r, g, b)`
+ * - **Hex:** `hex(str, "#ff5733")`, `bgHex(str, "#ff5733")`
+ * - **xkcd:** `xkcd(str, :electricLime)`, `bgXkcd(str, :neonBlue)`
+ *
+ * ## Effects
+ *
+ * `effectBold`, `effectDim`, `effectUnderline`, `effectBlink`,
+ * `effectReverse`, `effectHide`
+ *
+ * ## Colour support detection
+ *
+ * `ColourSupport` is set at module load time by running `tput colors`.
+ * Use it to gracefully degrade in environments without colour support.
+ *
+ * ## Pre-built maps
+ *
+ * `Colour`, `BrightColour`, `BgColour`, `BgBrightColour` are maps of
+ * colour name → ANSI code string for programmatic use.
+ * `Effects` is a map of effect name → ANSI code string.
+ * `Styles` is the raw map of style name → ANSI code number list.
  */
 
-var {*} = import(
+val {*} = import(
 	"slug.std",
 	"slug.string",
 	"slug.list",
@@ -17,22 +57,21 @@ var {*} = import(
 	"slug.xkcd.colours",
 )
 
-
-val effectNames = ["bold", "dim", "underline", "blink", "reverse", "hide", ]
-val effects = [1, 2, 4, 5, 7, 8, ]
+val effectNames = ["bold", "dim", "underline", "blink", "reverse", "hide"]
+val effects     = [1, 2, 4, 5, 7, 8]
 val effectOffMod = 20
-val offPostfix = "Off"
+val offPostfix   = "Off"
 
-val colourNames = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white", ]
-val colours = [30, 31, 32, 33, 34, 35, 36, 37, ]
-val bgMod = 10
-val bgPrefix = "bg"
-val brightMod = 60
-val brightPrefix = "bright"
-val bgBrightMod = 70
+val colourNames   = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"]
+val colours       = [30, 31, 32, 33, 34, 35, 36, 37]
+val bgMod         = 10
+val bgPrefix      = "bg"
+val brightMod     = 60
+val brightPrefix  = "bright"
+val bgBrightMod   = 70
 val bgBrightPrefix = "bgBright"
 
-var checkTerminal = fn() {
+val checkTerminal = fn() {
 	val [std, ...] = exec("tput colors", 10)
 	match trim(std) {
 		"0"   => 0
@@ -46,55 +85,51 @@ var checkTerminal = fn() {
 }
 
 /**
- *
- * Parameters
- * - a list of code values
- * - the accumulator used to build the result
- *
+ * combines a list of ANSI code numbers into a semicolon-separated string.
  */
 @testWith(
 	[[31,1]], "31;1",
-	[[0]], "0",
+	[[0]],    "0",
 )
-var combine = fn(@list i, acc = "") match {
-	[[], ...] => acc
-	[[h], ...] => acc + h
-	[[h, ...t], ...] => recur(t, acc + h + ";" )
+val combine = fn(@list i, acc = "") match {
+	[[], ...]       => acc
+	[[h], ...]      => acc + h
+	[[h, ...t], ...] => recur(t, acc + h + ";")
 }
 
+/**
+ * produces a complete ANSI escape sequence string from one or more code lists.
+ */
 @testWith(
 	[[31,1]], "\033[31;1m",
-	[[0]], "\033[0m",
+	[[0]],    "\033[0m",
 )
-var ansiCode = fn(...i) {
-	var s = i /> flatten /> combine
+val ansiCode = fn(...i) {
+	val s = i /> flatten /> combine
 	"\033[{{s}}m"
 }
 
+/**
+ * wraps `str` with opening ANSI codes and a reset sequence.
+ */
 @testWith(
 	["s",[31,1]], "\033[31;1ms\033[0m",
 )
-var wrapWith = fn(@str str, ...s) {
+val wrapWith = fn(@str str, ...s) {
 	ansiCode(...s) + str + reset
 }
 
-@testWith(
-	["red",""], :red,
-	["red","bg"], :bgRed,
-)
-var styleName = fn(@str base, @str style) {
-	if ( len(style) > 0 ) {
+val styleName = fn(@str base, @str style) {
+	if (len(style) > 0) {
 		sym(style + toUpper(base[0]) + base[1:])
 	} else {
 		sym(base)
 	}
 }
 
-var buildStyles = fn() {
-	var stylesMap = {
-		reset: [0],
-	}
-	var effectsMap = effectNames
+val buildStyles = fn() {
+	val stylesMap = { reset: [0] }
+	val effectsMap = effectNames
 		/> zip(effects)
 		/> reduce(stylesMap, fn(a, b) {
 			a /> put(sym(b[0]), [b[1]])
@@ -112,150 +147,211 @@ var buildStyles = fn() {
 		})
 }
 
-var buildCodes = fn(@map styles, @str style = "") {
-	var codeMap = {
-		Off: ansiCode(styles.reset),
-	}
+val buildCodes = fn(@map styles, @str style = "") {
+	val codeMap = { Off: ansiCode(styles.reset) }
 	colourNames
 		/> reduce(codeMap, fn(a, b) {
-				val key = toUpper(b[0]) + b[1:]
-				a /> put(sym(key), ansiCode(styles[styleName(b, style)]))
-			})
+			val key = toUpper(b[0]) + b[1:]
+			a /> put(sym(key), ansiCode(styles[styleName(b, style)]))
+		})
 }
 
-var buildEffects = fn(@map styles) {
-	var effectMap = {
-		Off: ansiCode(styles.reset),
-	}
+val buildEffects = fn(@map styles) {
+	val effectMap = { Off: ansiCode(styles.reset) }
 	effectNames
 		/> reduce(effectMap, fn(a, b) {
-				val key = toUpper(b[0]) + b[1:]
-				a /> put(sym(key), ansiCode(styles[b]))
-					/> put(sym(key) + offPostfix, ansiCode(styles[b + offPostfix]))
-			})
+			val key = toUpper(b[0]) + b[1:]
+			a /> put(sym(key), ansiCode(styles[b]))
+				/> put(sym(key + offPostfix), ansiCode(styles[b + offPostfix]))
+		})
 }
 
 /**
+ * number of colours supported by the current terminal, as reported by `tput colors`.
  *
- * The number of supported colours reported by `tput colors`
- *
+ * Common values: 0 (no colour), 8, 16, 256.
  */
 @export val ColourSupport = checkTerminal()
 
 /**
+ * raw ANSI code number lists per style name.
  *
- * Styles map, contains a list containing the ANSI escape code numbers for each style,
- * map keys by colour name plus modifiers, e.g. black, brightBlack, bgBlack, bgBrightBlack
- * other keys include `reset` and the effects, e.g. blink and blinkOff
- *
+ * Keys include colour names, bright/bg variants, `reset`, and effects.
  */
-@export var Styles = buildStyles()
-@export var Colour = buildCodes(Styles)
-@export var BrightColour = buildCodes(Styles, brightPrefix)
-@export var BgColour = buildCodes(Styles, bgPrefix)
-@export var BgBrightColour = buildCodes(Styles, bgBrightPrefix)
+@export val Styles = buildStyles()
 
 /**
- *
- * A map of effects control codes.
- *
- * The following keys are defined: bold, boldOff, dim, dimOff, underline, underlineOff,
- * blink, blinkOff, reverse, reverseOff, hide, hideOff
- *
+ * map of colour name (PascalCase) → ANSI escape code string for standard colours.
  */
-@export var Effects = buildEffects(Styles)
+@export val Colour = buildCodes(Styles)
 
-// reset styles
-// -----------
 /**
- *
- * A terminal control code the reset styles back to the default
- *
+ * map of colour name → ANSI escape code string for bright colours.
  */
-@export var reset = ansiCode( Styles.reset )
+@export val BrightColour = buildCodes(Styles, brightPrefix)
 
-// text colour
-// -----------
-@export var black = fn(@str str) { str /> wrapWith(Styles.black) }
-@export var red = fn(@str str) { str /> wrapWith(Styles.red) }
-@export var green = fn(@str str) { str /> wrapWith(Styles.green) }
-@export var yellow = fn(@str str) { str /> wrapWith(Styles.yellow) }
-@export var blue = fn(@str str) { str /> wrapWith(Styles.blue) }
-@export var magenta = fn(@str str) { str /> wrapWith(Styles.magenta) }
-@export var cyan = fn(@str str) { str /> wrapWith(Styles.cyan) }
-@export var white = fn(@str str) { str /> wrapWith(Styles.white) }
+/**
+ * map of colour name → ANSI escape code string for background colours.
+ */
+@export val BgColour = buildCodes(Styles, bgPrefix)
 
-@export var brightBlack = fn(@str str) { str /> wrapWith(Styles.brightBlack) }
-@export var brightRed = fn(@str str) { str /> wrapWith(Styles.brightRed) }
-@export var brightGreen = fn(@str str) { str /> wrapWith(Styles.brightGreen) }
-@export var brightYellow = fn(@str str) { str /> wrapWith(Styles.brightYellow) }
-@export var brightBlue = fn(@str str) { str /> wrapWith(Styles.brightBlue) }
-@export var brightMagenta = fn(@str str) { str /> wrapWith(Styles.brightMagenta) }
-@export var brightCyan = fn(@str str) { str /> wrapWith(Styles.brightCyan) }
-@export var brightWhite = fn(@str str) { str /> wrapWith(Styles.brightWhite) }
+/**
+ * map of colour name → ANSI escape code string for bright background colours.
+ */
+@export val BgBrightColour = buildCodes(Styles, bgBrightPrefix)
 
-// backgrounds
-// -----------
-@export var bgBlack = fn(@str str) { str /> wrapWith(Styles.bgBlack) }
-@export var bgRed = fn(@str str) { str /> wrapWith(Styles.bgRed) }
-@export var bgGreen = fn(@str str) { str /> wrapWith(Styles.bgGreen) }
-@export var bgYellow = fn(@str str) { str /> wrapWith(Styles.bgYellow) }
-@export var bgBlue = fn(@str str) { str /> wrapWith(Styles.bgBlue) }
-@export var bgMagenta = fn(@str str) { str /> wrapWith(Styles.bgMagenta) }
-@export var bgCyan = fn(@str str) { str /> wrapWith(Styles.bgCyan) }
-@export var bgWhite = fn(@str str) { str /> wrapWith(Styles.bgWhite) }
+/**
+ * map of effect name → ANSI escape code string.
+ *
+ * Keys: `Bold`, `BoldOff`, `Dim`, `DimOff`, `Underline`, `UnderlineOff`,
+ * `Blink`, `BlinkOff`, `Reverse`, `ReverseOff`, `Hide`, `HideOff`
+ */
+@export val Effects = buildEffects(Styles)
 
-@export var bgBrightBlack = fn(@str str) { str /> wrapWith(Styles.bgBrightBlack) }
-@export var bgBrightRed = fn(@str str) { str /> wrapWith(Styles.bgBrightRed) }
-@export var bgBrightGreen = fn(@str str) { str /> wrapWith(Styles.bgBrightGreen) }
-@export var bgBrightYellow = fn(@str str) { str /> wrapWith(Styles.bgBrightYellow) }
-@export var bgBrightBlue = fn(@str str) { str /> wrapWith(Styles.bgBrightBlue) }
-@export var bgBrightMagenta = fn(@str str) { str /> wrapWith(Styles.bgBrightMagenta) }
-@export var bgBrightCyan = fn(@str str) { str /> wrapWith(Styles.bgBrightCyan) }
-@export var bgBrightWhite = fn(@str str) { str /> wrapWith(Styles.bgBrightWhite) }
+/**
+ * ANSI reset escape code — resets all styles to terminal default.
+ */
+@export val reset = ansiCode(Styles.reset)
 
-// effects
-// -----------
-@export var effectBold = fn(@str str) { str /> wrapWith(Styles.bold) }
-@export var effectDim = fn(@str str) { str /> wrapWith(Styles.dim) }
-@export var effectUnderline = fn(@str str) { str /> wrapWith(Styles.underline) }
-@export var effectBlink = fn(@str str) { str /> wrapWith(Styles.blink) }
-@export var effectReverse = fn(@str str) { str /> wrapWith(Styles.reverse) }
-@export var effectHide = fn(@str str) { str /> wrapWith(Styles.hide) }
+// --- text colours ---
+@export val black   = fn(@str str) { str /> wrapWith(Styles.black) }
+@export val red     = fn(@str str) { str /> wrapWith(Styles.red) }
+@export val green   = fn(@str str) { str /> wrapWith(Styles.green) }
+@export val yellow  = fn(@str str) { str /> wrapWith(Styles.yellow) }
+@export val blue    = fn(@str str) { str /> wrapWith(Styles.blue) }
+@export val magenta = fn(@str str) { str /> wrapWith(Styles.magenta) }
+@export val cyan    = fn(@str str) { str /> wrapWith(Styles.cyan) }
+@export val white   = fn(@str str) { str /> wrapWith(Styles.white) }
 
-// vga support (0 - 254)
-// -----------
-var vgaStyle = fn(code) { [38, 5, code] }
-var vgaBgStyle = fn(code) { [48, 5, code] }
-@export var vgaCode = fn(@num code) { code /> vgaStyle /> ansiCode }
-@export var bgVgaCode = fn(@num code) { code /> vgaBgStyle /> ansiCode }
-@export var vga = fn(@str str, @num code) { str /> wrapWith( vgaStyle(code) )}
-@export var bgVga = fn(@str str, @num code) { str /> wrapWith( vgaBgStyle(code) )}
+@export val brightBlack   = fn(@str str) { str /> wrapWith(Styles.brightBlack) }
+@export val brightRed     = fn(@str str) { str /> wrapWith(Styles.brightRed) }
+@export val brightGreen   = fn(@str str) { str /> wrapWith(Styles.brightGreen) }
+@export val brightYellow  = fn(@str str) { str /> wrapWith(Styles.brightYellow) }
+@export val brightBlue    = fn(@str str) { str /> wrapWith(Styles.brightBlue) }
+@export val brightMagenta = fn(@str str) { str /> wrapWith(Styles.brightMagenta) }
+@export val brightCyan    = fn(@str str) { str /> wrapWith(Styles.brightCyan) }
+@export val brightWhite   = fn(@str str) { str /> wrapWith(Styles.brightWhite) }
 
-// rgb support
-// -----------
-var rgbStyle = fn(@num r, @num g, @num b) { [38, 2, r, g, b] }
-var rgbBgStyle = fn(@num r, @num g, @num b) { [48, 2, r, g, b] }
-@export var rgbCode = fn(@num r, @num g, @num b) { rgbStyle(r, g, b) /> ansiCode }
-@export var bgRgbCode = fn(@num r, @num g, @num b) { rgbBgStyle(r, g, b) /> ansiCode }
-@export var rgb = fn(@str str, @num r, @num g, @num b) { str /> wrapWith( rgbStyle(r, g, b) )}
-@export var bgRgb = fn(@str str, @num r, @num g, @num b) { str /> wrapWith( rgbBgStyle(r, g, b) )}
+// --- background colours ---
+@export val bgBlack   = fn(@str str) { str /> wrapWith(Styles.bgBlack) }
+@export val bgRed     = fn(@str str) { str /> wrapWith(Styles.bgRed) }
+@export val bgGreen   = fn(@str str) { str /> wrapWith(Styles.bgGreen) }
+@export val bgYellow  = fn(@str str) { str /> wrapWith(Styles.bgYellow) }
+@export val bgBlue    = fn(@str str) { str /> wrapWith(Styles.bgBlue) }
+@export val bgMagenta = fn(@str str) { str /> wrapWith(Styles.bgMagenta) }
+@export val bgCyan    = fn(@str str) { str /> wrapWith(Styles.bgCyan) }
+@export val bgWhite   = fn(@str str) { str /> wrapWith(Styles.bgWhite) }
 
-// hex support (e.g. #fe7b7c)
-// -----------
-var hexStyle = fn(@str code) { code[1:] /> hexStrToBytes /> bytesToNumbers /> fn(v) { rgbStyle(...v) } }
-var hexBgStyle = fn(@str code) { code[1:] /> hexStrToBytes /> bytesToNumbers /> fn(v) { rgbBgStyle(...v) } }
-@export var hexCode = fn(@str code) { code /> hexStyle /> ansiCode }
-@export var bgHexCode = fn(@str code) { code /> hexBgStyle /> ansiCode }
-@export var hex = fn(@str str, @str code) { str /> wrapWith( hexStyle(code) )}
-@export var bgHex = fn(@str str, @str code) { str /> wrapWith( hexBgStyle(code) )}
+@export val bgBrightBlack   = fn(@str str) { str /> wrapWith(Styles.bgBrightBlack) }
+@export val bgBrightRed     = fn(@str str) { str /> wrapWith(Styles.bgBrightRed) }
+@export val bgBrightGreen   = fn(@str str) { str /> wrapWith(Styles.bgBrightGreen) }
+@export val bgBrightYellow  = fn(@str str) { str /> wrapWith(Styles.bgBrightYellow) }
+@export val bgBrightBlue    = fn(@str str) { str /> wrapWith(Styles.bgBrightBlue) }
+@export val bgBrightMagenta = fn(@str str) { str /> wrapWith(Styles.bgBrightMagenta) }
+@export val bgBrightCyan    = fn(@str str) { str /> wrapWith(Styles.bgBrightCyan) }
+@export val bgBrightWhite   = fn(@str str) { str /> wrapWith(Styles.bgBrightWhite) }
 
-// xkcd color survey support (see https://xkcd.com/color/rgb/)
-// -----------
-var xkcdStyle = fn(@sym name) { XkcdColourIndex[name] /> hexStyle }
-var xkcdBgStyle = fn(@sym name) { XkcdColourIndex[name] /> hexBgStyle }
-@export var xkcdCode = fn(@sym name) { name /> xkcdStyle /> ansiCode }
-@export var bgXkcdCode = fn(@sym name) { name /> xkcdBgStyle /> ansiCode }
-@export var xkcd = fn(@str str, @sym name) { str /> wrapWith( xkcdStyle(name) )}
-@export var bgXkcd = fn(@str str, @sym name) { str /> wrapWith( xkcdBgStyle(name) )}
+// --- effects ---
+@export val effectBold      = fn(@str str) { str /> wrapWith(Styles.bold) }
+@export val effectDim       = fn(@str str) { str /> wrapWith(Styles.dim) }
+@export val effectUnderline = fn(@str str) { str /> wrapWith(Styles.underline) }
+@export val effectBlink     = fn(@str str) { str /> wrapWith(Styles.blink) }
+@export val effectReverse   = fn(@str str) { str /> wrapWith(Styles.reverse) }
+@export val effectHide      = fn(@str str) { str /> wrapWith(Styles.hide) }
 
+// --- VGA 256-colour support ---
+val vgaStyle   = fn(code) { [38, 5, code] }
+val vgaBgStyle = fn(code) { [48, 5, code] }
+
+/**
+ * returns the ANSI escape code string for VGA colour index `code` (0–255).
+ */
+@export val vgaCode   = fn(@num code) { code /> vgaStyle /> ansiCode }
+
+/**
+ * returns the ANSI escape code string for VGA background colour index `code` (0–255).
+ */
+@export val bgVgaCode = fn(@num code) { code /> vgaBgStyle /> ansiCode }
+
+/**
+ * wraps `str` with VGA colour `code` (0–255).
+ */
+@export val vga   = fn(@str str, @num code) { str /> wrapWith(vgaStyle(code)) }
+
+/**
+ * wraps `str` with VGA background colour `code` (0–255).
+ */
+@export val bgVga = fn(@str str, @num code) { str /> wrapWith(vgaBgStyle(code)) }
+
+// --- RGB true-colour support ---
+val rgbStyle   = fn(@num r, @num g, @num b) { [38, 2, r, g, b] }
+val rgbBgStyle = fn(@num r, @num g, @num b) { [48, 2, r, g, b] }
+
+/**
+ * returns the ANSI escape code string for RGB colour.
+ */
+@export val rgbCode   = fn(@num r, @num g, @num b) { rgbStyle(r, g, b) /> ansiCode }
+
+/**
+ * returns the ANSI escape code string for RGB background colour.
+ */
+@export val bgRgbCode = fn(@num r, @num g, @num b) { rgbBgStyle(r, g, b) /> ansiCode }
+
+/**
+ * wraps `str` with RGB colour `r`, `g`, `b` (0–255 each).
+ */
+@export val rgb   = fn(@str str, @num r, @num g, @num b) { str /> wrapWith(rgbStyle(r, g, b)) }
+
+/**
+ * wraps `str` with RGB background colour.
+ */
+@export val bgRgb = fn(@str str, @num r, @num g, @num b) { str /> wrapWith(rgbBgStyle(r, g, b)) }
+
+// --- Hex colour support ---
+val hexStyle   = fn(@str code) { code[1:] /> hexStrToBytes /> bytesToNumbers /> fn(v) { rgbStyle(...v) } }
+val hexBgStyle = fn(@str code) { code[1:] /> hexStrToBytes /> bytesToNumbers /> fn(v) { rgbBgStyle(...v) } }
+
+/**
+ * returns the ANSI escape code string for hex colour `code` (e.g. `"#ff5733"`).
+ */
+@export val hexCode   = fn(@str code) { code /> hexStyle /> ansiCode }
+
+/**
+ * returns the ANSI escape code string for hex background colour.
+ */
+@export val bgHexCode = fn(@str code) { code /> hexBgStyle /> ansiCode }
+
+/**
+ * wraps `str` with hex colour (e.g. `hex("Hello", "#ff5733")`).
+ */
+@export val hex   = fn(@str str, @str code) { str /> wrapWith(hexStyle(code)) }
+
+/**
+ * wraps `str` with hex background colour.
+ */
+@export val bgHex = fn(@str str, @str code) { str /> wrapWith(hexBgStyle(code)) }
+
+// --- xkcd colour survey support ---
+// See https://xkcd.com/color/rgb/ and slug.xkcd.colours for available names.
+val xkcdStyle   = fn(@sym name) { XkcdColourIndex[name] /> hexStyle }
+val xkcdBgStyle = fn(@sym name) { XkcdColourIndex[name] /> hexBgStyle }
+
+/**
+ * returns the ANSI escape code string for an xkcd colour name (e.g. `:electricLime`).
+ */
+@export val xkcdCode   = fn(@sym name) { name /> xkcdStyle /> ansiCode }
+
+/**
+ * returns the ANSI escape code string for an xkcd background colour.
+ */
+@export val bgXkcdCode = fn(@sym name) { name /> xkcdBgStyle /> ansiCode }
+
+/**
+ * wraps `str` with an xkcd colour (e.g. `xkcd("Hello", :electricLime)`).
+ */
+@export val xkcd   = fn(@str str, @sym name) { str /> wrapWith(xkcdStyle(name)) }
+
+/**
+ * wraps `str` with an xkcd background colour.
+ */
+@export val bgXkcd = fn(@str str, @sym name) { str /> wrapWith(xkcdBgStyle(name)) }

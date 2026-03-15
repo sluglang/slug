@@ -1,8 +1,19 @@
-var {*} = import(
+/**
+ * slug.math — numeric utilities
+ *
+ * Mathematical functions for common numeric operations including
+ * rounding, extrema, statistics, and random number generation.
+ */
+
+val {*} = import(
 	"slug.std",
 )
 
-
+/**
+ * returns the largest of two or more numbers.
+ *
+ * Accepts a variadic list of additional values beyond the required first two.
+ */
 @testWith(
 	[1, 2, 3], 3,
 	[7, 9, 8], 9,
@@ -10,19 +21,20 @@ var {*} = import(
 )
 @export
 @returns('@num')
-var max = fn(@num a, ...b) {
-	val _max = fn(x, y) {if (x > y) {x} else {y}}
+val max = fn(@num a, ...b) {
+	val _max = fn(x, y) { if (x > y) { x } else { y } }
 	searchList(b, a, _max)
 }
 
-
 @export
 @returns('@num')
-var max = fn(@num a, @num b) {
+val max = fn(@num a, @num b) {
 	if (a > b) { a } else { b }
 }
 
-
+/**
+ * returns the smallest of two or more numbers.
+ */
 @testWith(
 	[1, 2, 3], 1,
 	[4, 3, 5], 3,
@@ -30,20 +42,25 @@ var max = fn(@num a, @num b) {
 )
 @export
 @returns('@num')
-var min = fn(@num a, ...b) {
-	val _min = fn(x, y) {if (x < y) {x} else {y}}
+val min = fn(@num a, ...b) {
+	val _min = fn(x, y) { if (x < y) { x } else { y } }
 	searchList(b, a, _min)
 }
 
-
+/**
+ * returns `n` if it is >= 0, otherwise returns 0.
+ *
+ * Useful for ensuring subtracted values never go negative.
+ */
 @export
 @returns('@num')
-var clampZero = fn(@num n) {
+val clampZero = fn(@num n) {
 	if (n < 0) { 0 } else { n }
 }
 
-
-// floor returns the greatest integer less than or equal to n.
+/**
+ * returns the greatest integer less than or equal to `n`.
+ */
 @testWith(
 	[1.0], 1,
 	[1.2], 1,
@@ -53,8 +70,9 @@ var clampZero = fn(@num n) {
 @returns('@num')
 foreign floor = fn(@num n)
 
-
-// ceil returns the least integer greater than or equal to n.
+/**
+ * returns the least integer greater than or equal to `n`.
+ */
 @testWith(
 	[1.0], 1,
 	[1.2], 2,
@@ -64,9 +82,11 @@ foreign floor = fn(@num n)
 @returns('@num')
 foreign ceil = fn(@num n)
 
-
-// sqrt returns the square root of n.
-// For n < 0, it returns NaN.
+/**
+ * returns the square root of `n`.
+ *
+ * Returns `NaN` for negative values.
+ */
 @testWith(
 	[0], 0,
 	[4], 2,
@@ -76,57 +96,69 @@ foreign ceil = fn(@num n)
 @returns('@num')
 foreign sqrt = fn(@num n)
 
-
-// random_range generates a random integer in the range [min, max] (exclusive).
-// min: Minimum value of the range (integer).
-// max: Maximum value of the range (integer).
-// Returns: a random integer in the specified range.
+/**
+ * returns a random integer in the range `[min, max)` (exclusive upper bound).
+ *
+ * @effects('random')
+ */
 @export
+@effects('random')
 @returns('@num')
 foreign rndRange = fn(@num min, @num max)
 
-
+/**
+ * returns the arithmetic mean of a list of numbers.
+ *
+ * Returns `0` for an empty list.
+ */
 @export
 @returns('@num')
-var mean = fn(xs) match {
+val mean = fn(xs) match {
 	[] => 0
-	_ => {
-		(xs /> reduce(0, fn(a, x) { a + x })) / (len(xs))
-	}
+	_  => (xs /> reduce(0, fn(a, x) { a + x })) / len(xs)
 }
 
-
+/**
+ * returns the sample standard deviation of a list of numbers.
+ *
+ * Uses Bessel's correction (divides by `n - 1`). Returns `0` for lists
+ * with fewer than two elements. Requires the precomputed `mean` as a
+ * second argument to avoid recomputing it internally.
+ */
 @export
 @returns('@num')
-var stdev = fn(xs, mean) match {
-	[] => 0
+val stdev = fn(xs, mean) match {
+	[]  => 0
 	[_] => 0
-	_ => {
-		val n = len(xs)
+	_   => {
+		val n   = len(xs)
 		val acc = xs /> reduce(0, fn(a, x) {
 			val d = x - mean
 			a + (d * d)
 		})
-		val v = acc / (n - 1)
-		sqrt(if (v < 0) { 0 } else { v })
+		sqrt(clampZero(acc / (n - 1)))
 	}
 }
 
-
 /**
- * percentileSorted: xs must be ascending
+ * returns the `p`th percentile of a pre-sorted ascending list.
+ *
+ * Uses linear interpolation between adjacent values. The list must be
+ * sorted in ascending order before calling — use `slug.list#sort` or
+ * `slug.benchmark`'s internal `sortAsc` if needed.
+ *
+ * Returns `0` for an empty list and the single element for a one-element list.
  */
 @export
 @returns('@num')
-var percentileSorted = fn(xs, p) match {
+val percentileSorted = fn(xs, p) match {
 	[[], ...] => 0
 	[[x], ...] => x
 	_ => {
-		val n = len(xs)
+		val n   = len(xs)
 		val pos = (p / 100) * (n - 1)
-		val lo = floor(pos)
-		val hi = ceil(pos)
-
+		val lo  = floor(pos)
+		val hi  = ceil(pos)
 		if (lo == hi) {
 			xs[lo]
 		} else {
@@ -136,9 +168,8 @@ var percentileSorted = fn(xs, p) match {
 	}
 }
 
-
-var searchList = fn(vals, result, f, idx = 0) {
-	if(len(vals) > idx) {
+val searchList = fn(vals, result, f, idx = 0) {
+	if (len(vals) > idx) {
 		recur(vals, f(vals[idx], result), f, idx + 1)
 	} else {
 		result

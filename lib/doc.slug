@@ -26,11 +26,10 @@ val {*} = import(
 	'slug.std',
 	'slug.string',
 	'slug.list',
-	'slug.io.fs',
 )
-val { writeFile }               = import('slug.io.fs')
-val { manifest }                = import('slug.doc.manifest')
-val { singlePage, pagePerModule } = import('slug.doc.markdown')
+val { writeFile, listFilesRecursive } = import('slug.io.fs')
+val { manifest }                      = import('slug.doc.manifest')
+val { singlePage, pagePerModule }     = import('slug.doc.markdown')
 
 val VERSION = 'slug doc v1.0.0'
 

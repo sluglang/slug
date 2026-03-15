@@ -21,6 +21,7 @@ stress:
 
 generate-docs:
 	go run ./cmd/app/main.go doc --dir ./lib --multiPage --out ./docs/_libraries markdown
+	go run ./cmd/app/main.go doc --dir ./lib --out ./lib/MANIFEST.ai manifest
 
 test:
 	# e.g. find . \( -name "*.slug" -o -name "*.go" \) | entr -r time make test

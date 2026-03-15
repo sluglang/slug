@@ -1,4 +1,15 @@
+/**
+ * slug.bytes — byte buffer utilities
+ *
+ * Conversions between `@bytes`, `@str`, hex strings, base64, and numeric lists.
+ * All functions are pure and operate on immutable byte values.
+ *
+ * Byte literals use the `0x"<hex>"` syntax, e.g. `0x"ff0a"`.
+ */
 
+/**
+ * converts a UTF-8 string to a byte buffer.
+ */
 @testWith(
     [""], 0x"",
     ["hello slug"], 0x"68656c6c6f20736c7567",
@@ -8,6 +19,9 @@
 foreign strToBytes = fn(@str s)
 
 
+/**
+ * converts a byte buffer to a UTF-8 string.
+ */
 @testWith(
     [0x""], "",
     [0x"68656c6c6f20736c7567"], "hello slug",
@@ -17,6 +31,9 @@ foreign strToBytes = fn(@str s)
 foreign bytesToStr = fn(@bytes b)
 
 
+/**
+ * decodes a lowercase hex string to a byte buffer.
+ */
 @testWith(
     [""], 0x"",
     ["68656c6c6f20736c7567"], 0x"68656c6c6f20736c7567",
@@ -27,6 +44,9 @@ foreign bytesToStr = fn(@bytes b)
 foreign hexStrToBytes = fn(@str hex)
 
 
+/**
+ * encodes a byte buffer as a lowercase hex string.
+ */
 @testWith(
     [0x""], "",
     [0x"68656c6c6f20736c7567"], "68656c6c6f20736c7567",
@@ -36,6 +56,9 @@ foreign hexStrToBytes = fn(@str hex)
 foreign bytesToHexStr = fn(@bytes b)
 
 
+/**
+ * decodes a standard base64 string to a byte buffer.
+ */
 @testWith(
     [""], 0x"",
     ["aGVsbG8gc2x1Zw=="], 0x"68656c6c6f20736c7567",
@@ -45,6 +68,9 @@ foreign bytesToHexStr = fn(@bytes b)
 foreign base64Decode = fn(@str s)
 
 
+/**
+ * encodes a byte buffer as a standard base64 string.
+ */
 @testWith(
     [0x""], "",
     [0x"68656c6c6f20736c7567"], "aGVsbG8gc2x1Zw==",
@@ -54,22 +80,29 @@ foreign base64Decode = fn(@str s)
 foreign base64Encode = fn(@bytes b)
 
 
+/**
+ * repeats a byte buffer `count` times and returns the concatenated result.
+ */
 @testWith(
     [0x"ff", 3], 0x"ffffff",
 )
 @export
 @returns('@bytes')
-var repeat = fn(@bytes b, @num count, @bytes acc = 0x"") match {
+val repeat = fn(@bytes b, @num count, @bytes acc = 0x"") match {
     [_, 0, ...] => acc
     [...] => recur(b, count - 1, acc + b)
 }
 
+
+/**
+ * converts a byte buffer to a list of numeric byte values (0–255).
+ */
 @testWith(
     [0x"a8ff04"], [168, 255, 4],
 )
 @export
 @returns('@list')
-var bytesToNumbers = fn(@bytes b, i = 0, acc = []) match {
-    [b, ...] if len(b) == i  => acc
-    [b, ...]                 => recur(b, i + 1, acc :+ b[i])
+val bytesToNumbers = fn(@bytes b, i = 0, acc = []) match {
+    [b, ...] if len(b) == i => acc
+    [b, ...]                => recur(b, i + 1, acc :+ b[i])
 }

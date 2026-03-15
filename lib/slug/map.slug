@@ -1,7 +1,25 @@
-var {*} = import(
+/**
+ * slug.map — persistent map utilities
+ *
+ * Higher-level map operations built on the core `put` and `remove`
+ * primitives from `slug.std`. All functions are pure and return new
+ * maps without modifying their inputs.
+ *
+ * For basic key operations (`put`, `remove`, `update`, `get`, `keys`)
+ * see `slug.std`.
+ */
+
+val {*} = import(
 	"slug.std"
 )
 
+/**
+ * sets a deeply nested key in a map, creating intermediate maps as needed.
+ *
+ * Keys are converted to symbols. If an intermediate key already exists
+ * and maps to a map, that map is updated. If it maps to a non-map value,
+ * it is replaced with a new map containing the nested key.
+ */
 @testWith(
 	[['k'], {}, 'v'], {k: 'v'},
 	[['k', 'k'], {}, 'v'], {k: {k: 'v'}},
@@ -9,12 +27,18 @@ var {*} = import(
 )
 @export
 @returns('@map')
-var putNested = fn(@list keys, @map map, value) match {
-	[[h], ...] => put(map, sym(h), value)
+val putNested = fn(@list keys, @map map, value) match {
+	[[h], ...]       => put(map, sym(h), value)
 	[[h, ...t], ...] if map[sym(h)] => put(map, sym(h), putNested(t, map[sym(h)], value))
 	[[h, ...t], ...]                => put(map, sym(h), putNested(t, map, value))
 }
 
+/**
+ * merges two maps, with `patch` values overwriting `base` values on key conflicts.
+ *
+ * Shallow — nested maps are replaced entirely, not recursively merged.
+ * For deep merging of nested maps, use `patch` instead.
+ */
 @testWith(
 	[{a: 1, b: 2}, {b: 3, c: 4}], {a: 1, b: 3, c: 4},
 	[{a: 1}, {}], {a: 1},
@@ -22,12 +46,19 @@ var putNested = fn(@list keys, @map map, value) match {
 )
 @export
 @returns('@map')
-var merge = fn(@map base, @map patch) {
+val merge = fn(@map base, @map patch) {
 	patch /> keys() /> reduce(base, fn(acc, k) {
 		acc /> put(k, patch[k])
 	})
 }
 
+/**
+ * recursively merges two maps, deeply merging nested map values.
+ *
+ * When both `base` and `patchData` have a map value at the same key,
+ * those maps are merged recursively. Otherwise the `patchData` value
+ * overwrites the `base` value. For a shallow merge, use `merge` instead.
+ */
 @testWith(
 	[{a: {x: 1}}, {a: {y: 2}}], {a: {x: 1, y: 2}},
 	[{a: 1}, {a: {b: 2}}], {a: {b: 2}},
@@ -35,11 +66,10 @@ var merge = fn(@map base, @map patch) {
 )
 @export
 @returns('@map')
-var patch = fn(@map base, @map patchData) {
+val patch = fn(@map base, @map patchData) {
 	patchData /> keys() /> reduce(base, fn(acc, k) {
-		var v1 = acc[k]
-		var v2 = patchData[k]
-
+		val v1 = acc[k]
+		val v2 = patchData[k]
 		if (type(v1) == MAP_TYPE && type(v2) == MAP_TYPE) {
 			acc /> put(k, patch(v1, v2))
 		} else {
@@ -48,20 +78,31 @@ var patch = fn(@map base, @map patchData) {
 	})
 }
 
+/**
+ * returns a map containing all keys from both maps.
+ *
+ * On key conflicts, `s1` values take precedence over `s2` values.
+ */
 @testWith(
 	[{k1:1}, {k2:2}], {k1:1, k2:2},
 	[{k1:1}, {}], {k1:1},
 	[{}, {k2:2}], {k2:2},
-	[{k1:1}, {k1:9}], {k1:1} // s1 keys are kept on duplicates
+	[{k1:1}, {k1:9}], {k1:1}
 )
 @export
 @returns('@map')
-var union = fn(@map s1, @map s2) {
+val union = fn(@map s1, @map s2) {
 	s1 /> keys() /> reduce(s2, fn(s, k) {
 		s /> put(k, s1[k])
 	})
 }
 
+/**
+ * returns a map containing only keys present in both maps.
+ *
+ * Values are taken from `s1`. Keys that exist only in `s1` or only
+ * in `s2` are excluded from the result.
+ */
 @testWith(
 	[{k1:1}, {k1:2}], {k1:1},
 	[{k1:1}, {k2:2}], {},
@@ -70,20 +111,22 @@ var union = fn(@map s1, @map s2) {
 )
 @export
 @returns('@map')
-var intersect = fn(@map s1, @map s2) {
+val intersect = fn(@map s1, @map s2) {
 	s1 /> keys()
 		/> filter(fn(k) { s2[k] == nil })
 		/> reduce(s1, fn(s, k) { s /> remove(k) })
 }
 
+/**
+ * returns `s1` with all keys that appear in `s2` removed.
+ */
 @testWith(
 	[{k1:1}, {k1:2}], {},
 	[{k1:1, k2:1}, {k2:2}], {k1:1}
 )
 @export
 @returns('@map')
-var difference = fn(@map s1, @map s2) {
+val difference = fn(@map s1, @map s2) {
 	s2 /> keys()
 		/> reduce(s1, fn(s, k) { s /> remove(k) })
 }
-

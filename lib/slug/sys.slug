@@ -1,39 +1,100 @@
+/**
+ * slug.sys — operating system interface
+ *
+ * Process management, environment variables, and shell command execution.
+ *
+ * ## Process handles
+ *
+ * `spawnProc`, `waitProc`, and `killProc` work with numeric process handles.
+ * Spawn a process with `spawnProc`, wait for it to finish with `waitProc`,
+ * and terminate it early with `killProc`.
+ *
+ * For simple synchronous command execution, prefer `exec`.
+ */
 
-// env reads an environment variable by its name and returns its value 
-// Parameters:
-//   str - the name of the environment variable to read
-// Returns:
-//   string value of the environment variable, or nil if variable is not set
+/**
+ * reads an environment variable by name.
+ *
+ * Returns `nil` if the variable is not set.
+ *
+ * @effects('io')
+ */
 @export
+@effects('io')
 @returns('@str')
 foreign env = fn(@str str)
 
+/**
+ * sets an environment variable.
+ *
+ * The format is `"NAME=value"`. Returns the value that was set.
+ *
+ * @effects('io')
+ */
 @export
+@effects('io')
 @returns('@str')
 foreign setEnv = fn(@str str)
 
+/**
+ * terminates the current process with the given exit code.
+ *
+ * Deferred functions are not run. Exit code `0` indicates success;
+ * non-zero indicates failure.
+ */
 @export
 @returns('nil')
 foreign exit = fn(@num exitCode)
 
-// exec runs a system command and returns [stdout, stderr] as strings.
-// Parameters:
-//   cmd - full command line to execute (e.g. "ls -al", "git status")
-//   timeout - a timeout in milliseconds
-// Returns:
-//   list [stdout, stderr]
+/**
+ * runs a shell command synchronously and returns `[stdout, stderr]`.
+ *
+ * Blocks until the command completes or `timeout` elapses. A `timeout`
+ * of `0` means wait indefinitely. Both stdout and stderr are returned
+ * as strings regardless of exit code.
+ *
+ * @effects('io')
+ */
 @export
+@effects('io')
 @returns('[@str, @str]')
 foreign exec = fn(@str cmd, @num timeout = 0)
 
+/**
+ * spawns a process from a command list and returns a process handle.
+ *
+ * The command list format is `["executable", "arg1", "arg2", ...]`.
+ * Use `waitProc` to block until the process finishes, or `killProc`
+ * to terminate it.
+ *
+ * @effects('io')
+ */
 @export
+@effects('io')
 @returns('@num')
-foreign spawnProc = fn(@list cmd)  // -> ProcHandle
+foreign spawnProc = fn(@list cmd)
 
+/**
+ * waits for a spawned process to finish and returns its exit code.
+ *
+ * Returns `-1` if `timeout` elapses before the process exits.
+ * A `timeout` of `0` means wait indefinitely.
+ *
+ * @effects('io')
+ */
 @export
+@effects('io')
 @returns('@num')
-foreign waitProc = fn(@num handle, @num timeout = 0) // exit code or -1 on timeout
+foreign waitProc = fn(@num handle, @num timeout = 0)
 
+/**
+ * sends a termination signal to a spawned process.
+ *
+ * Returns `true` if the signal was delivered successfully.
+ *
+ * @effects('io')
+ */
 @export
+@effects('io')
 @returns('@bool')
 foreign killProc = fn(@num handle)

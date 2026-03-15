@@ -1,9 +1,43 @@
-var {*} = import(
+/**
+ * slug.csv — CSV parsing and serialisation
+ *
+ * Parses CSV strings into lists of rows and serialises lists of rows back
+ * to CSV strings. Handles quoted fields, embedded newlines, escaped quotes,
+ * and configurable separators.
+ *
+ * Rows are represented as `@list` values. Columns are accessed by index:
+ * `row[0]` for the first column, `row[1]` for the second, and so on.
+ *
+ * ## Example
+ *
+ * ```slug
+ * val { fromCsvString, toCsv } = import("slug.csv")
+ *
+ * val rows = fromCsvString("name,age\r\nAlice,30\r\nBob,25")
+ * rows[0]  // => ["name", "age"]
+ * rows[1]  // => ["Alice", "30"]
+ *
+ * toCsv([["name", "age"], ["Alice", "30"]])
+ * // => "name,age\r\nAlice,30\r\n"
+ * ```
+ *
+ * ## Quoting rules
+ *
+ * Fields are automatically quoted during serialisation if they contain
+ * the separator, the quote character, a newline, or a carriage return.
+ * Quote characters within a field are escaped by doubling: `"` → `""`.
+ */
+
+val {*} = import(
 	"slug.string",
 )
 
 /**
- * converts a list of lists to a CSV string
+ * converts a list of rows (each a list of strings) to a CSV string.
+ *
+ * Fields are quoted automatically when they contain the separator, quote
+ * character, or newline characters. The default line ending is `\r\n`
+ * (RFC 4180). Each row is terminated by `eol`.
  */
 @testWith(
 	[[["a", "b"]]], "a,b\r\n",
@@ -12,13 +46,17 @@ var {*} = import(
 )
 @export
 @returns('@str')
-var toCsv = fn(@list rows, @str sep = ",", @str quote = "\"", @str eol = "\r\n", @str acc = "") match {
+val toCsv = fn(@list rows, @str sep = ",", @str quote = "\"", @str eol = "\r\n", @str acc = "") match {
 	[[], ...] => acc
 	[[h, ...t], ...] => recur(t, sep, quote, eol, acc + rowToCsv(h, sep, quote, eol))
 }
 
 /**
- * returned rows are lists, access columns by index: row[0], row[1]
+ * parses a CSV string into a list of rows, where each row is a list of strings.
+ *
+ * Handles quoted fields (including embedded newlines and escaped quotes),
+ * CRLF and LF line endings, and configurable separator and quote characters.
+ * Access columns by index: `row[0]`, `row[1]`, etc.
  */
 @testWith(
 	["a,b,c"], [["a", "b", "c"]],
@@ -26,21 +64,23 @@ var toCsv = fn(@list rows, @str sep = ",", @str quote = "\"", @str eol = "\r\n",
 )
 @export
 @returns('@list')
-var fromCsvString = fn(@str csvStr, @str sep = ",", @str quote = "\"") {
+val fromCsvString = fn(@str csvStr, @str sep = ",", @str quote = "\"") {
 	parseCsv(csvStr, sep, quote, 0, len(csvStr), [], [], false)
 }
 
-var rowToCsv = fn(@list row, @str sep, @str quote, @str eol, @str acc = "") match {
+// --- internal helpers ---
+
+val rowToCsv = fn(@list row, @str sep, @str quote, @str eol, @str acc = "") match {
 	[[], ...] => acc + eol
 	[[h], ...] => recur([], sep, quote, eol, acc + cellToCsv(h, sep, quote))
 	[[h, ...t], ...] => recur(t, sep, quote, eol, acc + cellToCsv(h, sep, quote) + sep)
 }
 
-var cellToCsv = fn(@str cell, @str sep, @str quote) {
-	var needsQuote = cell /> contains(sep)
-			 || cell /> contains(quote)
-			 || cell /> contains("\n")
-			 || cell /> contains("\r")
+val cellToCsv = fn(@str cell, @str sep, @str quote) {
+	val needsQuote = cell /> contains(sep)
+			|| cell /> contains(quote)
+			|| cell /> contains("\n")
+			|| cell /> contains("\r")
 	if (needsQuote) {
 		quote + cell /> replaceAll(quote, quote + quote) + quote
 	} else {
@@ -48,22 +88,20 @@ var cellToCsv = fn(@str cell, @str sep, @str quote) {
 	}
 }
 
-var parseCsv = fn(@str csvStr, @str sep, @str quote, @num i, @num n, @list accRows, @list accRow, @bool inQuotes, @str accField = "") {
+val parseCsv = fn(@str csvStr, @str sep, @str quote, @num i, @num n, @list accRows, @list accRow, @bool inQuotes, @str accField = "") {
 	if (i >= n) {
-		// End of input: flush pending field/row
-		var finalRow = flushFieldToRow(accRow, accField)
-		var finalRows = flushRow(accRows, finalRow)
+		val finalRow  = flushFieldToRow(accRow, accField)
+		val finalRows = flushRow(accRows, finalRow)
 		finalRows
 	} else {
-		var c = csvStr[i]
-
+		val c = csvStr[i]
 		if (inQuotes) {
 			if (c == quote) {
-				// Possible escaped quote
 				if (i + 1 < n && csvStr[i + 1] == quote) {
+					// escaped quote — include one literal quote in field
 					recur(csvStr, sep, quote, i + 2, n, accRows, accRow, true, accField + quote)
 				} else {
-					// Closing quote
+					// closing quote
 					recur(csvStr, sep, quote, i + 1, n, accRows, accRow, false, accField)
 				}
 			} else {
@@ -73,39 +111,27 @@ var parseCsv = fn(@str csvStr, @str sep, @str quote, @num i, @num n, @list accRo
 			match c {
 				^quote => recur(csvStr, sep, quote, i + 1, n, accRows, accRow, true, accField)
 				^sep => {
-						// 	// End of field
-						recur(csvStr, sep, quote, i + 1, n, accRows, accRow :+ accField, false, "")
-					}
+					recur(csvStr, sep, quote, i + 1, n, accRows, accRow :+ accField, false, "")
+				}
 				"\r" => {
-						// End of record: handle CRLF
-						var nextI = if (i + 1 < n && csvStr[i + 1] == "\n") { i + 2 } else { i + 1 }
-						var finishedRow = accRow :+ accField
-						recur(csvStr, sep, quote, nextI, n, accRows :+ finishedRow, [], false, "")
-					}
+					val nextI      = if (i + 1 < n && csvStr[i + 1] == "\n") { i + 2 } else { i + 1 }
+					val finishedRow = accRow :+ accField
+					recur(csvStr, sep, quote, nextI, n, accRows :+ finishedRow, [], false, "")
+				}
 				"\n" => {
-						var finishedRow = accRow :+ accField
-						recur(csvStr, sep, quote, i + 1, n, accRows :+ finishedRow, [], false, "")
-					}
+					val finishedRow = accRow :+ accField
+					recur(csvStr, sep, quote, i + 1, n, accRows :+ finishedRow, [], false, "")
+				}
 				_ => recur(csvStr, sep, quote, i + 1, n, accRows, accRow, false, accField + c)
 			}
 		}
 	}
 }
 
-// Helpers
-
-var flushFieldToRow = fn(@list row, @str field) {
-	if (len(field) == 0 && len(row) == 0) {
-		row
-	} else {
-		row :+ field
-	}
+val flushFieldToRow = fn(@list row, @str field) {
+	if (len(field) == 0 && len(row) == 0) { row } else { row :+ field }
 }
 
-var flushRow = fn(@list rows, @list row) {
-	if (len(row) == 0) {
-		rows
-	} else {
-		rows :+ row
-	}
+val flushRow = fn(@list rows, @list row) {
+	if (len(row) == 0) { rows } else { rows :+ row }
 }

@@ -1,57 +1,113 @@
-var {*} = import (
+/**
+ * slug.web.server — HTTP/1.1 server
+ *
+ * A pure-Slug HTTP/1.1 server built on `slug.io.tcp` and structured
+ * concurrency. Each connection is handled in a spawned task within a
+ * nursery with a connection limit.
+ *
+ * ## Quick start
+ *
+ * ```slug
+ * val { serve }  = import("slug.web.server")
+ * val { router, get, withLog } = import("slug.web.routes")
+ * val { html } = import("slug.web.response")
+ *
+ * val r = router()
+ * /> get("/", fn(req) { html("<h1>Hello</h1>") })
+ *
+ * serve(r /> withLog /> handle)
+ * ```
+ *
+ * ## Configuration
+ *
+ * `addr` and `port` default to `cfg("address", "0.0.0.0")` and
+ * `cfg("port", 8080)`. Override via config or pass directly:
+ *
+ * ```slug
+ * serve(app, "127.0.0.1", 3000)
+ * ```
+ *
+ * ## Connection handling
+ *
+ * - Up to 1000 concurrent connections (nursery limit)
+ * - Up to 100 requests per connection (keep-alive)
+ * - 10 second idle timeout per connection
+ * - Request bodies up to 2MB are read into memory as strings
+ * - Larger bodies throw `ServerError` — use `withMaxBody` middleware
+ *
+ * ## App function contract
+ *
+ * `app` must be a `fn(request) -> Response`. Use `slug.web.routes#handle`
+ * to dispatch to a router, or write a plain function for simple cases.
+ *
+ * @effects('io net')
+ */
+
+val {*} = import(
 	"slug.web.response",
 	"slug.channel",
 	"slug.string",
 	"slug.std",
 	"slug.time",
 )
-var tcp = import("slug.io.tcp")
-var request = import("slug.web.request")
+val tcp     = import("slug.io.tcp")
+val request = import("slug.web.request")
 
-
+/**
+ * starts an HTTP/1.1 server and blocks until it is shut down.
+ *
+ * Binds to `addr:port`, accepts connections in a loop, and spawns a
+ * task for each connection within a nursery limited to 1000 concurrent
+ * connections. Each connection supports up to 100 keep-alive requests.
+ *
+ * `app` receives a `Request` and must return a `Response`.
+ *
+ * @effects('io net')
+ */
 @export
 @throws('@struct(Error{type:ServerError})')
-var serve = nursery limit 1000 fn(@fn app, @str addr = cfg("address", "0.0.0.0"), @num port = cfg("port", 8080)) {
-"""
+val serve = nursery limit 1000 fn(
+	@fn app,
+	@str addr = cfg("address", "0.0.0.0"),
+	@num port = cfg("port", 8080)
+) {
+	"""
 #
 # Server started on {{addr}}:{{port}}
 #
 """ /> println
-	var listener = tcp.bind(addr, port)
-	defer { tcp.close(listener) }
 
+	val listener = tcp.bind(addr, port)
+	defer { tcp.close(listener) }
 	acceptLoop(listener, app)
 }
 
-var acceptLoop = fn(listener, @fn app) {
-	var conn = tcp.accept(listener)
+// --- connection loop ---
+
+val acceptLoop = fn(listener, @fn app) {
+	val conn = tcp.accept(listener)
 	spawn { handleConn(conn, app) }
 	recur(listener, app)
 }
 
-var handleConn = fn(conn, @fn app) {
+val handleConn = fn(conn, @fn app) {
 	defer { tcp.close(conn) }
-	defer onerror (err) match {
-		Error{type: 'TimeoutError'} => { println("error:", conn, err); nil }
-		_                           => { println("error:", conn, err, stacktrace(err)); nil }
+	defer onerror(err) match {
+		Error{ type: 'TimeoutError' } => { println("error:", conn, err); nil }
+		_                             => { println("error:", conn, err, stacktrace(err)); nil }
 	}
-
-	var maxReq = 100
-	var idleMs = secsToMillis(10)
-
-	connLoop(conn, app, "", 0, maxReq, idleMs)
+	connLoop(conn, app, "", 0, 100, secsToMillis(10))
 }
 
-var connLoop = fn(conn, @fn app, buf, n, maxReq, idleMs) {
+val connLoop = fn(conn, @fn app, buf, n, maxReq, idleMs) {
 	if (n >= maxReq) {
 		nil
 	} else {
 		match getNextRequest(conn, buf, idleMs) {
-			nil => nil
+			nil        => nil
 			[req, rest] => {
-				var keep = request.shouldKeepAlive(req)
-
-				var res = req /> app
+				val keep = request.shouldKeepAlive(req)
+				var res  = req /> app
 
 				if (res.headers["connection"] == nil) {
 					res = if (keep && (n + 1) < maxReq) {
@@ -73,71 +129,65 @@ var connLoop = fn(conn, @fn app, buf, n, maxReq, idleMs) {
 	}
 }
 
-var getNextRequest = fn(conn, buf, idleMs) {
-		var headBuf = readUntilHeaders(conn, 64_000, 4_096, idleMs, buf)
-		if (headBuf == nil || len(headBuf) == 0) {
-			return nil
-		}
+// --- request reading ---
 
-		// 1. Parse just the headers first
-		var [req, bodyStart] = request.parseRequestHeaders(headBuf)
+val getNextRequest = fn(conn, buf, idleMs) {
+	val headBuf = readUntilHeaders(conn, 64_000, 4_096, idleMs, buf)
+	if (headBuf == nil || len(headBuf) == 0) {
+		return nil
+	}
 
-		var cl = req.headers["content-length"] /> match {
-			nil => 0
-			v   => v /> toNumber
-		}
+	val [req, bodyStart] = request.parseRequestHeaders(headBuf)
 
-		// 2. Decide how to handle the body
-		var maxInMemoryBody = 2 * 1024 * 1024 // 2MB limit for auto-stringification
+	val cl = req.headers["content-length"] /> match {
+		nil => 0
+		v   => v /> toNumber
+	}
 
-		if (cl > maxInMemoryBody) {
-			// For large bodies, we don't read it all.
-			throw Error { type: "ServerError", msg: "Content-Length to large: {{cl}}" }
+	val maxInMemoryBody = 2 * 1024 * 1024
+
+	if (cl > maxInMemoryBody) {
+		throw Error { type: "ServerError", msg: "Content-Length too large: {{cl}}" }
+	} else {
+		val bodyAlreadyRead = len(bodyStart)
+		val bodyNeeded      = cl - bodyAlreadyRead
+
+		val fullBody = if (bodyNeeded <= 0) {
+			bodyStart[0:cl]
 		} else {
-			// For small bodies, keep the convenience of a string
-			var bodyAlreadyRead = len(bodyStart)
-			var bodyNeeded = cl - bodyAlreadyRead
-
-			var fullBody = if (bodyNeeded <= 0) {
-				bodyStart[0:cl]
-			} else {
-				bodyStart + readExact(conn, bodyNeeded, 4_096, idleMs)
-			}
-
-			var rest = if (len(bodyStart) > cl) {
-				bodyStart[cl:]
-			} else {
-				""
-			}
-
-			[req /> request.withBody(fullBody), rest]
+			bodyStart + readExact(conn, bodyNeeded, 4_096, idleMs)
 		}
+
+		val rest = if (len(bodyStart) > cl) { bodyStart[cl:] } else { "" }
+
+		[req /> request.withBody(fullBody), rest]
+	}
 }
 
-var readWithin = fn(conn, n, ms) {
+val readWithin = fn(conn, n, ms) {
 	await(spawn { tcp.read(conn, n) }, ms)
 }
 
-var readUntilHeaders = fn(conn, maxBytes, chunkSize, timeoutMs, buf = "") {
+val readUntilHeaders = fn(conn, maxBytes, chunkSize, timeoutMs, buf = "") {
 	if (buf /> indexOf("\r\n\r\n") >= 0) {
 		buf
 	} else if (len(buf) >= maxBytes) {
 		throw Error { type: "ServerError", msg: "Request headers too large" }
 	} else {
 		match readWithin(conn, chunkSize, timeoutMs) {
-			nil => buf
+			nil   => buf
 			chunk => recur(conn, maxBytes, chunkSize, timeoutMs, buf + chunk)
 		}
 	}
 }
 
-var readExact = fn(conn, n, chunkSize, timeoutMs, buf = "") {
+val readExact = fn(conn, n, chunkSize, timeoutMs, buf = "") {
 	if (n <= 0) {
 		buf
 	} else {
-		var want = if (n < chunkSize) { n } else { chunkSize }
+		val want = if (n < chunkSize) { n } else { chunkSize }
 		match readWithin(conn, want, timeoutMs) {
-			nil => buf
+			nil   => buf
 			chunk => recur(conn, n - len(chunk), chunkSize, timeoutMs, buf + chunk)
 		}
 	}

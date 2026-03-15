@@ -1,172 +1,237 @@
-var {*} = import (
-    "slug.string",
-    "slug.std",
+/**
+ * slug.web.request — HTTP request representation and parsing
+ *
+ * Defines the `Request` struct and provides parsing, construction, and
+ * accessor functions for working with incoming HTTP requests.
+ *
+ * ## Request struct fields
+ *
+ * | Field       | Type    | Description                                      |
+ * |-------------|---------|--------------------------------------------------|
+ * | `method`    | `@str`  | HTTP method (`"GET"`, `"POST"`, etc.)            |
+ * | `path`      | `@str`  | URL path (without query string)                  |
+ * | `version`   | `@str`  | HTTP version (`"HTTP/1.1"`)                      |
+ * | `headers`   | `@map`  | Lowercase header names → values                  |
+ * | `body`      | any     | Request body (string for small bodies)           |
+ * | `query`     | `@map`  | Parsed query string parameters                   |
+ * | `form`      | `@map`  | Parsed `application/x-www-form-urlencoded` body  |
+ * | `files`     | `@list` | Uploaded files (multipart, when supported)       |
+ * | `params`    | `@map`  | URL path parameters (populated by the router)    |
+ * | `requestId` | any     | Request ID (set by `withRequestId` middleware)   |
+ * | `traceId`   | any     | Trace ID (set by `withTraceContext` middleware)   |
+ * | `spanId`    | any     | Span ID (set by `withTraceContext` middleware)    |
+ *
+ * Header names are always normalised to lowercase. Access headers as
+ * `req.headers["content-type"]` not `req.headers["Content-Type"]`.
+ */
+
+val {*} = import(
+	"slug.string",
+	"slug.std",
 )
 
+@export
 val Request = struct {
-	@str method,
-	@str path,
-	@str version,
-	@map headers,
+	@str  method,
+	@str  path,
+	@str  version,
+	@map  headers,
 	body,
-	@map query,
-	@map form,
+	@map  query,
+	@map  form,
 	@list files,
-	@map params,
+	@map  params,
 	requestId,
 	traceId,
 	spanId,
 }
 
-// -------------------------
-// Core Data Structure
-// -------------------------
-
+/**
+ * constructs a new `Request` with the given method, path, and optional fields.
+ *
+ * All other fields default to empty/nil. This is the canonical way to
+ * create a request for testing or manual construction.
+ */
 @export
 @returns('@struct(Request)')
-var request = fn(method, path, version = "HTTP/1.1", headers = {}, body = "") {
-    Request {
-        method:  method,
-        path:    path,
-        version: version,
-        headers: headers,
-        body:    body,
-        query:   {},
-        form:    {},
-        files:   [],
-        params:  {},
-        requestId: nil,
-        traceId: nil,
-        spanId: nil,
-    }
+val request = fn(method, path, version = "HTTP/1.1", headers = {}, body = "") {
+	Request {
+		method:    method,
+		path:      path,
+		version:   version,
+		headers:   headers,
+		body:      body,
+		query:     {},
+		form:      {},
+		files:     [],
+		params:    {},
+		requestId: nil,
+		traceId:   nil,
+		spanId:    nil,
+	}
 }
 
-// -------------------------
-// Parsing logic
-// -------------------------
-
-// Returns: [request_meta, rest_of_buffer]
-// Note: This now only parses the HEADERS and returns metadata.
-// The body is handled by the caller (the server).
+/**
+ * parses the headers section of a raw HTTP request buffer.
+ *
+ * Returns `[Request, remainingBuffer]` where `remainingBuffer` is the
+ * bytes after the `\r\n\r\n` header/body separator. The body is not
+ * read — the caller (the server) is responsible for reading it based
+ * on `content-length` and then calling `withBody`.
+ *
+ * Header names are normalised to lowercase. Query string parameters
+ * are parsed and attached to `req.query`.
+ *
+ * Throws `RequestError` if headers are incomplete or the request line is malformed.
+ */
 @export
 @returns('[@struct(Request), @str]')
 @throws('@struct(Error{type:RequestError})')
-var parseRequestHeaders = fn(buf) {
-    var i = buf /> indexOf("\r\n\r\n")
-    if (i < 0) { throw Error { type: "RequestError", msg: "Incomplete headers" } }
+val parseRequestHeaders = fn(buf) {
+	val i = buf /> indexOf("\r\n\r\n")
+	if (i < 0) { throw Error { type: "RequestError", msg: "Incomplete headers" } }
 
-    var head = buf[0:i]
-    var rest = buf[i + 4:] // This is the start of the body
+	val head = buf[0:i]
+	val rest = buf[i + 4:]
 
-    var lines = head /> split("\r\n")
-    var first = lines[0] /> split(" ")
-    if (len(first) < 3) { throw Error { type: "RequestError", msg: "Bad request line" } }
+	val lines = head /> split("\r\n")
+	val first = lines[0] /> split(" ")
+	if (len(first) < 3) { throw Error { type: "RequestError", msg: "Bad request line" } }
 
-    var headers = parseHeaders(lines[1:])
-    var [cleanPath, query] = parseQuery(first[1])
+	val headers           = parseHeaders(lines[1:])
+	val [cleanPath, query] = parseQuery(first[1])
+	val req               = request(first[0], cleanPath, first[2], headers, "")
+		/> withQuery(query)
 
-    var req = request(first[0], cleanPath, first[2], headers, "")
-        /> withQuery(query)
-
-    [req, rest]
+	[req, rest]
 }
 
+/**
+ * attaches a body to a request and parses form data if applicable.
+ *
+ * If the `content-type` is `application/x-www-form-urlencoded`, the body
+ * is parsed and the result is available as `req.form`.
+ */
 @export
 @returns('@struct(Request)')
-var withBody = fn(req, body) {
-    req copy { body: body } /> parseForm
+val withBody = fn(req, body) {
+	req copy { body: body } /> parseForm
 }
 
-// -------------------------
-// Accessors & Modifiers
-// -------------------------
-
+/**
+ * returns a new request with `path` replaced.
+ *
+ * Used by the router to strip path prefixes for subrouters.
+ */
 @export
 @returns('@struct(Request)')
-var withPath = fn(req, path) {
-    req copy { path: path }
+val withPath = fn(req, path) {
+	req copy { path: path }
 }
 
+/**
+ * returns a new request with `query` replaced.
+ */
 @export
 @returns('@struct(Request)')
-var withQuery = fn(req, query) {
-    req copy { query: query }
+val withQuery = fn(req, query) {
+	req copy { query: query }
 }
 
+/**
+ * returns a new request with path params map replaced.
+ *
+ * Used by the router to inject matched URL parameters (e.g. `:id`).
+ */
 @export
 @returns('@struct(Request)')
-var withParams = fn(request, @map params) {
-  request copy { params: params }
+val withParams = fn(request, @map params) {
+	request copy { params: params }
 }
 
+/**
+ * returns a new request with a single param key removed from `params`.
+ *
+ * Used by subrouters to remove the `"*"` wildcard param after consuming it.
+ */
 @export
 @returns('@struct(Request)')
-var withoutParam = fn(request, param) {
+val withoutParam = fn(request, param) {
 	request copy { params: request.params /> remove(param) }
 }
 
+/**
+ * returns true if the connection should be kept alive after this request.
+ *
+ * For HTTP/1.0, keep-alive requires an explicit `Connection: keep-alive` header.
+ * For HTTP/1.1, keep-alive is the default unless `Connection: close` is set.
+ */
 @export
 @returns('@bool')
-var shouldKeepAlive = fn(req) {
-    var c = req.headers["connection"]
-    match req.version {
-        "HTTP/1.0" => c == "keep-alive"
-        _          => c != "close"
-    }
+val shouldKeepAlive = fn(req) {
+	val c = req.headers["connection"]
+	match req.version {
+		"HTTP/1.0" => c == "keep-alive"
+		_          => c != "close"
+	}
 }
 
+/**
+ * returns true if `x` is a `Request` struct instance.
+ */
 @export
 @returns('@bool')
-var isRequest = fn(x) match { Request { method, path } => true _ => false }
-
-// -------------------------
-// Internals
-// -------------------------
-
-var parseHeaders = fn(lines, headers = {}) match {
-    [[], ...] => headers
-    [[line, ...rest], ...] => {
-        match line /> split(":", 2) {
-            [k, v] => recur(rest, headers /> put(k /> trim /> toLower, v /> trim))
-            _ => recur(rest, headers)
-        }
-    }
+val isRequest = fn(x) match {
+	Request { method, path } => true
+	_ => false
 }
 
-var parseQuery = fn(path) {
-    match path /> split("?", 2) {
-        [p] => [p, {}]
-        [p, qs] => [p, parseUrlEncoded(qs)]
-        _ => [path, {}]
-    }
+// --- internal parsing ---
+
+val parseHeaders = fn(lines, headers = {}) match {
+	[[], ...] => headers
+	[[line, ...rest], ...] => {
+		match line /> split(":", 2) {
+			[k, v] => recur(rest, headers /> put(k /> trim /> toLower, v /> trim))
+			_      => recur(rest, headers)
+		}
+	}
 }
 
-var parseUrlEncoded = fn(s) {
-    if (s == nil || s == "") {
-        {}
-    } else {
-        s
-        /> split("&")
-        /> reduce({}, fn(m, part) {
-            match part /> split("=", 2) {
-                [k, v] => m /> put(percentDecode(urlPlusToSpace(k)), percentDecode(urlPlusToSpace(v)));
-                [k] => m /> put(percentDecode(urlPlusToSpace(k)), "")
-                _ => m
-            }
-        })
-    }
+val parseQuery = fn(path) {
+	match path /> split("?", 2) {
+		[p]     => [p, {}]
+		[p, qs] => [p, parseUrlEncoded(qs)]
+		_       => [path, {}]
+	}
 }
 
-var urlPlusToSpace = fn(s) { s /> replaceAll("+", " ") }
+val parseUrlEncoded = fn(s) {
+	if (s == nil || s == "") {
+		{}
+	} else {
+		s
+		/> split("&")
+		/> reduce({}, fn(m, part) {
+			match part /> split("=", 2) {
+				[k, v] => m /> put(percentDecode(urlPlusToSpace(k)), percentDecode(urlPlusToSpace(v)))
+				[k]    => m /> put(percentDecode(urlPlusToSpace(k)), "")
+				_      => m
+			}
+		})
+	}
+}
 
-var percentDecode = fn(s) { s }
+val urlPlusToSpace = fn(s) { s /> replaceAll("+", " ") }
 
-var parseForm = fn(req) {
-    var ct = req.headers["content-type"]
-    // Only parse form automatically if body is already a string (small payload)
-    if (type(req.body) == STRING_TYPE && ct != nil && ct /> startsWith("application/x-www-form-urlencoded")) {
-        req copy { form: parseUrlEncoded(req.body) }
-    } else {
-        req
-    }
+// todo: implement percent-decoding (%xx -> char)
+val percentDecode = fn(s) { s }
+
+val parseForm = fn(req) {
+	val ct = req.headers["content-type"]
+	if (type(req.body) == STRING_TYPE && ct != nil && ct /> startsWith("application/x-www-form-urlencoded")) {
+		req copy { form: parseUrlEncoded(req.body) }
+	} else {
+		req
+	}
 }

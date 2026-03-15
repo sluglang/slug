@@ -1,16 +1,27 @@
+/**
+ * slug.term.control — terminal control sequences
+ *
+ * Utilities for clearing the terminal display. These functions print
+ * ANSI escape sequences directly to stdout via `print`.
+ */
 
 /**
- * clear the terminal
+ * clears the terminal screen and moves the cursor to the top-left.
+ *
+ * Equivalent to the `clear` shell command. Does not clear the scrollback buffer.
  */
 @export
-var clear = fn() {
+val clear = fn() {
 	print("\033[2J\033[H")
 }
 
 /**
- * clear the terminal and scrollback buffer
+ * clears the terminal screen, scrollback buffer, and moves the cursor to the top-left.
+ *
+ * More thorough than `clear` — also wipes the scrollback history visible
+ * when scrolling up in the terminal.
  */
 @export
-var clearAll = fn() {
+val clearAll = fn() {
 	print("\033[3J\033[2J\033[H")
 }

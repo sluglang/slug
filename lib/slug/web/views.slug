@@ -1,46 +1,122 @@
-var {*} = import(
+/**
+ * slug.web.views — Mustache template rendering for web responses
+ *
+ * Loads and renders Mustache templates from the filesystem, with support
+ * for partials, layouts, HTMX fragment rendering, and template caching
+ * in production mode.
+ *
+ * ## Directory structure
+ *
+ * Templates are loaded from a root directory (default `"views"`):
+ *
+ * ```
+ * views/
+ *   pages/
+ *     home.mustache          -- main page template
+ *     home/
+ *       content.mustache     -- page-specific partial
+ *   layouts/
+ *     main.mustache          -- shared layout
+ *   partials/
+ *     nav.mustache           -- shared partial
+ *     nav/
+ *       item.mustache        -- nested partial
+ * ```
+ *
+ * ## Partial name resolution
+ *
+ * Inside a template, partials are referenced by logical name:
+ *
+ * - `layouts.main` → `views/layouts/main.mustache`
+ * - `partials.nav.item` → `views/partials/nav/item.mustache`
+ * - `content` (in `pages/home`) → `views/pages/home/content.mustache`
+ *
+ * Dots in partial names are converted to path separators.
+ * If a partial cannot be found in the view-specific directory, it falls
+ * back to `views/partials/`.
+ *
+ * ## HTMX fragment rendering
+ *
+ * When `renderReply` receives a request with an `HX-Request` header, it
+ * renders only the fragment specified by `Reply.fragment` (or the
+ * `HX-Target` header if `fragment` is nil) rather than the full page.
+ *
+ * ## Dev vs production mode
+ *
+ * In dev mode (`cfg("dev", true)`), templates are re-read from disk on
+ * every request. In production mode, templates are cached after the first
+ * load. Toggle with `cfg("dev", false)`.
+ */
+
+val {*} = import(
 	"slug.std",
 	"slug.string",
 )
-var fs  = import("slug.io.fs")
-var mustache = import("slug.mustache")
-var response = import("slug.web.response")
-var {Reply, Response} = import("slug.web.response")
+val fs       = import("slug.io.fs")
+val mustache = import("slug.mustache")
+val response = import("slug.web.response")
+val { Reply, Response } = import("slug.web.response")
 
 val Views = struct {
-  @str root,
-  @bool dev,
-  @map cache,  // name -> template string (or AST later)
+	@str  root,
+	@bool dev,
+	@map  cache,
 }
 
+/**
+ * creates a new `Views` instance with the given template root directory.
+ *
+ * In dev mode templates are reloaded on every request. In production they
+ * are cached after first load. Dev mode is enabled by default unless
+ * `cfg("dev", false)` is set.
+ */
 @export
 @returns('@struct(Views)')
-var new = fn(@str root = "views") {
-  Views{
-    root: root,
-    dev: cfg("dev", cfg('dev', true)),
-    cache: {},
-  }
+val new = fn(@str root = "views") {
+	Views{
+		root:  root,
+		dev:   cfg("dev", cfg('dev', true)),
+		cache: {},
+	}
 }
 
+/**
+ * renders a page template by name and returns the HTML string.
+ *
+ * `name` is the page name without the `.mustache` extension, resolved
+ * under `views/pages/`. Partials are loaded relative to `views/pages/<name>/`
+ * with fallback to `views/layouts/` and `views/partials/`.
+ *
+ * ```slug
+ * val views = new()
+ * views /> render("home", { title: "Hello", user: currentUser })
+ * ```
+ */
 @export
 @returns('@str')
-var render = fn(v, name, data = {}) {
-  var tpl = getTemplate(v, 'pages/', name)
-  var loader = partialsLoader(v, "pages/{{name}}/")
-  mustache.render(tpl, data, loader)
+val render = fn(v, name, data = {}) {
+	val tpl    = getTemplate(v, 'pages/', name)
+	val loader = partialsLoader(v, "pages/{{name}}/")
+	mustache.render(tpl, data, loader)
 }
 
+/**
+ * renders a `Reply` into an HTML `Response`, with HTMX fragment support.
+ *
+ * If the request has an `HX-Request` header, renders only the fragment
+ * specified by `Reply.fragment` (or `HX-Target` if `fragment` is nil).
+ * Otherwise renders the full page view.
+ *
+ * The response status and extra headers from the `Reply` are applied to
+ * the final `Response`.
+ */
 @export
 @returns('@struct(Response)')
-var renderReply = fn(vx, req, reply) {
-	//   response.html(render(v, name, data))
-	var data = reply.data
-// 	|> views.inject(req)     // global vars, preprocess hooks
-// 	|> views.normalize()     // string keys, safe values
+val renderReply = fn(vx, req, reply) {
+	val data = reply.data
 
-	var html = if ( req.headers['hx-request'] ) {
-		var frag = match reply.fragment {
+	val html = if (req.headers['hx-request']) {
+		val frag = match reply.fragment {
 			nil => req.headers['hx-target']
 			_   => reply.fragment
 		}
@@ -49,17 +125,14 @@ var renderReply = fn(vx, req, reply) {
 		render(vx, reply.view, data)
 	}
 
-	var resp = response.html(html)
-	resp = response.withStatus(resp, reply.status)
-	resp = response.withHeaders(resp, reply.headers)
-	resp
+	response.html(html)
+	/> response.withStatus(reply.status)
+	/> response.withHeaders(reply.headers)
 }
 
+// --- internals ---
 
-var normalize = fn(@str base, @str name) {
-	// if no prefix, treat as pages/
-	// ensure .mustache extension
-	// return logical name like "pages/home.mustache" or "layouts/main.mustache"
+val normalize = fn(@str base, @str name) {
 	if (name[-9:] != '.mustache') {
 		base + name + '.mustache'
 	} else {
@@ -67,63 +140,39 @@ var normalize = fn(@str base, @str name) {
 	}
 }
 
-var read = fn(v, logicalName) {
-  fs.readFile(v.root + "/" + logicalName)
+val read = fn(v, logicalName) {
+	fs.readFile(v.root + "/" + logicalName)
 }
 
-var getTemplate = fn(v, base, name) {
-  var logical = normalize(base, name)
-
-  if (v.dev) {
-    read(v, logical)
-  } else {
-    match v.cache[logical] {
-      nil => {
-        var s = read(v, logical)
-        // store in cache (persistent update semantics in Slug)
-        // v.cache = put(v.cache, logical, s)   (depending on your map update API)
-        s
-      }
-      s => s
-    }
-  }
+val getTemplate = fn(v, base, name) {
+	val logical = normalize(base, name)
+	if (v.dev) {
+		read(v, logical)
+	} else {
+		match v.cache[logical] {
+			nil => read(v, logical)
+			s   => s
+		}
+	}
 }
 
 /**
- * partialsLoader creates a loader function for mustache partials with a specific load ordering.
- * 
- * Load ordering (in priority):
- * 1. If partial name starts with 'layouts' (e.g., 'layouts.main'):
- *    - Strips the 'layouts.' prefix (8 chars)
- *    - Converts dots to slashes (e.g., 'main.header' -> 'main/header')
- *    - Loads from 'layouts/' directory
- * 
- * 2. If partial name starts with 'partials' (e.g., 'partials.nav'):
- *    - Strips the 'partials.' prefix (9 chars)
- *    - Converts dots to slashes (e.g., 'nav.item' -> 'nav/item')
- *    - Loads from 'partials/' directory
- * 
- * 3. Otherwise (no prefix or other prefix):
- *    - Converts dots to slashes
- *    - Loads from the view-specific directory (e.g., 'pages/home/')
- * 
- * Fallback: If any load fails, falls back to 'partials/' directory with dot-to-slash conversion.
- * 
- * Example:
- *   - 'layouts.main' -> loads from 'layouts/main.mustache'
- *   - 'partials.nav.item' -> loads from 'partials/nav/item.mustache'
- *   - 'header' (in pages/home/) -> loads from 'pages/home/header.mustache'
- * 
- * @param v - Views instance containing root path and cache
- * @param view - Base view path for view-specific partials (e.g., 'pages/home/')
- * @returns A loader function that takes a partial name and returns its template content
+ * creates a partial loader function for Mustache rendering.
+ *
+ * Resolves partial names using the priority order:
+ * 1. `layouts.*` prefix → `views/layouts/`
+ * 2. `partials.*` prefix → `views/partials/`
+ * 3. No prefix → view-specific directory (`views/pages/<view>/`)
+ * 4. Fallback on error → `views/partials/` with dot-to-slash conversion
+ *
+ * Dots in partial names are converted to path separators in all cases.
  */
-var partialsLoader = fn(v, @str view) {
+val partialsLoader = fn(v, @str view) {
 	fn(n) {
 		defer onerror(err) getTemplate(v, 'partials/', n /> replaceAll('.', '/'))
-		if(n[0:7] == 'layouts') {
+		if (n[0:7] == 'layouts') {
 			getTemplate(v, 'layouts/', n[8:] /> replaceAll('.', '/'))
-		} else if(n[0:8] == 'partials') {
+		} else if (n[0:8] == 'partials') {
 			getTemplate(v, 'partials/', n[9:] /> replaceAll('.', '/'))
 		} else {
 			getTemplate(v, view, n /> replaceAll('.', '/'))
