@@ -28,6 +28,10 @@ val verbose = opt(args.options.verbose, args.options.v, false)
 // => false if neither flag was passed, coerced to @bool
 ```
 
+### TOC
+
+- [`opt(args)`](#optargs)
+
 ### Functions
 
 #### `opt(args)`

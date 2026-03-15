@@ -34,6 +34,12 @@ string bracket access (`m["name"]`) to read decoded values.
 `@bytes` values are encoded as `"b64:<base64>"` strings. On decode,
 any string with this prefix is automatically decoded back to `@bytes`.
 
+### TOC
+
+- [`decode(jsonStr)`](#decodejsonstr)
+- [`encode(v)`](#encodev)
+- [`pretty(v, indent)`](#prettyv-indent)
+
 ### Functions
 
 #### `decode(jsonStr)`
@@ -68,7 +74,7 @@ decode("false")  // => false
 decode("null")  // => nil
 decode("[1,2,3]")  // => [1, 2, 3]
 decode(""b64:Zm9v"")  // => 0x"666f6f"
-decode("{"name":"Alice","age":30}")  // => {age: 30, name: Alice}
+decode("{"name":"Alice","age":30}")  // => {name: Alice, age: 30}
 ```
 
 ---
@@ -102,7 +108,7 @@ encode(false)  // => "false"
 encode(nil)  // => "null"
 encode(0x"ff")  // => ""b64:/w==""
 encode([1, 2, 3])  // => "[1,2,3]"
-encode({:age: 30, :type: :fn})  // => "{"age":30,"type":"fn"}"
+encode({:type: :fn, :age: 30})  // => "{"age":30,"type":"fn"}"
 encode({:name: Alice, :age: 30})  // => "{"age":30,"name":"Alice"}"
 encode({name: Alice, age: 30})  // => "{"age":30,"name":"Alice"}"
 ```

@@ -55,6 +55,13 @@ environment    = production
 
 @effects('fs db')
 
+### TOC
+
+- [Migration](#migration)
+- [`down(conn, step, base)`](#downconn-step-base)
+- [`status(conn, env, base)`](#statusconn-env-base)
+- [`up(conn, env, base)`](#upconn-env-base)
+
 ### Structs
 
 #### `Migration`

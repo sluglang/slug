@@ -27,11 +27,21 @@ hmacSha256("hello", "slug")
 // => "NB9NMraxEE8IBLRWWoBShv99Pclb8b2Qqt6KxykFxx0="
 ```
 
+### TOC
+
+- [`hmacSha256(nil)`](#hmacsha256nil)
+- [`hmacSha256Hex(message, secret)`](#hmacsha256hexmessage-secret)
+- [`hmacSha512(nil)`](#hmacsha512nil)
+- [`hmacSha512Hex(message, secret)`](#hmacsha512hexmessage-secret)
+- [`md5(nil)`](#md5nil)
+- [`sha256(nil)`](#sha256nil)
+- [`sha512(nil)`](#sha512nil)
+
 ### Functions
 
 #### `hmacSha256(nil)`
 ```slug
-fn slug.crypto#hmacSha256(nil) -> @str
+fn slug.crypto#hmacSha256(nil) -> @bytes
 ```
 
 
@@ -111,7 +121,7 @@ hmacSha512Hex("hello", "slug")  // => "61d76feb488501a02e020bacca460b5b67c51352c
 
 #### `md5(nil)`
 ```slug
-fn slug.crypto#md5(nil) -> @str
+fn slug.crypto#md5(nil) -> @bytes
 ```
 
 

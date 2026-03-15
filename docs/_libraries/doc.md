@@ -25,3 +25,7 @@ Options:
 - `--out`          output file path; omit to print to stdout
 - `--title`        document title for markdown output (default: Slug API Reference)
 - `--multiPage`    generate a file per module in the --out directory (markdown only)
+- `--moduleToc`    generate a table of content for each module
+
+### TOC
+

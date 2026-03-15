@@ -50,6 +50,19 @@ commit(tx)
 
 @effects('db')
 
+### TOC
+
+- [MYSQL_DRIVER](#mysql_driver)
+- [PGSQL_DRIVER](#pgsql_driver)
+- [SQLITE_DRIVER](#sqlite_driver)
+- [`begin(connection)`](#beginconnection)
+- [`close(connection)`](#closeconnection)
+- [`commit(connection)`](#commitconnection)
+- [`connect(connectionString, driver)`](#connectconnectionstring-driver)
+- [`exec(connection, sql, params)`](#execconnection-sql-params)
+- [`query(connection, sql, params)`](#queryconnection-sql-params)
+- [`rollback(connection)`](#rollbackconnection)
+
 ### Constants
 
 #### `MYSQL_DRIVER`

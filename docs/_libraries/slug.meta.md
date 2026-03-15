@@ -45,6 +45,18 @@ A tag with no arguments is stored as `[""]`.
 constants for working with raw binding tuples returned by
 `searchScopeTags`.
 
+### TOC
+
+- [BINDING_NAME](#binding_name)
+- [BINDING_PARAMS](#binding_params)
+- [BINDING_VALUE](#binding_value)
+- [`describe(value)`](#describevalue)
+- [`getTag(value, tag)`](#gettagvalue-tag)
+- [`hasTag(value, tag)`](#hastagvalue-tag)
+- [`moduleDocs(module)`](#moduledocsmodule)
+- [`searchModuleTags(module, tag, includePrivate)`](#searchmoduletagsmodule-tag-includeprivate)
+- [`searchScopeTags(tag)`](#searchscopetagstag)
+
 ### Constants
 
 #### `BINDING_NAME`

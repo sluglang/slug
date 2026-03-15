@@ -13,6 +13,15 @@ maps without modifying their inputs.
 For basic key operations (`put`, `remove`, `update`, `get`, `keys`)
 see `slug.std`.
 
+### TOC
+
+- [`difference(s1, s2)`](#differences1-s2)
+- [`intersect(s1, s2)`](#intersects1-s2)
+- [`merge(base, patch)`](#mergebase-patch)
+- [`patch(base, patchData)`](#patchbase-patchdata)
+- [`putNested(keys, map, value)`](#putnestedkeys-map-value)
+- [`union(s1, s2)`](#unions1-s2)
+
 ### Functions
 
 #### `difference(s1, s2)`
@@ -33,7 +42,7 @@ returns `s1` with all keys that appear in `s2` removed.
 
 ```slug
 difference({:k1: 1}, {:k1: 2})  // => {}
-difference({:k2: 1, :k1: 1}, {:k2: 2})  // => {:k1: 1}
+difference({:k1: 1, :k2: 1}, {:k2: 2})  // => {:k1: 1}
 ```
 
 ---
@@ -86,7 +95,7 @@ For deep merging of nested maps, use `patch` instead.
 #### Examples
 
 ```slug
-merge({:a: 1, :b: 2}, {:b: 3, :c: 4})  // => {:a: 1, :b: 3, :c: 4}
+merge({:a: 1, :b: 2}, {:b: 3, :c: 4})  // => {:b: 3, :c: 4, :a: 1}
 merge({:a: 1}, {})  // => {:a: 1}
 merge({}, {:a: 1})  // => {:a: 1}
 ```
@@ -169,7 +178,7 @@ On key conflicts, `s1` values take precedence over `s2` values.
 #### Examples
 
 ```slug
-union({:k1: 1}, {:k2: 2})  // => {:k2: 2, :k1: 1}
+union({:k1: 1}, {:k2: 2})  // => {:k1: 1, :k2: 2}
 union({:k1: 1}, {})  // => {:k1: 1}
 union({}, {:k2: 2})  // => {:k2: 2}
 union({:k1: 1}, {:k1: 9})  // => {:k1: 1}

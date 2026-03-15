@@ -64,6 +64,26 @@ val r = router()
 /> mount("/static", static("public"))
 ```
 
+### TOC
+
+- [`get(nil)`](#getnil)
+- [`handle(request, r)`](#handlerequest-r)
+- [`head(r, pattern, handler)`](#headr-pattern-handler)
+- [`isRouter(x)`](#isrouterx)
+- [`mount(r, prefix, handler)`](#mountr-prefix-handler)
+- [`mountRouter(r, prefix, childRouter)`](#mountrouterr-prefix-childrouter)
+- [`post(r, pattern, handler)`](#postr-pattern-handler)
+- [`router()`](#router)
+- [`static(dir, cacheTimeSeconds)`](#staticdir-cachetimeseconds)
+- [`subrouter(router)`](#subrouterrouter)
+- [`withHeader(nil)`](#withheadernil)
+- [`withLog(handler)`](#withloghandler)
+- [`withMaxBody(h, maxBytes)`](#withmaxbodyh-maxbytes)
+- [`withRecover(h)`](#withrecoverh)
+- [`withRequestId(handler, newRequestId)`](#withrequestidhandler-newrequestid)
+- [`withTimeout(h, ms)`](#withtimeouth-ms)
+- [`withTraceContext(handler, newTraceId, newSpanId)`](#withtracecontexthandler-newtraceid-newspanid)
+
 ### Functions
 
 #### `get(nil)`

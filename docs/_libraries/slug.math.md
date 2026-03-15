@@ -9,6 +9,19 @@ slug.math — numeric utilities
 Mathematical functions for common numeric operations including
 rounding, extrema, statistics, and random number generation.
 
+### TOC
+
+- [`ceil(n)`](#ceiln)
+- [`clampZero(n)`](#clampzeron)
+- [`floor(n)`](#floorn)
+- [`max(nil)`](#maxnil)
+- [`mean(xs)`](#meanxs)
+- [`min(a, b)`](#mina-b)
+- [`percentileSorted(xs, p)`](#percentilesortedxs-p)
+- [`rndRange(min, max)`](#rndrangemin-max)
+- [`sqrt(n)`](#sqrtn)
+- [`stdev(xs, mean)`](#stdevxs-mean)
+
 ### Functions
 
 #### `ceil(n)`

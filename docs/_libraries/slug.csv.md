@@ -32,6 +32,11 @@ Fields are automatically quoted during serialisation if they contain
 the separator, the quote character, a newline, or a carriage return.
 Quote characters within a field are escaped by doubling: `"` → `""`.
 
+### TOC
+
+- [`fromCsvString(csvStr, sep, quote)`](#fromcsvstringcsvstr-sep-quote)
+- [`toCsv(rows, sep, quote, eol, acc)`](#tocsvrows-sep-quote-eol-acc)
+
 ### Functions
 
 #### `fromCsvString(csvStr, sep, quote)`

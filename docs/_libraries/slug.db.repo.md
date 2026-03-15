@@ -47,6 +47,11 @@ All other statements call `exec()` (returns `@map`).
 
 @effects('fs db')
 
+### TOC
+
+- [`into(nil)`](#intonil)
+- [`loadQueries(base)`](#loadqueriesbase)
+
 ### Functions
 
 #### `into(nil)`

@@ -11,6 +11,17 @@ All functions are pure and operate on immutable byte values.
 
 Byte literals use the `0x"<hex>"` syntax, e.g. `0x"ff0a"`.
 
+### TOC
+
+- [`base64Decode(s)`](#base64decodes)
+- [`base64Encode(b)`](#base64encodeb)
+- [`bytesToHexStr(b)`](#bytestohexstrb)
+- [`bytesToNumbers(b, i, acc)`](#bytestonumbersb-i-acc)
+- [`bytesToStr(b)`](#bytestostrb)
+- [`hexStrToBytes(hex)`](#hexstrtobyteshex)
+- [`repeat(b, count, acc)`](#repeatb-count-acc)
+- [`strToBytes(s)`](#strtobytess)
+
 ### Functions
 
 #### `base64Decode(s)`

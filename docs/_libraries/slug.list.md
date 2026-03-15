@@ -10,6 +10,16 @@ Sorting, searching, flattening, shuffling, and character conversion
 helpers for `@list` values. Complements the core list operations in
 `slug.std` (`map`, `filter`, `reduce`, `find`, `flatMap`, etc.).
 
+### TOC
+
+- [`asList(chars, i, acc)`](#aslistchars-i-acc)
+- [`flatten(lsts)`](#flattenlsts)
+- [`indexOf(list, value, idx)`](#indexoflist-value-idx)
+- [`removeValue(list, value)`](#removevaluelist-value)
+- [`shuffle(list)`](#shufflelist)
+- [`sort(lst)`](#sortlst)
+- [`sortWithComparator(lst, comparator)`](#sortwithcomparatorlst-comparator)
+
 ### Functions
 
 #### `asList(chars, i, acc)`

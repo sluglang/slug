@@ -16,11 +16,16 @@ functions are grouped under a single heading with multiple signature blocks.
 Output is designed for rendering on GitHub, static site generators, or
 any standard markdown renderer.
 
+### TOC
+
+- [`pagePerModule(moduleNames, moduleToc)`](#pagepermodulemodulenames-moduletoc)
+- [`singlePage(moduleNames, title, moduleToc)`](#singlepagemodulenames-title-moduletoc)
+
 ### Functions
 
-#### `pagePerModule(moduleNames)`
+#### `pagePerModule(moduleNames, moduleToc)`
 ```slug
-fn slug.doc.markdown#pagePerModule(@list moduleNames) -> @list
+fn slug.doc.markdown#pagePerModule(@list moduleNames, @bool moduleToc = false) -> @list
 ```
 
 
@@ -35,12 +40,13 @@ pass the full dotted module names as they would appear in an import statement.
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `moduleNames` | @list  | — |
+| `moduleToc` | @bool  | `false` |
 
 ---
 
-#### `singlePage(moduleNames, title)`
+#### `singlePage(moduleNames, title, moduleToc)`
 ```slug
-fn slug.doc.markdown#singlePage(@list moduleNames, @str title = "Slug API Reference") -> @str
+fn slug.doc.markdown#singlePage(@list moduleNames, @str title = "Slug API Reference", @bool moduleToc = false) -> @str
 ```
 
 
@@ -56,3 +62,4 @@ pass the full dotted module names as they would appear in an import statement.
 | --- | --- | --- |
 | `moduleNames` | @list  | — |
 | `title` | @str  | `"Slug API Reference"` |
+| `moduleToc` | @bool  | `false` |

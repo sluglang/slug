@@ -27,3 +27,6 @@ Options
 - `--show-time`:    Show the execution time of the command [default: true].
 - `--poll-ms`:      How often to check for file changes in milliseconds [default: 200].
 - `--debounce-ms`:  Debounce time for file checks in milliseconds [default: 150].
+
+### TOC
+

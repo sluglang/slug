@@ -12,6 +12,15 @@ the same pattern, consider pre-processing outside hot paths.
 
 Patterns use standard Go/RE2 syntax (no lookaheads or backreferences).
 
+### TOC
+
+- [`findAll(str, pattern)`](#findallstr-pattern)
+- [`findAllGroups(str, pattern)`](#findallgroupsstr-pattern)
+- [`indexOf(str, pattern, index)`](#indexofstr-pattern-index)
+- [`matches(str, pattern)`](#matchesstr-pattern)
+- [`replaceAll(str, pattern, repl)`](#replaceallstr-pattern-repl)
+- [`split(str, pattern)`](#splitstr-pattern)
+
 ### Functions
 
 #### `findAll(str, pattern)`

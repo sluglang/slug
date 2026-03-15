@@ -41,6 +41,15 @@ For HTTP use cases, prefer `slug.io.http`. For web servers, prefer
 
 @effects('io net')
 
+### TOC
+
+- [`accept(listener)`](#acceptlistener)
+- [`bind(addr, port)`](#bindaddr-port)
+- [`close(handle)`](#closehandle)
+- [`connect(addr, port)`](#connectaddr-port)
+- [`read(stream, maxBytes)`](#readstream-maxbytes)
+- [`write(stream, data)`](#writestream-data)
+
 ### Functions
 
 #### `accept(listener)`

@@ -192,10 +192,10 @@ fn slug.debug#ident(value) -> @str
 fn slug.doc.manifest#manifest(@list moduleNames) -> @str
   desc: "generates a MANIFEST.ai file for the given list of module names."
 
-fn slug.doc.markdown#pagePerModule(@list moduleNames) -> @list
+fn slug.doc.markdown#pagePerModule(@list moduleNames, @bool moduleToc = false) -> @list
   desc: "generates a multi-page markdown API reference for the given list of module names, returns [name, text]."
 
-fn slug.doc.markdown#singlePage(@list moduleNames, @str title = "Slug API Reference") -> @str
+fn slug.doc.markdown#singlePage(@list moduleNames, @str title = "Slug API Reference", @bool moduleToc = false) -> @str
   desc: "generates a single-page markdown API reference for the given list of module names."
 
 fn slug.html#extractInnerText(html, tag, start = 0) -> @str

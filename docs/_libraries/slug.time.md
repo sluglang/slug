@@ -10,6 +10,16 @@ Wall-clock access, sleep, formatting, and duration conversion helpers.
 All time values are in milliseconds unless the function name specifies
 otherwise (e.g. `clockNanos`).
 
+### TOC
+
+- [`clock()`](#clock)
+- [`clockNanos()`](#clocknanos)
+- [`delta(f)`](#deltaf)
+- [`fmtClock(millis, fmt)`](#fmtclockmillis-fmt)
+- [`minsToMillis(mins)`](#minstomillismins)
+- [`secsToMillis(secs)`](#secstomillissecs)
+- [`sleep(millis)`](#sleepmillis)
+
 ### Functions
 
 #### `clock()`

@@ -28,6 +28,16 @@ result /> printResult
 Results are reported in nanoseconds by default. Use `UnitUs` or `UnitMs`
 for slower workloads.
 
+### TOC
+
+- [UnitMs](#unitms)
+- [UnitNs](#unitns)
+- [UnitUs](#unitus)
+- [`compare(nil)`](#comparenil)
+- [`micro(name, workFn, warmupMs, sampleMs, samples, minIters, maxIters, subtractOverhead, unit)`](#microname-workfn-warmupms-samplems-samples-miniters-maxiters-subtractoverhead-unit)
+- [`printCompareReport(report)`](#printcomparereportreport)
+- [`printResult(res)`](#printresultres)
+
 ### Constants
 
 #### `UnitMs`

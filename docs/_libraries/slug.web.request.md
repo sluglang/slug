@@ -29,6 +29,19 @@ accessor functions for working with incoming HTTP requests.
 Header names are always normalised to lowercase. Access headers as
 `req.headers["content-type"]` not `req.headers["Content-Type"]`.
 
+### TOC
+
+- [Request](#request)
+- [`isRequest(x)`](#isrequestx)
+- [`parseRequestHeaders(buf)`](#parserequestheadersbuf)
+- [`request(method, path, version, headers, body)`](#requestmethod-path-version-headers-body)
+- [`shouldKeepAlive(req)`](#shouldkeepalivereq)
+- [`withBody(req, body)`](#withbodyreq-body)
+- [`withParams(request, params)`](#withparamsrequest-params)
+- [`withPath(req, path)`](#withpathreq-path)
+- [`withQuery(req, query)`](#withqueryreq-query)
+- [`withoutParam(request, param)`](#withoutparamrequest-param)
+
 ### Structs
 
 #### `Request`

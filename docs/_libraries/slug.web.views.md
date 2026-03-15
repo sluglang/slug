@@ -52,6 +52,12 @@ In dev mode (`cfg("dev", true)`), templates are re-read from disk on
 every request. In production mode, templates are cached after the first
 load. Toggle with `cfg("dev", false)`.
 
+### TOC
+
+- [`new(root)`](#newroot)
+- [`render(v, name, data)`](#renderv-name-data)
+- [`renderReply(vx, req, reply)`](#renderreplyvx-req-reply)
+
 ### Functions
 
 #### `new(root)`

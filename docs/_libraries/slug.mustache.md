@@ -53,6 +53,12 @@ For templates rendered multiple times, parse once and pass the AST
 to `render` or `renderCached` to avoid repeated parsing.
 `renderCached` additionally caches parsed partials across calls.
 
+### TOC
+
+- [`parse(template)`](#parsetemplate)
+- [`render(templateOrAst, data, partials)`](#rendertemplateorast-data-partials)
+- [`renderCached(templateOrAst, data, partials, cache)`](#rendercachedtemplateorast-data-partials-cache)
+
 ### Functions
 
 #### `parse(template)`

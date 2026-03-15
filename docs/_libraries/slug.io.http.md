@@ -36,6 +36,16 @@ encode(payload) /> post("https://api.example.com/data")
 
 @effects('net')
 
+### TOC
+
+- [`delete(url, headers)`](#deleteurl-headers)
+- [`get(url, headers)`](#geturl-headers)
+- [`patch(body, url, headers)`](#patchbody-url-headers)
+- [`post(body, url, headers)`](#postbody-url-headers)
+- [`put(body, url, headers)`](#putbody-url-headers)
+- [`request(method, url, body, headers)`](#requestmethod-url-body-headers)
+- [`urlDecode(str)`](#urldecodestr)
+
 ### Functions
 
 #### `delete(url, headers)`

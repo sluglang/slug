@@ -10,6 +10,11 @@ Lightweight helpers for working with HTML fragments. Not a full HTML
 parser — intended for simple extraction and unescaping tasks on
 well-formed markup.
 
+### TOC
+
+- [`extractInnerText(html, tag, start)`](#extractinnertexthtml-tag-start)
+- [`htmlUnescape(str)`](#htmlunescapestr)
+
 ### Functions
 
 #### `extractInnerText(html, tag, start)`

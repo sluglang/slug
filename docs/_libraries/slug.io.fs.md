@@ -36,6 +36,27 @@ val lines = readLines(handle)
 
 @effects('fs')
 
+### TOC
+
+- [APPEND_MODE](#append_mode)
+- [READ_MODE](#read_mode)
+- [WRITE_MODE](#write_mode)
+- [`appendFile(contents, path)`](#appendfilecontents-path)
+- [`closeFile(handle)`](#closefilehandle)
+- [`exists(path)`](#existspath)
+- [`info(path)`](#infopath)
+- [`isDir(path)`](#isdirpath)
+- [`listFilesRecursive(path, filter, acc)`](#listfilesrecursivepath-filter-acc)
+- [`ls(path)`](#lspath)
+- [`mkDirs(path)`](#mkdirspath)
+- [`openFile(path, mode)`](#openfilepath-mode)
+- [`readFile(path)`](#readfilepath)
+- [`readLine(handle)`](#readlinehandle)
+- [`readLines(file, lines)`](#readlinesfile-lines)
+- [`rm(path)`](#rmpath)
+- [`write(handle, content)`](#writehandle-content)
+- [`writeFile(contents, path)`](#writefilecontents-path)
+
 ### Constants
 
 #### `APPEND_MODE`

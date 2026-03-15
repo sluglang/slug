@@ -16,6 +16,16 @@ and terminate it early with `killProc`.
 
 For simple synchronous command execution, prefer `exec`.
 
+### TOC
+
+- [`env(str)`](#envstr)
+- [`exec(cmd, timeout)`](#execcmd-timeout)
+- [`exit(exitCode)`](#exitexitcode)
+- [`killProc(handle)`](#killprochandle)
+- [`setEnv(str)`](#setenvstr)
+- [`spawnProc(cmd)`](#spawnproccmd)
+- [`waitProc(handle, timeout)`](#waitprochandle-timeout)
+
 ### Functions
 
 #### `env(str)`

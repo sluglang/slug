@@ -12,6 +12,31 @@ padding, case formatting, and random string generation.
 All functions treat strings as sequences of Unicode code points where
 relevant (e.g. `indexOf` is Unicode-aware).
 
+### TOC
+
+- [`camelCase(s, sep)`](#camelcases-sep)
+- [`contains(str, seq)`](#containsstr-seq)
+- [`endsWith(str, end)`](#endswithstr-end)
+- [`fromCodePoint(codePoint)`](#fromcodepointcodepoint)
+- [`indexOf(str, seq, index)`](#indexofstr-seq-index)
+- [`isLower(str)`](#islowerstr)
+- [`isUpper(str)`](#isupperstr)
+- [`join(strs, delimiter, str)`](#joinstrs-delimiter-str)
+- [`kebabCase(s, sep)`](#kebabcases-sep)
+- [`lastIndexOf(str, seq, index, prev)`](#lastindexofstr-seq-index-prev)
+- [`padLeft(str, with, length)`](#padleftstr-with-length)
+- [`padRight(str, with, length)`](#padrightstr-with-length)
+- [`pascalCase(s, sep)`](#pascalcases-sep)
+- [`randomHexString(length)`](#randomhexstringlength)
+- [`randomString(length, chars, acc)`](#randomstringlength-chars-acc)
+- [`replaceAll(str, replace, with)`](#replaceallstr-replace-with)
+- [`snakeCase(s, sep, screaming)`](#snakecases-sep-screaming)
+- [`split(str, delimiter, max, count, strs)`](#splitstr-delimiter-max-count-strs)
+- [`startsWith(str, start)`](#startswithstr-start)
+- [`toLower(str)`](#tolowerstr)
+- [`toUpper(str)`](#toupperstr)
+- [`trim(nil)`](#trimnil)
+
 ### Functions
 
 #### `camelCase(s, sep)`

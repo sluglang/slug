@@ -35,6 +35,18 @@ Both `recv` and `await` accept an optional `timeout` in milliseconds.
 A timeout of `0` (default) means wait indefinitely. When a timeout
 elapses a `TimeoutError` is thrown.
 
+### TOC
+
+- [Empty](#empty)
+- [Full](#full)
+- [`await(handle, timeout)`](#awaithandle-timeout)
+- [`chan(capacity)`](#chancapacity)
+- [`close(channel)`](#closechannel)
+- [`recv(channel, timeout)`](#recvchannel-timeout)
+- [`send(channel, payload)`](#sendchannel-payload)
+- [`tryRecv(channel)`](#tryrecvchannel)
+- [`trySend(channel, payload)`](#trysendchannel-payload)
+
 ### Structs
 
 #### `Empty`

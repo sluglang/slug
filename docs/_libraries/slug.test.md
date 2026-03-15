@@ -41,6 +41,33 @@ Use `runSafe` to execute a function without propagating errors —
 useful for testing error paths or running multiple assertions where
 a single failure should not abort the rest.
 
+### TOC
+
+- [`assert(a, msg)`](#asserta-msg)
+- [`assertEqual(value, expected, msg)`](#assertequalvalue-expected-msg)
+- [`assertErrorType(f, expected, msg)`](#asserterrortypef-expected-msg)
+- [`assertFalse(a, msg)`](#assertfalsea-msg)
+- [`assertGreaterThan(value, expected, msg)`](#assertgreaterthanvalue-expected-msg)
+- [`assertGreaterThanOrEqual(value, expected, msg)`](#assertgreaterthanorequalvalue-expected-msg)
+- [`assertLessThan(value, expected, msg)`](#assertlessthanvalue-expected-msg)
+- [`assertLessThanOrEqual(value, expected, msg)`](#assertlessthanorequalvalue-expected-msg)
+- [`assertNil(value, msg)`](#assertnilvalue-msg)
+- [`assertNotEqual(value, expected, msg)`](#assertnotequalvalue-expected-msg)
+- [`assertNotNil(value, msg)`](#assertnotnilvalue-msg)
+- [`assertThrows(f, expected, msg)`](#assertthrowsf-expected-msg)
+- [`assertTrue(a, msg)`](#asserttruea-msg)
+- [`eq(value, expected, msg)`](#eqvalue-expected-msg)
+- [`fail(msg)`](#failmsg)
+- [`gt(value, expected, msg)`](#gtvalue-expected-msg)
+- [`gteq(value, expected, msg)`](#gteqvalue-expected-msg)
+- [`isAssertError(v)`](#isasserterrorv)
+- [`lt(value, expected, msg)`](#ltvalue-expected-msg)
+- [`lteq(value, expected, msg)`](#lteqvalue-expected-msg)
+- [`not(a, msg)`](#nota-msg)
+- [`ok(a, msg)`](#oka-msg)
+- [`runSafe(f)`](#runsafef)
+- [`throws(f, expected, msg)`](#throwsf-expected-msg)
+
 ### Functions
 
 #### `assert(a, msg)`
