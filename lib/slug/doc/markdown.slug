@@ -17,8 +17,17 @@ val {*} = import(
 	"slug.string",
 	"slug.list",
 )
-
+val re = import('slug.regex')
 val { describe, moduleDocs } = import("slug.meta")
+
+// Produce a GitHub-style anchor slug from a heading
+val slugify = fn(text) {
+	'#' + text
+	/> re.replaceAll('[^\w\s-]', '')
+	/> re.replaceAll('\s+', '-')
+	/> trim('-')
+	/> toLower
+}
 
 val firstTag = fn(tags, name) {
 	match getTag(tags, name) {
@@ -255,7 +264,7 @@ val renderConstSection = fn(desc, module, name) {
 
 // --- module section ---
 
-val renderModule = fn(@str mod) {
+val renderModule = fn(@str mod, @bool moduleToc) {
 	defer onerror(err) []
 
 	val module  = import(mod)
@@ -279,6 +288,20 @@ val renderModule = fn(@str mod) {
 	// module header — first paragraph as subtitle, full docs as body
 	val modHeader  = "## " + mod
 	val modBody    = renderDocs(modDocs)
+	val modToc     = if(moduleToc) {
+			val basic = (consts + structs) /> map(label)
+			val fnNames = fns /> map(fn(v) {
+				val desc   = module[v] /> describe
+				val groups = match desc { [{type}, ...] if type == :grp => desc.details.groups _ => [desc] }
+				val firstGroup = groups[0]
+				val paramNames = firstGroup.details.params /> map(fn(p) { p.name }) /> join(', ')
+				"`" + label(v) + "(" + paramNames + ")`"
+			})
+
+			val entries = (basic + fnNames)
+			/> map(fn(m) { '- [' + m + '](' + slugify(m) + ')' })
+			"\n\n### TOC\n\n" + (entries /> join("\n"))
+		} else {''}
 
 	// constants subsection
 	val constsSection = match consts {
@@ -315,7 +338,7 @@ val renderModule = fn(@str mod) {
 		}
 	}
 
-	modHeader + modBody + constsSection + structsSection + fnsSection
+	modHeader + modBody + modToc + constsSection + structsSection + fnsSection
 }
 
 // --- entrypoint ---
@@ -331,7 +354,7 @@ val renderModule = fn(@str mod) {
  */
 @export
 @returns('@str')
-val singlePage = fn(@list moduleNames, @str title = 'Slug API Reference') {
+val singlePage = fn(@list moduleNames, @str title = 'Slug API Reference', @bool moduleToc = false) {
 	val sortedMods = moduleNames /> sort
 
 	val header = [
@@ -347,7 +370,7 @@ val singlePage = fn(@list moduleNames, @str title = 'Slug API Reference') {
 	] /> join("\n")
 
 	val body = sortedMods
-		/> map(renderModule)
+		/> map(renderModule(moduleToc))
 		/> join("\n\n---\n\n")
 
 	header + "\n\n" + body + "\n"
@@ -364,7 +387,7 @@ val singlePage = fn(@list moduleNames, @str title = 'Slug API Reference') {
  */
 @export
 @returns('@list')
-val pagePerModule = fn(@list moduleNames) {
+val pagePerModule = fn(@list moduleNames, @bool moduleToc = false) {
 	moduleNames
 		/> sort
 		/> map(fn(m) {
@@ -377,6 +400,6 @@ val pagePerModule = fn(@list moduleNames) {
 			'',
 			'',
 			] /> join("\n")
-			[m, header + renderModule(m)]
+			[m, header + renderModule(m, moduleToc)]
 		})
 }

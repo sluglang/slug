@@ -20,6 +20,7 @@
  * - `--out`          output file path; omit to print to stdout
  * - `--title`        document title for markdown output (default: Slug API Reference)
  * - `--multiPage`    generate a file per module in the --out directory (markdown only)
+ * - `--moduleToc`    generate a table of content for each module
  */
 
 val {*} = import(
@@ -50,6 +51,7 @@ Options:
   --out            output file path, or directory when using --multiPage
   --title          document title for markdown output (default: Slug API Reference)
   --multiPage      generate a file per module in the --out directory (markdown only)
+  --moduleToc      generate a table of content for each module
 '''
 
 // --- module discovery ---
@@ -106,7 +108,7 @@ val runManifest = fn(dir, outPath) {
 	}
 }
 
-val runMarkdown = fn(dir, outPath, title, multiPage) {
+val runMarkdown = fn(dir, outPath, title, multiPage, moduleToc) {
 	val modules = discoverModules(dir)
 	match modules {
 		[] => {
@@ -116,8 +118,8 @@ val runMarkdown = fn(dir, outPath, title, multiPage) {
 		[...] => {
 			println(fmt('generating markdown for {} modules in {}...', len(modules), dir))
 			match multiPage {
-				false => modules /> singlePage(title) /> emit(outPath)
-				true  => modules /> pagePerModule /> map(fn(v) { emit(v[1], outPath + '/' + v[0] + '.md') })
+				false => modules /> singlePage(title, moduleToc) /> emit(outPath)
+				true  => modules /> pagePerModule(moduleToc) /> map(fn(v) { emit(v[1], outPath + '/' + v[0] + '.md') })
 			}
 		}
 	}
@@ -136,13 +138,14 @@ match true {
 		val outPath   = match opts.out   { nil => nil v => v }
 		val title     = match opts.title { nil => 'Slug API Reference' v => v }
 		val multiPage = match opts.multiPage { nil => false v => v }
+		val moduleToc = match opts.moduleToc { nil => false v => v }
 		val command = match args.positional {
 			[]         => 'manifest'
 			[cmd, ...] => cmd
 		}
 		match command {
 			'manifest' => runManifest(dir, outPath)
-			'markdown' => runMarkdown(dir, outPath, title, multiPage)
+			'markdown' => runMarkdown(dir, outPath, title, multiPage, moduleToc)
 			_ => {
 				println(fmt('unknown command: {}', command))
 				println(HELP)

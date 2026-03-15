@@ -20,7 +20,7 @@ stress:
 	done
 
 generate-docs:
-	go run ./cmd/app/main.go doc --dir ./lib --multiPage --out ./docs/_libraries markdown
+	go run ./cmd/app/main.go doc --dir ./lib --moduleToc --multiPage --out ./docs/_libraries markdown
 	go run ./cmd/app/main.go doc --dir ./lib --out ./lib/MANIFEST.ai manifest
 
 test:
