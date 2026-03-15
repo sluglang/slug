@@ -49,7 +49,7 @@
  * `renderCached` additionally caches parsed partials across calls.
  */
 
-var {*} = import(
+val {*} = import(
 	"slug.std",
 	"slug.string",
 )
@@ -116,7 +116,7 @@ val BlockNode = struct {
 	@bool trailingNl,
 }
 
-var isWs = fn(@str s) {
+val isWs = fn(@str s) {
 	if (s == nil || len(s) == 0) {
 		true 
 	} else {
@@ -137,7 +137,7 @@ var isWs = fn(@str s) {
 	}
 }
 
-var isWsOrTags = fn(@str s, @str otag, @str ctag) {
+val isWsOrTags = fn(@str s, @str otag, @str ctag) {
 	if (s == nil || len(s) == 0) {
 		true
 	} else {
@@ -166,17 +166,17 @@ var isWsOrTags = fn(@str s, @str otag, @str ctag) {
 	}
 }
 
-var lineStart = fn(@str s, @num idx) {
+val lineStart = fn(@str s, @num idx) {
 	var k = if(idx <= 0) {-1} else {(s[0:idx] /> lastIndexOf("\n"))}
 	if(k < 0) {0} else {(k + 1)}
 }
 
-var lineEnd = fn(@str s, @num idx) {
+val lineEnd = fn(@str s, @num idx) {
 	var k = s /> indexOf("\n", idx)
 	if(k < 0) {len(s)} else {k}
 }
 
-var htmlEscape = fn(@str s) {
+val htmlEscape = fn(@str s) {
 	if (s == nil) { 
 		"" 
 	} else {
@@ -189,7 +189,7 @@ var htmlEscape = fn(@str s) {
 	}
 }
 
-var isFalsey = fn(v) {
+val isFalsey = fn(v) {
 	match v /> type() {
 		^NIL_TYPE => true
 		^BOOLEAN_TYPE => v == false
@@ -198,7 +198,7 @@ var isFalsey = fn(v) {
 	}
 }
 
-var lookupIn = fn(ctx, parts, idx = 0) {
+val lookupIn = fn(ctx, parts, idx = 0) {
 	if (idx >= len(parts)) {
 		ctx
 	} else {
@@ -214,7 +214,7 @@ var lookupIn = fn(ctx, parts, idx = 0) {
 	}
 }
 
-var lookup = fn(@list stack, @str name, i = nil) {
+val lookup = fn(@list stack, @str name, i = nil) {
 	if (i == nil) { i = len(stack) - 1 }
 	if (i < 0) { 
 		nil 
@@ -237,7 +237,7 @@ var lookup = fn(@list stack, @str name, i = nil) {
 	}
 }
 
-var indentPartial = fn(@str partial, @str indent) {
+val indentPartial = fn(@str partial, @str indent) {
 	if (indent == "" || partial == nil || partial == "") {
 		partial /> ifNil("")
 	} else {
@@ -259,7 +259,7 @@ var indentPartial = fn(@str partial, @str indent) {
 	}
 }
 
-var indentLines = fn(@str text, @str indent) {
+val indentLines = fn(@str text, @str indent) {
 	if (indent == "" || text == nil || text == "") {
 		text /> ifNil("")
 	} else {
@@ -281,7 +281,7 @@ var indentLines = fn(@str text, @str indent) {
 	}
 }
 
-var leadingWsLen = fn(@str line) {
+val leadingWsLen = fn(@str line) {
 	var i = 0
 	fn() {
 		if (i >= len(line)) {
@@ -298,7 +298,7 @@ var leadingWsLen = fn(@str line) {
 	}()
 }
 
-var blockIndentInfo = fn(@str raw) {
+val blockIndentInfo = fn(@str raw) {
 	if (raw == nil || raw == "") {
 		{len:0, prefix:""}
 	} else {
@@ -328,7 +328,7 @@ var blockIndentInfo = fn(@str raw) {
 	}
 }
 
-var stripIndent = fn(@str text, @num count) {
+val stripIndent = fn(@str text, @num count) {
 	if (count <= 0 || text == nil || text == "") {
 		text /> ifNil("")
 	} else {
@@ -361,7 +361,7 @@ var stripIndent = fn(@str text, @num count) {
 	}
 }
 
-var resolvePartial = fn(partials, @str name) {
+val resolvePartial = fn(partials, @str name) {
 	if (partials == nil) {
 		nil
 	} else if (type(partials) == MAP_TYPE) {
@@ -373,7 +373,7 @@ var resolvePartial = fn(partials, @str name) {
 	}
 }
 
-var mapLookup = fn(@map m, @str key) {
+val mapLookup = fn(@map m, @str key) {
 	var value = m[key]
 	if (value != nil) {
 		value
@@ -382,8 +382,15 @@ var mapLookup = fn(@map m, @str key) {
 	}
 }
 
+/**
+ * parses a Mustache template string into an AST.
+ *
+ * The returned AST can be passed directly to `render` or `renderCached`
+ * to avoid re-parsing on repeated renders. The AST shape is an
+ * implementation detail — do not rely on its structure directly.
+ */
 @export
-var parse = fn(@str template) {
+val parse = fn(@str template) {
 	var otag = DEFAULT_OTAG
 	var ctag = DEFAULT_CTAG
 
@@ -596,7 +603,7 @@ var parse = fn(@str template) {
 	stack[0].nodes
 }
 
-var getPartialAst = fn(partials, cache, name) {
+val getPartialAst = fn(partials, cache, name) {
 	var src = resolvePartial(partials, name)
 	if (src == nil) {
 		{ast:nil, cache:cache, src:nil}
@@ -612,7 +619,7 @@ var getPartialAst = fn(partials, cache, name) {
 	}
 }
 
-var collectBlocks = fn(nodes, acc = {}) match {
+val collectBlocks = fn(nodes, acc = {}) match {
 	[[], ...] => acc
 	[[node, ...rest], ...] => {
 		match node {
@@ -625,7 +632,7 @@ var collectBlocks = fn(nodes, acc = {}) match {
 	}
 }
 
-var mergeBlocks = fn(inner, outer) {
+val mergeBlocks = fn(inner, outer) {
 	if (inner == nil) {
 		outer /> ifNil({})
 	} else if (outer == nil) {
@@ -637,7 +644,7 @@ var mergeBlocks = fn(inner, outer) {
 	}
 }
 
-var renderNodesCached = fn(nodes, ctxStack, partials, cache, blocks, acc = "", indent = "") match {
+val renderNodesCached = fn(nodes, ctxStack, partials, cache, blocks, acc = "", indent = "") match {
 	[[], ...] => { {html:acc, cache:cache} }
 	[[node, ...rest], ...] => {
 		match node {
@@ -751,7 +758,7 @@ var renderNodesCached = fn(nodes, ctxStack, partials, cache, blocks, acc = "", i
 @export
 @returns('@str')
 @throws('@struct(Error{type:MustacheError})')
-var renderCached = fn(templateOrAst, data, partials = nil, cache = {}) {
+val renderCached = fn(templateOrAst, data, partials = nil, cache = {}) {
 	var ast = if(type(templateOrAst) == STRING_TYPE) {parse(templateOrAst)} else {templateOrAst}
 	renderNodesCached(ast, [data], partials, cache, {}, "")
 }
@@ -767,6 +774,6 @@ var renderCached = fn(templateOrAst, data, partials = nil, cache = {}) {
 @export
 @returns('@str')
 @throws('@struct(Error{type:MustacheError})')
-var render = fn(templateOrAst, data, partials = nil) {
+val render = fn(templateOrAst, data, partials = nil) {
 	renderCached(templateOrAst, data, partials, {}).html
 }
