@@ -1,0 +1,511 @@
+# SLUG.ai v0.3
+# Purpose: AI-targeted, informationally dense language + runtime contract.
+# Style: line-oriented statements; stable keys; low prose; no tutorials.
+
+@section identity
+language slug
+slug-version unknown
+spec-version 0.3
+timezone default
+notes "This file is authoritative for stable language semantics, builtins, core runtime behavior, baseline stdlib expectations, and MANIFEST.ai requirements."
+
+@section philosophy
+law immutability "All runtime values are immutable; any 'change' produces a new value."
+law explicit-imports "Everything is a module; values are imported explicitly; there are no implicit globals."
+law lexical-scope "Lexical scope with block-level bindings; shadowing allowed."
+law recursion-over-loops "No loop statements; iteration is expressed via recursion + match + reducers."
+law deep-modules "Prefer small stable public APIs that hide complexity behind module contracts."
+law contract-first "Public contracts live in MANIFEST.ai; source is not the contract."
+law deterministic-diffs "Generated artifacts are stable-sorted and whitespace-stable for clean diffs."
+law ai-readable-contracts "Language and library contracts should be explicit enough that agents do not need to infer missing behavior."
+
+@section comments
+comment-prefix "#" "for shell scripts"
+comment-prefix "//" "std comment"
+comment-block "/* ..."
+comment-block "
+/**
+ * doc comment
+ */
+"
+
+@section execution-model
+eval model expression-oriented
+eval statements "program is a sequence of statements separated by NEWLINE or ';' (ASI-style)."
+eval top-level "top-level statements execute on module load (including imports)."
+eval module-load "import executes top-level of imported module."
+eval running-module "executing a module runs top-level statements."
+eval return "return exits the nearest function body immediately."
+eval throw "throw raises an error value (value shape is user-defined; commonly struct(Error))."
+eval defer "defer registers cleanup logic; defer actions unwind at scope exit on normal return and error paths."
+eval block-value "a block evaluates to the value of its final expression, or nil if no value-producing final expression exists."
+eval fn-return "a function returns the value produced by its body unless exited earlier by explicit return."
+
+@section values
+type primitive nil bool num str bytes sym fn task struct map list
+type summary "Primary runtime value kinds are nil, bool, num, str, bytes, sym, fn, task, struct, map, list."
+sym literal ":ident or :\"any string\""
+bytes literal "0x\"<hex>\""
+number literal "decimal or hex; underscores allowed; decimal supports fractional and exponent forms."
+str standard "double-quoted strings \"...\" support {{expr}} interpolation and backslash escape sequences."
+str interpolation "{{expr}} inside double-quoted or triple-double-quoted strings; expr is a full expression evaluated and coerced to string."
+str raw "single-quoted strings '...' are raw; no interpolation; no escape processing; backslashes are literal."
+str multiline "triple-double-quoted strings \"\"\"...\"\"\" are multiline; support {{expr}} interpolation; preserve interior newlines."
+str raw-multiline "triple-single-quoted strings '''...''' are raw multiline; no interpolation; no escape processing."
+str raw-use "prefer raw strings for SQL, regex, and content containing backslashes or {{ braces."
+value equality "== and != compare values by value semantics."
+value truthiness "Only false and nil are falsey unless otherwise specified by runtime."
+map-keys "In map literals, bare identifiers as keys are coerced to symbols (k:1 == :k:1)."
+string interpolation "{{expr}} inside any string literal or multi-line string evaluates expr and inserts its string representation; e.g. \"Hello {{name}}!\" or \"error: {{err.msg}}\""
+string multiline "'''...''' is a multi-line string literal; all content between the delimiters is included verbatim including newlines."
+string multiply "@str * @num repeats a string n times: \" \" * 3 == \"   \""
+
+@section indexing-and-slicing
+index supported "indexing and slicing are supported for list, str, bytes, and map where applicable."
+index base "indices are zero-based."
+index list "list[i] returns the element at i."
+index str "str[i] returns a single-character string."
+index bytes "bytes[i] returns a numeric byte value."
+index map "map[k] performs exact key lookup using k as-is; no implicit coercion at lookup time."
+index negative "negative indices are not supported as standalone index expressions."
+index oob "out-of-bounds indexing is a runtime error."
+slice form "x[a:b] and x[a:b:c] are valid for sliceable values."
+slice half-open "slice end is exclusive."
+slice omit-start "x[:b] is valid."
+slice omit-end "x[a:] is valid."
+slice negative-index "negative values in slice positions are valid: x[-4:] returns the last 4 elements; x[0:-1] omits the last element."
+slice step "x[a:b:c] uses start:end:step."
+slice negative-step "negative step is unsupported unless explicitly documented by runtime."
+slice type "slicing returns the same collection/string/bytes family as the source value."
+
+@section bindings
+binding var "var <pattern> = <expr> binds name(s); allows reassignment via identifier assignment."
+binding val "val <pattern> = <expr> binds name(s); disallows reassignment."
+binding var-preference "strongly prefer val over var; use var only when a binding genuinely requires reassignment within its scope; val is the default."
+assignment "identifier = expr is allowed; assignment targets identifiers only."
+assignment disallowed "field assignment, index assignment, and in-place mutation are not part of Slug."
+pattern "_" "wildcard pattern; binds nothing."
+pattern binding "name@pattern binds name to matched value while matching pattern."
+pattern spread "...name or ... in list/map patterns; list spread must be final."
+pattern pinned "^name matches against the existing binding of name."
+pattern list "[p1, p2, ...] supports spread; common recursive shape is [h, ...t]."
+pattern map "{ k:pat, ... } supports spread."
+pattern map-exact "{| k:pat, ... |} is exact map matching; no extra keys."
+pattern struct "TypeName{field, field:pat} matches struct values."
+pattern struct-destructure "val TypeName{ field, field: alias } = expr destructures a struct value into named bindings in a val or var declaration."
+pattern multi "match cases may contain alternative patterns; alternative patterns must be non-binding."
+pattern failure "failed pattern match does not bind partial names."
+pattern import-wildcard "val {*} = import(...) binds all exported names from the imported modules into the current scope; val { f, g } = import(...) binds only the named exports."
+
+@section functions
+fn literal "fn(params) { block } or fn(params) match { cases }"
+fn params "parameter := {tag} ['...'] ident ['=' default-expr]; variadic '...' must be last."
+fn defaults "default parameter expressions are evaluated in normal lexical scope."
+fn body "function bodies are expression-oriented blocks or match bodies."
+fn recur "recur(args...) is the canonical self tail-call form."
+fn tco "Tail-call optimization is expected for recur and may apply to eligible tail calls (implementation-defined)."
+fn arity "function dispatch accounts for arity and type hints."
+fn arity "functions have fixed arity unless variadic."
+fn values "functions are first-class values."
+fn inline-chain "fn(params) { block } is a valid call-chain value; value /> fn(x) { transform(x) } applies the anonymous function as a chain step; use for short single-expression transforms only."
+fn nursery-decorator "nursery [limit N] fn(params) { block } creates a function whose body runs inside a nursery scoped to that call; limit N caps concurrent child tasks spawned within."
+fn recur-arity "recur must pass all parameters of the enclosing function including those with defaults; omitting any parameter is a runtime error."
+
+@section call-chain-threading
+op call-chain "/> is the call-chain operator: a /> f(x) means f(a, x)."
+op chaining "a /> f() /> g(x) threads the previous value as first argument."
+op chain-parens "parentheses are optional for single-parameter calls in a chain: x /> trim /> toLower is equivalent to x /> trim() /> toLower()."
+op chain-style "prefer /> call chains over nested function calls for sequential data transforms; write x /> f /> g not g(f(x))."
+op chain-multiline "prefer one chain step per line when the chain is longer than two steps."
+op chain-avoid "avoid chaining across complex branching or nested match expressions; break into named val bindings instead; exception: /> match { } as a terminal decision boundary is idiomatic."
+op dot "postfix .ident selects a field/member."
+op dot-map "m.foo uses dot lookup tolerance: tries symbol key :foo first, then string key \"foo\"; see maps-and-symbols section."
+op dot-struct "s.field selects a struct field."
+op call "postfix (args) calls a callable."
+op index "postfix [expr] or [a:b[:c]] indexes or slices."
+
+@section operators
+precedence lowest "assignment (=)"
+precedence "||"
+precedence "&&"
+precedence "== !="
+precedence "< <= > >="
+precedence "| ^ &"
+precedence "<< >>"
+precedence "+ -"
+precedence "* / %"
+precedence ":+ +:"  # list concat operators
+precedence prefix "! - ~"
+precedence highest "postfix: call (), index [], dot ., struct-init {}, struct-copy copy{}"
+list-op ":+" "append right (list :+ item)"
+list-op "+:" "prepend left (item +: list)"
+note "There is no mutating update operator; use persistent update helpers."
+
+@section conditionals-and-match
+if form "if (expr) {block} else {block|if}"
+if value "if is an expression."
+match expr "match [expr] { pattern [if guard] => body ... }"
+match subject "match requires an explicit scrutinee expression except when used as a pipeline stage (value /> match { ... }); match { ... } without a subject is only valid in pipeline position."
+match pipeline "match without an explicit scrutinee is only valid as a pipeline stage: value /> match { ... }; the prior pipeline value is consumed as the scrutinee; it is not valid as a standalone statement or expression."
+match pipeline-use "pipelines are for value transformation; /> match { } marks the point where a single value fans out into distinct outcomes; use match as a terminal decision boundary where meaning diverges."
+match case-body "case body may be a single expression or block."
+match guard "case may include 'if <expr>' guard."
+match returns "match is an expression; exactly one case produces the result."
+match exhaustiveness "non-exhaustive match is a runtime error unless a fallback case handles remaining inputs."
+match top-level "top-level match expressions are valid statements; val _ = match ... is not required."
+match arm-map "a map literal returned directly from a match arm body must be wrapped in extra braces to avoid ambiguity with block syntax: => {{ k:1 }} not => { k:1 }"
+match arm-braces "multi-statement match arm bodies always require braces: pattern => { stmt; stmt } not pattern => stmt; stmt."
+
+@section statements-and-separators
+stmt separator "NEWLINE and ';' terminate statements."
+stmt semicolon "semicolon is optional where NEWLINE already terminates the statement."
+stmt newline-sensitivity "newline may terminate statements unless parser expects continuation."
+stmt style "prefer one logical statement per line in authored code; generators may use ';' where needed for compactness or parser clarity."
+stmt intermediate "intermediate expressions in a block are valid statements and do not need to be bound to _; only the final expression of a block produces the block's value."
+stmt return-use "return is valid inside a function body for early exit; prefer expression-oriented match/if over return where possible, but use return when it clearly reduces nesting."
+
+@section maps-and-symbols
+map literal "{ k:1, :name:2, \"x\":3 } is valid; bare keys become symbols."
+map literal "a map literal returned directly from a match arm body must be wrapped in an extra set of braces to avoid ambiguity with the block syntax: '=> { { k:1, :name:2 } }' not '=> { k:1, :name:2 }'."
+map symbol-key "k:1 is equivalent to :k:1 in a map literal."
+map string-key "\"k\":1 uses a string key; it is distinct from symbol :k."
+map dynamic-key "{ [expr]: value } is used for computed keys if supported by grammar/runtime."
+map lookup "m[k] uses exact k value; no coercion or fallback at lookup time."
+map dot-access "m.foo uses dot lookup tolerance: attempts symbol key :foo first; if absent, attempts string key \"foo\"; if both absent, returns nil; if both present, symbol takes precedence."
+map dot-access-strict "dot lookup tolerance applies to dot access only; bracket lookups m[:foo] and m[\"foo\"] remain exact with no coercion or fallback."
+map dot-json "prefer dot access (m.name) when working with JSON-decoded maps; slug.json#decode produces string-keyed maps so m[:name] will always return nil on decoded data."
+map trailing-comma "trailing commas in map literals are permitted."
+map absence "missing map key returns nil unless a stricter runtime mode is documented elsewhere."
+sym purpose "symbols are stable lightweight identity keys commonly used for internal records, tags, and metadata."
+
+@section structs
+struct schema "struct { [@tag] field ['=' default], ... } defines a struct schema value."
+struct init "Schema{field:expr,...} constructs a struct value."
+struct field-defaults "omitted fields use schema defaults where defined."
+struct copy "value copy{field:expr,...} returns a new value with updated fields."
+struct copy-bulk "value copy data where data is a map performs a bulk field update from the map's keys; only keys matching field names are applied."
+struct field-access "s.field reads a field."
+struct immutability "struct fields cannot be updated in place."
+struct role "structs provide schema-aware immutable records."
+struct matching "struct patterns match by struct type and field patterns."
+
+@section persistent-updates
+update map-put "put(map, key, value) -> map"
+update map-remove "remove(map, key) -> map"
+update map-update "update(map, key, fn) -> map"
+update struct-copy "value copy{field:expr,...} -> same struct type"
+update struct-copy-bulk "value copy data -> copies all fields from map data into struct; schema{} copy data constructs a new instance from a schema."
+update list-style "list growth is typically expressed via :+ and +: or via library helpers returning new lists."
+update guidance "prefer persistent update helpers over reconstructing larger values manually when helpers exist."
+
+@section errors
+error canonical "slug.std commonly exports struct(Error) as the canonical error payload."
+error throw "throw raises a value as an error."
+error runtime "runtime failures such as bad index or invalid operation raise runtime errors."
+error catch "try/catch is not part of the language surface."
+error contract "public APIs should prefer one documented error style consistently."
+
+@section concurrency
+concurrency model "structured concurrency"
+nursery form "nursery [limit expr] (fn(...) {block} | {block})"
+nursery meaning "a nursery scopes child tasks; child tasks are awaited or cancelled on nursery exit (implementation-defined details)."
+spawn form "spawn {block} | spawn <expr>"
+spawn result "spawn returns a task handle."
+await form "await taskExpr retrieves task result (or error)."
+task type "task values represent running computations."
+channels "channels are provided by stdlib/runtime modules; use documented channel APIs only."
+select form "select { case ... }"
+select case "recv chanExpr | send chanExpr, valueExpr | after durationExpr | await taskExpr | _"
+select action "a case may transform or bind its result before producing a branch value."
+timeouts "after is the standard timeout/select deadline arm."
+concurrency rule "avoid unscoped background work; use nursery/spawn/await/select."
+defer basic "defer { block } runs on scope exit regardless of normal return or error."
+defer onsuccess "defer onsuccess { block } runs on normal return only; does not run if an error is thrown."
+defer onerror "defer onerror(err) { block } runs on the error path only; the block's final expression becomes the function's return value, replacing the thrown error; can rethrow with throw or return a replacement value."
+defer onerror-pattern "defer onerror is the idiomatic error-handling boundary: use it to clean up resources on failure, record failures, or convert errors into return values."
+
+@section builtins-core
+# Builtins listed here are authoritative.
+# Agents MUST NOT assume unstated builtins exist.
+
+builtin import(...modules) -> @map
+builtin len(v) -> @num
+builtin print(...args) -> ?
+builtin println(...args) -> ?
+builtin stacktrace(error) -> @str
+builtin argv() -> @list
+builtin argm() -> @map
+builtin cfg(@str key, default) -> ?
+
+@section builtins-cli-contract
+builtin argv desc "argv() returns positional CLI arguments only; it does not include the executable or script name unless explicitly documented otherwise by runtime."
+builtin argm desc "argm() returns parsed CLI options as a map."
+builtin argm shape "argm() key/value shape is runtime-defined; agents should only rely on shape when documented by stdlib/runtime."
+builtin cfg desc "cfg(key, default) returns configuration value for key, or default when absent."
+
+@section standard-library-baseline
+stdlib baseline "The following modules/functions are commonly expected and should be preferred when present in MANIFEST.ai."
+
+stdlib module "slug.std"
+stdlib module-role "general-purpose core helpers, formatting, common runtime contracts, canonical Error shape"
+
+stdlib module "slug.list"
+stdlib module-role "list transforms and reducers"
+
+stdlib module "slug.string"
+stdlib module-role "string transforms, splitting, joining, char-list helpers"
+
+stdlib module "slug.map"
+stdlib module-role "persistent map update helpers"
+
+stdlib module "slug.io.fs"
+stdlib module-role "filesystem I/O"
+
+stdlib expectation "Agents must confirm exact function names/signatures via MANIFEST.ai when available."
+
+@section stdlib-common-contracts
+# These are baseline expectations, not permission to invent undocumented functions in a real library.
+common fn "slug.map#put(map, key, value) -> map"
+common fn "slug.map#remove(map, key) -> map"
+common fn "slug.map#update(map, key, fn) -> map"
+common fn "slug.list#reduce(list, init, fn) -> any"
+common fn "slug.list#map(list, fn) -> list"
+common fn "slug.list#filter(list, fn) -> list"
+common fn "slug.string#join(list, sep, empty?) -> str"
+common fn "slug.string#asList(str, start?, acc?) -> list"
+common fn "slug.io.fs#readFile(path) -> (str|Error)"
+common fn "slug.io.fs#writeFile(path, content) -> (?|Error)"
+
+@section fmt-spec
+# ADR-024: slug.std#fmt — authoritative formatting contract
+fmt signature "fmt(@str format, ...args) -> @str"
+fmt placement "lives in slug.std; returns string; performs no IO"
+fmt placeholder-auto "{} consumes the next unused positional argument (auto-incrementing cursor)."
+fmt placeholder-indexed "{N} reads argument at 0-based index N without advancing the {} cursor."
+fmt placeholder-mixed "{} and {N} may be mixed freely in the same format string."
+fmt spec-fixed "{:.Nf} renders exactly N fractional digits using DEC64 rounding."
+fmt spec-integer "{:d} is integer presentation; equivalent to {:.0f}; uses DEC64 half-even rounding."
+fmt spec-percent "{:%} multiplies value by 100 and appends %; precision controls decimal digits."
+fmt spec-grouping "{:,} enables thousands separator on integer portion; combinable: {:,.2f}."
+fmt spec-align "alignment: < left, > right, ^ center; width is a positive integer: {:>10} {:.<10} {:^10}."
+fmt spec-padding "padding uses spaces; no truncation if value exceeds width."
+fmt escape "\\{ renders { and \\} renders }; avoids collision with {{expr}} string interpolation."
+fmt error "unescaped { not starting a valid placeholder is a runtime error."
+fmt error "missing positional arg, out-of-range index, invalid spec, unsupported verb are runtime errors."
+fmt vs-interpolation "prefer {{expr}} interpolation for simple substitution; use fmt() when format specs are needed."
+
+@section tags-and-annotations
+tag form "@ident or @ident(expr,...)"
+tag decl-prefix "tags may prefix var, val, and foreign declarations."
+tag params "tags may appear in parameter lists."
+tag export "@export marks a symbol as public; exported symbols appear in MANIFEST.ai."
+tag returns "@returns('...') documents return type in a stable, parseable form."
+tag test "@test and @testWith(...) are runtime-visible metadata for test runners and tooling."
+tag testWith "@testWith([inputs...], expected, [inputs...], expected, ...) pairs are interleaved; each [inputs] list contains positional arguments; expected is the return value; multiple pairs test multiple cases on one function."
+tag effects "@effects('fs io ...') documents side-effect labels for a function; space-separated; rendered in MANIFEST.ai."
+tag throws "@throws('@type') documents a thrown error type; rendered under errors: block in MANIFEST.ai."
+tag throwsDesc "@throwsDesc('...') pairs with @throws to provide a cause description for the thrown error."
+tag category "tags divide into parser/runtime directives and runtime metadata."
+tag docs "documentation-related tags or metadata may be surfaced by slug.meta.describe or related tooling."
+
+@section grammar-summary
+grammar source "slug.ebnf is the full grammar source of truth; this summary is normative for agents."
+grammar program "program := {stmtSep} {statement {stmtSep}} EOF"
+grammar stmtSep "stmtSep := ';' | NEWLINE"
+grammar statement "decl | foreign_decl | return | throw | defer | expr"
+grammar foreign "foreign name = fn(params)"
+grammar decl "tags? (var pattern = expr | val pattern = expr | foreign name = fn(params))"
+grammar expr "assignment | logical | comparison | arithmetic | call-chain | postfix | primary"
+grammar primary "literal | ident | (expr) | if | match | select | fn | list | map | struct | recur | nursery | spawn"
+
+@section manifest-ai
+manifest file "library root MUST contain MANIFEST.ai defining the complete public contract."
+manifest load "to satisfy import('slug.x'), tools load <libraryRoot>/MANIFEST.ai and filter fqname prefix 'slug.x'."
+manifest format "MANIFEST.ai is line-oriented; comments start with '#'; optional @section headers allowed; fn entries may be followed by indented sub-lines."
+manifest required "MANIFEST.ai MUST enumerate all @export symbols; MUST be stable-sorted; SHOULD be generator-owned."
+manifest kinds "module | fn | const | struct | sum | type | desc | effects | errors"
+manifest fn "fn fqname(params) -> type"
+manifest fn-block "fn entries may be followed by indented sub-lines: desc: \"...\", effects: label, errors: with thrown:/returned: entries."
+manifest desc "desc: \"micro contract\" as an indented sub-line under a fn or struct entry; first paragraph of the doc comment."
+manifest effects "effects: pure|io|db|net|fs|time|random as an indented sub-line under a fn entry."
+manifest errors-block "errors: block contains indented thrown: @type [\"cause\"] and returned: @type lines."
+manifest struct-fields "struct field lines field <n> [@type][: \"desc\"] are only emitted when a @type or @desc tag is present on the field."
+manifest unknown "unknown statement keywords are ignored by parsers for forward compatibility."
+
+@section non-goals
+not-supported loops "for, while, and do-style loops are not part of Slug."
+not-supported mutation "in-place mutation of map/list/struct contents is not part of Slug."
+not-supported field-assign "x.y = z is not supported."
+not-supported index-assign "x[i] = z is not supported."
+not-supported classes "classes and inheritance are not part of Slug."
+not-supported methods "method declarations are not part of Slug; use modules + functions + structs."
+not-supported macros "a macro system is intentionally absent unless explicitly added later."
+not-supported try-catch "try/catch is not part of the stable language contract."
+not-supported implicit-globals "there are no implicit global bindings."
+
+@section agent-idioms
+idiom val-over-var "strongly prefer val over var; use var only when a binding genuinely requires reassignment within its scope; val is the default."
+idiom recursion "prefer local step/recur helpers for traversal."
+idiom accumulators "prefer explicit accumulator parameters over hidden state."
+idiom reducers "use stdlib reducers when they make code simpler and the API is confirmed."
+idiom maps "prefer symbol-keyed maps for internal records and options."
+idiom updates "prefer put/remove/update/copy{} for persistent updates."
+idiom imports "prefer named imports val { f, g } = import(...) when only a few names are needed; use wildcard val {*} = import(...) when many names are needed."
+idiom contracts "prefer exported/public APIs from MANIFEST.ai over inferring internals from source."
+idiom errors "prefer consistent error style within a module."
+idiom clarity "write straightforward recursive code before clever code."
+idiom docs "authored library exports should include doc metadata/comments where the ecosystem supports it."
+idiom chain-over-nesting "prefer call-chain style (x /> f /> g) over nested calls (g(f(x))) for sequential data transforms."
+idiom chain-parens "omit parentheses for single-parameter calls in a chain: x /> trim /> toLower not x /> trim() /> toLower()."
+idiom inline-fn "fn(x) { expr } is valid as a call-chain step for short single-expression transforms; extract a named val for anything complex."
+idiom interpolation "use {{expr}} string interpolation for embedding values in strings rather than concatenation when it improves readability."
+idiom top-level-match "top-level match expressions are valid statements; val _ = match ... is not required."
+idiom block-exprs "intermediate expressions in blocks do not need to be bound to _; they are valid statements."
+idiom recur-arity "recur must pass all parameters of the enclosing function including those with defaults."
+idiom json-dot-access "prefer dot access (m.name) over bracket access when working with JSON-decoded maps; slug.json#decode produces string-keyed maps so m[:name] always returns nil on decoded data."
+idiom bracket-when-explicit "use bracket syntax m[\"key\"] or m[:key] only when key type precision matters or keys are dynamic."
+idiom forward-reference "Slug is sequential; define functions before calling them; never forward-reference a val or var binding."
+
+@section examples
+example recursion "
+val sum = fn(xs) {
+  val step = fn(xs, acc) {
+    match xs {
+      [] => acc
+      [h, ...t] => recur(t, acc + h)
+    }
+  }
+  step(xs, 0)
+}
+"
+
+example map-update "
+val flags = { l: false, w: false }
+val flags2 = flags /> put(:l, true)
+"
+
+example struct-copy "
+val User = struct { name, age = 0 }
+val a = User{name: \"eva\"}
+val b = a copy{age: 42}
+"
+
+example match "
+val classify = fn(n) {
+  match n {
+    0 => :zero
+    1 => :one
+    _ => :many
+  }
+}
+"
+
+example match-in-call-chain "
+// match as a pipeline decision boundary — consumes the prior value as scrutinee
+input
+/> parse
+/> validate
+/> match {
+  {ok: v}    => save(v)
+  {error: e} => report(e)
+}
+
+// match requires an explicit subject outside of pipeline position
+val describe = fn(x) {
+  match x {
+    _ if x > 100 => :large
+    _ if x > 10  => :medium
+    _            => :small
+  }
+}
+"
+
+example defer "
+val f = fn(v) {
+  defer { println(\"run on exit\") }
+  defer onsuccess { println(\"run on success\") }
+  defer onerror(err) {
+    println(\"run on failure\", stacktrace(err))
+    v + 1 // f call result on error; can also rethrow with throw err
+  }
+  throw v
+}
+f(1) // => 2
+"
+
+example interpolation "
+val name = \"Slug\"
+val greeting = \"Hello, {{name}}!\"    // => \"Hello, Slug!\"
+val multi = \"\"\"
+  Welcome to {{name}}
+  version {{version}}
+\"\"\"
+// raw strings do not interpolate — use for SQL, regex, content with braces
+val query = 'select * from {{table}}'  // literal string, not interpolated
+"
+
+example call-chain "
+// preferred: chain style
+path
+/> replaceAll('/', '.')
+/> trim('.')
+/> split('.')
+
+// avoid: nested style
+split(trim(replaceAll(path, '/', '.'), '.'), '.')
+
+// inline fn step for short transform
+content /> trim /> mkQueryFunction
+
+// parentheses optional on single-param calls — both equivalent
+x /> trim /> toLower
+x /> trim() /> toLower()
+"
+
+example struct-destructure "
+val SqlQuery = struct { @str sql, @list args, @sym type }
+val result = extractArgs(rawSql)
+val SqlQuery{ sql, args: queryParams, type: kind } = result
+// sql, queryParams, and kind are now bound
+"
+
+example import-forms "
+// named import — preferred when few names needed
+val { readFile, writeFile } = import('slug.io.fs')
+
+// wildcard import — use when many names needed
+val {*} = import('slug.std', 'slug.string', 'slug.list')
+
+// module import — for qualified access
+val json = import('slug.json')
+json.encode(value)
+"
+
+example cmdargs "
+// called with: slug cli.slug -ab --name knuckles input.txt
+val args = argv() // [\"input.txt\"]
+val opts = argm() // { options: { a:true, b:true, name:\"knuckles\" }, positional: [\"input.txt\"] }
+"
+
+@section agent-rules
+agent rule "Do not invent syntax not stated in SLUG.ai."
+agent rule "Do not invent builtins not listed in SLUG.ai or a loaded MANIFEST.ai."
+agent rule "Do not assume stdlib function names beyond what MANIFEST.ai confirms for the target library."
+agent rule "Prefer public MANIFEST.ai contracts over reading implementation details."
+agent rule "Respect immutability; use persistent update helpers rather than mutation."
+agent rule "No loops; express iteration using recur, match, and reducers."
+agent rule "Use structured concurrency forms only; avoid unscoped background tasks."
+agent rule "When CLI behavior matters, do not guess argv/argm shape beyond what this file or MANIFEST.ai states."
+agent rule "When generating code, prefer simple idiomatic Slug over importing patterns from other languages."
+agent rule "Prefer val over var; only use var when a binding genuinely requires reassignment within its scope."
+agent rule "String interpolation {{expr}} is available inside string literals and multi-line strings; prefer it over concatenation for readability."
+agent rule "val {*} = import(...) is valid; prefer named imports val { f } = import(...) when only a few names are needed."
+agent rule "JSON-decoded maps have string keys; always use dot access or m[\"key\"] on decoded data; m[:key] always returns nil on JSON-decoded maps."
+agent rule "Map literals in match arm return position need double braces: => {{ k: v }} not => { k: v }."
+agent rule "recur must pass all parameters including those with defaults; omitting any parameter is a runtime error."
+agent rule "Multi-statement match arm bodies always require braces: pattern => { stmt; stmt } not pattern => stmt; stmt."
+agent rule "Slug is sequential — functions must be defined before they are called; never forward-reference a val binding."
+agent rule "Prefer call-chain style (x /> f /> g) over nested calls (g(f(x))) for sequential data transforms."
+agent rule "Parentheses are optional for single-parameter calls in a chain: x /> trim not x /> trim()."
+agent rule "match requires an explicit scrutinee except in pipeline position: value /> match { ... } is valid; match { ... } as a standalone expression is not valid."
+agent rule "match may appear as a pipeline stage: value /> match { ... } consumes the prior value as scrutinee; use as a terminal decision boundary where a single value fans into distinct outcomes."
