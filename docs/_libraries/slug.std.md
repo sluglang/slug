@@ -4,7 +4,34 @@ title: std (slug)
 
 ## slug.std
 
-the slug standard library
+slug.std — the Slug standard library
+
+Core utilities available to all Slug programs. Provides type constants,
+the canonical `Error` struct, collection transforms, type conversions,
+string formatting, and common functional helpers.
+
+## Type constants
+
+Type symbols returned by `type()` are available as named constants:
+`NIL_TYPE`, `BOOLEAN_TYPE`, `NUMBER_TYPE`, `STRING_TYPE`, `LIST_TYPE`,
+`MAP_TYPE`, `BYTES_TYPE`, `FUNCTION_TYPE`, `TASK_TYPE`, `STRUCT_TYPE`,
+`SYMBOL_TYPE`, `ERROR_TYPE`.
+
+Use these with pinned patterns for readable type dispatch:
+```slug
+match type(v) {
+  ^STRING_TYPE => ...
+  ^LIST_TYPE   => ...
+  _            => ...
+}
+```
+
+## Error handling
+
+The canonical error shape is `Error{ type, msg, code, data, cause }`.
+Construct errors with `Error{ type: "MyError", msg: "something went wrong" }`
+and throw them with `throw`. There is no try/catch — handle errors via
+`match` on return values or `defer onerror`.
 
 ### Constants
 
@@ -50,7 +77,7 @@ sym slug.std#MAP_TYPE
 sym slug.std#NIL_TYPE
 ```
 
-Constant for NIL_TYPE, `type`
+Constant for NIL_TYPE, returned by `type(nil)`
 
 #### `NUMBER_TYPE`
 
@@ -90,7 +117,10 @@ struct slug.std#Error{@str type = "Error", @str msg, code = nil, data = nil, cau
 ```
 
 
-Standard error payload shape for idiomatic error handling
+Standard error payload shape for idiomatic error handling.
+
+Always set `type` to a stable PascalCase string identifying the error kind
+(e.g. `"TypeError"`, `"NotFoundError"`). Use `cause` to chain errors.
 
 | Field | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -107,6 +137,11 @@ Standard error payload shape for idiomatic error handling
 fn slug.std#compare(a, b) -> @num
 ```
 
+
+returns -1 if `a < b`, 1 if `a > b`, 0 if equal.
+
+Compatible with sort comparator contracts.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `a` |  | — |
@@ -118,6 +153,11 @@ fn slug.std#compare(a, b) -> @num
 ```slug
 fn slug.std#compute(@map map, key, f) -> @map
 ```
+
+
+applies `f(key, currentValue)` to the value at `key` and returns the updated map.
+
+If `key` is absent, `currentValue` is `nil`.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -144,6 +184,18 @@ compute({}, :k, function group: [{|| 2 2 false} => fn((k), (v)) {
 fn slug.std#counter(@num start = 0) -> @fn
 ```
 
+
+returns a function that increments and returns a counter on each call.
+
+The counter starts at `start`. Each call returns the next value.
+
+```slug
+val c = counter(0)
+c()  // => 0
+c()  // => 1
+c()  // => 2
+```
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `start` | @num  | `0` |
@@ -154,6 +206,9 @@ fn slug.std#counter(@num start = 0) -> @fn
 ```slug
 fn slug.std#equals(nil) -> @bool
 ```
+
+
+deep equality for maps, recursively comparing values for all keys.
 nil
 
 
@@ -175,6 +230,9 @@ equals({:k1: 1}, {:k2: 2})  // => false
 ```slug
 fn slug.std#filter(@list vs, @fn f, @list acc = []) -> @list
 ```
+
+
+returns a new list containing only elements for which `f` returns true.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -198,6 +256,9 @@ filter([1, 2, 3, 4], function group: [{| 1 1 false} => fn((v)) {
 fn slug.std#find(@list xs, @fn f) -> ?
 ```
 
+
+returns the first element of `xs` for which `f` returns true, or `nil`.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `xs` | @list  | — |
@@ -209,6 +270,11 @@ fn slug.std#find(@list xs, @fn f) -> ?
 ```slug
 fn slug.std#flatMap(@list vs, @fn f) -> @list
 ```
+
+
+applies `f` to each element of `vs` and concatenates the resulting lists.
+
+`f` must return a list or a single value (which is treated as a one-element list).
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -233,6 +299,21 @@ flatMap([1, 2, 3], function group: [{| 1 1 false} => fn((n)) {
 ```slug
 fn slug.std#fmt(@str str, ...args) -> @str
 ```
+
+
+formats a string using `{}` placeholders and optional format specifiers.
+
+Placeholders:
+- `{}` — next positional argument
+- `{0}`, `{1}` — explicit argument index
+- `{:.2f}` — float with 2 decimal places
+- `{:d}` — integer (truncates decimals)
+- `{:,}` — number with thousands separators
+- `{:.1%}` — percentage with 1 decimal place
+- `{:>8}` — right-align in width 8
+- `{:<10s}` — left-align string in width 10
+- `{:^10s}` — centre string in width 10
+- `\{` and `\}` — literal braces
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -262,6 +343,9 @@ fmt("|{:^10s}|", "Slug")  // => "|   Slug   |"
 fn slug.std#get(@map map, key) -> ?
 ```
 
+
+returns the value for `key` in `map`, or `nil` if absent.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `map` | @map  | — |
@@ -281,6 +365,9 @@ get({:k: 1}, :k)  // => 1
 ```slug
 fn slug.std#ifNil(nil) -> ?
 ```
+
+
+returns `default` if `v` is `nil`; returns `v` otherwise.
 nil
 
 ---
@@ -291,7 +378,7 @@ fn slug.std#isDefined(@str varName) -> @bool
 ```
 
 
-Determine if a variable is defined in the current scope.
+returns true if `varName` is defined as a binding in the current scope.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -312,6 +399,9 @@ isDefined("__not_defined__")  // => false
 fn slug.std#isStructInstance(v) -> @bool
 ```
 
+
+returns true if `v` is an instance of a struct (not a struct schema).
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `v` |  | — |
@@ -322,6 +412,11 @@ fn slug.std#isStructInstance(v) -> @bool
 ```slug
 fn slug.std#keys(map) -> @list
 ```
+
+
+returns a list of all keys in a map.
+
+Key order is not guaranteed. For sorted keys use `slug.list#sort`.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -342,6 +437,9 @@ keys({:k: 1})  // => [:k]
 fn slug.std#label(symbol) -> @str
 ```
 
+
+returns the string label of a symbol.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `symbol` |  | — |
@@ -360,6 +458,9 @@ label(:"a b")  // => "a b"
 ```slug
 fn slug.std#map(@list vs, @fn f, acc = []) -> @list
 ```
+
+
+applies `f` to each element of `vs` and returns the resulting list.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -383,6 +484,9 @@ map([1, 2], function group: [{| 1 1 false} => fn((n)) {
 fn slug.std#nonNil(v, @fn f, default = nil) -> ?
 ```
 
+
+returns `default` if `v` is `nil`; calls `f(v)` and returns the result otherwise.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `v` |  | — |
@@ -395,6 +499,9 @@ fn slug.std#nonNil(v, @fn f, default = nil) -> ?
 ```slug
 fn slug.std#parseNumber(@str value) -> @num
 ```
+
+
+parses a numeric string to a number. Throws on invalid input.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -415,6 +522,9 @@ parseNumber("1.1")  // => 1.1
 fn slug.std#put(@map map, key, value) -> @map
 ```
 
+
+returns a new map with `key` set to `value`.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `map` | @map  | — |
@@ -434,6 +544,11 @@ put({}, :k, "v")  // => {:k: v}
 ```slug
 fn slug.std#range(@num start, @num end, @num step = 1, @list acc = []) -> @list
 ```
+
+
+generates a list of numbers from `start` (inclusive) to `end` (exclusive) by `step`.
+
+Returns an empty list if the range direction contradicts the step sign.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -459,6 +574,9 @@ range(6, 0, -2)  // => [6, 4, 2]
 ```slug
 fn slug.std#reduce(@list vs, v, @fn f) -> ?
 ```
+
+
+folds `vs` left with `f`, starting from initial value `v`.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -488,6 +606,9 @@ reduce([1, 2, 3], 9, function group: [{|| 2 2 false} => fn((a), (b)) {
 fn slug.std#remove(@map map, key) -> @map
 ```
 
+
+returns a new map with `key` removed. No-op if key is absent.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `map` | @map  | — |
@@ -510,7 +631,10 @@ fn slug.std#structEquals(m1, m2) -> @bool
 ```
 
 
-deep equals check for struct types and struct instances
+deep equality for struct types and struct instances.
+
+Returns `false` if either value is `nil`, if their types differ, or
+if neither is a struct instance or struct schema.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -523,6 +647,9 @@ deep equals check for struct types and struct instances
 ```slug
 fn slug.std#swap(@list list, @num index1, @num index2) -> @list
 ```
+
+
+returns a new list with elements at `index1` and `index2` swapped.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -544,6 +671,9 @@ swap([1, 2], 0, 1)  // => [2, 1]
 fn slug.std#sym(@str name) -> @sym
 ```
 
+
+converts a string to a symbol.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `name` | @str  | — |
@@ -563,6 +693,11 @@ sym("Content-Type")  // => :"Content-Type"
 ```slug
 fn slug.std#then(m, @fn f) -> ?
 ```
+
+
+applies `f` to `m` and returns the result. Useful for call-chain threading.
+
+`m /> then(fn(v) { ... })` is equivalent to `(fn(v) { ... })(m)`.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -587,6 +722,13 @@ then({:n: Slug}, function group: [{| 1 1 false} => fn((v)) {
 ```slug
 fn slug.std#toBoolean(v) -> @bool
 ```
+
+
+converts a value to `@bool`.
+
+Numeric `1` → `true`, `0` → `false`. Strings `"true"`, `"yes"`, `"1"`,
+`"TRUE"`, `"YES"` → `true`; `"false"`, `"no"`, `"0"`, `"FALSE"`, `"NO"`
+→ `false`. Other string values throw `TypeError`.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -618,6 +760,12 @@ toBoolean("0")  // => false
 fn slug.std#toNumber(v) -> @num
 ```
 
+
+converts a value to `@num`.
+
+Passes through numbers, parses numeric strings, returns `nil` for `nil`.
+Throws `TypeError` for other types.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `v` |  | — |
@@ -642,6 +790,12 @@ toNumber("1.1")  // => 1.1
 fn slug.std#toString(v) -> @str
 ```
 
+
+converts a value to a string representation.
+
+Returns `nil` for `nil`, passes through strings, and uses string
+concatenation (`v + ""`) for all other types.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `v` |  | — |
@@ -664,7 +818,9 @@ fn slug.std#type(val) -> @sym
 ```
 
 
-return a string value indicating the type of `val`
+returns a symbol indicating the runtime type of `val`.
+
+Result is one of the `*_TYPE` constants exported by this module.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -694,6 +850,9 @@ type(function group: [{| 1 1 false} => fn((a)) {
 fn slug.std#update(@list list, @num index, value) -> @list
 ```
 
+
+returns a new list with the element at `index` replaced by `value`.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `list` | @list  | — |
@@ -713,6 +872,9 @@ update([1, 2, 3], 1, 99)  // => [1, 99, 3]
 ```slug
 fn slug.std#zeroIfAbove(@num a, @num b) -> @num
 ```
+
+
+returns `a` if `a < b`, otherwise returns `0`.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -734,6 +896,11 @@ zeroIfAbove(2, 1)  // => 0
 ```slug
 fn slug.std#zip(@list lst1, @list lst2, acc = []) -> @list
 ```
+
+
+zips two lists into a list of `[a, b]` pairs.
+
+Stops at the shorter list. Extra elements from the longer list are discarded.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -758,6 +925,11 @@ zip([1], [2])  // => [[1, 2]]
 fn slug.std#zipWith(@list lst, f) -> @list
 ```
 
+
+zips a list with the results of calling `f` for each element.
+
+Returns a list of `[element, f()]` pairs. `f` is called once per element.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `lst` | @list  | — |
@@ -778,6 +950,11 @@ zipWith(["a", "b"], function group: [{ 0 0 false} => fn() {
 ```slug
 fn slug.std#zipWithIndex(@list lst) -> @list
 ```
+
+
+zips a list with its zero-based indices.
+
+Returns a list of `[element, index]` pairs.
 
 | Parameter | Type | Default |
 | --- | --- | --- |

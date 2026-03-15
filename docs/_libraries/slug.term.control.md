@@ -4,6 +4,11 @@ title: control (slug.term)
 
 ## slug.term.control
 
+slug.term.control — terminal control sequences
+
+Utilities for clearing the terminal display. These functions print
+ANSI escape sequences directly to stdout via `print`.
+
 ### Functions
 
 #### `clear()`
@@ -12,7 +17,9 @@ fn slug.term.control#clear() -> ?
 ```
 
 
-clear the terminal
+clears the terminal screen and moves the cursor to the top-left.
+
+Equivalent to the `clear` shell command. Does not clear the scrollback buffer.
 
 ---
 
@@ -22,4 +29,7 @@ fn slug.term.control#clearAll() -> ?
 ```
 
 
-clear the terminal and scrollback buffer
+clears the terminal screen, scrollback buffer, and moves the cursor to the top-left.
+
+More thorough than `clear` — also wipes the scrollback history visible
+when scrolling up in the terminal.

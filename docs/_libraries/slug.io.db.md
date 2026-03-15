@@ -4,6 +4,52 @@ title: db (slug.io)
 
 ## slug.io.db
 
+slug.io.db — relational database access
+
+Connect to SQLite, MySQL, or PostgreSQL databases and execute queries
+and statements. Connection handles are numeric values returned by `connect`
+and passed to all subsequent operations.
+
+Always close connections with `defer close(conn)` or explicit `close(conn)`.
+
+## SQLite examples
+
+```slug
+val { connect, query, exec, close, SQLITE_DRIVER } = import("slug.io.db")
+
+// in-memory database
+val conn = connect(":memory:", SQLITE_DRIVER)
+defer close(conn)
+
+// file database with options
+val conn = connect("file:app.db?cache=shared&mode=rwc", SQLITE_DRIVER)
+defer close(conn)
+```
+
+## MySQL example
+
+```slug
+val conn = connect("user:pass@tcp(localhost:3306)/dbname?charset=utf8mb4&parseTime=True", MYSQL_DRIVER)
+defer close(conn)
+```
+
+## PostgreSQL example
+
+```slug
+val conn = connect("postgres://user:password@localhost/dbname?sslmode=disable", PGSQL_DRIVER)
+defer close(conn)
+```
+
+## Transactions
+
+```slug
+val tx = begin(conn)
+exec(tx, "INSERT INTO ...")
+commit(tx)
+```
+
+@effects('db')
+
 ### Constants
 
 #### `MYSQL_DRIVER`
@@ -12,8 +58,7 @@ title: db (slug.io)
 str slug.io.db#MYSQL_DRIVER
 ```
 
-var con = "user:pass@tcp(localhost:3306)/dbname?charset=utf8mb4&parseTime=True"
-  /> connect(MYSQL_DRIVER)
+driver string for MySQL connections.
 
 #### `PGSQL_DRIVER`
 
@@ -21,8 +66,7 @@ var con = "user:pass@tcp(localhost:3306)/dbname?charset=utf8mb4&parseTime=True"
 str slug.io.db#PGSQL_DRIVER
 ```
 
-var con = "postgres://user:password@localhost/dbname?sslmode=disable"
-  /> connect(PGSQL_DRIVER)
+driver string for PostgreSQL connections.
 
 #### `SQLITE_DRIVER`
 
@@ -30,13 +74,7 @@ var con = "postgres://user:password@localhost/dbname?sslmode=disable"
 str slug.io.db#SQLITE_DRIVER
 ```
 
-var con = ":memory:"
-  /> connect(SQLITE_DRIVER)
-
-open a file with optional parameters (e.g. `?cache=shared&mode=rwc`)
-
-var con = "file:filename.db"
-  /> connect(SQLITE_DRIVER)
+driver string for SQLite3 connections.
 
 ### Functions
 
@@ -44,6 +82,14 @@ var con = "file:filename.db"
 ```slug
 fn slug.io.db#begin(@num connection) -> @num
 ```
+
+
+begins a transaction and returns a transaction handle.
+
+Pass the transaction handle to `query`, `exec`, `commit`, or `rollback`
+in place of a connection handle.
+
+@effects('db')
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -56,6 +102,13 @@ fn slug.io.db#begin(@num connection) -> @num
 fn slug.io.db#close(@num connection) -> nil
 ```
 
+
+closes a database connection or transaction handle.
+
+Always close connections when done. Use `defer close(conn)` for safety.
+
+@effects('db')
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `connection` | @num  | — |
@@ -66,6 +119,11 @@ fn slug.io.db#close(@num connection) -> nil
 ```slug
 fn slug.io.db#commit(@num connection) -> @num
 ```
+
+
+commits a transaction.
+
+@effects('db')
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -78,6 +136,14 @@ fn slug.io.db#commit(@num connection) -> @num
 fn slug.io.db#connect(@str connectionString, @str driver) -> @num
 ```
 
+
+opens a database connection and returns a connection handle.
+
+`connectionString` format depends on the driver — see module doc for examples.
+Use `defer close(conn)` to ensure the connection is released.
+
+@effects('db')
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `connectionString` | @str  | — |
@@ -89,6 +155,14 @@ fn slug.io.db#connect(@str connectionString, @str driver) -> @num
 ```slug
 fn slug.io.db#exec(@num connection, @str sql, ...params) -> @map
 ```
+
+
+executes a SQL statement and returns a result map.
+
+The result map contains `rowsAffected` and `lastInsertId` where supported
+by the driver. Use `...params` to pass positional `?` parameter values.
+
+@effects('db')
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -103,6 +177,14 @@ fn slug.io.db#exec(@num connection, @str sql, ...params) -> @map
 fn slug.io.db#query(@num connection, @str sql, ...params) -> @list
 ```
 
+
+executes a SQL query and returns the result rows as a list of string-keyed maps.
+
+Use `...params` to pass positional `?` parameter values.
+For named parameters, use `slug.db.repo`.
+
+@effects('db')
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `connection` | @num  | — |
@@ -115,6 +197,11 @@ fn slug.io.db#query(@num connection, @str sql, ...params) -> @list
 ```slug
 fn slug.io.db#rollback(@num connection) -> @num
 ```
+
+
+rolls back a transaction.
+
+@effects('db')
 
 | Parameter | Type | Default |
 | --- | --- | --- |

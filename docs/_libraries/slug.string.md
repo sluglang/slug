@@ -4,12 +4,23 @@ title: string (slug)
 
 ## slug.string
 
+slug.string — string manipulation utilities
+
+Trimming, splitting, joining, searching, replacing, case conversion,
+padding, case formatting, and random string generation.
+
+All functions treat strings as sequences of Unicode code points where
+relevant (e.g. `indexOf` is Unicode-aware).
+
 ### Functions
 
 #### `camelCase(s, sep)`
 ```slug
 fn slug.string#camelCase(@str s, @str sep = " ") -> @str
 ```
+
+
+converts a string to `camelCase`, capitalising each word except the first.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -34,6 +45,9 @@ camelCase("l   n")  // => "lN"
 fn slug.string#contains(@str str, @str seq) -> @bool
 ```
 
+
+returns true if `seq` appears anywhere in `str`.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `str` | @str  | — |
@@ -53,6 +67,9 @@ contains("hello slug", "snail")  // => false
 ```slug
 fn slug.string#endsWith(@str str, @str end) -> @bool
 ```
+
+
+returns true if `str` ends with `end`.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -74,6 +91,9 @@ endsWith("hello slug", "hello")  // => false
 fn slug.string#fromCodePoint(@num codePoint) -> @str
 ```
 
+
+returns the string corresponding to a Unicode code point.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `codePoint` | @num  | — |
@@ -92,6 +112,11 @@ fromCodePoint(129315)  // => "🤣"
 ```slug
 fn slug.string#indexOf(@str str, @str seq, @num index = 0) -> @num
 ```
+
+
+returns the byte index of the first occurrence of `seq` in `str` at or after `index`.
+
+Returns `-1` if not found. Unicode-aware.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -115,6 +140,9 @@ indexOf([1, 2], 9)  // => -1
 fn slug.string#isLower(@str str) -> @bool
 ```
 
+
+returns true if `str` is non-empty and entirely lowercase.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `str` | @str  | — |
@@ -135,6 +163,9 @@ isLower("SLUG")  // => false
 ```slug
 fn slug.string#isUpper(@str str) -> @bool
 ```
+
+
+returns true if `str` is non-empty and entirely uppercase.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -157,6 +188,11 @@ isUpper("SLUG")  // => true
 fn slug.string#join(@list strs, @str delimiter = "", @str str = nil) -> @str
 ```
 
+
+joins a list of strings with `delimiter` between each element.
+
+Returns an empty string for an empty list.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `strs` | @list  | — |
@@ -178,6 +214,9 @@ join(["slug", "test"], ".")  // => "slug.test"
 ```slug
 fn slug.string#kebabCase(@str s, @str sep = " ") -> @str
 ```
+
+
+converts a string to `kebab-case` by replacing `sep` with `-`.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -202,6 +241,11 @@ kebabCase("l   n")  // => "l---n"
 fn slug.string#lastIndexOf(@str str, @str seq, @num index = 0, prev = (-1)) -> @num
 ```
 
+
+returns the index of the last occurrence of `seq` in `str`.
+
+Returns `-1` if not found.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `str` | @str  | — |
@@ -225,6 +269,11 @@ lastIndexOf("hello slug", "g")  // => 9
 fn slug.string#padLeft(@str str, @str with, @num length) -> @str
 ```
 
+
+pads `str` on the left with `with` until it reaches `length`.
+
+Returns `str` unchanged if already at or above `length`.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `str` | @str  | — |
@@ -238,6 +287,11 @@ fn slug.string#padLeft(@str str, @str with, @num length) -> @str
 fn slug.string#padRight(@str str, @str with, @num length) -> @str
 ```
 
+
+pads `str` on the right with `with` until it reaches `length`.
+
+Returns `str` unchanged if already at or above `length`.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `str` | @str  | — |
@@ -250,6 +304,9 @@ fn slug.string#padRight(@str str, @str with, @num length) -> @str
 ```slug
 fn slug.string#pascalCase(@str s, @str sep = " ") -> @str
 ```
+
+
+converts a string to `PascalCase`, capitalising the first letter of each word.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -274,9 +331,16 @@ pascalCase("l   n")  // => "LN"
 fn slug.string#randomHexString(@num length) -> @str
 ```
 
+
+generates a random lowercase hex string of `length` characters.
+
+@effects('random')
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `length` | @num  | — |
+
+**Effects:** `random`
 
 ---
 
@@ -285,11 +349,18 @@ fn slug.string#randomHexString(@num length) -> @str
 fn slug.string#randomString(@num length, @str chars, @str acc = "") -> @str
 ```
 
+
+generates a random string of `length` characters drawn from `chars`.
+
+@effects('random')
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `length` | @num  | — |
 | `chars` | @str  | — |
 | `acc` | @str  | `""` |
+
+**Effects:** `random`
 
 ---
 
@@ -297,6 +368,11 @@ fn slug.string#randomString(@num length, @str chars, @str acc = "") -> @str
 ```slug
 fn slug.string#replaceAll(@str str, @str replace, @str with) -> @str
 ```
+
+
+replaces all occurrences of `replace` in `str` with `with`.
+
+Returns `nil` for `nil` input.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -320,6 +396,11 @@ replaceAll("E &amp; S", "&amp;", "&")  // => "E & S"
 ```slug
 fn slug.string#snakeCase(@str s, @str sep = " ", screaming = false) -> @str
 ```
+
+
+converts a string to `snake_case` by replacing `sep` with `_`.
+
+Pass `screaming: true` for `SCREAMING_SNAKE_CASE`.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -348,17 +429,12 @@ fn slug.string#split(@str str, @str delimiter, @num max = (-1), @num count = 1, 
 ```
 
 
-split splits a string into a list of substrings based on a delimiter
+splits `str` on `delimiter`, returning a list of substrings.
 
-Parameters:
-- str: The input string to split
-- delimiter: The delimiter string to split on
-- max: Maximum number of splits to perform (-1 for unlimited)
-- count: Internal counter for number of splits performed
-- strs: Internal accumulator for storing split strings
+`max` limits the number of splits performed; `-1` means unlimited.
+The remaining unsplit portion is always included as the last element.
 
-Returns:
-- Array of substrings split by the delimiter
+`count` and `strs` are internal accumulators — do not pass them directly.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -384,6 +460,9 @@ split("a|b|c", "|", 2)  // => ["a", "b|c"]
 fn slug.string#startsWith(@str str, @str start) -> @bool
 ```
 
+
+returns true if `str` begins with `start`.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `str` | @str  | — |
@@ -403,6 +482,9 @@ startsWith("hello slug", "hello")  // => true
 ```slug
 fn slug.string#toLower(@str str) -> @str
 ```
+
+
+converts a string to lowercase.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -424,6 +506,9 @@ toLower("SLUG")  // => "slug"
 fn slug.string#toUpper(@str str) -> @str
 ```
 
+
+converts a string to uppercase.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `str` | @str  | — |
@@ -443,6 +528,12 @@ toUpper("slug")  // => "SLUG"
 ```slug
 fn slug.string#trim(nil) -> @str
 ```
+
+
+removes all leading and trailing occurrences of `prefix` from `s`.
+
+Repeatedly strips the prefix/suffix until neither end matches.
+Note: `prefix` is stripped from both ends, not just the left.
 nil
 
 

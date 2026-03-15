@@ -4,12 +4,23 @@ title: list (slug)
 
 ## slug.list
 
+slug.list — list utilities
+
+Sorting, searching, flattening, shuffling, and character conversion
+helpers for `@list` values. Complements the core list operations in
+`slug.std` (`map`, `filter`, `reduce`, `find`, `flatMap`, etc.).
+
 ### Functions
 
 #### `asList(chars, i, acc)`
 ```slug
 fn slug.list#asList(@str chars, @num i = 0, @list acc = []) -> @list
 ```
+
+
+converts a string into a list of single-character strings.
+
+Returns an empty list for `nil` or an empty string.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -33,6 +44,12 @@ asList("123")  // => ["1", "2", "3"]
 fn slug.list#flatten(@list lsts) -> @list
 ```
 
+
+flattens a list of lists into a single list.
+
+Only one level deep — nested lists within the inner lists are not
+recursively flattened.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `lsts` | @list  | — |
@@ -53,6 +70,11 @@ flatten([[1, 2], [3], [4, 5]])  // => [1, 2, 3, 4, 5]
 ```slug
 fn slug.list#indexOf(@list list, value, @num idx = 0) -> @num
 ```
+
+
+returns the index of the first occurrence of `value` in `list`.
+
+Returns `-1` if the value is not found. Uses value equality (`==`).
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -78,6 +100,11 @@ indexOf("éé|éé", "|")  // => 2
 fn slug.list#removeValue(@list list, value) -> @list
 ```
 
+
+returns a new list with the first occurrence of `value` removed.
+
+Returns the original list unchanged if the value is not present.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `list` | @list  | — |
@@ -98,9 +125,18 @@ removeValue([1, 2, 3], 5)  // => [1, 2, 3]
 fn slug.list#shuffle(@list list) -> @list
 ```
 
+
+returns a new list with elements shuffled in random order.
+
+Uses the Fisher-Yates algorithm. The original list is not modified.
+
+@effects('random')
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `list` | @list  | — |
+
+**Effects:** `random`
 
 ---
 
@@ -108,6 +144,13 @@ fn slug.list#shuffle(@list list) -> @list
 ```slug
 fn slug.list#sort(@list lst) -> @list
 ```
+
+
+sorts a list in natural ascending order.
+
+Uses `slug.std#compare` for ordering. Works correctly for lists of
+numbers or lists of strings. For mixed or custom types, use
+`sortWithComparator` instead.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -119,6 +162,16 @@ fn slug.list#sort(@list lst) -> @list
 ```slug
 fn slug.list#sortWithComparator(@list lst, @fn comparator) -> @list
 ```
+
+
+sorts a list using a custom comparator function.
+
+The comparator receives two elements and must return a negative number
+if the first should come before the second, zero if equal, or a positive
+number if the first should come after.
+
+Use `slug.std#compare` as the comparator for natural ordering of
+numbers and strings.
 
 | Parameter | Type | Default |
 | --- | --- | --- |

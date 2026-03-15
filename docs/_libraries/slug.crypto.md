@@ -4,12 +4,38 @@ title: crypto (slug)
 
 ## slug.crypto
 
+slug.crypto — cryptographic hash and HMAC functions
+
+Provides MD5, SHA-256, SHA-512, and HMAC variants. Each algorithm is
+available in two forms:
+
+- `@bytes` in → `@bytes` out — raw digest, useful for chaining or binary protocols
+- `@str` in → `@str` out — hex (for hashes) or base64 (for HMACs) encoded output
+
+The `@str` variants are the most common for web and API use cases.
+The `@bytes` variants are lower-level and intended for composition.
+
+## Example
+
+```slug
+val { sha256, hmacSha256 } = import("slug.crypto")
+
+sha256("hello")
+// => "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+
+hmacSha256("hello", "slug")
+// => "NB9NMraxEE8IBLRWWoBShv99Pclb8b2Qqt6KxykFxx0="
+```
+
 ### Functions
 
 #### `hmacSha256(nil)`
 ```slug
-fn slug.crypto#hmacSha256(nil) -> @bytes
+fn slug.crypto#hmacSha256(nil) -> @str
 ```
+
+
+returns the HMAC-SHA256 of a raw byte message using a raw byte key.
 nil
 
 
@@ -25,6 +51,9 @@ hmacSha256("hello", "slug")  // => "NB9NMraxEE8IBLRWWoBShv99Pclb8b2Qqt6KxykFxx0=
 ```slug
 fn slug.crypto#hmacSha256Hex(@str message, @str secret) -> @str
 ```
+
+
+returns the HMAC-SHA256 of a message using a secret key, as a hex string.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -44,6 +73,9 @@ hmacSha256Hex("hello", "slug")  // => "341f4d32b6b1104f0804b4565a805286ff7d3dc95
 ```slug
 fn slug.crypto#hmacSha512(nil) -> @bytes
 ```
+
+
+returns the HMAC-SHA512 of a raw byte message using a raw byte key.
 nil
 
 
@@ -59,6 +91,9 @@ hmacSha512("hello", "slug")  // => "Yddv60iFAaAuAgusykYLW2fFE1LP8t14xw2ghx0VseQJ
 ```slug
 fn slug.crypto#hmacSha512Hex(@str message, @str secret) -> @str
 ```
+
+
+returns the HMAC-SHA512 of a message using a secret key, as a hex string.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -78,6 +113,12 @@ hmacSha512Hex("hello", "slug")  // => "61d76feb488501a02e020bacca460b5b67c51352c
 ```slug
 fn slug.crypto#md5(nil) -> @str
 ```
+
+
+returns the MD5 hex digest of a string.
+
+MD5 is not cryptographically secure — use for checksums and legacy
+compatibility only, not for security-sensitive applications.
 nil
 
 
@@ -94,6 +135,9 @@ md5("")  // => "d41d8cd98f00b204e9800998ecf8427e"
 ```slug
 fn slug.crypto#sha256(nil) -> @str
 ```
+
+
+returns the SHA-256 hex digest of a string.
 nil
 
 
@@ -110,6 +154,9 @@ sha256("")  // => "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b
 ```slug
 fn slug.crypto#sha512(nil) -> @str
 ```
+
+
+returns the SHA-512 hex digest of a string.
 nil
 
 

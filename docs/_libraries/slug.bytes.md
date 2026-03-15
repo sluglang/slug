@@ -4,12 +4,22 @@ title: bytes (slug)
 
 ## slug.bytes
 
+slug.bytes — byte buffer utilities
+
+Conversions between `@bytes`, `@str`, hex strings, base64, and numeric lists.
+All functions are pure and operate on immutable byte values.
+
+Byte literals use the `0x"<hex>"` syntax, e.g. `0x"ff0a"`.
+
 ### Functions
 
 #### `base64Decode(s)`
 ```slug
 fn slug.bytes#base64Decode(@str s) -> @bytes
 ```
+
+
+decodes a standard base64 string to a byte buffer.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -30,6 +40,9 @@ base64Decode("aGVsbG8gc2x1Zw==")  // => 0x"68656c6c6f20736c7567"
 fn slug.bytes#base64Encode(@bytes b) -> @str
 ```
 
+
+encodes a byte buffer as a standard base64 string.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `b` | @bytes  | — |
@@ -49,6 +62,9 @@ base64Encode(0x"68656c6c6f20736c7567")  // => "aGVsbG8gc2x1Zw=="
 fn slug.bytes#bytesToHexStr(@bytes b) -> @str
 ```
 
+
+encodes a byte buffer as a lowercase hex string.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `b` | @bytes  | — |
@@ -67,6 +83,9 @@ bytesToHexStr(0x"68656c6c6f20736c7567")  // => "68656c6c6f20736c7567"
 ```slug
 fn slug.bytes#bytesToNumbers(@bytes b, i = 0, acc = []) -> @list
 ```
+
+
+converts a byte buffer to a list of numeric byte values (0–255).
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -88,6 +107,9 @@ bytesToNumbers(0x"a8ff04")  // => [168, 255, 4]
 fn slug.bytes#bytesToStr(@bytes b) -> @str
 ```
 
+
+converts a byte buffer to a UTF-8 string.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `b` | @bytes  | — |
@@ -106,6 +128,9 @@ bytesToStr(0x"68656c6c6f20736c7567")  // => "hello slug"
 ```slug
 fn slug.bytes#hexStrToBytes(@str hex) -> @bytes
 ```
+
+
+decodes a lowercase hex string to a byte buffer.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -127,6 +152,9 @@ hexStrToBytes("a8ff04")  // => 0x"a8ff04"
 fn slug.bytes#repeat(@bytes b, @num count, @bytes acc = 0x"") -> @bytes
 ```
 
+
+repeats a byte buffer `count` times and returns the concatenated result.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `b` | @bytes  | — |
@@ -146,6 +174,9 @@ repeat(0x"ff", 3)  // => 0x"ffffff"
 ```slug
 fn slug.bytes#strToBytes(@str s) -> @bytes
 ```
+
+
+converts a UTF-8 string to a byte buffer.
 
 | Parameter | Type | Default |
 | --- | --- | --- |

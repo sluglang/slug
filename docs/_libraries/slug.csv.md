@@ -4,6 +4,34 @@ title: csv (slug)
 
 ## slug.csv
 
+slug.csv — CSV parsing and serialisation
+
+Parses CSV strings into lists of rows and serialises lists of rows back
+to CSV strings. Handles quoted fields, embedded newlines, escaped quotes,
+and configurable separators.
+
+Rows are represented as `@list` values. Columns are accessed by index:
+`row[0]` for the first column, `row[1]` for the second, and so on.
+
+## Example
+
+```slug
+val { fromCsvString, toCsv } = import("slug.csv")
+
+val rows = fromCsvString("name,age\r\nAlice,30\r\nBob,25")
+rows[0]  // => ["name", "age"]
+rows[1]  // => ["Alice", "30"]
+
+toCsv([["name", "age"], ["Alice", "30"]])
+// => "name,age\r\nAlice,30\r\n"
+```
+
+## Quoting rules
+
+Fields are automatically quoted during serialisation if they contain
+the separator, the quote character, a newline, or a carriage return.
+Quote characters within a field are escaped by doubling: `"` → `""`.
+
 ### Functions
 
 #### `fromCsvString(csvStr, sep, quote)`
@@ -12,7 +40,11 @@ fn slug.csv#fromCsvString(@str csvStr, @str sep = ",", @str quote = "\"") -> @li
 ```
 
 
-returned rows are lists, access columns by index: row[0], row[1]
+parses a CSV string into a list of rows, where each row is a list of strings.
+
+Handles quoted fields (including embedded newlines and escaped quotes),
+CRLF and LF line endings, and configurable separator and quote characters.
+Access columns by index: `row[0]`, `row[1]`, etc.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -39,7 +71,11 @@ fn slug.csv#toCsv(@list rows, @str sep = ",", @str quote = "\"", @str eol = "\r\
 ```
 
 
-converts a list of lists to a CSV string
+converts a list of rows (each a list of strings) to a CSV string.
+
+Fields are quoted automatically when they contain the separator, quote
+character, or newline characters. The default line ending is `\r\n`
+(RFC 4180). Each row is terminated by `eol`.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
