@@ -44,6 +44,8 @@ func GetForeignFunctions() map[string]*object.Foreign {
 
 		"slug.io.http.request": fnIoHttpRequest(),
 
+		"slug.io.stdin.readLines": fnIoStdinReadLines(),
+
 		"slug.io.tcp.bind":    fnIoTcpBind(),
 		"slug.io.tcp.accept":  fnIoTcpAccept(),
 		"slug.io.tcp.connect": fnIoTcpConnect(),

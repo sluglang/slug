@@ -1,0 +1,21 @@
+/**
+ * slug.io.stdin — process standard input as a line stream
+ *
+ * Exposes process stdin as a shared channel stream for use with
+ * channels and `select`.
+ */
+
+/**
+ * Returns a shared singleton channel of stdin line events.
+ *
+ * Event stream:
+ * - each line is emitted as `Full{value: @str}` (without trailing newline)
+ * - empty lines are preserved as `""`
+ * - a final partial line (without trailing newline) is emitted
+ * - when input ends, the channel closes
+ *
+ * With `slug.channel#recv`, closure is observed as `Empty`.
+ */
+@export
+@returns('@chan(@struct(Full)|@struct(Empty))')
+foreign readLines = fn()
