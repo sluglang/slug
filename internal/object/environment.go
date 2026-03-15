@@ -162,6 +162,58 @@ func (e *Environment) Define(name string, val Object, isExported bool, isImport 
 	return e.define(name, val, true, isExported, isImport)
 }
 
+func isCallableObject(obj Object) bool {
+	switch obj.(type) {
+	case *Function, *Foreign, *FunctionGroup:
+		return true
+	default:
+		return false
+	}
+}
+
+func signatureString(sig ast.FSig) string {
+	return (&sig).String()
+}
+
+func addFunctionWithSignature(name string, fg *FunctionGroup, sig ast.FSig, fn Object) error {
+	if _, exists := fg.Functions[sig]; exists {
+		return fmt.Errorf("function `%s` already has an overload with signature %s", name, signatureString(sig))
+	}
+	fg.Functions[sig] = fn
+	return nil
+}
+
+func mergeCallableIntoBinding(name string, binding *Binding, val Object) error {
+	fg, ok := binding.Value.(*FunctionGroup)
+	if !ok {
+		fg = &FunctionGroup{
+			Functions: map[ast.FSig]Object{},
+		}
+	}
+
+	switch v := val.(type) {
+	case *Function:
+		if err := addFunctionWithSignature(name, fg, v.Signature, v); err != nil {
+			return err
+		}
+	case *Foreign:
+		if err := addFunctionWithSignature(name, fg, v.Signature, v); err != nil {
+			return err
+		}
+	case *FunctionGroup:
+		for sig, fn := range v.Functions {
+			if err := addFunctionWithSignature(name, fg, sig, fn); err != nil {
+				return err
+			}
+		}
+	default:
+		return fmt.Errorf("internal error: mergeCallableIntoBinding expects callable object, got %s", val.Type())
+	}
+
+	binding.Value = fg
+	return nil
+}
+
 func (e *Environment) define(name string, val Object, isMutable bool, isExported bool, isImport bool) (Object, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -183,6 +235,11 @@ func (e *Environment) define(name string, val Object, isMutable bool, isExported
 				slog.String("name", name),
 				slog.String("module", e.ModuleFqn),
 			)
+		} else if isCallableObject(val) {
+			// Callable declarations can contribute overloads to existing immutable callable names.
+			if _, ok := binding.Value.(*FunctionGroup); !ok {
+				return nil, fmt.Errorf("%s `%s` is already defined as a 'val' and cannot be reassigned", declaration, name)
+			}
 		} else {
 			return nil, fmt.Errorf("%s `%s` is already defined as a 'val' and cannot be reassigned", declaration, name)
 		}
@@ -202,38 +259,11 @@ func (e *Environment) define(name string, val Object, isMutable bool, isExported
 		HasDoc:   hasDoc,
 	}
 
-	switch val := val.(type) {
-	case *Function:
-		fg, ok := binding.Value.(*FunctionGroup)
-		if !ok {
-			fg = &FunctionGroup{
-				Functions: map[ast.FSig]Object{},
-			}
+	if isCallableObject(val) {
+		if err := mergeCallableIntoBinding(name, binding, val); err != nil {
+			return nil, err
 		}
-		fg.Functions[val.Signature] = val
-		binding.Value = fg
-	case *Foreign:
-		fg, ok := binding.Value.(*FunctionGroup)
-		if !ok {
-			fg = &FunctionGroup{
-				Functions: map[ast.FSig]Object{},
-			}
-		}
-		fg.Functions[val.Signature] = val
-		binding.Value = fg
-	case *FunctionGroup:
-		fg, ok := binding.Value.(*FunctionGroup)
-		if !ok {
-			fg = &FunctionGroup{
-				Functions: map[ast.FSig]Object{},
-			}
-		}
-		// Copy functions from val into fg
-		for signature, fn := range val.Functions {
-			fg.Functions[signature] = fn
-		}
-		binding.Value = fg
-	default:
+	} else {
 		binding.Value = val
 	}
 

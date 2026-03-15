@@ -206,19 +206,49 @@ func (l *Lexer) readDocComment() (string, error) {
 	l.readChar() // consume '*'
 
 	contentStart := l.position
+	atLineStart := true
 
 	for l.ch != 0 {
-		if l.ch == '*' && l.peekChar() == '/' {
-			contentEnd := l.position
-			l.readChar() // consume '*'
-			l.readChar() // consume '/'
-			raw := l.input[contentStart:contentEnd]
-			return formatDocComment(raw)
+		if atLineStart {
+			if offset, ok := l.docCommentClosingOffset(); ok {
+				contentEnd := l.position
+				for range offset {
+					l.readChar()
+				}
+				l.readChar() // consume '*'
+				l.readChar() // consume '/'
+				raw := l.input[contentStart:contentEnd]
+				return formatDocComment(raw)
+			}
+		}
+		if l.ch == '\n' {
+			atLineStart = true
+		} else if l.ch != '\r' {
+			atLineStart = false
 		}
 		l.readChar()
 	}
 
 	return "", errors.New("unterminated doc comment")
+}
+
+func (l *Lexer) docCommentClosingOffset() (int, bool) {
+	if l.position >= len(l.input) {
+		return 0, false
+	}
+	idx := l.position
+	for idx < len(l.input) {
+		b := l.input[idx]
+		if b == ' ' || b == '\t' {
+			idx++
+			continue
+		}
+		break
+	}
+	if idx+1 < len(l.input) && l.input[idx] == '*' && l.input[idx+1] == '/' {
+		return idx - l.position, true
+	}
+	return 0, false
 }
 
 func formatDocComment(raw string) (string, error) {

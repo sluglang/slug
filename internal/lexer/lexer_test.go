@@ -285,6 +285,37 @@ val x = 1`
 	}
 }
 
+func TestDocCommentAllowsBlockDelimitersInText(t *testing.T) {
+	input := "/**\n * Safe with `/* */` markers in text.\n */\nval x = 1"
+
+	tests := []struct {
+		expectedType    token.TokenType
+		expectedLiteral string
+	}{
+		{token.DOC_COMMENT, "Safe with `/* */` markers in text."},
+		{token.NEWLINE, "\n"},
+		{token.VAL, "val"},
+		{token.IDENT, "x"},
+		{token.ASSIGN, "="},
+		{token.NUMBER, "1"},
+		{token.EOF, ""},
+	}
+
+	l := New(input)
+
+	for i, tt := range tests {
+		tok := l.NextToken()
+		if tok.Type != tt.expectedType {
+			t.Fatalf("tests[%d] - tokentype wrong. expected=%q '%q', got=%q: '%q'",
+				i, tt.expectedType, tt.expectedLiteral, tok.Type, tok.Literal)
+		}
+		if tok.Literal != tt.expectedLiteral {
+			t.Fatalf("tests[%d] - literal wrong. expected=%q, got=%q",
+				i, tt.expectedLiteral, tok.Literal)
+		}
+	}
+}
+
 func TestDocCommentFormatError(t *testing.T) {
 	input := `/**
 not ok
