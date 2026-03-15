@@ -1,0 +1,40 @@
+// Config keys:
+//   ollama_model      — Ollama model name (e.g. "llama3", "mistral")
+//   ollama_url        — Ollama base URL (default: http://localhost:11434)
+
+val { get, post }      = import("slug.io.http")
+val { decode, encode } = import("slug.json")
+val { fmt }            = import("slug.std")
+
+val OLLAMA_BASE = cfg("ollama_url", "http://localhost:11434")
+val OLLAMA_API = fmt("{}/api/chat", OLLAMA_BASE)
+
+// Prepends SYSTEM_MSG to history on every call; the system message is
+// never stored in histories so it stays fresh and doesn't bloat history.
+val buildMessages = fn(history, systemPrompt) {
+  match systemPrompt {
+    nil => history
+    _   => { { role: "system", content: systemPrompt } +: history }
+  }
+}
+
+// history is a list of { role, content } maps
+// Ollama /api/chat expects: { model, messages: [{role, content}...], stream: false }
+@export
+val ollamaChat = fn(@list history, @str systemPrompt = nil, @str model = cfg("ollama_model", "llama3")) {
+  val payload        = { model: model, messages: buildMessages(history, systemPrompt), stream: false }
+  val [status, body] = post(encode(payload), OLLAMA_API, { "Content-Type": "application/json" })
+  match status {
+    200 => {
+      val parsed = decode(body)
+      match parsed {
+        nil => nil
+        _   => parsed.message.content
+      }
+    }
+    _ => {
+      println(fmt("ollama error {}: {}", status, body))
+      nil
+    }
+  }
+}

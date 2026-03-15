@@ -1,0 +1,71 @@
+// Config keys:
+//   telegram_token    — Telegram bot token from @BotFather
+
+val { get, post }        = import("slug.io.http")
+val { decode, encode }   = import("slug.json")
+val { fmt, keys, label } = import("slug.std")
+
+val TOKEN         = cfg("telegram_token", nil)
+val TELEGRAM_BASE = cfg("telegram_url", "https://api.telegram.org/bot")
+val TG_API        = fmt("{}{}", TELEGRAM_BASE, TOKEN)
+
+match TOKEN {
+  nil => {
+    println("error: telegram_token is not set in config")
+//     import("slug.sys").exit(1)
+  }
+  _ => nil
+}
+
+@export
+val sendMessage = fn(chatId, text, parseMode = "Markdown") {
+  tgPost("sendMessage", { chat_id: chatId, text: text, parse_mode: parseMode })
+}
+
+@export
+val sendTyping = fn(chatId) {
+  tgPost("sendChatAction", { chat_id: chatId, action: "typing" })
+}
+
+@export
+val getUpdates = fn(@num offset, @num timeout = 30) {
+	tgGet("getUpdates", { :offset: offset, :timeout: timeout })
+}
+
+// --- Telegram API helpers ---
+
+val buildQuery = fn(ks, map, acc="") {
+  match ks {
+    []        => acc
+    [k, ...t] => {
+      val v   = map[k]
+      val sep = if (len(acc) == 0) { "?" } else { "&" }
+      val kv  = fmt("{}{}={}", sep, label(k), v)
+      recur(t, map, acc + kv)
+    }
+  }
+}
+
+val tgGet = fn(method, params) {
+  val url            = fmt("{}/{}{}", TG_API, method, buildQuery(keys(params), params))
+  val [status, body] = get(url)
+  match status {
+    200 => decode(body)
+    _   => {
+      println(fmt("tg error {}: {}", status, body))
+      nil
+    }
+  }
+}
+
+val tgPost = fn(method, payload) {
+  val url            = fmt("{}/{}", TG_API, method)
+  val [status, body] = post(encode(payload), url, { "Content-Type": "application/json" })
+  match status {
+    200 => decode(body)
+    _   => {
+      println(fmt("tg error {}: {}", status, body))
+      nil
+    }
+  }
+}
