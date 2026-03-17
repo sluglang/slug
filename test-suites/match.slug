@@ -17,6 +17,17 @@ var test_match_whole_value_binding = fn() {
 }
 
 @test
+var test_match_negative_number = fn() {
+
+    var r = match -1 {
+        -1 => "pass"
+        _ => "fail"
+    }
+
+	r /> assertEqual("pass")
+}
+
+@test
 var test_match_case_returns_map_without_space_between_braces = fn() {
 	val addTotals = fn(i) {
 		match true {

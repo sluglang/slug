@@ -954,8 +954,18 @@ func (p *Parser) parseMatchPattern() ast.MatchPattern {
 		}
 	case token.NUMBER, token.STRING, token.TRUE, token.FALSE, token.NIL, token.SYMBOL, token.COLON:
 		// Literal patterns (numbers, strings, booleans, nil)
+		start := p.curToken
 		expr := p.parseExpression(LOWEST)
-		return &ast.LiteralPattern{Token: p.curToken, Value: expr}
+		return &ast.LiteralPattern{Token: start, Value: expr}
+	case token.MINUS:
+		// Allow negative numeric literal patterns like `-1`.
+		if !p.peekTokenIs(token.NUMBER) {
+			p.addErrorAt(p.curToken.Position, "unexpected token in match pattern: %s", p.curToken.Type)
+			return nil
+		}
+		start := p.curToken
+		expr := p.parseExpression(LOWEST)
+		return &ast.LiteralPattern{Token: start, Value: expr}
 	case token.LBRACKET:
 		// List pattern
 		return p.parseListPattern()

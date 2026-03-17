@@ -299,6 +299,43 @@ match :query {
 	}
 }
 
+func TestMatchNegativeNumberPatternParsing(t *testing.T) {
+	input := `
+match -1 {
+  -1 => "pass"
+  _ => "fail"
+}
+`
+
+	l := lexer.New(input)
+	p := New(l, "", input)
+	program := p.ParseProgram()
+	checkParserErrors(t, p)
+
+	stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
+	if !ok {
+		t.Fatalf("stmt not *ast.ExpressionStatement. got=%T", program.Statements[0])
+	}
+
+	matchExpr, ok := stmt.Expression.(*ast.MatchExpression)
+	if !ok {
+		t.Fatalf("expression not *ast.MatchExpression. got=%T", stmt.Expression)
+	}
+
+	lit, ok := matchExpr.Cases[0].Pattern.(*ast.LiteralPattern)
+	if !ok {
+		t.Fatalf("first case pattern not *ast.LiteralPattern. got=%T", matchExpr.Cases[0].Pattern)
+	}
+
+	prefix, ok := lit.Value.(*ast.PrefixExpression)
+	if !ok {
+		t.Fatalf("first case literal not *ast.PrefixExpression. got=%T", lit.Value)
+	}
+	if prefix.Operator != "-" {
+		t.Fatalf("prefix operator wrong. got=%q", prefix.Operator)
+	}
+}
+
 func TestIntegerLiteralExpression(t *testing.T) {
 	input := "5;"
 
