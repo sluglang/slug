@@ -23,12 +23,18 @@ func fnBuiltinImport() *object.Foreign {
 			}
 
 			tempMap := make(map[string]object.Object)
+			importedModules := make(map[string]struct{})
 
 			for i, arg := range args {
 				strArg, ok := arg.(*object.String)
 				if !ok {
 					return ctx.NewError("argument %d to import must be a string, got %s", i, arg.Type())
 				}
+				// Import is idempotent per call: skip duplicate module paths.
+				if _, seen := importedModules[strArg.Value]; seen {
+					continue
+				}
+				importedModules[strArg.Value] = struct{}{}
 
 				module, err := ctx.LoadModule(strArg.Value)
 				if err != nil {
@@ -56,19 +62,23 @@ func fnBuiltinImport() *object.Foreign {
 							// Build/extend a composite group that delegates to both groups.
 							// We keep this *live* by delegating to the original groups, not copying functions.
 							// Detect duplicate signatures to keep things explicit.
-							sigSeen := map[ast.FSig]bool{}
+							sigSeen := map[ast.FSig]object.Object{}
 							// existing group's own functions
-							for sig := range existingFg.Functions {
-								sigSeen[sig] = true
+							for sig, fn := range existingFg.Functions {
+								sigSeen[sig] = fn
 							}
 							// plus any delegated groups
 							for _, dg := range existingFg.Delegates {
-								for sig := range dg.Functions {
-									sigSeen[sig] = true
+								for sig, fn := range dg.Functions {
+									sigSeen[sig] = fn
 								}
 							}
-							for sig := range fg.Functions {
-								if sigSeen[sig] {
+							for sig, fn := range fg.Functions {
+								if seenFn, exists := sigSeen[sig]; exists {
+									// Same exact implementation imported again is harmless (e.g. repeated module import).
+									if seenFn == fn {
+										continue
+									}
 									//return ctx.NewError("import collision for function '%s' with duplicate signature %v while importing '%s'", name, sig, strArg.Value)
 									fqn := ctx.CurrentEnv().ModuleFqn
 									fmt.Printf("WARNING: import collision in %s for function '%s.%s%v' with duplicate signature\n", fqn, strArg.Value, name, sig.String())
@@ -79,7 +89,16 @@ func fnBuiltinImport() *object.Foreign {
 							if existingFg.Delegates == nil {
 								existingFg.Delegates = []*object.FunctionGroup{}
 							}
-							existingFg.Delegates = append(existingFg.Delegates, fg)
+							alreadyDelegated := false
+							for _, d := range existingFg.Delegates {
+								if d == fg {
+									alreadyDelegated = true
+									break
+								}
+							}
+							if !alreadyDelegated {
+								existingFg.Delegates = append(existingFg.Delegates, fg)
+							}
 							continue
 						}
 
