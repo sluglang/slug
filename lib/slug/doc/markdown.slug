@@ -21,6 +21,13 @@ val re = import('slug.regex')
 val { describe, moduleDocs } = import("slug.meta")
 
 // Produce a GitHub-style anchor slug from a heading
+@testWith(
+	['foo'], '#foo',
+	['FOO'], '#foo',
+	['`FOO|Bar`'], '#foobar',
+	['FOO Bar '], '#foo-bar',
+	['foo-bar '], '#foo-bar',
+)
 val slugify = fn(text) {
 	'#' + text
 	/> re.replaceAll('[^\w\s-]', '')
