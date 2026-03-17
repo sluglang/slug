@@ -453,8 +453,8 @@ val toBoolean = fn(v) {
 		^NIL_TYPE     => false
 		^STRING_TYPE  => {
 			match v {
-				"true", "yes", "TRUE", "YES", "1"   => true
-				"false", "no", "FALSE", "NO", "0"   => false
+				"true", "t", "yes", "y", "TRUE", "T", "YES", "Y", "1"   => true
+				"false", "f", "no", "n", "FALSE", "F", "NO", "N", "0"   => false
 				_ => throw Error { type: "TypeError", msg: "Cannot convert '{{v}}' to boolean" }
 			}
 		}
