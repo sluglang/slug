@@ -98,7 +98,7 @@ val loadQueries = fn(@str base = DefaultBase) {
 		/> replaceAll('/', ' ')
 		/> trim
 		/> split(' ')
-		/> putNested(repos, f)
+		repos /> putNested(keyPath, f)
 	})
 }
 
