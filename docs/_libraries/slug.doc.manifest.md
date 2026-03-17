@@ -43,10 +43,6 @@ Output format example:
     desc: "result of extractArgs; carries rewritten SQL and inferred statement type"
     field cause @str: "the original error that triggered this one"
 
-### TOC
-
-- [`manifest(moduleNames)`](#manifestmodulenames)
-
 ### Functions
 
 #### `manifest(moduleNames)`

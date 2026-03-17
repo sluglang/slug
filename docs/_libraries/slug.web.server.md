@@ -47,10 +47,6 @@ to dispatch to a router, or write a plain function for simple cases.
 
 @effects('io net')
 
-### TOC
-
-- [`serve(app, addr, port)`](#serveapp-addr-port)
-
 ### Functions
 
 #### `serve(app, addr, port)`

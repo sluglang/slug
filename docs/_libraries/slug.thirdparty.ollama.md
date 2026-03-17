@@ -53,10 +53,6 @@ ollamaChat(history, systemPrompt: "You are a helpful Slug expert.")
 
 @effects('net')
 
-### TOC
-
-- [`ollamaChat(history, systemPrompt, model)`](#ollamachathistory-systemprompt-model)
-
 ### Functions
 
 #### `ollamaChat(history, systemPrompt, model)`

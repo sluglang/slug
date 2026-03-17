@@ -19,7 +19,7 @@ see `slug.std`.
 - [`intersect(s1, s2)`](#intersects1-s2)
 - [`merge(base, patch)`](#mergebase-patch)
 - [`patch(base, patchData)`](#patchbase-patchdata)
-- [`putNested(keys, map, value)`](#putnestedkeys-map-value)
+- [`putNested(map, keys, value)`](#putnestedmap-keys-value)
 - [`union(s1, s2)`](#unions1-s2)
 
 ### Functions
@@ -95,7 +95,7 @@ For deep merging of nested maps, use `patch` instead.
 #### Examples
 
 ```slug
-merge({:a: 1, :b: 2}, {:b: 3, :c: 4})  // => {:b: 3, :c: 4, :a: 1}
+merge({:b: 2, :a: 1}, {:c: 4, :b: 3})  // => {:a: 1, :b: 3, :c: 4}
 merge({:a: 1}, {})  // => {:a: 1}
 merge({}, {:a: 1})  // => {:a: 1}
 ```
@@ -130,9 +130,9 @@ patch({:a: {:b: 2}}, {:a: 1})  // => {:a: 1}
 
 ---
 
-#### `putNested(keys, map, value)`
+#### `putNested(map, keys, value)`
 ```slug
-fn slug.map#putNested(@list keys, @map map, value) -> @map
+fn slug.map#putNested(@map map, @list keys, value) -> @map
 ```
 
 
@@ -144,17 +144,17 @@ it is replaced with a new map containing the nested key.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `keys` | @list  | — |
 | `map` | @map  | — |
+| `keys` | @list  | — |
 | `value` |  | — |
 
 
 #### Examples
 
 ```slug
-putNested(["k"], {}, "v")  // => {:k: v}
-putNested(["k", "k"], {}, "v")  // => {:k: {:k: v}}
-putNested(["k", "k"], {:k: {:j: 1}}, "v")  // => {:k: {:k: v, :j: 1}}
+putNested({}, ["k"], "v")  // => {:k: v}
+putNested({}, ["k", "k"], "v")  // => {:k: {:k: v}}
+putNested({:k: {:j: 1}}, ["k", "k"], "v")  // => {:k: {:k: v, :j: 1}}
 ```
 
 ---

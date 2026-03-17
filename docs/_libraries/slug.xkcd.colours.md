@@ -20,10 +20,6 @@ val { xkcd } = import("slug.term.colour")
 "Hello!" /> xkcd(:electricLime) /> println
 ```
 
-### TOC
-
-- [XkcdColourIndex](#xkcdcolourindex)
-
 ### Constants
 
 #### `XkcdColourIndex`

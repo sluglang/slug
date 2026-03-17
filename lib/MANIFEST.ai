@@ -122,10 +122,19 @@ fn slug.channel#tryRecv(@chan channel) -> ?
 fn slug.channel#trySend(@chan channel, payload) -> ?
   desc: "attempts to send a value to a channel without blocking."
 
+fn slug.cli#argsWith(raw, spec) -> ?
+  desc: "parses, normalizes, validates, and coerces CLI arguments against a spec."
+
+fn slug.cli#helpText(spec) -> ?
+  desc: "renders the help text for a spec as a string."
+
 fn slug.cli#opt(...args) -> ?
   desc: "returns the first non-nil value from `args`, coerced to the type of the last argument."
   errors:
     thrown: @struct(Error{type:TypeError})
+
+fn slug.cli#versionText(spec) -> ?
+  desc: "renders the version text for a spec as a string."
 
 fn slug.crypto#hmacSha256(@bytes message, @bytes secret) -> @bytes
   desc: "returns the HMAC-SHA256 of a raw byte message using a raw byte key."
@@ -308,6 +317,10 @@ fn slug.io.http#request(@str method, @str url, @str body = "", @map headers = {}
 fn slug.io.http#urlDecode(@str str) -> ?
   desc: "decodes a URL-encoded string."
 
+fn slug.io.stdin#confirm(@str message, @bool default = false) -> @bool
+
+fn slug.io.stdin#prompt(@str prompt) -> @str
+
 fn slug.io.stdin#readLines() -> @chan(@struct(Full)|@struct(Empty))
   desc: "Returns a shared singleton channel of stdin line events."
 
@@ -378,7 +391,7 @@ fn slug.map#merge(@map base, @map patch) -> @map
 fn slug.map#patch(@map base, @map patchData) -> @map
   desc: "recursively merges two maps, deeply merging nested map values."
 
-fn slug.map#putNested(@list keys, @map map, value) -> @map
+fn slug.map#putNested(@map map, @list keys, value) -> @map
   desc: "sets a deeply nested key in a map, creating intermediate maps as needed."
 
 fn slug.map#union(@map s1, @map s2) -> @map

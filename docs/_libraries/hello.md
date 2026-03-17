@@ -10,6 +10,3 @@ Usage:
 ```bash
 slug hello [name]
 ```
-
-### TOC
-
