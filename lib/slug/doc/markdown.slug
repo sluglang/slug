@@ -305,9 +305,12 @@ val renderModule = fn(@str mod, @bool moduleToc) {
 				"`" + label(v) + "(" + paramNames + ")`"
 			})
 
-			val entries = (basic + fnNames)
-			/> map(fn(m) { '- [' + m + '](' + slugify(m) + ')' })
-			"\n\n### TOC\n\n" + (entries /> join("\n"))
+			val entries = (basic + fnNames) /> map(fn(m) { '- [' + m + '](' + slugify(m) + ')' })
+			if (len(entries) > 1) {
+				"\n\n### TOC\n\n" + (entries /> join("\n"))
+			} else {
+				''
+			}
 		} else {''}
 
 	// constants subsection
@@ -377,7 +380,7 @@ val singlePage = fn(@list moduleNames, @str title = 'Slug API Reference', @bool 
 	] /> join("\n")
 
 	val body = sortedMods
-		/> map(renderModule(moduleToc))
+		/> map(fn(v) {v /> renderModule(moduleToc)})
 		/> join("\n\n---\n\n")
 
 	header + "\n\n" + body + "\n"

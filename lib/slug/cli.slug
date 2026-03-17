@@ -1,68 +1,534 @@
 /**
- * slug.cli — command-line option helpers
+ * slug.cli — command-line interface utilities
  *
- * Utilities for working with parsed CLI options from `argm()`.
+ * Provides `opt` for simple multi-source option coercion and `argsWith`
+ * for full declarative CLI argument parsing, validation, and help generation.
  *
- * The primary use case is normalising option values that may come from
- * multiple sources (long flag, short flag, environment variable, default)
- * into a single typed value. `opt` picks the first non-nil value from a
- * list of candidates and coerces it to the type of the last argument.
- *
- * ## Example
+ * ## Quick start
  *
  * ```slug
- * val { opt } = import("slug.cli")
- * val args = argm()
+ * val { argsWith } = import("slug.cli")
  *
- * // accept --port or -p, default to 8080
- * val port = opt(args.options.port, args.options.p, 8080)
- * // => 8080 if neither flag was passed, coerced to @num
+ * val spec = {
+ *   name:    "backup",
+ *   version: "1.2.0",
+ *   summary: "Backup files to a remote location",
+ *   alias:    { a: "all", u: "user" },
+ *   required: ["user"],
+ *   defaults: { all: false },
+ *   types:    { all: "bool", user: "str" },
+ *   desc:     { user: "User account to run as", all: "Process all files" },
+ *   positional: { min: 1, max: 1, name: "file" },
+ * }
  *
- * // accept --verbose or -v, default to false
- * val verbose = opt(args.options.verbose, args.options.v, false)
- * // => false if neither flag was passed, coerced to @bool
+ * val result = argm() /> argsWith(spec)
+ *
+ * match result {
+ *   { ok: true, options, positional } => run(options, positional)
+ *   { action: :help,    text }        => { println(text); import("slug.sys").exit(0) }
+ *   { action: :version, text }        => { println(text); import("slug.sys").exit(0) }
+ *   { errors }                        => { errors /> map(fn(e) { println(e.msg) }); import("slug.sys").exit(1) }
+ * }
  * ```
+ *
+ * ## Result shapes
+ *
+ * `argsWith` always returns a map. The `ok` field is the primary discriminator:
+ *
+ * **Success:** `{ ok: true, action: :none, options: @map, positional: @list, errors: [] }`
+ *
+ * **Help/version:** `{ ok: false, action: :help | :version, text: @str, options: {}, positional: [], errors: [] }`
+ *
+ * **Validation failure:** `{ ok: false, action: :error, options: {}, positional: [], errors: @list }`
+ *
+ * ## Spec fields
+ *
+ * | Field        | Type    | Description                                              |
+ * |--------------|---------|----------------------------------------------------------|
+ * | `name`       | `@str`  | Program name; used in help and version output            |
+ * | `version`    | `@str`  | Version string; enables `--version` / `-v`               |
+ * | `summary`    | `@str`  | One-line description shown in help                       |
+ * | `alias`      | `@map`  | Short name → canonical name; e.g. `{ u: "user" }`       |
+ * | `required`   | `@list` | Canonical option names that must be present              |
+ * | `defaults`   | `@map`  | Default values by canonical name                         |
+ * | `types`      | `@map`  | Type hints: `"bool"`, `"str"`, `"num"` by canonical name |
+ * | `desc`       | `@map`  | Option descriptions by canonical name                    |
+ * | `allow`      | `@list` | Explicit allowlist; inferred from other fields if omitted|
+ * | `positional` | `@map`  | `{ min, max?, name }` positional argument constraints    |
+ *
+ * ## Error shapes
+ *
+ * Each entry in `errors` is a map with a `type` and `msg` field:
+ *
+ * | `type`               | Extra fields                       |
+ * |----------------------|------------------------------------|
+ * | `"missing-required"` | `option`                           |
+ * | `"unknown-option"`   | `option`                           |
+ * | `"invalid-type"`     | `option`, `expected`, `value`      |
+ * | `"positional-min"`   | `min`, `actual`                    |
+ * | `"positional-max"`   | `max`, `actual`                    |
  */
 
 val {*} = import(
-	"slug.std",
+  "slug.std",
+  "slug.string",
 )
+
+val list = import("slug.list")
+
+// ============================================================
+// opt — simple multi-source option coercion (original export)
+// ============================================================
 
 /**
  * returns the first non-nil value from `args`, coerced to the type of the last argument.
  *
  * The last argument acts as both the default value and the type hint.
- * If all arguments are nil, returns nil.
+ * If all arguments are nil, returns nil. Throws `TypeError` if coercion
+ * is not possible.
  *
- * Coercion uses the same rules as `toBoolean`, `toNumber`, and `toString`.
- * Throws `TypeError` if coercion is not possible.
+ * ```slug
+ * val port = opt(args.options.port, args.options.p, 8080)
+ * ```
  */
 @export
 @throws('@struct(Error{type:TypeError})')
 val opt = fn(...args) {
-	if (len(args) == 0) {
-		nil
-	} else {
-		val t = args[-1] /> type
-		args /> find(fn(v) { v != nil }) /> convertValue(t)
-	}
+  if (len(args) == 0) {
+    nil
+  } else {
+    val t = args[-1] /> type
+    args /> find(fn(v) { v != nil }) /> convertValue(t)
+  }
+}
+
+val convertValue = fn(newValue, targetType) match {
+  [nv, tt] if type(nv) == tt => nv
+  [nv, ^NIL_TYPE]     => nil
+  [nv, ^BOOLEAN_TYPE] => toBoolean(nv)
+  [nv, ^NUMBER_TYPE]  => toNumber(nv)
+  [nv, ^STRING_TYPE]  => toString(nv)
+  [nv, tt] => throw Error { type: "TypeError", msg: "Cannot convert '{{nv}}' to type {{tt}}" }
+}
+
+// ============================================================
+// argsWith internals
+// ============================================================
+
+// --- result constructors ---
+
+val resultOk = fn(options, positional) {{
+  ok:         true,
+  action:     :none,
+  options:    options,
+  positional: positional,
+  errors:     [],
+}}
+
+val resultAction = fn(action, text) {{
+  ok:         false,
+  action:     action,
+  text:       text,
+  options:    {},
+  positional: [],
+  errors:     [],
+}}
+
+val resultErrors = fn(errors) {{
+  ok:         false,
+  action:     :error,
+  options:    {},
+  positional: [],
+  errors:     errors,
+}}
+
+// --- error constructors ---
+
+val errMissingRequired = fn(option) {{
+  type:   "missing-required",
+  option: option,
+  msg:    "missing required option --{{option}}",
+}}
+
+val errUnknownOption = fn(option) {{
+  type:   "unknown-option",
+  option: option,
+  msg:    "unknown option --{{option}}",
+}}
+
+val errInvalidType = fn(option, expected, value) {{
+  type:     "invalid-type",
+  option:   option,
+  expected: expected,
+  value:    value,
+  msg:      "invalid {{expected}} for --{{option}}: \"{{value}}\"",
+}}
+
+val errPositionalMin = fn(min, actual) {{
+  type:   "positional-min",
+  min:    min,
+  actual: actual,
+  msg:    "expected at least {{min}} positional argument(s), got {{actual}}",
+}}
+
+val errPositionalMax = fn(max, actual) {{
+  type:   "positional-max",
+  max:    max,
+  actual: actual,
+  msg:    "expected at most {{max}} positional argument(s), got {{actual}}",
+}}
+
+// --- allowed options inference ---
+// Union of canonical names across types, defaults, required, alias targets, desc.
+// spec.allow overrides this inferred set when present.
+
+val inferAllowed = fn(spec) {
+  // spec map keys (:all, :user etc.) are symbols; label() strips the colon to string
+  // alias values are already strings ("all", "user")
+  val fromTypes    = spec.types    /> ifNil({}) /> keys /> map(label)
+  val fromDefaults = spec.defaults /> ifNil({}) /> keys /> map(label)
+  val fromRequired = spec.required /> ifNil([])
+  val fromAliases  = spec.alias    /> ifNil({}) /> keys /> map(fn(k) { spec.alias[k] })
+  val fromDesc     = spec.desc     /> ifNil({}) /> keys /> map(label)
+  (fromTypes + fromDefaults + fromRequired + fromAliases + fromDesc)
+  /> reduce([], fn(acc, k) {
+    match list.indexOf(acc, k) {
+      -1 => acc :+ k
+      _  => acc
+    }
+  })
+}
+
+val allowedOptions = fn(spec) {
+  match spec.allow {
+    nil => inferAllowed(spec)
+    v   => v
+  }
+}
+
+// --- alias resolution ---
+
+@testWith(
+  [{ a: "all", u: "user" }, "a"],   "all",
+  [{ a: "all", u: "user" }, "u"],   "user",
+  [{ a: "all", u: "user" }, "all"], "all",
+  [{ a: "all", u: "user" }, "x"],   "x",
+)
+val resolveAlias = fn(aliases, name) {
+  // alias map keys are symbols (:a, :u); name arrives as a string label
+  match aliases[sym(name)] {
+    nil => name
+    v   => v
+  }
+}
+
+// Resolves all option keys to their canonical names.
+// When both a short alias and its canonical name are present,
+// the canonical name's value wins (last-write on key collision).
+
+@testWith(
+  [{ a: "all", u: "user" }, { a: true, user: "evan" }],
+    { "all": true, "user": "evan" },
+  [{ a: "all" }, { all: false, a: true }],
+    { "all": true },
+  [{}, { verbose: true }],
+    { "verbose": true },
+)
+val normalizeOptions = fn(aliases, rawOptions) {
+  val aliasMap = aliases /> ifNil({})
+  rawOptions /> keys /> reduce({}, fn(acc, k) {
+    // k is a symbol from argm(); label() strips the colon to get the string name
+    val canonical = resolveAlias(aliasMap, label(k))
+    put(acc, canonical, rawOptions[k])
+  })
+}
+
+// --- type coercion ---
+
+val coerceBool = fn(v) {
+  match type(v) {
+    ^BOOLEAN_TYPE => {{ ok: true, value: v }}
+    ^NIL_TYPE     => {{ ok: true, value: true }}   // bare flag presence
+    ^STRING_TYPE  => match v {
+      "true"  => {{ ok: true, value: true }}
+      "false" => {{ ok: true, value: false }}
+      _       => {{ ok: false, value: v }}
+    }
+    _ => {{ ok: false, value: v }}
+  }
+}
+
+val coerceNum = fn(v) {
+  match type(v) {
+    ^NUMBER_TYPE => {{ ok: true, value: v }}
+    ^STRING_TYPE => {
+      val n = toNumber(v)
+      match type(n) {
+        ^NUMBER_TYPE => {{ ok: true, value: n }}
+        _            => {{ ok: false, value: v }}
+      }
+    }
+    _ => {{ ok: false, value: v }}
+  }
+}
+
+val coerceValue = fn(option, typeName, value) {
+  val result = match typeName {
+    "bool" => coerceBool(value)
+    "num"  => coerceNum(value)
+    _      => {{ ok: true, value: toString(value) }}   // "str" — pass through
+  }
+  match result.ok {
+    true  => {{ ok: true,  value: result.value, error: nil }}
+    false => {{ ok: false, value: value, error: errInvalidType(option, typeName, toString(value)) }}
+  }
+}
+
+val coerceOptions = fn(options, types, errors) {
+  val typeMap = types /> ifNil({})
+  options /> keys /> reduce({ options: options, errors: errors }, fn(acc, k) {
+    // k is a string key; typeMap has symbol keys from the spec literal
+    val typeName = typeMap[sym(k)]
+    match typeName {
+      nil => acc
+      _   => {
+        val result = coerceValue(k, typeName, acc.options[k])
+        match result.ok {
+          true  => acc /> put(:options, acc.options /> put(k, result.value))
+          false => acc /> put(:errors, acc.errors :+ result.error)
+        }
+      }
+    }
+  })
+}
+
+// --- defaults ---
+
+val applyDefaults = fn(options, defaults) {
+  val defaultMap = defaults /> ifNil({})
+  defaultMap /> keys /> reduce(options, fn(acc, k) {
+    // k is a symbol from the spec literal; convert to string to match options keys
+    val strKey = label(k)
+    match acc[strKey] {
+      nil => put(acc, strKey, defaultMap[k])
+      _   => acc
+    }
+  })
+}
+
+// --- validation ---
+
+@testWith(
+  [{ "user": "evan" }, ["user"], []],  [],
+  [{ "all": true },    ["user"], []],  [{ type: "missing-required", option: "user", msg: "missing required option --user" }],
+)
+val validateRequired = fn(options, required, errors) {
+  val requiredList = required /> ifNil([])
+  requiredList /> reduce(errors, fn(acc, name) {
+    // options has string keys (output of normalizeOptions); name is a string
+    match options[name] {
+      nil => acc :+ errMissingRequired(name)
+      _   => acc
+    }
+  })
 }
 
 @testWith(
-	[nil, NIL_TYPE], nil,
-	[nil, BOOLEAN_TYPE], false,
-	[false, BOOLEAN_TYPE], false,
-	[true, BOOLEAN_TYPE], true,
-	[nil, NUMBER_TYPE], nil,
-	["123", NUMBER_TYPE], 123,
-	[nil, STRING_TYPE], nil,
-	["123", STRING_TYPE], "123"
+  [{ "user": "evan" }, ["user", "all"], []],  [],
+  [{ "user": "evan", "xyz": true }, ["user"], []], [{ type: "unknown-option", option: "xyz", msg: "unknown option --xyz" }],
 )
-val convertValue = fn(newValue, targetType) match {
-	[nv, tt] if type(nv) == tt => nv
-	[nv, ^NIL_TYPE]     => nil
-	[nv, ^BOOLEAN_TYPE] => toBoolean(nv)
-	[nv, ^NUMBER_TYPE]  => toNumber(nv)
-	[nv, ^STRING_TYPE]  => toString(nv)
-	[nv, tt] => throw Error { type: "TypeError", msg: "Cannot convert '{{nv}}' to type {{tt}}"}
+val validateUnknown = fn(options, allowed, errors) {
+  // options has string keys (output of normalizeOptions); allowed is a list of strings
+  options /> keys /> reduce(errors, fn(acc, k) {
+    match list.indexOf(allowed, k) {
+      -1 => acc :+ errUnknownOption(k)
+      _  => acc
+    }
+  })
+}
+
+@testWith(
+  [["a.txt"], { min: 1, max: 1, name: "file" }, []],  [],
+  [[],        { min: 1, max: 1, name: "file" }, []],  [{ type: "positional-min", min: 1, actual: 0, msg: "expected at least 1 positional argument(s), got 0" }],
+  [["a", "b"], { min: 1, max: 1, name: "file" }, []], [{ type: "positional-max", max: 1, actual: 2, msg: "expected at most 1 positional argument(s), got 2" }],
+  [["a", "b"], { min: 1, name: "files" }, []],         [],
+)
+val validatePositional = fn(positional, posSpec, errors) {
+  match posSpec {
+    nil => errors
+    _   => {
+      val actual  = len(positional)
+      val min     = posSpec.min /> ifNil(0)
+      val max     = posSpec.max
+      val errors1 = match actual < min {
+        true  => errors :+ errPositionalMin(min, actual)
+        false => errors
+      }
+      match max {
+        nil => errors1
+        _   => match actual > max {
+          true  => errors1 :+ errPositionalMax(max, actual)
+          false => errors1
+        }
+      }
+    }
+  }
+}
+
+// --- help rendering ---
+
+val renderUsageLine = fn(spec, allowed) {
+  val name      = spec.name /> ifNil("program")
+  val optStr    = match len(allowed) > 0 { true => " [options]" false => "" }
+  val posStr    = match spec.positional {
+    nil => ""
+    p   => " <" + (p.name /> ifNil("args")) + ">"
+  }
+  "  " + name + optStr + posStr
+}
+
+val renderOptionLine = fn(spec, name) {
+  val aliases  = spec.alias    /> ifNil({})
+  val types    = spec.types    /> ifNil({})
+  val defaults = spec.defaults /> ifNil({})
+  val required = spec.required /> ifNil([])
+  val descMap  = spec.desc     /> ifNil({})
+
+  // name is a string; alias values are strings; alias keys are symbols
+  val short    = aliases /> keys /> find(fn(k) { aliases[k] == name })
+  val flagStr  = match short {
+    nil => "      --" + name
+    _   => "  -" + label(short) + ", --" + name
+  }
+  // types/defaults/desc have symbol keys from the spec literal
+  val typeName = types[sym(name)]
+  val typeStr  = match typeName {
+    nil    => ""
+    "bool" => ""
+    _      => " <" + typeName + ">"
+  }
+  val descStr    = descMap[sym(name)] /> ifNil("")
+  val isRequired = list.indexOf(required, name) >= 0
+  val defaultVal = defaults[sym(name)]
+  val suffixStr  = match isRequired {
+    true  => " (required)"
+    false => match defaultVal {
+      nil   => ""
+      false => " (default: false)"
+      _     => " (default: " + toString(defaultVal) + ")"
+    }
+  }
+  val left = flagStr + typeStr
+  padRight(left, " ", 26) + descStr + suffixStr
+}
+
+val renderPositionalLine = fn(posSpec) {
+  match posSpec {
+    nil => ""
+    p   => {
+      val name = p.name /> ifNil("args")
+      val desc = match p.min { 1 => "input file" _ => "input files" }
+      "  " + padRight(name, " ", 24) + desc
+    }
+  }
+}
+
+/**
+ * renders the help text for a spec as a string.
+ *
+ * Produces the same output that `argsWith` returns under `action: :help`.
+ * Useful for displaying help outside the normal argument parsing flow.
+ */
+@export
+val helpText = fn(spec) {
+  val name     = spec.name    /> ifNil("program")
+  val version  = spec.version /> ifNil("")
+  val summary  = spec.summary /> ifNil("")
+  val allowed  = allowedOptions(spec)
+
+  val titleLine    = match version { "" => name _ => name + " " + version }
+  val summaryBlock = match summary { "" => "" _  => "\n" + summary + "\n" }
+  val usageBlock   = "\nUsage:\n" + renderUsageLine(spec, allowed) + "\n"
+
+  val optionLines  = allowed /> map(fn(n) { renderOptionLine(spec, n) })
+  val optionsBlock = match len(optionLines) {
+    0 => ""
+    _ => "\nOptions:\n" + join(optionLines, "\n") + "\n"
+  }
+
+  val posLine  = renderPositionalLine(spec.positional)
+  val posBlock = match posLine { "" => "" _ => "\nArguments:\n" + posLine + "\n" }
+
+  titleLine + "\n" + summaryBlock + usageBlock + optionsBlock + posBlock
+}
+
+/**
+ * renders the version text for a spec as a string.
+ *
+ * Produces the same output that `argsWith` returns under `action: :version`.
+ */
+@export
+val versionText = fn(spec) {
+  val name    = spec.name    /> ifNil("program")
+  val version = spec.version /> ifNil("")
+  match version { "" => name _ => name + " " + version }
+}
+
+// ============================================================
+// argsWith — main entry point
+// ============================================================
+
+/**
+ * parses, normalizes, validates, and coerces CLI arguments against a spec.
+ *
+ * Receives the map returned by `argm()` and returns a structured result.
+ * Never prints or exits — the caller decides how to handle each outcome.
+ *
+ * `--help` / `-h` are handled automatically and always take precedence.
+ * `--version` / `-v` are handled automatically when `spec.version` is set.
+ *
+ * Processing order:
+ * 1. Check for `--help` / `-h` → return help action
+ * 2. Check for `--version` / `-v` → return version action
+ * 3. Resolve aliases to canonical option names
+ * 4. Apply defaults for missing options
+ * 5. Coerce option values to declared types
+ * 6. Validate: unknown options, required options, positional bounds
+ * 7. Return success or error result
+ */
+@export
+val argsWith = fn(raw, spec) {
+  val rawOptions    = raw.options    /> ifNil({})
+  val rawPositional = raw.positional /> ifNil([])
+
+  // --help / -h always wins
+  match rawOptions.help || rawOptions.h {
+    true => return resultAction(:help, helpText(spec))
+    _    => nil
+  }
+
+  // --version / -v when spec declares a version
+  match spec.version {
+    nil => nil
+    _   => match rawOptions.version || rawOptions.v {
+      true => return resultAction(:version, versionText(spec))
+      _    => nil
+    }
+  }
+
+  // normalize → defaults → coerce
+  val normalized   = normalizeOptions(spec.alias, rawOptions)
+  val withDefaults = applyDefaults(normalized, spec.defaults)
+  val coerced      = coerceOptions(withDefaults, spec.types, [])
+
+  // validate
+  val allowed  = allowedOptions(spec)
+  val errors1  = validateUnknown(coerced.options, allowed, coerced.errors)
+  val errors2  = validateRequired(coerced.options, spec.required, errors1)
+  val errors3  = validatePositional(rawPositional, spec.positional, errors2)
+
+  match len(errors3) {
+    0 => resultOk(coerced.options, rawPositional)
+    _ => resultErrors(errors3)
+  }
 }
