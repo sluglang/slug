@@ -28,9 +28,9 @@ val {*} = import(
 @export
 @returns('@map')
 val putNested = fn(@map map, @list keys, value) match {
-	[[h], ...]       => put(map, sym(h), value)
-	[[h, ...t], ...] if map[sym(h)] => put(map, sym(h), putNested(t, map[sym(h)], value))
-	[[h, ...t], ...]                => put(map, sym(h), putNested(t, map, value))
+	[_, [h], ...]       => put(map, sym(h), value)
+	[_, [h, ...t], ...] if map[sym(h)] => put(map, sym(h), putNested(map[sym(h)], t, value))
+	[_, [h, ...t], ...]                => put(map, sym(h), putNested(map, t, value))
 }
 
 /**

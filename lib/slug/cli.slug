@@ -72,6 +72,7 @@
 val {*} = import(
   "slug.std",
   "slug.string",
+  "slug.list",
 )
 
 val list = import("slug.list")
@@ -227,16 +228,13 @@ val resolveAlias = fn(aliases, name) {
 // the canonical name's value wins (last-write on key collision).
 
 @testWith(
-  [{ a: "all", u: "user" }, { a: true, user: "evan" }],
-    { "all": true, "user": "evan" },
-  [{ a: "all" }, { all: false, a: true }],
-    { "all": true },
-  [{}, { verbose: true }],
-    { "verbose": true },
+  [{ a: "all", u: "user" }, { a: true, user: "knuckles" }], { "all": true, "user": "knuckles" },
+  [{ a: "all" }, { all: false, a: true }], { "all": false },
+  [{}, { verbose: true }], { "verbose": true },
 )
 val normalizeOptions = fn(aliases, rawOptions) {
   val aliasMap = aliases /> ifNil({})
-  rawOptions /> keys /> reduce({}, fn(acc, k) {
+  rawOptions /> keys /> sort /> reduce({}, fn(acc, k) {
     // k is a symbol from argm(); label() strips the colon to get the string name
     val canonical = resolveAlias(aliasMap, label(k))
     put(acc, canonical, rawOptions[k])
@@ -319,7 +317,7 @@ val applyDefaults = fn(options, defaults) {
 // --- validation ---
 
 @testWith(
-  [{ "user": "evan" }, ["user"], []],  [],
+  [{ "user": "knuckles" }, ["user"], []],  [],
   [{ "all": true },    ["user"], []],  [{ type: "missing-required", option: "user", msg: "missing required option --user" }],
 )
 val validateRequired = fn(options, required, errors) {
@@ -334,8 +332,8 @@ val validateRequired = fn(options, required, errors) {
 }
 
 @testWith(
-  [{ "user": "evan" }, ["user", "all"], []],  [],
-  [{ "user": "evan", "xyz": true }, ["user"], []], [{ type: "unknown-option", option: "xyz", msg: "unknown option --xyz" }],
+  [{ "user": "knuckles" }, ["user", "all"], []],  [],
+  [{ "user": "knuckles", "xyz": true }, ["user"], []], [{ type: "unknown-option", option: "xyz", msg: "unknown option --xyz" }],
 )
 val validateUnknown = fn(options, allowed, errors) {
   // options has string keys (output of normalizeOptions); allowed is a list of strings
