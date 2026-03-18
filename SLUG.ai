@@ -299,6 +299,8 @@ tag form "@ident or @ident(expr,...)"
 tag decl-prefix "tags may prefix var, val, and foreign declarations."
 tag params "tags may appear in parameter lists."
 tag export "@export marks a symbol as public; exported symbols appear in MANIFEST.ai."
+tag main "@main marks a function as the module entrypoint; executes only when the module is the running module, never on import; the function must be callable with zero arguments (default parameters satisfy this); a module may have at most one @main; compilation fails if multiple @main are defined or if the annotated binding is not a zero-callable function."
+tag main-pattern "idiomatic @main uses default parameters to receive runtime inputs, keeping the function testable: @main val main = fn(args = argm()) { ... }"
 tag returns "@returns('...') documents return type in a stable, parseable form."
 tag test "@test and @testWith(...) are runtime-visible metadata for test runners and tooling."
 tag testWith "@testWith([inputs...], expected, [inputs...], expected, ...) pairs are interleaved; each [inputs] list contains positional arguments; expected is the return value; multiple pairs test multiple cases on one function."
@@ -365,6 +367,8 @@ idiom recur-arity "recur must pass all parameters of the enclosing function incl
 idiom json-dot-access "prefer dot access (m.name) over bracket access when working with JSON-decoded maps; slug.json#decode produces string-keyed maps so m[:name] always returns nil on decoded data."
 idiom bracket-when-explicit "use bracket syntax m[\"key\"] or m[:key] only when key type precision matters or keys are dynamic."
 idiom forward-reference "Slug is sequential; define functions before calling them; never forward-reference a val or var binding."
+idiom main-pattern "prefer @main val main = fn(args = argm()) { ... } as the entrypoint pattern; passing argm() as a default parameter keeps the function testable without special runner support."
+idiom top-level-side-effects "keep import-time top-level side effects minimal; reserve I/O and startup logic for @main so that importing the module as a library does not trigger program behaviour."
 
 @section examples
 example recursion "
@@ -487,6 +491,23 @@ val args = argv() // [\"input.txt\"]
 val opts = argm() // { options: { a:true, b:true, name:\"knuckles\" }, positional: [\"input.txt\"] }
 "
 
+example main "
+// idiomatic @main — args as default parameter for testability
+@main
+val main = fn(args = argm()) {
+  val result = args /> argsWith(spec)
+  match result {
+    { action: :help }                 => { println(result.text); import('slug.sys').exit(0) }
+    { action: :version }              => { println(result.text); import('slug.sys').exit(0) }
+    { action: :error }                => { result.errors /> map(fn(e) { println(e.msg) }); import('slug.sys').exit(1) }
+    { ok: true, options, positional } => run(options, positional)
+  }
+}
+
+// @main never runs on import — safe to import this module as a library
+// top-level statements above main still execute on import (wiring, registration etc.)
+"
+
 @section agent-rules
 agent rule "Do not invent syntax not stated in SLUG.ai."
 agent rule "Do not invent builtins not listed in SLUG.ai or a loaded MANIFEST.ai."
@@ -509,3 +530,7 @@ agent rule "Prefer call-chain style (x /> f /> g) over nested calls (g(f(x))) fo
 agent rule "Parentheses are optional for single-parameter calls in a chain: x /> trim not x /> trim()."
 agent rule "match requires an explicit scrutinee except in pipeline position: value /> match { ... } is valid; match { ... } as a standalone expression is not valid."
 agent rule "match may appear as a pipeline stage: value /> match { ... } consumes the prior value as scrutinee; use as a terminal decision boundary where a single value fans into distinct outcomes."
+agent rule "@main never executes on import; it only executes when the module is the running module."
+agent rule "@main must be callable with zero arguments; use default parameters to receive runtime inputs: @main val main = fn(args = argm()) { ... }"
+agent rule "A module may have at most one @main; defining multiple @main functions is a compilation error."
+agent rule "Keep top-level statements side-effect-free where possible; put I/O and startup logic in @main so the module is safe to import as a library."
