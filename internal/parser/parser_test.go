@@ -5,6 +5,7 @@ import (
 	"slug/internal/ast"
 	"slug/internal/dec64"
 	"slug/internal/lexer"
+	"strings"
 	"testing"
 )
 
@@ -108,6 +109,82 @@ val x = 1`
 	}
 	if valExpr.HasDoc {
 		t.Fatalf("expected val doc to be empty for module doc comment")
+	}
+}
+
+func TestMainTagAllowsDefaultedParameters(t *testing.T) {
+	input := `
+@main
+val start = fn(args = argv(), limit = cfg("limit", 10)) {
+  nil
+}
+`
+
+	l := lexer.New(input)
+	p := New(l, "", input)
+	_ = p.ParseProgram()
+	checkParserErrors(t, p)
+}
+
+func TestMainTagRejectsNonFunctionTarget(t *testing.T) {
+	input := `
+@main
+val start = 1
+`
+
+	l := lexer.New(input)
+	p := New(l, "", input)
+	_ = p.ParseProgram()
+
+	errors := p.Errors()
+	if len(errors) == 0 {
+		t.Fatalf("expected parser errors, got none")
+	}
+	if !containsParserError(errors, "@main may only annotate functions") {
+		t.Fatalf("expected @main non-function error, got: %v", errors)
+	}
+}
+
+func TestMainTagRejectsNonZeroArity(t *testing.T) {
+	input := `
+@main
+val start = fn(required) {
+  nil
+}
+`
+
+	l := lexer.New(input)
+	p := New(l, "", input)
+	_ = p.ParseProgram()
+
+	errors := p.Errors()
+	if len(errors) == 0 {
+		t.Fatalf("expected parser errors, got none")
+	}
+	if !containsParserError(errors, "@main function must be callable with zero arguments") {
+		t.Fatalf("expected @main arity error, got: %v", errors)
+	}
+}
+
+func TestMainTagRejectsMultipleDeclarations(t *testing.T) {
+	input := `
+@main
+val one = fn() { nil }
+
+@main
+val two = fn() { nil }
+`
+
+	l := lexer.New(input)
+	p := New(l, "", input)
+	_ = p.ParseProgram()
+
+	errors := p.Errors()
+	if len(errors) == 0 {
+		t.Fatalf("expected parser errors, got none")
+	}
+	if !containsParserError(errors, "at most one @main function") {
+		t.Fatalf("expected @main uniqueness error, got: %v", errors)
 	}
 }
 
@@ -1397,4 +1474,13 @@ func checkParserErrors(t *testing.T, p *Parser) {
 		t.Errorf("parser error: %q", msg)
 	}
 	t.FailNow()
+}
+
+func containsParserError(errors []string, needle string) bool {
+	for _, msg := range errors {
+		if strings.Contains(msg, needle) {
+			return true
+		}
+	}
+	return false
 }

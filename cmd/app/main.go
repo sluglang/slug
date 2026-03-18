@@ -144,6 +144,16 @@ func main() {
 
 	// 6. Execute
 	result := eval.Eval(program)
+	if result == nil || result.Type() != object.ERROR_OBJ {
+		entrypoint, err := runtime.FindMainEntrypoint(env)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Slug Error:\n%s\n", err.Error())
+			os.Exit(1)
+		}
+		if entrypoint != nil {
+			result = eval.ApplyFunction(0, "@main", entrypoint, nil, nil)
+		}
+	}
 	// make sure defers execute
 	result = eval.PopEnv(result)
 	if eval.CurrentEnvStackSize() != 0 {

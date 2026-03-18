@@ -253,6 +253,7 @@ func (p *Parser) ParseProgram() *ast.Program {
 	program.HasModuleDoc = p.hasModuleDoc
 
 	p.validateStructSchemaUsage(program)
+	p.validateMainTagUsage(program)
 
 	return program
 }
@@ -303,6 +304,9 @@ func (p *Parser) parseStatement() ast.Statement {
 		return p.parseThrowStatement()
 	case token.AT:
 		tag := p.parseTag()
+		if tag != nil && tag.Name == "@main" && p.scopeDepth != 0 {
+			p.addErrorAt(tag.Token.Position, "@main must be declared at module top-level")
+		}
 		p.pendingTags = append(p.pendingTags, tag)
 		if p.scopeDepth == 0 {
 			p.seenMeaningful = true
@@ -2799,4 +2803,74 @@ func (p *Parser) containsStructSchemaInStatement(stmt ast.Statement) bool {
 	default:
 		return false
 	}
+}
+
+func (p *Parser) validateMainTagUsage(program *ast.Program) {
+	mainCount := 0
+
+	for _, stmt := range program.Statements {
+		switch s := stmt.(type) {
+		case *ast.ExpressionStatement:
+			switch expr := s.Expression.(type) {
+			case *ast.ValExpression:
+				p.validateMainOnBinding(expr.Tags, expr.Value, &mainCount)
+			case *ast.VarExpression:
+				p.validateMainOnBinding(expr.Tags, expr.Value, &mainCount)
+			}
+		case *ast.ForeignFunctionDeclaration:
+			p.validateMainOnForeignFunction(s, &mainCount)
+		}
+	}
+}
+
+func (p *Parser) validateMainOnBinding(tags []*ast.Tag, value ast.Expression, mainCount *int) {
+	mainTag := findTagByName(tags, "@main")
+	if mainTag == nil {
+		return
+	}
+
+	*mainCount++
+	if *mainCount > 1 {
+		p.addErrorAt(mainTag.Token.Position, "a module may define at most one @main function")
+		return
+	}
+
+	fn, ok := value.(*ast.FunctionLiteral)
+	if !ok {
+		p.addErrorAt(mainTag.Token.Position, "@main may only annotate functions")
+		return
+	}
+
+	if fn.Signature.Min != 0 {
+		p.addErrorAt(mainTag.Token.Position, "@main function must be callable with zero arguments")
+	}
+}
+
+func (p *Parser) validateMainOnForeignFunction(fn *ast.ForeignFunctionDeclaration, mainCount *int) {
+	mainTag := findTagByName(fn.Tags, "@main")
+	if mainTag == nil {
+		return
+	}
+
+	*mainCount++
+	if *mainCount > 1 {
+		p.addErrorAt(mainTag.Token.Position, "a module may define at most one @main function")
+		return
+	}
+
+	if fn.Signature.Min != 0 {
+		p.addErrorAt(mainTag.Token.Position, "@main function must be callable with zero arguments")
+	}
+}
+
+func findTagByName(tags []*ast.Tag, name string) *ast.Tag {
+	for _, tag := range tags {
+		if tag == nil {
+			continue
+		}
+		if tag.Name == name {
+			return tag
+		}
+	}
+	return nil
 }
