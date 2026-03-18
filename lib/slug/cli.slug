@@ -13,6 +13,7 @@
  *   name:    "backup",
  *   version: "1.2.0",
  *   summary: "Backup files to a remote location",
+ *   strict: false,
  *   alias:    { a: "all", u: "user" },
  *   required: ["user"],
  *   defaults: { all: false },
@@ -48,7 +49,8 @@
  * | `name`       | `@str`  | Program name; used in help and version output            |
  * | `version`    | `@str`  | Version string; enables `--version` / `-v`               |
  * | `summary`    | `@str`  | One-line description shown in help                       |
- * | `alias`      | `@map`  | Short name → canonical name; e.g. `{ u: "user" }`       |
+ * | `strict`     | `@bool` | Allow unrecognized parameters, true to treat as an error |
+ * | `alias`      | `@map`  | Short name → canonical name; e.g. `{ u: "user" }`        |
  * | `required`   | `@list` | Canonical option names that must be present              |
  * | `defaults`   | `@map`  | Default values by canonical name                         |
  * | `types`      | `@map`  | Type hints: `"bool"`, `"str"`, `"num"` by canonical name |
@@ -499,6 +501,8 @@ val argsWith = fn(raw, spec) {
   val rawOptions    = raw.options    /> ifNil({})
   val rawPositional = raw.positional /> ifNil([])
 
+  val strict        = spec.strict     /> ifNil(false)
+
   // --help / -h always wins
   match rawOptions.help || rawOptions.h {
     true => return resultAction(:help, helpText(spec))
@@ -521,7 +525,7 @@ val argsWith = fn(raw, spec) {
 
   // validate
   val allowed  = allowedOptions(spec)
-  val errors1  = validateUnknown(coerced.options, allowed, coerced.errors)
+  val errors1  = if(strict) { validateUnknown(coerced.options, allowed, coerced.errors) } else { [] }
   val errors2  = validateRequired(coerced.options, spec.required, errors1)
   val errors3  = validatePositional(rawPositional, spec.positional, errors2)
 
