@@ -1,23 +1,18 @@
 /**
- * Slug Test Framework
+ * Slug Test — unit test runner
  *
- * This is a simple test framework for Slug programs that allows you to write and run
- * unit tests. The framework supports both simple test cases and parameterized tests
- * with multiple inputs and expected outputs.
+ * Discovers and runs `@test` and `@testWith` tagged functions in the
+ * given source files, reporting passes, failures, and errors.
  *
  * Usage:
- * 1. Tag your functions with either @test or @testWith
- * 2. Run your tests using the test runner
- * 3. View results including passes, failures and errors
- *
  * ```bash
- * slug test [slug files...]
+ * slug test [options] <test files...>
  * ```
  *
  * Test examples:
  * ```slug
  * @test
- * var simpleTest = fn() {
+ * val simpleTest = fn() {
  *   assert(1 + 1 == 2)
  * }
  *
@@ -26,134 +21,142 @@
  *   [7, 9, 8], 9,
  *   [4, 5, 3], 5
  * )
- * var max = fn(a, ...b)
+ * val max = fn(a, ...b) { ... }
  * ```
+ *
+ * Options:
+ * - `-h, --help`      show this screen
+ * - `-v, --version`   show version
+ * - `--verbose`       show passing tests as well as failures
  */
 
-var {*} = import(
-	"slug.std",
-	"slug.map",
-	"slug.list",
-	"slug.meta",
-	"slug.string",
-	"slug.time",
-	"slug.sys",
-	"slug.term.colour",
+val {*} = import(
+  "slug.std",
+  "slug.map",
+  "slug.list",
+  "slug.meta",
+  "slug.string",
+  "slug.time",
+  "slug.sys",
+  "slug.term.colour",
 )
+val { assertEqual } = import("slug.test")
+val { argsWith }    = import("slug.cli")
 
-var {assertEqual} = import("slug.test")
-
-/**
- * @testWith - Allows test inputs and expected outputs to be specified
- */
 val TestWithTag = "@testWith"
+val TestTag     = "@test"
 
-/**
- * @test - Marks a function as a test case that takes no parameters
- */
-val TestTag = "@test"
-
-val Fail = BrightColour.Red
-val Pass = Colour.Green
+val Fail  = BrightColour.Red
+val Pass  = Colour.Green
 val Reset = reset
+
+// --- CLI spec ---
+
+val spec = {
+	name:    'test',
+	version: '1.0.0',
+	summary: 'Slug test runner — runs @test and @testWith tagged functions and reports results',
+	strict: false,
+	positional: { min: 1, name: 'files' },
+}
+
+// --- test runner ---
 
 var timer = delta(clock)
 
-var passed = fn(@str msg) {
-	if (cfg("verbose", false)) {
-		println("  [{{Pass}}PASS{{Reset}}] {{msg}}")
-	}
+val passed = fn(msg) {
+  if (cfg("verbose", false)) {
+    println("  [{{Pass}}PASS{{Reset}}] {{msg}}")
+  }
 }
 
-var runTestFn = fn(f, name, stats) {
-	defer onerror(err) {
-		match err {
-			Error{type: 'AssertionError', msg} => {
-				println("  [{{Fail}}FAIL{{Reset}}] {{name}}(): {{msg}}")
-				stats /> compute(:fail, fn(k, v) { v + 1})
-			}
-			{type} => {
-				println("  [{{Fail}}ERROR{{Reset}}] {{name}}() threw {{err}}")
-				stats /> compute(:error, fn(k, v) { v + 1})
-			}
-			_ => {
-				println("  [{{Fail}}ERROR{{Reset}}] {{name}}() threw UNKNOWN error type '{{err}}'")
-				stats /> compute(:error, fn(k, v) { v + 1})
-			}
-		} /> compute(:run, fn(k, v) { v + 1})
-	}
-
-	f()
-	passed("{{name}}()")
-	stats /> compute(:run, fn(k, v) { v + 1})
+val runTestFn = fn(f, name, stats) {
+  defer onerror(err) {
+    match err {
+      Error{ type: 'AssertionError', msg } => {
+        println("  [{{Fail}}FAIL{{Reset}}] {{name}}(): {{msg}}")
+        stats /> compute(:fail, fn(k, v) { v + 1 })
+      }
+      { type } => {
+        println("  [{{Fail}}ERROR{{Reset}}] {{name}}() threw {{err}}")
+        stats /> compute(:error, fn(k, v) { v + 1 })
+      }
+      _ => {
+        println("  [{{Fail}}ERROR{{Reset}}] {{name}}() threw UNKNOWN error type '{{err}}'")
+        stats /> compute(:error, fn(k, v) { v + 1 })
+      }
+    } /> compute(:run, fn(k, v) { v + 1 })
+  }
+  f()
+  passed("{{name}}()")
+  stats /> compute(:run, fn(k, v) { v + 1 })
 }
 
-var runTest = fn(f, name, params, expected, stats) {
-	defer onerror(err) match {
-		Error{type: 'AssertionError'} => {
-			println("  [{{Fail}}FAIL{{Reset}}] {{name}}({{params}}) == '{{out}}' expected '{{expected}}'")
-			stats /> compute(:fail, fn(k, v) { v + 1}) /> compute(:run, fn(k, v) { v + 1})
-		}
-		_ => {
-			println("  [{{Fail}}ERROR{{Reset}}] {{name}}({{params}}) == threw '{{err}}' expected '{{expected}}'")
-			stats /> compute(:error, fn(k, v) { v + 1}) /> compute(:run, fn(k, v) { v + 1})
-		}
-	}
-
-	val out = f(...params)
-
-	assertEqual(expected, out)
-	passed("{{name}}({{params}}) == {{out}}")
-	stats /> compute(:run, fn(k, v) { v + 1})
+val runTest = fn(f, name, params, expected, stats) {
+  defer onerror(err) match {
+    Error{ type: 'AssertionError' } => {
+      println("  [{{Fail}}FAIL{{Reset}}] {{name}}({{params}}) == '{{out}}' expected '{{expected}}'")
+      stats /> compute(:fail, fn(k, v) { v + 1 }) /> compute(:run, fn(k, v) { v + 1 })
+    }
+    _ => {
+      println("  [{{Fail}}ERROR{{Reset}}] {{name}}({{params}}) == threw '{{err}}' expected '{{expected}}'")
+      stats /> compute(:error, fn(k, v) { v + 1 }) /> compute(:run, fn(k, v) { v + 1 })
+    }
+  }
+  val out = f(...params)
+  assertEqual(expected, out)
+  passed("{{name}}({{params}}) == {{out}}")
+  stats /> compute(:run, fn(k, v) { v + 1 })
 }
 
-var runTests = fn(f, name, args, stats) {
-	match args {
-		[] => stats
-		[params, expected, ...t] => {
-			recur(f, name, t, runTest(f, name, params, expected, stats))
-		}
-	}
+val runTests = fn(f, name, args, stats) {
+  match args {
+    [] => stats
+    [params, expected, ...t] => {
+      recur(f, name, t, runTest(f, name, params, expected, stats))
+    }
+  }
 }
 
-var testRunner = fn(module, stats) {
-	if(module /> endsWith(".slug")) {
-		module = module[0:-len(".slug")]
-	}
-	module = module /> replaceAll("/", ".")
-	println(module + ":")
-	var m = module /> searchModuleTags(TestWithTag, true)
-				/> union(module /> searchModuleTags(TestTag, true))
-	m /> keys /> sort /> map(fn(k) {
-		var args = m[k] /> getTag(TestWithTag)
-		if(args) {
-			runTests(m[k], k, args, {run:0, fail:0, error:0})
-		} else {
-			runTestFn(m[k], k, {run:0, fail:0, error:0})
-		}
-	}) /> reduce(stats, fn(vs, new) {
-		vs /> compute(:run, fn(k, v) {v + new[k]})
-			/> compute(:fail, fn(k, v) {v + new[k]})
-			/> compute(:error, fn(k, v) {v + new[k]})
-	})
+val testRunner = fn(module, stats) {
+  var modName = match module /> endsWith(".slug") {
+    true  => module[0:-len(".slug")]
+    false => module
+  }
+  modName = modName /> replaceAll("/", ".")
+  println(modName + ":")
+  val m = modName /> searchModuleTags(TestWithTag, true)
+    /> union(modName /> searchModuleTags(TestTag, true))
+  m /> keys /> sort /> map(fn(k) {
+    val testArgs = m[k] /> getTag(TestWithTag)
+    match testArgs {
+      nil => runTestFn(m[k], k, { run: 0, fail: 0, error: 0 })
+      _   => runTests(m[k], k, testArgs, { run: 0, fail: 0, error: 0 })
+    }
+  }) /> reduce(stats, fn(vs, new) {
+    vs /> compute(:run,   fn(k, v) { v + new[k] })
+       /> compute(:fail,  fn(k, v) { v + new[k] })
+       /> compute(:error, fn(k, v) { v + new[k] })
+  })
 }
 
-var renderResult = fn(stats) {
-	if ( stats.fail > 0 || stats.error > 0 ) {
+val renderResult = fn(stats) {
+  match stats.fail > 0 || stats.error > 0 {
+    true =>
 """
 {{Fail}}
 *******************************************************************************
-** 
+**
 ** Results:
-** 
+**
 ** Tests run: {{stats.run}}, Failures: {{stats.fail}}, Errors: {{stats.error}}
-** 
+**
 ** Total time {{timer()}}ms
-** 
+**
 *******************************************************************************
 {{Reset}}
 """
-	} else {
+    false =>
 """
 {{Pass}}
 Results:
@@ -163,45 +166,36 @@ Tests run: {{stats.run}}, Failures: {{stats.fail}}, Errors: {{stats.error}}
 Total time {{timer()}}ms
 {{Reset}}
 """
-	}
+  }
 }
 
-var run = fn(stats, ...modules) match {
-	[_, [], ...] => {
-			renderResult(stats) /> println()
-			if (stats.fail > 0 || stats.error > 0) {
-				exit(1)
-			} else {
-				exit(0)
-			}
-		}
-	[_, [h, ...t], ...] => run(testRunner(h, stats), ...t)
-	_ => "Unrecognized modules parameter!"
+val run = fn(stats, ...modules) match {
+  [_, [], ...] => {
+    renderResult(stats) /> println
+    match stats.fail > 0 || stats.error > 0 {
+      true  => exit(1)
+      false => exit(0)
+    }
+  }
+  [_, [h, ...t], ...] => run(testRunner(h, stats), ...t)
+  _ => "Unrecognized modules parameter!"
 }
 
-var args = argm()
+// --- entrypoint ---
 
-if(args.options.v || args.options.version) {
-'''
-slug test v1.0.0
-''' /> println
-} else if(args.options.h || args.options.help) {
-'''
-Slug Test
+@main
+val main = fn(args = argm()) {
+  val result = args /> argsWith(spec)
 
-A simple Slug test runner, will run @test and @testWith tagged functions and report
-any failures.
-
-Usage:
-  slug test [options] [--] <test files...>
-
-Options
- -h --help      Show this screen.
- -v --version   Show version.
- --verbose      Show both pass and fail tests
-''' /> println
-} else {
-	if(len(args.positional) > 0) {
-		run({run:0, fail:0, error:0}, ...args.positional)
-	}
+  match result {
+    { action: :help }    => { println(result.text); import('slug.sys').exit(0) }
+    { action: :version } => { println(result.text); import('slug.sys').exit(0) }
+    { action: :error }   => {
+      result.errors /> map(fn(e) { println(e.msg) })
+      import('slug.sys').exit(1)
+    }
+    { ok: true, options, positional } => {
+      run({ run: 0, fail: 0, error: 0 }, ...positional)
+    }
+  }
 }

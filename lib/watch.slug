@@ -1,187 +1,198 @@
 /**
- * A utility command that can watch a directory for file changes and when detected run/rerun a command
+ * Slug Watch — file watcher and command runner
  *
- * ### Slug Watch
- *
- * A file watcher utility that monitors directories for file changes and automatically
- * runs or reruns a specified command when changes are detected. Useful for development
- * workflows where you want to automatically rebuild, test, or restart your application
- * when source files are modified.
+ * Monitors directories for file changes and automatically reruns a
+ * command when changes are detected. Useful for development workflows
+ * where you want to automatically rebuild, test, or restart your
+ * application when source files are modified.
  *
  * Usage:
  * ```bash
- * slug watch [options] [--] <cmd>
+ * slug watch [options] <cmd> [args...]
  * ```
  *
- * Options
- * - `-h --help`:      Show this screen.
- * - `-v --version`:   Show version.
- * - `--exts`:         The file extensions to monitor, supports multiple values, [default: [".slug", ".toml"]].
- * - `--roots`:        The root directories to monitor, supports multiple values, [default: ["."]].
- * - `--clear`:        Clear the terminal on restart [default: false].
- * - `--show-time`:    Show the execution time of the command [default: true].
- * - `--poll-ms`:      How often to check for file changes in milliseconds [default: 200].
- * - `--debounce-ms`:  Debounce time for file checks in milliseconds [default: 150].
+ * Options:
+ * - `-h, --help`        show this screen
+ * - `-v, --version`     show version
+ * - `--exts`            file extensions to monitor, may be passed multiple times (default: .slug .toml)
+ * - `--roots`           root directories to monitor, may be passed multiple times (default: .)
+ * - `--clear`           clear the terminal on restart (default: false)
+ * - `--showTime`        show execution time of the command (default: true)
+ * - `--pollMs`          how often to check for file changes in ms (default: 200)
+ * - `--debounceMs`      debounce window for file change events in ms (default: 150)
  */
 
-var {*} = import(
-	"slug.std",
-	"slug.string",
-	"slug.channel",
-	"slug.time",
-	"slug.sys",
-	"slug.io.fs",
+val {*} = import(
+  "slug.std",
+  "slug.string",
+  "slug.channel",
+  "slug.time",
+  "slug.sys",
+  "slug.io.fs",
 )
-var term = import(
-	"slug.term.control",
-	"slug.term.colour",
-)
+val term         = import("slug.term.control", "slug.term.colour")
+val { argsWith } = import("slug.cli")
 
-val Fail = term.BrightColour.Red
-val Pass = term.Colour.Green
+val Fail  = term.BrightColour.Red
+val Pass  = term.Colour.Green
 val Reset = term.reset
 
-var watch = fn(
-	cmd,
-	roots = cfg("roots", ["."]),
-	exts = cfg("exts", [".slug", ".toml"]),
-	clear = cfg("clear", false),
-	showTime = cfg("show-time", true),
-	pollMs = cfg("poll-ms", 200),
-	debounceMs = cfg("debounce-ms", 150)
-) {
-	// restart signal channel
-	val changes = chan()
+// --- CLI spec ---
+// Note: hyphenated CLI option names (--poll-ms) don't round-trip cleanly
+// through argm() symbol keys, so camelCase names are used in the spec
+// and the help text documents them accordingly.
 
-	// task 1: file change detector (polling)
-	spawn {
-		fn(current) {
-			sleep(pollMs)
-			var next = snapshot(roots, exts)
-			if (changed(current, next)) {
-				send(changes, :changed)
-			}
-			recur(next)
-		}(snapshot(roots, exts))
-	}
-
-	spawn {
-		var handle = nil
-
-		var start = fn() {
-			spawn {
-				if (clear) { term.clearAll() }
-				if (showTime) { println(Pass + "▶ " + Reset + join(cmd, " ")) }
-				var d = delta(clock)
-
-				handle = spawnProc(cmd)
-				val exit = waitProc(handle)
-				handle = nil
-				val clr = if (exit == 0) {Pass} else {Fail}
-				match showTime {
-					true => fmt("{}---\n⏱  {:,d}ms exit: {}{}",clr , d(), exit, Reset)
-					_    => fmt("{}---\nexit: {}{}", clr, exit, Reset)
-				} /> println
-			}
-		}
-
-		var stop = fn() {
-			if (handle != nil) {
-				killProc(handle)
-				handle == nil
-			}
-		}
-
-		start()
-
-		fn() {
-			recv(changes)
-
-			// Debounce: keep draining changes until quiet
-			fn(debounceMs) {
-				select {
-					recv changes /> match {
-							_ => recur(debounceMs)
-						}
-					after debounceMs
-				}
-			}(debounceMs)
-
-			stop()
-			start()
-			recur()
-		}()
-	}
+val spec = {
+  name:    'watch',
+  version: '1.0.0',
+  summary: 'Slug file watcher — reruns a command when source files change',
+  strict: false,
+  defaults: {
+    exts:       [".slug", ".toml"],
+    roots:      ["."],
+    clear:      false,
+    showTime:   true,
+    pollMs:     200,
+    debounceMs: 150,
+  },
+  types: {
+    exts:       'str',
+    roots:      'str',
+    clear:      'bool',
+    showTime:   'bool',
+    pollMs:     'num',
+    debounceMs: 'num',
+  },
+  desc: {
+    exts:       'file extensions to monitor; may be passed multiple times',
+    roots:      'root directories to monitor; may be passed multiple times',
+    clear:      'clear the terminal on restart',
+    showTime:   'show execution time of the command',
+    pollMs:     'how often to check for file changes in milliseconds',
+    debounceMs: 'debounce window for file change events in milliseconds',
+  },
+  positional: { min: 1, name: 'cmd' },
 }
+
+// --- watcher ---
+
+val watch = fn(cmd, roots, exts, clear, showTime, pollMs, debounceMs) {
+  val changes = chan()
+
+  // task 1: file change detector (polling)
+  spawn {
+    fn(current) {
+      sleep(pollMs)
+      val next = snapshot(roots, exts)
+      if (changed(current, next)) { send(changes, :changed) }
+      recur(next)
+    }(snapshot(roots, exts))
+  }
+
+  // task 2: command runner + restart loop
+  spawn {
+    var handle = nil
+
+    val start = fn() {
+      spawn {
+        if (clear) { term.clearAll() }
+        if (showTime) { println(Pass + "▶ " + Reset + join(cmd, " ")) }
+        val d      = delta(clock)
+        handle     = spawnProc(cmd)
+        val code   = waitProc(handle)
+        handle     = nil
+        val clr    = if (code == 0) { Pass } else { Fail }
+        match showTime {
+          true => fmt("{}---\n⏱  {:,d}ms exit: {}{}", clr, d(), code, Reset)
+          _    => fmt("{}---\nexit: {}{}", clr, code, Reset)
+        } /> println
+      }
+    }
+
+    val stop = fn() {
+      if (handle != nil) { killProc(handle) }
+    }
+
+    start()
+
+    fn() {
+      recv(changes)
+      // debounce: drain further changes until quiet for debounceMs
+      fn(ms) {
+        select {
+          recv changes /> match { _ => recur(ms) }
+          after ms
+        }
+      }(debounceMs)
+      stop()
+      start()
+      recur()
+    }()
+  }
+}
+
+// --- helpers ---
 
 @testWith(
-	[{a:1},{}], true,
-	[{},{a:1}], true,
-	[{a:1},{a:2}], true,
-	[{},{}], false,
-	[{a:2},{a:2}], false,
+  [{ "a": 1 }, {}],          true,
+  [{}, { "a": 1 }],          true,
+  [{ "a": 1 }, { "a": 2 }], true,
+  [{}, {}],                  false,
+  [{ "a": 2 }, { "a": 2 }], false,
 )
-var changed = fn(@map a, @map b) {
-	if (len(a) != len(b)) {
-		true
-	} else {
-		a
-		/> keys
-		/> find(fn(k) { b[k] == nil || a[k] != b[k] })
-		/> match {
-			nil => false
-			_ => true
-		}
-	}
+val changed = fn(@map a, @map b) {
+  match len(a) != len(b) {
+    true  => true
+    false => a /> keys /> find(fn(k) { b[k] == nil || a[k] != b[k] }) /> match {
+      nil => false
+      _   => true
+    }
+  }
 }
 
-var snapshot = fn(@list roots, @list exts) {
-	listFilesRecursive(roots, hasAnyExt(exts))
-	/> map(fn(v) { [v, v /> info] })
-	/> reduce({}, fn(a, b) { put(a, b[0], b[1].modTime) })
+val snapshot = fn(@list roots, @list exts) {
+  listFilesRecursive(roots, hasAnyExt(exts))
+  /> map(fn(v) { [v, v /> info] })
+  /> reduce({}, fn(a, b) { put(a, b[0], b[1].modTime) })
 }
 
-var hasAnyExt = fn(@list exts) {
-	fn(@str path) {
-		var c = exts
-			/> find(fn(v) { path /> endsWith(v) })
-			/> match {
-				nil => false
-				_ => true
-			}
-	}
+val hasAnyExt = fn(@list exts) {
+  fn(@str path) {
+    exts /> find(fn(v) { path /> endsWith(v) }) /> match {
+      nil => false
+      _   => true
+    }
+  }
 }
 
-var args = argm()
+// --- entrypoint ---
 
-if(args.options.v || args.options.version) {
-'''
-slug watch v1.0.0
-''' /> println
-} else if(args.options.h || args.options.help) {
-'''
-Slug Watch
+@main
+val main = fn(args = argm()) {
+  val result = args /> argsWith(spec)
 
-A file watcher utility that monitors directories for file changes and automatically
-runs or reruns a specified command when changes are detected. Useful for development
-workflows where you want to automatically rebuild, test, or restart your application
-when source files are modified.
+  match result {
+    { action: :help }    => { println(result.text); import('slug.sys').exit(0) }
+    { action: :version } => { println(result.text); import('slug.sys').exit(0) }
+    { action: :error }   => {
+      result.errors /> map(fn(e) { println(e.msg) })
+      import('slug.sys').exit(1)
+    }
+    { ok: true, options, positional } => {
+      // --exts and --roots may arrive as a single string or a list if
+      // passed multiple times; normalise both to lists
+      val exts  = match options.exts  { lst@[...] => lst nil => [".slug", ".toml"] v => [v] }
+      val roots = match options.roots { lst@[...] => lst nil => ["."]              v => [v] }
 
-Usage:
-  slug watch [options] [--] <cmd>
-
-Options
- -h --help      Show this screen.
- -v --version   Show version.
- --exts         The file extensions to monitor, supports multiple values, [default: [".slug", ".toml"]].
- --roots        The root directories to monitor, supports multiple values, [default: ["."]].
- --clear        Clear the terminal on restart [default: false].
- --show-time    Show the execution time of the command [default: true].
- --poll-ms      How often to check for file changes in milliseconds [default: 200].
- --debounce-ms  Debounce time for file checks in milliseconds [default: 150].
-''' /> println
-} else {
-	watch(args.positional)
+      watch(
+        positional,
+        roots,
+        exts,
+        options.clear,
+        options.showTime,
+        options.pollMs,
+        options.debounceMs,
+      )
+    }
+  }
 }
-
-

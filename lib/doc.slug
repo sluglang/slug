@@ -14,13 +14,13 @@
  * - `markdown`   generate human-readable markdown documentation
  *
  * Options:
- * - `-h --help`      show this screen
- * - `-v --version`   show version
- * - `--dir`          source directory to scan for .slug modules (default: .)
- * - `--out`          output file path; omit to print to stdout
- * - `--title`        document title for markdown output (default: Slug API Reference)
- * - `--multiPage`    generate a file per module in the --out directory (markdown only)
- * - `--moduleToc`    generate a table of content for each module
+ * - `-h, --help`       show this screen
+ * - `-v, --version`    show version
+ * - `--dir`            source directory to scan for .slug modules (default: .)
+ * - `--out`            output file path; omit to print to stdout
+ * - `--title`          document title for markdown output (default: Slug API Reference)
+ * - `--multiPage`      generate a file per module in the --out directory (markdown only)
+ * - `--moduleToc`      generate a table of contents for each module
  */
 
 val {*} = import(
@@ -31,28 +31,43 @@ val {*} = import(
 val { writeFile, listFilesRecursive } = import('slug.io.fs')
 val { manifest }                      = import('slug.doc.manifest')
 val { singlePage, pagePerModule }     = import('slug.doc.markdown')
+val { argsWith }                      = import('slug.cli')
 
-val VERSION = 'slug doc v1.0.0'
+// --- CLI spec ---
 
-val HELP = '''
-slug doc — Slug documentation tool
-
-Usage:
-  slug doc [options] [--] [manifest|markdown]
+val spec = {
+	name:    'doc',
+	version: '1.0.0',
+	summary: '''
+Slug documentation tool — generates MANIFEST.ai or markdown from source modules
 
 Commands:
-  manifest   generate a MANIFEST.ai file from source modules (default)
-  markdown   generate human-readable markdown documentation
-
-Options:
-  -h --help        show this screen
-  -v --version     show version
-  --dir            source directory to scan for .slug modules (default: .)
-  --out            output file path, or directory when using --multiPage
-  --title          document title for markdown output (default: Slug API Reference)
-  --multiPage      generate a file per module in the --out directory (markdown only)
-  --moduleToc      generate a table of content for each module
-'''
+- manifest   generate a MANIFEST.ai file from source modules (default)
+- markdown   generate human-readable markdown documentation
+''',
+	types: {
+		dir:       'str',
+		out:       'str',
+		title:     'str',
+		multiPage: 'bool',
+		moduleToc: 'bool',
+	},
+	required: ["dir"],
+	strict: false,
+	defaults: {
+		title:     'Slug API Reference',
+		multiPage: false,
+		moduleToc: false,
+	},
+	desc: {
+		dir:       'source directory to scan for .slug modules',
+		out:       'output file path; omit to print to stdout',
+		title:     'document title for markdown output',
+		multiPage: 'generate a file per module in the --out directory (markdown only)',
+		moduleToc: 'generate a table of contents for each module',
+	},
+	positional: { min: 0, max: 1, name: 'command' },
+}
 
 // --- module discovery ---
 // Scans a directory recursively for .slug files and derives dotted module
@@ -127,29 +142,36 @@ val runMarkdown = fn(dir, outPath, title, multiPage, moduleToc) {
 
 // --- entrypoint ---
 
-val args = argm()
-val opts = args.options
+@main
+val main = fn(args = argm()) {
 
-match true {
-	true if opts.v || opts.version                  => println(VERSION)
-	true if opts.h || opts.help || len(argv()) == 0 => println(HELP)
-	_ => {
-		val dir       = match opts.dir   { nil => '.' v => v }
-		val outPath   = match opts.out   { nil => nil v => v }
-		val title     = match opts.title { nil => 'Slug API Reference' v => v }
-		val multiPage = match opts.multiPage { nil => false v => v }
-		val moduleToc = match opts.moduleToc { nil => false v => v }
-		val command = match args.positional {
-			[]         => 'manifest'
-			[cmd, ...] => cmd
+	val result = args /> argsWith(spec)
+
+	match result {
+		{ action: :help }    => { println(result.text); import('slug.sys').exit(0) }
+		{ action: :version } => { println(result.text); import('slug.sys').exit(0) }
+		{ action: :error }   => {
+			result.errors /> map(fn(e) { println(e.msg) })
+			import('slug.sys').exit(1)
 		}
-		match command {
-			'manifest' => runManifest(dir, outPath)
-			'markdown' => runMarkdown(dir, outPath, title, multiPage, moduleToc)
-			_ => {
-				println(fmt('unknown command: {}', command))
-				println(HELP)
-// 				import('slug.sys').exit(1)  // commented, this breaks the tests
+		{ ok: true, options, positional } => {
+			val dir       = options.dir
+			val outPath   = options.out
+			val title     = options.title
+			val multiPage = options.multiPage
+			val moduleToc = options.moduleToc
+			val command   = match positional {
+				[]         => 'manifest'
+				[cmd, ...] => cmd
+			}
+			match command {
+				'manifest' => runManifest(dir, outPath)
+				'markdown' => runMarkdown(dir, outPath, title, multiPage, moduleToc)
+				_ => {
+					println(fmt('unknown command: {}', command))
+					println(result.text)
+					import('slug.sys').exit(1)
+				}
 			}
 		}
 	}

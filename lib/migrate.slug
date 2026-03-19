@@ -1,79 +1,124 @@
 /**
- * Slug Migrate
+ * Slug Migrate — database schema migration tool
+ *
+ * Applies, rolls back, and reports on versioned SQL migration scripts.
  *
  * Usage:
  * ```bash
- * slug migrate [options] [--] [up|down|status]
+ * slug migrate [options] [up|down|status]
  * ```
  *
- * Options
- * - `-h --help`      Show this screen.
- * - `-v --version`   Show version.
- * - `--db`           The database connections string.
- * - `--driver`       The database driver, one of the supported drivers defined in slug.io.db
- * - `--env`          The environments to include, multiple values are supported.
- * - `--step`         Number of scripts to rollback with the down command.
+ * Commands:
+ * - `up`       apply all pending migrations (default)
+ * - `down`     roll back the most recent migration(s)
+ * - `status`   show applied / pending / ineligible migrations
  *
+ * Options:
+ * - `-h, --help`      show this screen
+ * - `-v, --version`   show version
+ * - `--db`            database connection string (required)
+ * - `--driver`        database driver: sqlite3 | mysql | postgres (default: sqlite3)
+ * - `--env`           environment tag(s) to include; may be passed multiple times
+ * - `--base`          migrations directory (default: db/migrations)
+ * - `--step`          number of migrations to roll back with `down` (default: 1)
  */
 
-var {*} = import(
-	'slug.std',
-	'slug.io.db',
+val {*} = import(
+  'slug.std',
+  'slug.string',
+  'slug.list',
+  'slug.io.db',
 )
-var migrate = import('slug.db.migration')
+val migrate    = import('slug.db.migration')
+val { argsWith } = import('slug.cli')
 
-var args = argm()
+// --- CLI spec ---
 
-if(args.options.v || args.options.version) {
-'''
-slug migrate v1.0.0
-''' /> println
-} else if(args.options.h || args.options.help) {
-'''
-Slug Migrate
+val spec = {
+  name:    'migrate',
+  version: '1.0.0',
+  summary: '''
+Slug database migration tool — apply, roll back, and inspect schema migrations
 
-Usage:
-  slug migrate [options] [--] [up|down|status]
+Commands
+ up       apply all pending migrations (default)
+ down     roll back the most recent migration(s)
+ status   show applied / pending / ineligible migrations
+''',
+  alias: { d: 'driver' },
+  required: ['db'],
+  strict: false,
+  defaults: {
+    driver: 'sqlite3',
+    base:   'db/migrations',
+    step:   1,
+  },
+  types: {
+    db:     'str',
+    driver: 'str',
+    env:    'str',
+    base:   'str',
+    step:   'num',
+  },
+  desc: {
+    db:     'database connection string',
+    driver: 'database driver: sqlite3 | mysql | postgres',
+    env:    'environment tag(s) to include; may be passed multiple times',
+    base:   'migrations directory',
+    step:   'number of migrations to roll back with `down`',
+  },
+  positional: { min: 0, max: 1, name: 'command' },
+}
 
-Options
- -h --help      Show this screen.
- -v --version   Show version.
- --db           The database connections string.
- --driver       The database driver, one of the supported drivers defined in slug.io.db
- --env          The environments to include, multiple values are supported.
- --step         Number of scripts to rollback with the down command.
-''' /> println
-} else {
+// --- entrypoint ---
 
-	val driver = match args.options.driver {
-		^MYSQL_DRIVER  => MYSQL_DRIVER
-		^PGSQL_DRIVER  => PGSQL_DRIVER
-		_ => SQLITE_DRIVER
-	}
+@main
+val main = fn(args = argm()) {
+  val result = args /> argsWith(spec)
 
-	val connectionString = args.options.db
+  match result {
+    { action: :help }    => { println(result.text); import('slug.sys').exit(0) }
+    { action: :version } => { println(result.text); import('slug.sys').exit(0) }
+    { action: :error }   => {
+      result.errors /> map(fn(e) { println(e.msg) })
+      import('slug.sys').exit(1)
+    }
+    { ok: true, options, positional } => {
+      val connectionString = options.db
+      val driver           = match options.driver {
+        ^MYSQL_DRIVER => MYSQL_DRIVER
+        ^PGSQL_DRIVER => PGSQL_DRIVER
+        _             => SQLITE_DRIVER
+      }
+      val base = options.base
 
-	var env = match args.options.env {
-		nil => []
-		lst@[...] => lst
-		v => [v]
-	}
+      // --env may arrive as a single string or a list if passed multiple times
+      val env = match options.env {
+        nil       => []
+        lst@[...] => lst
+        v         => [v]
+      }
 
-	var step = match args.options.step {
-		nil => 1
-		v => toNumber(v)
-	}
+      val step = options.step /> ifNil(1)
 
-	val conn = connect(connectionString, driver)
-	defer db.close(conn)
+      val conn = connect(connectionString, driver)
+      defer { close(conn) }
 
-	if (len(args.positional) > 0) {
-		match args.positional[0] {
-			'up' => migrate.up(conn, env = env)
-			'down' => migrate.down(conn, step)
-			_ => migrate.status(conn, env = env)
-		}
-	} else {
-		migrate.status(conn, env = env)
-	}
+      val command = match positional {
+        []         => 'up'
+        [cmd, ...] => cmd
+      }
+
+      match command {
+        'up'     => migrate.up(conn, env, base)
+        'down'   => migrate.down(conn, step, base)
+        'status' => migrate.status(conn, env, base)
+        _ => {
+          println(fmt('unknown command: {}', command))
+          println(result.text)
+          import('slug.sys').exit(1)
+        }
+      }
+    }
+  }
 }
