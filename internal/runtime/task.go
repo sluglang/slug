@@ -391,7 +391,15 @@ func (e *Task) Eval(node ast.Node) object.Object {
 		if e.isError(index) {
 			return index
 		}
-		return e.evalIndexExpression(node.Token.Position, left, index, node.IsDotLookup)
+		result := e.evalIndexExpression(node.Token.Position, left, index, node.IsDotLookup)
+		if e.isError(result) {
+			return result
+		}
+		result = e.resolveValue(node.Token.Position, result)
+		if e.isError(result) {
+			return result
+		}
+		return result
 
 	case *ast.SliceExpression:
 		return e.evalSliceExpression(node)
