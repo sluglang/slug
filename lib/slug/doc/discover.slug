@@ -1,0 +1,64 @@
+/**
+ * slug.doc.discover — Slug module discovery helper
+ *
+ * Scans a source directory recursively for `.slug` files and converts each
+ * file path into a dotted module name suitable for `import(...)`.
+ *
+ * The scan is performed relative to the provided directory. Returned module
+ * names are normalized by:
+ * - stripping the base directory prefix
+ * - converting `/` and `\` path separators to `.`
+ * - removing any leading dot
+ * - dropping the `.slug` suffix
+ *
+ * Example:
+ * ```
+ * discoverModules("lib")
+ * // => ["slug.doc.discover", "slug.doc.manifest", "slug.doc.markdown", ...]
+ * ```
+ *
+ * If `dir` is `nil`, an empty list is returned.
+ */
+
+val {*} = import(
+	'slug.std',
+	'slug.string',
+	'slug.list',
+)
+val { listFilesRecursive } = import('slug.io.fs')
+
+// --- module discovery ---
+// Scans a directory recursively for .slug files and derives dotted module
+// names from their paths relative to the base directory.
+//
+// e.g. base="lib", path="lib/slug/io/fs.slug" => "slug.io.fs"
+
+val pathToModuleName = fn(base, path) {
+	val baseLen = len(base)
+	path[baseLen:]        // strip base prefix
+	/> replaceAll('/', '.')  // path separators become dots
+	/> replaceAll('\\', '.') // windows path separators
+	/> trim('.')             // strip any leading dot
+	/> fn(s) { s[0:-5] }     // strip .slug suffix (len(".slug") == 5)
+}
+
+/**
+ * Scans a directory recursively for .slug files and derives dotted module
+ * names from their paths relative to the base directory.
+ *
+ * e.g. base="lib", path="lib/slug/io/fs.slug" => "slug.io.fs"
+ */
+@export
+@returns("@list")
+val discoverModules = fn(dir) match {
+	nil => []
+	_ => {
+		val base = match endsWith(dir, '/') {
+			true  => dir
+			false => dir + '/'
+		}
+		listFilesRecursive([base], fn(s) { endsWith(s, '.slug') })
+		/> map(fn(path) { pathToModuleName(base, path) })
+		/> sort
+	}
+}

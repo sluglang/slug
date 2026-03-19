@@ -39,6 +39,7 @@ val {*} = import(
   "slug.time",
   "slug.sys",
   "slug.term.colour",
+  'slug.doc.discover',
 )
 val { assertEqual } = import("slug.test")
 val { argsWith }    = import("slug.cli")
@@ -57,7 +58,13 @@ val spec = {
 	version: '1.0.0',
 	summary: 'Slug test runner — runs @test and @testWith tagged functions and reports results',
 	strict: false,
-	positional: { min: 1, name: 'files' },
+	types: {
+		dir: 'str',
+	},
+	desc: {
+		dir: 'source directory to scan for .slug modules',
+	},
+	positional: { min: 0, name: 'files' },
 }
 
 // --- test runner ---
@@ -195,7 +202,9 @@ val main = fn(args = argm()) {
       import('slug.sys').exit(1)
     }
     { ok: true, options, positional } => {
-      run({ run: 0, fail: 0, error: 0 }, ...positional)
+      val dir     = options.dir
+      val modules = discoverModules(dir) + positional
+      run({ run: 0, fail: 0, error: 0 }, ...modules)
     }
   }
 }

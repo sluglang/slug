@@ -27,6 +27,7 @@ val {*} = import(
 	'slug.std',
 	'slug.string',
 	'slug.list',
+	'slug.doc.discover',
 )
 val { writeFile, listFilesRecursive } = import('slug.io.fs')
 val { manifest }                      = import('slug.doc.manifest')
@@ -67,31 +68,6 @@ Commands:
 		moduleToc: 'generate a table of contents for each module',
 	},
 	positional: { min: 0, max: 1, name: 'command' },
-}
-
-// --- module discovery ---
-// Scans a directory recursively for .slug files and derives dotted module
-// names from their paths relative to the base directory.
-//
-// e.g. base="lib", path="lib/slug/io/fs.slug" => "slug.io.fs"
-
-val pathToModuleName = fn(base, path) {
-	val baseLen = len(base)
-	path[baseLen:]        // strip base prefix
-	/> replaceAll('/', '.')  // path separators become dots
-	/> replaceAll('\\', '.') // windows path separators
-	/> trim('.')             // strip any leading dot
-	/> fn(s) { s[0:-5] }     // strip .slug suffix (len(".slug") == 5)
-}
-
-val discoverModules = fn(dir) {
-	val base = match endsWith(dir, '/') {
-		true  => dir
-		false => dir + '/'
-	}
-	listFilesRecursive([base], fn(s) { endsWith(s, '.slug') })
-	/> map(fn(path) { pathToModuleName(base, path) })
-	/> sort
 }
 
 // --- output helper ---
