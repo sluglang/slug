@@ -27,14 +27,14 @@ foreign env = fn(@str str)
 /**
  * sets an environment variable.
  *
- * The format is `"NAME=value"`. Returns the value that was set.
+ * The format is `"NAME", "value"`. Returns the value that was set.
  *
  * @effects('io')
  */
 @export
 @effects('io')
 @returns('@str')
-foreign setEnv = fn(@str str)
+foreign setEnv = fn(@str key, @str value)
 
 /**
  * terminates the current process with the given exit code.
