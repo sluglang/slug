@@ -56,8 +56,8 @@ val spec = {
     debounceMs: 150,
   },
   types: {
-    exts:       'str',
-    roots:      'str',
+    exts:       'list',
+    roots:      'list',
     clear:      'bool',
     showTime:   'bool',
     pollMs:     'num',
@@ -143,7 +143,7 @@ val watch = fn(cmd, roots, exts, clear, showTime, pollMs, debounceMs) {
 val changed = fn(@map a, @map b) {
   match len(a) != len(b) {
     true  => true
-    false => a /> keys /> find(fn(k) { b[k] == nil || a[k] != b[k] }) /> match {
+    _     => a /> keys /> find(fn(k) { b[k] == nil || a[k] != b[k] }) /> match {
       nil => false
       _   => true
     }
@@ -179,15 +179,10 @@ val main = fn(args = argm()) {
       import('slug.sys').exit(1)
     }
     { ok: true, options, positional } => {
-      // --exts and --roots may arrive as a single string or a list if
-      // passed multiple times; normalise both to lists
-      val exts  = match options.exts  { lst@[...] => lst nil => [".slug", ".toml"] v => [v] }
-      val roots = match options.roots { lst@[...] => lst nil => ["."]              v => [v] }
-
       watch(
         positional,
-        roots,
-        exts,
+        options.roots,
+        options.exts,
         options.clear,
         options.showTime,
         options.pollMs,
