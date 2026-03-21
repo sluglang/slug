@@ -22,7 +22,7 @@ For simple synchronous command execution, prefer `exec`.
 - [`exec(cmd, timeout)`](#execcmd-timeout)
 - [`exit(exitCode)`](#exitexitcode)
 - [`killProc(handle)`](#killprochandle)
-- [`setEnv(str)`](#setenvstr)
+- [`setEnv(key, value)`](#setenvkey-value)
 - [`spawnProc(cmd)`](#spawnproccmd)
 - [`waitProc(handle, timeout)`](#waitprochandle-timeout)
 
@@ -108,21 +108,22 @@ Returns `true` if the signal was delivered successfully.
 
 ---
 
-#### `setEnv(str)`
+#### `setEnv(key, value)`
 ```slug
-fn slug.sys#setEnv(@str str) -> @str
+fn slug.sys#setEnv(@str key, @str value) -> @str
 ```
 
 
 sets an environment variable.
 
-The format is `"NAME=value"`. Returns the value that was set.
+The format is `"NAME", "value"`. Returns the value that was set.
 
 @effects('io')
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `str` | @str  | — |
+| `key` | @str  | — |
+| `value` | @str  | — |
 
 **Effects:** `io`
 

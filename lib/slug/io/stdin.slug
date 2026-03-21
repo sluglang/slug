@@ -5,6 +5,11 @@
  * channels and `select`.
  */
 
+ val {*} = import(
+	"slug.std",
+	"slug.channel",
+ )
+
 /**
  * Returns a shared singleton channel of stdin line events.
  *
@@ -19,3 +24,32 @@
 @export
 @returns('@chan(@struct(Full)|@struct(Empty))')
 foreign readLines = fn()
+
+@export
+@returns('@str')
+val prompt = fn(@str prompt) {
+	print(prompt)
+	readLine()
+}
+
+@export
+@returns('@bool')
+val confirm = fn(@str message, @bool default = false) {
+	print(message + ' [y/N]: ')
+	defer onerror(err) default
+	readLine() /> match {
+		nil => default
+		v => v /> toBoolean
+	}
+}
+
+
+val readLine = fn() {
+	defer onerror(err) nil
+	readLines()
+	/> recv
+	/> match {
+		Full{value} => value
+		_ => nil
+	}
+}

@@ -87,9 +87,8 @@ fn slug.json#encode(v) -> @str
 
 encodes a Slug value as a compact JSON string.
 
-Map keys are sorted alphabetically. Symbols are encoded as their label
-string. Bytes are encoded as `"b64:<base64>"`. Structs are not supported
-and will throw `JsonError`.
+Object keys are sorted alphabetically. Symbols are encoded as their label
+string. Bytes are encoded as `"b64:<base64>"`.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -109,7 +108,7 @@ encode(nil)  // => "null"
 encode(0x"ff")  // => ""b64:/w==""
 encode([1, 2, 3])  // => "[1,2,3]"
 encode({:type: :fn, :age: 30})  // => "{"age":30,"type":"fn"}"
-encode({:name: Alice, :age: 30})  // => "{"age":30,"name":"Alice"}"
+encode({:age: 30, :name: Alice})  // => "{"age":30,"name":"Alice"}"
 encode({name: Alice, age: 30})  // => "{"age":30,"name":"Alice"}"
 ```
 
@@ -144,7 +143,7 @@ pretty([1, 2, 3], 4)  // => "[
     3
 ]"
 pretty(0x"ff", 2)  // => ""b64:/w==""
-pretty({:type: :fn, :age: 30}, 2)  // => "{
+pretty({:age: 30, :type: :fn}, 2)  // => "{
   "age": 30,
   "type": "fn"
 }"

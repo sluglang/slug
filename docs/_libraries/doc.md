@@ -19,10 +19,10 @@ Commands:
 - `markdown`   generate human-readable markdown documentation
 
 Options:
-- `-h --help`      show this screen
-- `-v --version`   show version
-- `--dir`          source directory to scan for .slug modules (default: .)
-- `--out`          output file path; omit to print to stdout
-- `--title`        document title for markdown output (default: Slug API Reference)
-- `--multiPage`    generate a file per module in the --out directory (markdown only)
-- `--moduleToc`    generate a table of content for each module
+- `-h, --help`       show this screen
+- `-v, --version`    show version
+- `--dir`            source directory to scan for .slug modules (default: .)
+- `--out`            output file path; omit to print to stdout
+- `--title`          document title for markdown output (default: Slug API Reference)
+- `--multiPage`      generate a file per module in the --out directory (markdown only)
+- `--moduleToc`      generate a table of contents for each module

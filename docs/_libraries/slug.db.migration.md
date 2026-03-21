@@ -69,9 +69,6 @@ environment    = production
 struct slug.db.migration#Migration{@num id, @str version, @str environment, @str filename, @str checksum, @bool success, @str appliedAt}
 ```
 
-
-represents a migration record as stored in the tracking table.
-
 | Field | Type | Default | Description |
 | --- | --- | --- | --- |
 | `id` | @num  | — |  |

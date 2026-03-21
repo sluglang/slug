@@ -11,9 +11,34 @@ channels and `select`.
 
 ### TOC
 
+- [`confirm(message, default)`](#confirmmessage-default)
+- [`prompt(prompt)`](#promptprompt)
 - [`readLines()`](#readlines)
 
 ### Functions
+
+#### `confirm(message, default)`
+```slug
+fn slug.io.stdin#confirm(@str message, @bool default = false) -> @bool
+```
+
+| Parameter | Type | Default |
+| --- | --- | --- |
+| `message` | @str  | — |
+| `default` | @bool  | `false` |
+
+---
+
+#### `prompt(prompt)`
+```slug
+fn slug.io.stdin#prompt(@str prompt) -> @str
+```
+
+| Parameter | Type | Default |
+| --- | --- | --- |
+| `prompt` | @str  | — |
+
+---
 
 #### `readLines()`
 ```slug

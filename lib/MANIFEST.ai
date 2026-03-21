@@ -11,6 +11,7 @@ slug.csv
 slug.db.migration
 slug.db.repo
 slug.debug
+slug.doc.discover
 slug.doc.manifest
 slug.doc.markdown
 slug.html
@@ -174,7 +175,6 @@ fn slug.csv#toCsv(@list rows, @str sep = ",", @str quote = "\"", @str eol = "\r\
   desc: "converts a list of rows (each a list of strings) to a CSV string."
 
 struct slug.db.migration#Migration{@num id, @str version, @str environment, @str filename, @str checksum, @bool success, @str appliedAt}
-  desc: "represents a migration record as stored in the tracking table."
 
 fn slug.db.migration#down(@num conn, @num step = 1, @str base = DefaultBase) -> @num
   desc: "rolls back the most recently applied migrations."
@@ -200,6 +200,9 @@ fn slug.db.repo#loadQueries(@str base = DefaultBase) -> @map
 fn slug.debug#ident(value) -> @str
   desc: "returns a stable string identity key for any runtime value."
 
+fn slug.doc.discover#discoverModules(dir) -> @list
+  desc: "Scans a directory recursively for .slug files and derives dotted module names from their paths relative to the base directory."
+
 fn slug.doc.manifest#manifest(@list moduleNames) -> @str
   desc: "generates a MANIFEST.ai file for the given list of module names."
 
@@ -216,13 +219,10 @@ fn slug.html#htmlUnescape(str) -> @str
   desc: "decodes common HTML entities in a string."
 
 str slug.io.db#MYSQL_DRIVER
-  desc: "driver string for MySQL connections."
 
 str slug.io.db#PGSQL_DRIVER
-  desc: "driver string for PostgreSQL connections."
 
 str slug.io.db#SQLITE_DRIVER
-  desc: "driver string for SQLite3 connections."
 
 fn slug.io.db#begin(@num connection) -> @num
   desc: "begins a transaction and returns a transaction handle."
@@ -492,7 +492,6 @@ sym slug.std#BYTES_TYPE
 sym slug.std#ERROR_TYPE
 
 struct slug.std#Error{@str type = "Error", @str msg, code = nil, data = nil, cause = nil}
-  desc: "Standard error payload shape for idiomatic error handling."
 
 sym slug.std#FUNCTION_TYPE
 
@@ -501,7 +500,6 @@ sym slug.std#LIST_TYPE
 sym slug.std#MAP_TYPE
 
 sym slug.std#NIL_TYPE
-  desc: "Constant for NIL_TYPE, returned by `type(nil)`"
 
 sym slug.std#NUMBER_TYPE
 
@@ -710,7 +708,7 @@ fn slug.sys#killProc(@num handle) -> @bool
   desc: "sends a termination signal to a spawned process."
   effects: io
 
-fn slug.sys#setEnv(@str str) -> @str
+fn slug.sys#setEnv(@str key, @str value) -> @str
   desc: "sets an environment variable."
   effects: io
 
@@ -723,25 +721,18 @@ fn slug.sys#waitProc(@num handle, @num timeout = 0) -> @num
   effects: io
 
 map slug.term.colour#BgBrightColour
-  desc: "map of colour name → ANSI escape code string for bright background colours."
 
 map slug.term.colour#BgColour
-  desc: "map of colour name → ANSI escape code string for background colours."
 
 map slug.term.colour#BrightColour
-  desc: "map of colour name → ANSI escape code string for bright colours."
 
 map slug.term.colour#Colour
-  desc: "map of colour name (PascalCase) → ANSI escape code string for standard colours."
 
 num slug.term.colour#ColourSupport
-  desc: "number of colours supported by the current terminal, as reported by `tput colors`."
 
 map slug.term.colour#Effects
-  desc: "map of effect name → ANSI escape code string."
 
 map slug.term.colour#Styles
-  desc: "raw ANSI code number lists per style name."
 
 fn slug.term.colour#bgBlack(@str str) -> ?
 
@@ -846,7 +837,6 @@ fn slug.term.colour#magenta(@str str) -> ?
 fn slug.term.colour#red(@str str) -> ?
 
 str slug.term.colour#reset
-  desc: "ANSI reset escape code — resets all styles to terminal default."
 
 fn slug.term.colour#rgb(@str str, @num r, @num g, @num b) -> ?
   desc: "wraps `str` with RGB colour `r`, `g`, `b` (0–255 each)."
@@ -1055,10 +1045,8 @@ fn slug.web.request#withoutParam(request, param) -> @struct(Request)
   desc: "returns a new request with a single param key removed from `params`."
 
 struct slug.web.response#Reply{@str view, @str fragment, @map data = {}, @num status = 200, @map headers = {}}
-  desc: "higher-level view descriptor for use with `slug.web.views#renderReply`."
 
 struct slug.web.response#Response{@num status, @map headers, body}
-  desc: "raw HTTP response value. Construct via the helper functions, not directly."
 
 fn slug.web.response#accepted(@str body) -> @struct(Response)
   desc: "202 Accepted response."

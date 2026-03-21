@@ -95,7 +95,7 @@ For deep merging of nested maps, use `patch` instead.
 #### Examples
 
 ```slug
-merge({:b: 2, :a: 1}, {:c: 4, :b: 3})  // => {:a: 1, :b: 3, :c: 4}
+merge({:a: 1, :b: 2}, {:b: 3, :c: 4})  // => {:a: 1, :b: 3, :c: 4}
 merge({:a: 1}, {})  // => {:a: 1}
 merge({}, {:a: 1})  // => {:a: 1}
 ```

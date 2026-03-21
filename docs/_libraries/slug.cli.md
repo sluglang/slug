@@ -18,6 +18,7 @@ val spec = {
   name:    "backup",
   version: "1.2.0",
   summary: "Backup files to a remote location",
+  strict: false,
   alias:    { a: "all", u: "user" },
   required: ["user"],
   defaults: { all: false },
@@ -48,18 +49,19 @@ match result {
 
 ## Spec fields
 
-| Field        | Type    | Description                                              |
-|--------------|---------|----------------------------------------------------------|
-| `name`       | `@str`  | Program name; used in help and version output            |
-| `version`    | `@str`  | Version string; enables `--version` / `-v`               |
-| `summary`    | `@str`  | One-line description shown in help                       |
-| `alias`      | `@map`  | Short name → canonical name; e.g. `{ u: "user" }`       |
-| `required`   | `@list` | Canonical option names that must be present              |
-| `defaults`   | `@map`  | Default values by canonical name                         |
-| `types`      | `@map`  | Type hints: `"bool"`, `"str"`, `"num"` by canonical name |
-| `desc`       | `@map`  | Option descriptions by canonical name                    |
-| `allow`      | `@list` | Explicit allowlist; inferred from other fields if omitted|
-| `positional` | `@map`  | `{ min, max?, name }` positional argument constraints    |
+| Field        | Type    | Description                                                        |
+|--------------|---------|--------------------------------------------------------------------|
+| `name`       | `@str`  | Program name; used in help and version output                      |
+| `version`    | `@str`  | Version string; enables `--version` / `-v`                         |
+| `summary`    | `@str`  | One-line description shown in help                                 |
+| `strict`     | `@bool` | Allow unrecognized parameters, true to treat as an error           |
+| `alias`      | `@map`  | Short name → canonical name; e.g. `{ u: "user" }`                  |
+| `required`   | `@list` | Canonical option names that must be present                        |
+| `defaults`   | `@map`  | Default values by canonical name                                   |
+| `types`      | `@map`  | Type hints: `"bool"`, `"str"`, `"num"`, `"list"` by canonical name |
+| `desc`       | `@map`  | Option descriptions by canonical name                              |
+| `allow`      | `@list` | Explicit allowlist; inferred from other fields if omitted          |
+| `positional` | `@map`  | `{ min, max?, name }` positional argument constraints              |
 
 ## Error shapes
 

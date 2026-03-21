@@ -121,7 +121,7 @@ hmacSha512Hex("hello", "slug")  // => "61d76feb488501a02e020bacca460b5b67c51352c
 
 #### `md5(nil)`
 ```slug
-fn slug.crypto#md5(nil) -> @bytes
+fn slug.crypto#md5(nil) -> @str
 ```
 
 
