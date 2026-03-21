@@ -54,9 +54,8 @@ val ParseResult = struct {
 /**
  * encodes a Slug value as a compact JSON string.
  *
- * Map keys are sorted alphabetically. Symbols are encoded as their label
- * string. Bytes are encoded as `"b64:<base64>"`. Structs are not supported
- * and will throw `JsonError`.
+ * Object keys are sorted alphabetically. Symbols are encoded as their label
+ * string. Bytes are encoded as `"b64:<base64>"`.
  */
 @testWith(
 	["hello"], "\"hello\"",
@@ -74,16 +73,20 @@ val ParseResult = struct {
 @returns('@str')
 @throws('@struct(Error{type:JsonError})')
 val encode = fn(v) {
-	match (type(v)) {
-		^STRING_TYPE  => encodeString(v)
-		^SYMBOL_TYPE  => encodeSymbol(v)
-		^BYTES_TYPE   => encodeBytes(v)
-		^NUMBER_TYPE  => encodeNumber(v)
-		^BOOLEAN_TYPE => encodeBool(v)
-		^NIL_TYPE     => "null"
-		^LIST_TYPE    => encodeList(v)
-		^MAP_TYPE     => encodeObject(v)
-		_ => error("json: unsupported type for encode: " + type(v))
+	if (isStructInstance(v)) {
+		encodeObject(v)
+	} else {
+		match (type(v)) {
+			^STRING_TYPE  => encodeString(v)
+			^SYMBOL_TYPE  => encodeSymbol(v)
+			^BYTES_TYPE   => encodeBytes(v)
+			^NUMBER_TYPE  => encodeNumber(v)
+			^BOOLEAN_TYPE => encodeBool(v)
+			^NIL_TYPE     => "null"
+			^LIST_TYPE    => encodeList(v)
+			^MAP_TYPE     => encodeObject(v)
+			_ => error("json: unsupported type for encode: " + type(v))
+		}
 	}
 }
 
@@ -183,22 +186,22 @@ val encodeListItems = fn(@list lst, @str acc) match {
 	[[h, ...t], ...] => recur(t, acc + encode(h) + ",")
 }
 
-val encodeObject = fn(@map m) {
-	val pairs = sortedObjectPairs(m)
-	"{" + encodeObjectPairs(pairs, m, "") + "}"
+val encodeObject = fn(obj) {
+	val pairs = sortedObjectPairs(obj)
+	"{" + encodeObjectPairs(pairs, obj, "") + "}"
 }
 
-val encodeObjectPairs = fn(@list pairs, @map m, @str acc) match {
+val encodeObjectPairs = fn(@list pairs, obj, @str acc) match {
 	[[], ...] => acc
 	[[p], ...] => {
 		val keyStr = p[0]
 		val key = p[1]
-		acc + encodeString(keyStr) + ":" + encode(m[key])
+		acc + encodeString(keyStr) + ":" + encode(obj[key])
 	}
 	[[p, ...rest], ...] => {
 		val keyStr = p[0]
 		val key = p[1]
-		recur(rest, m, acc + encodeString(keyStr) + ":" + encode(m[key]) + ",")
+		recur(rest, obj, acc + encodeString(keyStr) + ":" + encode(obj[key]) + ",")
 	}
 }
 
@@ -207,16 +210,20 @@ val encodeObjectPairs = fn(@list pairs, @map m, @str acc) match {
 // ===========================
 
 val prettyPrint = fn(v, @num indent, @num depth) {
-	match (type(v)) {
-		^STRING_TYPE  => encodeString(v)
-		^SYMBOL_TYPE  => encodeSymbol(v)
-		^BYTES_TYPE   => encodeBytes(v)
-		^NUMBER_TYPE  => encodeNumber(v)
-		^BOOLEAN_TYPE => encodeBool(v)
-		^NIL_TYPE     => "null"
-		^LIST_TYPE    => prettyList(v, indent, depth)
-		^MAP_TYPE     => prettyObject(v, indent, depth)
-		_ => error("json: unsupported type for pretty: " + type(v))
+	if (isStructInstance(v)) {
+		prettyObject(v, indent, depth)
+	} else {
+		match (type(v)) {
+			^STRING_TYPE  => encodeString(v)
+			^SYMBOL_TYPE  => encodeSymbol(v)
+			^BYTES_TYPE   => encodeBytes(v)
+			^NUMBER_TYPE  => encodeNumber(v)
+			^BOOLEAN_TYPE => encodeBool(v)
+			^NIL_TYPE     => "null"
+			^LIST_TYPE    => prettyList(v, indent, depth)
+			^MAP_TYPE     => prettyObject(v, indent, depth)
+			_ => error("json: unsupported type for pretty: " + type(v))
+		}
 	}
 }
 
@@ -236,30 +243,30 @@ val prettyListItems = fn(@list lst, @num indent, @num depth, @str indentStr, @st
 	[[h, ...t], ...] => recur(t, indent, depth, indentStr, acc + indentStr + prettyPrint(h, indent, depth) + ",\n")
 }
 
-val prettyObject = fn(@map m, @num indent, @num depth) {
-	val pairs = sortedObjectPairs(m)
+val prettyObject = fn(obj, @num indent, @num depth) {
+	val pairs = sortedObjectPairs(obj)
 	if (len(pairs) == 0) {
 		"{}"
 	} else {
 		val innerIndent = makeIndent(indent, depth + 1)
 		val outerIndent = makeIndent(indent, depth)
-		"{\n" + prettyObjectPairs(pairs, m, indent, depth + 1, innerIndent, "") + "\n" + outerIndent + "}"
+		"{\n" + prettyObjectPairs(pairs, obj, indent, depth + 1, innerIndent, "") + "\n" + outerIndent + "}"
 	}
 }
 
-val prettyObjectPairs = fn(@list pairs, @map m, @num indent, @num depth, @str indentStr, @str acc) {
+val prettyObjectPairs = fn(@list pairs, obj, @num indent, @num depth, @str indentStr, @str acc) {
 	match pairs {
 		[] => acc
 		[p] => {
 			val keyStr = p[0]
 			val key = p[1]
-			acc + indentStr + encodeString(keyStr) + ": " + prettyPrint(m[key], indent, depth)
+			acc + indentStr + encodeString(keyStr) + ": " + prettyPrint(obj[key], indent, depth)
 		}
 		[p, ...rest] => {
 			val keyStr = p[0]
 			val key = p[1]
-			recur(rest, m, indent, depth, indentStr,
-				acc + indentStr + encodeString(keyStr) + ": " + prettyPrint(m[key], indent, depth) + ",\n")
+			recur(rest, obj, indent, depth, indentStr,
+				acc + indentStr + encodeString(keyStr) + ": " + prettyPrint(obj[key], indent, depth) + ",\n")
 		}
 	}
 }
@@ -284,8 +291,8 @@ val keyToString = fn(k) {
 	}
 }
 
-val sortedObjectPairs = fn(@map m) {
-	val pairs = m /> keys /> map(fn(k) { [keyToString(k), k] })
+val sortedObjectPairs = fn(obj) {
+	val pairs = obj /> keys /> map(fn(k) { [keyToString(k), k] })
 	sortWithComparator(pairs, fn(a, b) { compare(a[0], b[0]) })
 }
 

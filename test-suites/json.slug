@@ -1,0 +1,13 @@
+var {*} = import(
+	"slug.test",
+	"slug.json",
+)
+
+@test
+var test_jason_encoding_struct_instances = fn() {
+	val TestStruct = struct {
+		@str name,
+	}
+	val instance = TestStruct{name: 'Knuckles'}
+	encode(instance) /> assertEqual("{\"name\":\"Knuckles\"}")
+}
