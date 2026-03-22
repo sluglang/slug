@@ -223,7 +223,7 @@ func fnIoFsIsDir() *object.Foreign {
 
 			info, err := os.Stat(path)
 			if err != nil {
-				return ctx.NewError("failed to get file info: %s", err.Error())
+				return ctx.NativeBoolToBooleanObject(false)
 			}
 
 			return ctx.NativeBoolToBooleanObject(info.IsDir())
