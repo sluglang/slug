@@ -34,7 +34,10 @@ eval model expression-oriented
 eval statements "program is a sequence of statements separated by NEWLINE or ';' (ASI-style)."
 eval top-level "top-level statements execute on module load (including imports)."
 eval module-load "import executes top-level of imported module."
-eval running-module "executing a module runs top-level statements."
+eval module-cache "a module's top-level statements execute at most once per process; subsequent imports reuse the cached module."
+eval running-module "the running module (root module passed to the runner) executes: (1) its top-level statements, then (2) its @main function if present."
+eval main-on-import "@main never executes on import; it only executes when the module is the running module."
+eval main-error "if top-level execution raises an error, @main is not executed."
 eval return "return exits the nearest function body immediately."
 eval throw "throw raises an error value (value shape is user-defined; commonly struct(Error))."
 eval defer "defer registers cleanup logic; defer actions unwind at scope exit on normal return and error paths."
@@ -100,6 +103,7 @@ pattern import-wildcard "val {*} = import(...) binds all exported names from the
 @section functions
 fn literal "fn(params) { block } or fn(params) match { cases }"
 fn params "parameter := {tag} ['...'] ident ['=' default-expr]; variadic '...' must be last."
+fn spread-call "...list in a call expression spreads a list value into variadic arguments: f(...xs) passes each element of xs as a separate argument; equivalent to f(xs[0], xs[1], ...); use when a @list value needs to be passed to a ...rest variadic parameter."
 fn defaults "default parameter expressions are evaluated in normal lexical scope."
 fn body "function bodies are expression-oriented blocks or match bodies."
 fn recur "recur(args...) is the canonical self tail-call form."
@@ -491,6 +495,22 @@ val args = argv() // [\"input.txt\"]
 val opts = argm() // { options: { a:true, b:true, name:\"knuckles\" }, positional: [\"input.txt\"] }
 "
 
+example spread-call "
+val add = fn(a, b, c) { a + b + c }
+val nums = [1, 2, 3]
+
+add(...nums)   // 6  — spreads list into three separate arguments
+add(nums)      // ERROR: add expects 3 args, got 1 (a LIST)
+
+// common pattern: a @list of functions passed to a variadic parameter
+val applyAll = fn(@list ls, ...fns) {
+  ls /> map(fn(h) { fns /> map(fn(f) { f(h) }) })
+}
+val fns = [fn(a){a}, fn(b){b+1}]
+applyAll([1,2], ...fns)   // spread fns into variadic ...fns param
+applyAll([1,2], fns)      // WRONG: fns arrives as a single LIST arg, not two fn args
+"
+
 example main "
 // idiomatic @main — args as default parameter for testability
 @main
@@ -534,3 +554,4 @@ agent rule "@main never executes on import; it only executes when the module is 
 agent rule "@main must be callable with zero arguments; use default parameters to receive runtime inputs: @main val main = fn(args = argm()) { ... }"
 agent rule "A module may have at most one @main; defining multiple @main functions is a compilation error."
 agent rule "Keep top-level statements side-effect-free where possible; put I/O and startup logic in @main so the module is safe to import as a library."
+agent rule "To pass a @list value to a variadic ...rest parameter, spread it at the call site: f(...myList) not f(myList). Passing a list directly as a single argument is not the same as spreading it — f(myList) passes one argument of type LIST, f(...myList) passes N arguments."
