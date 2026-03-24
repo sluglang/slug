@@ -27,6 +27,7 @@ slug.map
 slug.math
 slug.meta
 slug.mustache
+slug.path
 slug.regex
 slug.std
 slug.string
@@ -466,6 +467,24 @@ fn slug.mustache#renderCached(templateOrAst, data, partials = nil, cache = {}) -
   desc: "renders a Mustache template with a partial cache for reuse across calls."
   errors:
     thrown: @struct(Error{type:MustacheError})
+
+fn slug.path#abs(@str path) -> @str
+  desc: "Returns a normalized absolute path."
+
+fn slug.path#cwd() -> @str
+  desc: "Returns the current process working directory."
+
+fn slug.path#join(...parts) -> @str
+  desc: "Joins path elements using the platform-specific separator."
+
+fn slug.path#libRoot() -> @str
+  desc: "Returns the library root of the current module namespace."
+
+fn slug.path#moduleDir() -> @str
+  desc: "Returns the directory of the current module file."
+
+fn slug.path#projectRoot() -> @str
+  desc: "Returns the entry module directory."
 
 fn slug.regex#findAll(@str str, @str pattern) -> @list
   desc: "returns a list of all non-overlapping matches of `pattern` in `str`."
