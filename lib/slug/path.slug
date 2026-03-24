@@ -1,0 +1,47 @@
+/**
+ * slug.path - path utilities
+ *
+ * Small helpers for path composition and normalization.
+ */
+
+/**
+ * Joins path elements using the platform-specific separator.
+ */
+@export
+@returns('@str')
+foreign join = fn(...parts)
+
+/**
+ * Returns a normalized absolute path.
+ */
+@export
+@returns('@str')
+foreign abs = fn(@str path)
+
+/**
+ * Returns the current process working directory.
+ */
+@export
+@returns('@str')
+foreign cwd = fn()
+
+/**
+ * Returns the entry module directory.
+ */
+@export
+@returns('@str')
+foreign projectRoot = fn()
+
+/**
+ * Returns the directory of the current module file.
+ */
+@export
+@returns('@str')
+foreign moduleDir = fn()
+
+/**
+ * Returns the library root of the current module namespace.
+ */
+@export
+@returns('@str')
+foreign libRoot = fn()

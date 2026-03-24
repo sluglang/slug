@@ -1,0 +1,9 @@
+var {*} = import(
+    "slug.path",
+)
+
+@export val helperCwd = cwd()
+@export val helperProjectRoot = projectRoot()
+@export val helperModuleDir = moduleDir()
+@export val helperLibRoot = libRoot()
+@export val helperJoinedFile = join(moduleDir(), "anchor_helper.slug")

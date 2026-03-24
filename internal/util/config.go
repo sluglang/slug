@@ -11,6 +11,8 @@ import (
 type Configuration struct {
 	Version      string
 	RootPath     string
+	ProjectRoot  string
+	Cwd          string
 	SlugHome     string
 	Argv         []string
 	DebugJsonAST bool

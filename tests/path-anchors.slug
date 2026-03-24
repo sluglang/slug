@@ -1,0 +1,17 @@
+var {*} = import(
+    "slug.test",
+    "slug.path",
+    "path.anchor_helper",
+)
+
+assertEqual(moduleDir(), projectRoot())
+assertEqual(libRoot(), projectRoot())
+
+assertEqual(cwd(), helperCwd)
+assertEqual(projectRoot(), helperProjectRoot)
+
+assertEqual(helperModuleDir, join(projectRoot(), "path"))
+assertEqual(helperLibRoot, projectRoot())
+assertEqual(helperJoinedFile, join(projectRoot(), "path", "anchor_helper.slug"))
+
+assertEqual(abs("."), cwd() /> abs)

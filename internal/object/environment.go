@@ -17,6 +17,7 @@ type Environment struct {
 	Outer     *Environment
 	Src       string
 	Path      string
+	LibRoot   string
 	ModuleFqn string
 	StackInfo *StackFrame           // Optional stack frame information
 	Defers    []*ast.DeferStatement // Stack for deferred statements
@@ -52,6 +53,7 @@ func NewEnclosedEnvironment(outer *Environment, stackFrame *StackFrame) *Environ
 	env := NewEnvironment()
 	env.Outer = outer
 	env.Path = outer.Path
+	env.LibRoot = outer.LibRoot
 	env.ModuleFqn = outer.ModuleFqn
 	env.Src = outer.Src
 	env.StackInfo = stackFrame
@@ -95,6 +97,7 @@ func (e *Environment) ShallowCopy() *Environment {
 		Outer:     e.Outer,
 		Src:       e.Src,
 		Path:      e.Path,
+		LibRoot:   e.LibRoot,
 		ModuleFqn: e.ModuleFqn,
 	}
 

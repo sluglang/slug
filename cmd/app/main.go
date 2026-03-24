@@ -74,6 +74,11 @@ func main() {
 	if rootPath != "" {
 		resolvedRootPath, _ = filepath.Abs(rootPath)
 	}
+	projectRoot := filepath.Dir(scriptPath)
+	processCwd, err := os.Getwd()
+	if err != nil {
+		processCwd = "."
+	}
 
 	// Normalize paths
 	normalizedTargetName := targetName
@@ -91,6 +96,8 @@ func main() {
 	config := util.Configuration{
 		Version:      Version,
 		RootPath:     resolvedRootPath,
+		ProjectRoot:  filepath.Clean(projectRoot),
+		Cwd:          filepath.Clean(processCwd),
 		SlugHome:     os.Getenv("SLUG_HOME"),
 		DebugJsonAST: debugJsonAST,
 		DebugTxtAST:  debugTxtAST,
@@ -118,6 +125,7 @@ func main() {
 	// Ensure stacktraces have file/source context for line/column lookup.
 	// Child environments inherit these via NewEnclosedEnvironment.
 	env.Path = scriptPath
+	env.LibRoot = config.ProjectRoot
 	env.Src = string(source)
 	env.ModuleFqn = mainModule
 

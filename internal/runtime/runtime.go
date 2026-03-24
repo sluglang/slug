@@ -92,16 +92,19 @@ func (r *Runtime) LoadModule(modName string) (*object.Module, error) {
 
 	// 2. Search Paths: Check local RootPath, then SLUG_HOME/lib
 	var fullPath string
+	var loadRoot string
 	var source []byte
 	var err error
 
 	// Try local RootPath (directory of the entry script)
+	loadRoot = r.Config.RootPath
 	fullPath = filepath.Join(r.Config.RootPath, relPath)
 	source, errFirst := os.ReadFile(fullPath)
 
 	if errFirst != nil {
 		//// Fallback to $SLUG_HOME/lib
 		if r.Config.SlugHome != "" {
+			loadRoot = filepath.Join(r.Config.SlugHome, "lib")
 			fullPath = filepath.Join(r.Config.SlugHome, "lib", relPath)
 			source, err = os.ReadFile(fullPath)
 			if err != nil {
@@ -151,6 +154,7 @@ func (r *Runtime) LoadModule(modName string) (*object.Module, error) {
 	// 4. Setup Module Object and Environment
 	moduleEnv := object.NewEnvironment()
 	moduleEnv.Path = fullPath
+	moduleEnv.LibRoot = moduleLibRoot(loadRoot, modName)
 	moduleEnv.ModuleFqn = modName
 	moduleEnv.Src = string(source)
 	if modName == "slug.channel" {
@@ -200,6 +204,14 @@ func (r *Runtime) LoadModule(modName string) (*object.Module, error) {
 	}
 
 	return module, nil
+}
+
+func moduleLibRoot(loadRoot, _ string) string {
+	root := filepath.Clean(loadRoot)
+	if root == "." || root == "" {
+		return root
+	}
+	return root
 }
 
 func predeclareTopLevel(program *ast.Program, env *object.Environment) error {
