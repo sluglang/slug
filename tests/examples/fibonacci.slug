@@ -6,12 +6,9 @@ var {*} = import(
 // Fibonacci sequence calculation using simple recursion
 //
 
-var fib = fn(n) {
-    if (n < 2) {
-        return n
-    } else {
-        return fib(n - 2) + fib(n - 1)
-    }
+var fib = fn(n) match {
+	_ if n < 2 => n
+    _          => return fib(n - 2) + fib(n - 1)
 }
 
 var out = fib(10)

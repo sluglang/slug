@@ -6,14 +6,10 @@ var {*} = import(
 // Fibonacci sequence calculation using tail call recursion
 //
 
-var fib = fn(n, a = 0, b = 1) {
-    if (n == 0) {
-        a
-    } else if (n == 1) {
-        b
-    } else {
-        recur(n - 1, b, a + b)
-    }
+var fib = fn(n, a = 0, b = 1) match {
+	[0, ...] => a
+	[1, ...] => b
+	_        => recur(n - 1, b, a + b)
 }
 
 fib(10) /> assertEqual(55, "Fibonacci 10 equals 55")
