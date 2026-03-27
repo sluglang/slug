@@ -171,7 +171,7 @@ func fnBuiltinPrint() *object.Foreign {
 					out.WriteString(" ")
 				}
 			}
-			print(out.String())
+			fmt.Print(out.String())
 			if len(args) > 0 {
 				return args[0]
 			}
@@ -191,7 +191,7 @@ func fnBuiltinPrintLn() *object.Foreign {
 					out.WriteString(" ")
 				}
 			}
-			println(out.String())
+			fmt.Println(out.String())
 			if len(args) > 0 {
 				return args[0]
 			}
