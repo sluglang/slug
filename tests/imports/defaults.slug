@@ -9,6 +9,6 @@ var defaultTest = fn(a = privateDefaultValue) {
 }
 
 @export
-var defaultTestCfg = fn(a = cfg("testCfg", 1)) {
+var defaultTestCfg = fn(a = cfg("test-cfg", 1)) {
 	a
 }

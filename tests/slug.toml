@@ -4,4 +4,4 @@
 #
 
 [imports.defaults]
-testCfg = 10
+test-cfg = 10

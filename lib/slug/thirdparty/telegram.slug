@@ -9,8 +9,8 @@
  *
  * | Key               | Default                              | Description             |
  * |-------------------|--------------------------------------|-------------------------|
- * | `telegram_token`  | required                             | Bot token from @BotFather |
- * | `telegram_url`    | `https://api.telegram.org/bot`       | API base URL            |
+ * | `telegram-token`  | required                             | Bot token from @BotFather |
+ * | `telegram-url`    | `https://api.telegram.org/bot`       | API base URL            |
  *
  * The module will print a warning at load time if `telegram_token` is
  * not set but will not exit — callers will receive `nil` responses until
@@ -49,8 +49,8 @@ val { get, post }        = import("slug.io.http")
 val { decode, encode }   = import("slug.json")
 val { fmt, keys, label } = import("slug.std")
 
-val TOKEN         = cfg("telegram_token", nil)
-val TELEGRAM_BASE = cfg("telegram_url", "https://api.telegram.org/bot")
+val TOKEN         = cfg("telegram-token", nil)
+val TELEGRAM_BASE = cfg("telegram-url", "https://api.telegram.org/bot")
 val TG_API        = fmt("{}{}", TELEGRAM_BASE, TOKEN)
 
 match TOKEN {

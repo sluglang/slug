@@ -8,8 +8,8 @@
  *
  * | Key             | Default                    | Description              |
  * |-----------------|----------------------------|--------------------------|
- * | `ollama_url`    | `http://localhost:11434`   | Ollama base URL          |
- * | `ollama_model`  | `llama3`                   | Model name to use        |
+ * | `ollama-url`    | `http://localhost:11434`   | Ollama base URL          |
+ * | `ollama-model`  | `llama3`                   | Model name to use        |
  *
  * ## Quick start
  *
@@ -53,7 +53,7 @@ val { get, post }      = import("slug.io.http")
 val { decode, encode } = import("slug.json")
 val { fmt }            = import("slug.std")
 
-val OLLAMA_BASE = cfg("ollama_url", "http://localhost:11434")
+val OLLAMA_BASE = cfg("ollama-url", "http://localhost:11434")
 val OLLAMA_API  = fmt("{}/api/chat", OLLAMA_BASE)
 
 // Prepends the system prompt to history on every call.
@@ -83,7 +83,7 @@ val buildMessages = fn(history, systemPrompt) {
 val ollamaChat = fn(
   @list history,
   @str systemPrompt = nil,
-  @str model = cfg("ollama_model", "llama3")
+  @str model = cfg("ollama-model", "llama3")
 ) {
   val payload        = { model: model, messages: buildMessages(history, systemPrompt), stream: false }
   val [status, body] = post(encode(payload), OLLAMA_API, { "Content-Type": "application/json" })
