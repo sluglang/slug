@@ -42,7 +42,7 @@ log.debug("GET {} {}", path, status)
 
 // chainable — passes the value through unchanged
 val result = fetchData()
-  /> log.cInfo("fetched {} records", len)
+  /> log.cInfo("fetched {} records")
   /> process
 ```
 
@@ -55,7 +55,7 @@ logging into a pipeline without breaking the data flow:
 ```slug
 items
   /> filter(fn(x) { x.active })
-  /> log.cDebug("active items: {}", len)
+  /> log.cDebug("active items: {}")
   /> map(transform)
 ```
 
@@ -194,7 +194,7 @@ Designed for use in call chains — the value flows through unmodified:
 
 ```slug
 val result = fetchItems()
-  /> cTrace("fetched: {}", len)
+  /> cTrace("fetched: {}")
   /> process
 ```
 
@@ -228,7 +228,7 @@ logs a warn-level message and returns the first argument unchanged.
 
 #### `debug(message, args)`
 ```slug
-fn slug.log#debug(@str message, ...args) -> ?
+fn slug.log#debug(@str message, ...args) -> @str|nil
 ```
 
 
@@ -245,7 +245,7 @@ logs a debug-level message using the global log level.
 
 #### `error(message, args)`
 ```slug
-fn slug.log#error(@str message, ...args) -> ?
+fn slug.log#error(@str message, ...args) -> @str|nil
 ```
 
 
@@ -262,7 +262,7 @@ logs an error-level message using the global log level.
 
 #### `info(nil)`
 ```slug
-fn slug.log#info(nil) -> @map
+fn slug.log#info(nil) -> @str|nil
 ```
 
 
@@ -275,7 +275,7 @@ nil
 
 #### `logger(src)`
 ```slug
-fn slug.log#logger(@str src) -> ?
+fn slug.log#logger(@str src) -> @map
 ```
 
 
@@ -286,7 +286,7 @@ to filter output by module in multi-component applications.
 
 The log level can be overridden per-source via cfg:
 dots in the source name are replaced with underscores.
-e.g. `logger("slug.io.http")` reads `cfg("level_slug_io_http")`.
+e.g. `logger("slug.io.http")` reads `cfg("level__slug_io_http")`.
 
 Returns a map of logging functions: `trace`, `debug`, `info`, `warn`,
 `error` and their chainable counterparts `cTrace`…`cError`.
@@ -294,7 +294,7 @@ Returns a map of logging functions: `trace`, `debug`, `info`, `warn`,
 ```slug
 val log = import("slug.log").logger("myapp.worker")
 log.info("started {} workers", count)
-val result = compute() /> log.cWarn("slow result: {}", id)
+val result = compute() /> log.cWarn("slow result: {}")
 ```
 
 | Parameter | Type | Default |
@@ -305,7 +305,7 @@ val result = compute() /> log.cWarn("slow result: {}", id)
 
 #### `none(message, args)`
 ```slug
-fn slug.log#none(@str message, ...args) -> ?
+fn slug.log#none(@str message, ...args) -> nil
 ```
 
 
@@ -326,7 +326,7 @@ as a placeholder or for temporarily silencing a log call.
 
 #### `trace(message, args)`
 ```slug
-fn slug.log#trace(@str message, ...args) -> ?
+fn slug.log#trace(@str message, ...args) -> @str|nil
 ```
 
 
@@ -346,7 +346,7 @@ Emits nothing if the configured level is above `trace`.
 
 #### `warn(message, args)`
 ```slug
-fn slug.log#warn(@str message, ...args) -> ?
+fn slug.log#warn(@str message, ...args) -> @str|nil
 ```
 
 

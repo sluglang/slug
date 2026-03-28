@@ -407,27 +407,27 @@ fn slug.log#cTrace(arg, @str message, ...args) -> ?
 fn slug.log#cWarn(arg, @str message, ...args) -> ?
   desc: "logs a warn-level message and returns the first argument unchanged."
 
-fn slug.log#debug(@str message, ...args) -> ?
+fn slug.log#debug(@str message, ...args) -> @str|nil
   desc: "logs a debug-level message using the global log level."
 
-fn slug.log#error(@str message, ...args) -> ?
+fn slug.log#error(@str message, ...args) -> @str|nil
   desc: "logs an error-level message using the global log level."
 
 fn slug.log#info(@str path) -> @map
   desc: "logs an info-level message using the global log level."
-fn slug.log#info(@str message, ...args) -> ?
+fn slug.log#info(@str message, ...args) -> @str|nil
   desc: "logs an info-level message using the global log level."
 
-fn slug.log#logger(@str src) -> ?
+fn slug.log#logger(@str src) -> @map
   desc: "creates a named logger for a specific source module."
 
-fn slug.log#none(@str message, ...args) -> ?
+fn slug.log#none(@str message, ...args) -> nil
   desc: "logs at the `none` level."
 
-fn slug.log#trace(@str message, ...args) -> ?
+fn slug.log#trace(@str message, ...args) -> @str|nil
   desc: "logs a trace-level message using the global log level."
 
-fn slug.log#warn(@str message, ...args) -> ?
+fn slug.log#warn(@str message, ...args) -> @str|nil
   desc: "logs a warn-level message using the global log level."
 
 fn slug.map#difference(@map s1, @map s2) -> @map

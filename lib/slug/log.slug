@@ -37,7 +37,7 @@
  *
  * // chainable — passes the value through unchanged
  * val result = fetchData()
- *   /> log.cInfo("fetched {} records", len)
+ *   /> log.cInfo("fetched {} records")
  *   /> process
  * ```
  *
@@ -50,7 +50,7 @@
  * ```slug
  * items
  *   /> filter(fn(x) { x.active })
- *   /> log.cDebug("active items: {}", len)
+ *   /> log.cDebug("active items: {}")
  *   /> map(transform)
  * ```
  *
@@ -165,7 +165,7 @@ val logMsg = fn(@num logLvl, @num level, @str msg, @list args) {
  *
  * The log level can be overridden per-source via cfg:
  * dots in the source name are replaced with underscores.
- * e.g. `logger("slug.io.http")` reads `cfg("level_slug_io_http")`.
+ * e.g. `logger("slug.io.http")` reads `cfg("level__slug_io_http")`.
  *
  * Returns a map of logging functions: `trace`, `debug`, `info`, `warn`,
  * `error` and their chainable counterparts `cTrace`…`cError`.
@@ -173,15 +173,16 @@ val logMsg = fn(@num logLvl, @num level, @str msg, @list args) {
  * ```slug
  * val log = import("slug.log").logger("myapp.worker")
  * log.info("started {} workers", count)
- * val result = compute() /> log.cWarn("slow result: {}", id)
+ * val result = compute() /> log.cWarn("slow result: {}")
  * ```
  */
 @export
+@returns('@map')
 val logger = fn(@str src) {
 	val source = src + ": "
     val lvl    = indexOf(
         Levels,
-        cfg('level_' + replaceAll(src, '.', '_'), cfg('level', DefaultLogLevel) /> toLower)
+        cfg('level__' + replaceAll(src, '.', '_'), cfg('level', DefaultLogLevel) /> toLower)
     )
 	{
         trace:  fn(@str message, ...args) { logMsg(lvl, Trace, source + message, args) },
@@ -212,6 +213,7 @@ val logger = fn(@str src) {
  * @effects('io')
  */
 @export
+@returns('@str|nil')
 val trace = fn(@str message, ...args) { logMsg(LogLevel, Trace, message, args) }
 
 /**
@@ -220,6 +222,7 @@ val trace = fn(@str message, ...args) { logMsg(LogLevel, Trace, message, args) }
  * @effects('io')
  */
 @export
+@returns('@str|nil')
 val debug = fn(@str message, ...args) { logMsg(LogLevel, Debug, message, args) }
 
 /**
@@ -228,6 +231,7 @@ val debug = fn(@str message, ...args) { logMsg(LogLevel, Debug, message, args) }
  * @effects('io')
  */
 @export
+@returns('@str|nil')
 val info = fn(@str message, ...args) { logMsg(LogLevel, Info, message, args) }
 
 /**
@@ -236,6 +240,7 @@ val info = fn(@str message, ...args) { logMsg(LogLevel, Info, message, args) }
  * @effects('io')
  */
 @export
+@returns('@str|nil')
 val warn = fn(@str message, ...args) { logMsg(LogLevel, Warn, message, args) }
 
 /**
@@ -244,6 +249,7 @@ val warn = fn(@str message, ...args) { logMsg(LogLevel, Warn, message, args) }
  * @effects('io')
  */
 @export
+@returns('@str|nil')
 val error = fn(@str message, ...args) { logMsg(LogLevel, Error, message, args) }
 
 /**
@@ -256,6 +262,7 @@ val error = fn(@str message, ...args) { logMsg(LogLevel, Error, message, args) }
  * @effects('io')
  */
 @export
+@returns('nil')
 val none = fn(@str message, ...args) { logMsg(LogLevel, None, message, args) }
 
 // ============================================================
@@ -269,7 +276,7 @@ val none = fn(@str message, ...args) { logMsg(LogLevel, None, message, args) }
  *
  * ```slug
  * val result = fetchItems()
- *   /> cTrace("fetched: {}", len)
+ *   /> cTrace("fetched: {}")
  *   /> process
  * ```
  *
