@@ -120,7 +120,7 @@ val LogLevel = indexOf(Levels, cfg('level', DefaultLogLevel) /> toLower)
 /**
  * resolved file path from cfg("log-file"), or nil for stdout
  */
-val LogPath  = cfg('log-file', nil) /> localize /> println
+val LogPath  = cfg('log-file', nil) /> localize
 
 // --- internal helpers ---
 
