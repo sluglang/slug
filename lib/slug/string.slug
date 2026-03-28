@@ -133,6 +133,25 @@ val contains = fn(@str str, @str seq) {
 }
 
 /**
+ * returns true if any on the `seq` strings appear in `str`.
+ */
+@testWith(
+	["hello slug", "slug"],  true,
+	["hello slug", "snail", "fish"], false,
+)
+@export
+@returns('@bool')
+val containsAny = fn(@str str, ...seq) {
+	fn(@num i) {
+		match contains(str, seq[i]) {
+			false if i <= 0 => false
+			false           => recur( i - 1 )
+			_               => true
+		}
+	}(len(seq) - 1)
+}
+
+/**
  * returns true if `str` begins with `start`.
  */
 @testWith(

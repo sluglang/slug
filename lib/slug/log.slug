@@ -1,62 +1,311 @@
-// var {*} = import(
-//     "slug.std", 
-//     "slug.actor",
-//     "slug.time",
-//     "slug.list",
-//     "slug.term.colour",
-// );
+/**
+ * slug.log — structured logging
+ *
+ * Provides levelled, coloured, optionally file-backed logging for Slug
+ * programs. Supports both module-level convenience functions and named
+ * per-source loggers for multi-module applications.
+ *
+ * ## Log levels
+ *
+ * Levels are ordered: `trace` < `debug` < `info` < `warn` < `error` < `none`.
+ * A message is emitted only when its level is >= the configured log level.
+ * Setting the level to `none` suppresses all output.
+ *
+ * ## Configuration
+ *
+ * | cfg key              | Default  | Description                                    |
+ * |----------------------|----------|------------------------------------------------|
+ * | `level`              | `"info"` | Global minimum log level                       |
+ * | `level_<src>`        |          | Per-source override (dots replaced with `_`)   |
+ * | `file-path`          | `nil`    | Write to this file path instead of stdout      |
+ *
+ * ## Quick start
+ *
+ * ```slug
+ * val log = import("slug.log")
+ *
+ * log.info("server started on port {}", 8080)
+ * log.warn("retrying after {} ms", 500)
+ * ```
+ *
+ * ## Named loggers
+ *
+ * ```slug
+ * val log = import("slug.log").logger("slug.io.http")
+ *
+ * log.debug("GET {} {}", path, status)
+ *
+ * // chainable — passes the value through unchanged
+ * val result = fetchData()
+ *   /> log.cInfo("fetched {} records", len)
+ *   /> process
+ * ```
+ *
+ * ## Chainable variants
+ *
+ * The `c*` functions (`cTrace`, `cDebug`, `cInfo`, `cWarn`, `cError`) log a
+ * message and return their first argument unchanged. This lets you insert
+ * logging into a pipeline without breaking the data flow:
+ *
+ * ```slug
+ * items
+ *   /> filter(fn(x) { x.active })
+ *   /> log.cDebug("active items: {}", len)
+ *   /> map(transform)
+ * ```
+ *
+ * ## File output
+ *
+ * When `file-path` is set, log entries are appended to that file with no
+ * colour codes. When writing to stdout, ANSI colour codes are applied per
+ * level.
+ *
+ * @effects('io')
+ */
 
-// @export val TRACE = 0;
-// @export val DEBUG = 1;
-// @export val INFO = 2;
-// @export val WARN = 3;
-// @export val ERROR = 4;
-// @export val NONE = 5;
+val {*} = import(
+    "slug.std",
+    "slug.time",
+    "slug.list",
+    "slug.string",
+    "slug.term.colour",
+    "slug.io.fs",
+    "slug.path",
+)
 
-// val LEVELS = ["trace", "debug", "info", "warn", "error", "none"];
-// val COLOURS = [BrightColour.Black, Colour.Cyan, Colour.Green, Colour.Yellow, Colour.Red];
-// val RESET_COLOR = reset;
+// --- level constants ---
 
-// // private var to track log level
-// var logLevel = NONE;
+/**
+ * minimum log level — emits everything
+ */
+@export val Trace = 0
 
-// var logger = fn() {
-//     match receive() {
-//         {tag:"log", level, ...l} if level >= logLevel => {
-//                 val tag = sprintf("%s%-5s%s", COLOURS[level], LEVELS[level], RESET_COLOR);
-//                 var msg = sprintf(l.message, ...l.args);
-//                 if (msg[-1] != "\n") {
-//                     msg = msg + "\n";
-//                 }
-//                 printf("%s [ %s ] %s", fmtClock(l.time, "2006-01-02 15:04:05.000"), tag, msg);
-//             }
-//     }
-//     recur();
-// }
+/**
+ * debug-level messages; verbose operational detail
+ */
+@export val Debug = 1
 
-// // create a mailbox and bind the logging function to it
-// var logActor = spawn(logger);
+/**
+ * informational messages; normal operational events
+ */
+@export val Info  = 2
 
-// var sendLog = fn(level, message, args) {
-//     if ( level >=  logLevel ) {
-//         logActor /> send({ tag: "log", time: clock(), level: level, message: message, args: args })
-//     }
-// }
+/**
+ * warnings; unexpected but recoverable situations
+ */
+@export val Warn  = 3
 
-// @export
-// var configureLogging = fn(@num level) {
-//     logLevel = level
-// }
+/**
+ * errors; failures that require attention
+ */
+@export val Error = 4
 
-// @export
-// var trace = fn(message, ...args) { sendLog(TRACE, message, args) }
-// @export
-// var debug = fn(message, ...args) { sendLog(DEBUG, message, args) }
-// @export
-// var info = fn(message, ...args) { sendLog(INFO, message, args) }
-// @export
-// var warn = fn(message, ...args) { sendLog(WARN, message, args) }
-// @export
-// var error = fn(message, ...args) { sendLog(ERROR, message, args) }
-// @export
-// var none = fn(message, ...args) { sendLog(NONE, message, args) }
+/**
+ * suppress all output
+ */
+@export val None  = 5
+
+val DefaultLogLevel = 'info'
+val Levels   = ["trace", "debug", "info", "warn", "error", "none"]
+val Colours  = [BrightColour.Black, Colour.Cyan, Colour.Green, Colour.Yellow, Colour.Red]
+val ResetColour = reset
+
+// --- global configuration ---
+
+/**
+ * resolved numeric log level from cfg("level", "info")
+ */
+val LogLevel = indexOf(Levels, cfg('level', DefaultLogLevel) /> toLower)
+
+/**
+ * resolved file path from cfg("file-path"), or nil for stdout
+ */
+val LogPath  = cfg('file-path', nil) /> localize
+
+// --- internal helpers ---
+
+// Writes content to the configured destination.
+// Stdout gets println; file path gets appendFile.
+val emit = fn(content, path) {
+    match path {
+		nil => println(content)
+		_   => appendFile(content, LogPath)
+	}
+}
+
+// Formats and emits a log message if level >= logLvl.
+//
+// `logLvl` — the minimum level configured for this logger
+// `level`  — the level of this specific message
+// `msg`    — fmt-style format string
+// `args`   — positional arguments for fmt
+val logMsg = fn(@num logLvl, @num level, @str msg, @list args) {
+	match level >= logLvl && level < None {
+        false => nil
+        _     => {
+            val tag = match LogPath == nil {
+                true  => fmt("{}{:<5s}{}", Colours[level], Levels[level], ResetColour)
+                false => fmt("{:<5s}", Levels[level])
+			}
+            val timestamp = fmtClock(clock(), "2006-01-02 15:04:05.000")
+            emit(fmt("{} [ {} ] {}", timestamp, tag, fmt(msg, ...args)), LogPath)
+		}
+	}
+}
+
+// ============================================================
+// logger — named per-source logger
+// ============================================================
+
+/**
+ * creates a named logger for a specific source module.
+ *
+ * The source name is prepended to every log message, making it easy
+ * to filter output by module in multi-component applications.
+ *
+ * The log level can be overridden per-source via cfg:
+ * dots in the source name are replaced with underscores.
+ * e.g. `logger("slug.io.http")` reads `cfg("level_slug_io_http")`.
+ *
+ * Returns a map of logging functions: `trace`, `debug`, `info`, `warn`,
+ * `error` and their chainable counterparts `cTrace`…`cError`.
+ *
+ * ```slug
+ * val log = import("slug.log").logger("myapp.worker")
+ * log.info("started {} workers", count)
+ * val result = compute() /> log.cWarn("slow result: {}", id)
+ * ```
+ */
+@export
+val logger = fn(@str src) {
+	val source = src + ": "
+    val lvl    = indexOf(
+        Levels,
+        cfg('level_' + replaceAll(src, '.', '_'), cfg('level', DefaultLogLevel) /> toLower)
+    )
+	{
+        trace:  fn(@str message, ...args) { logMsg(lvl, Trace, source + message, args) },
+        debug:  fn(@str message, ...args) { logMsg(lvl, Debug, source + message, args) },
+        info:   fn(@str message, ...args) { logMsg(lvl, Info,  source + message, args) },
+        warn:   fn(@str message, ...args) { logMsg(lvl, Warn,  source + message, args) },
+        error:  fn(@str message, ...args) { logMsg(lvl, Error, source + message, args) },
+
+        // chainable variants — log and return first argument unchanged
+		cTrace: fn(arg, @str message, ...args) { logMsg(lvl, Trace, source + message, arg +: args); arg },
+		cDebug: fn(arg, @str message, ...args) { logMsg(lvl, Debug, source + message, arg +: args); arg },
+        cInfo:  fn(arg, @str message, ...args) { logMsg(lvl, Info,  source + message, arg +: args); arg },
+        cWarn:  fn(arg, @str message, ...args) { logMsg(lvl, Warn,  source + message, arg +: args); arg },
+		cError: fn(arg, @str message, ...args) { logMsg(lvl, Error, source + message, arg +: args); arg },
+	}
+}
+
+// ============================================================
+// module-level convenience functions
+// ============================================================
+
+/**
+ * logs a trace-level message using the global log level.
+ *
+ * `message` is a `fmt`-style format string; `args` are its arguments.
+ * Emits nothing if the configured level is above `trace`.
+ *
+ * @effects('io')
+ */
+@export
+val trace = fn(@str message, ...args) { logMsg(LogLevel, Trace, message, args) }
+
+/**
+ * logs a debug-level message using the global log level.
+ *
+ * @effects('io')
+ */
+@export
+val debug = fn(@str message, ...args) { logMsg(LogLevel, Debug, message, args) }
+
+/**
+ * logs an info-level message using the global log level.
+ *
+ * @effects('io')
+ */
+@export
+val info = fn(@str message, ...args) { logMsg(LogLevel, Info, message, args) }
+
+/**
+ * logs a warn-level message using the global log level.
+ *
+ * @effects('io')
+ */
+@export
+val warn = fn(@str message, ...args) { logMsg(LogLevel, Warn, message, args) }
+
+/**
+ * logs an error-level message using the global log level.
+ *
+ * @effects('io')
+ */
+@export
+val error = fn(@str message, ...args) { logMsg(LogLevel, Error, message, args) }
+
+/**
+ * logs at the `none` level.
+ *
+ * Since `none` is above all other levels, this message is only emitted
+ * when the configured level is also `none` — effectively never. Useful
+ * as a placeholder or for temporarily silencing a log call.
+ *
+ * @effects('io')
+ */
+@export
+val none = fn(@str message, ...args) { logMsg(LogLevel, None, message, args) }
+
+// ============================================================
+// module-level chainable variants
+// ============================================================
+
+/**
+ * logs a trace-level message and returns the first argument unchanged.
+ *
+ * Designed for use in call chains — the value flows through unmodified:
+ *
+ * ```slug
+ * val result = fetchItems()
+ *   /> cTrace("fetched: {}", len)
+ *   /> process
+ * ```
+ *
+ * @effects('io')
+ */
+@export
+val cTrace = fn(arg, @str message, ...args) { logMsg(LogLevel, Trace, message, arg +: args); arg }
+
+/**
+ * logs a debug-level message and returns the first argument unchanged.
+ *
+ * @effects('io')
+ */
+@export
+val cDebug = fn(arg, @str message, ...args) { logMsg(LogLevel, Debug, message, arg +: args); arg }
+
+/**
+ * logs an info-level message and returns the first argument unchanged.
+ *
+ * @effects('io')
+ */
+@export
+val cInfo = fn(arg, @str message, ...args) { logMsg(LogLevel, Info,  message, arg +: args); arg }
+
+/**
+ * logs a warn-level message and returns the first argument unchanged.
+ *
+ * @effects('io')
+ */
+@export
+val cWarn = fn(arg, @str message, ...args) { logMsg(LogLevel, Warn,  message, arg +: args); arg }
+
+/**
+ * logs an error-level message and returns the first argument unchanged.
+ *
+ * @effects('io')
+ */
+@export
+val cError = fn(arg, @str message, ...args) { logMsg(LogLevel, Error, message, arg +: args); arg }
