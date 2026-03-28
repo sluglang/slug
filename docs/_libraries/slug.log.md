@@ -21,7 +21,7 @@ Setting the level to `none` suppresses all output.
 | cfg key              | Default  | Description                                    |
 |----------------------|----------|------------------------------------------------|
 | `level`              | `"info"` | Global minimum log level                       |
-| `level_<src>`        |          | Per-source override (dots replaced with `_`)   |
+| `level__<src>`       |          | Per-source override (dots replaced with `_`)   |
 | `file-path`          | `nil`    | Write to this file path instead of stdout      |
 
 ## Quick start
