@@ -14,6 +14,7 @@ Small helpers for path composition and normalization.
 - [`cwd()`](#cwd)
 - [`join(parts)`](#joinparts)
 - [`libRoot()`](#libroot)
+- [`localize(path)`](#localizepath)
 - [`moduleDir()`](#moduledir)
 - [`projectRoot()`](#projectroot)
 
@@ -64,6 +65,21 @@ fn slug.path#libRoot() -> @str
 
 
 Returns the library root of the current module namespace.
+
+---
+
+#### `localize(path)`
+```slug
+fn slug.path#localize(@str path) -> @str
+```
+
+
+If path starts with '__project__/', '__library__/' or '__module__/' returns path new path with substitution,
+useful for config.
+
+| Parameter | Type | Default |
+| --- | --- | --- |
+| `path` | @str  | — |
 
 ---
 

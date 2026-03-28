@@ -380,6 +380,56 @@ fn slug.list#sort(@list lst) -> @list
 fn slug.list#sortWithComparator(@list lst, @fn comparator) -> @list
   desc: "sorts a list using a custom comparator function."
 
+num slug.log#Debug
+
+num slug.log#Error
+
+num slug.log#Info
+
+num slug.log#None
+
+num slug.log#Trace
+
+num slug.log#Warn
+
+fn slug.log#cDebug(arg, @str message, ...args) -> ?
+  desc: "logs a debug-level message and returns the first argument unchanged."
+
+fn slug.log#cError(arg, @str message, ...args) -> ?
+  desc: "logs an error-level message and returns the first argument unchanged."
+
+fn slug.log#cInfo(arg, @str message, ...args) -> ?
+  desc: "logs an info-level message and returns the first argument unchanged."
+
+fn slug.log#cTrace(arg, @str message, ...args) -> ?
+  desc: "logs a trace-level message and returns the first argument unchanged."
+
+fn slug.log#cWarn(arg, @str message, ...args) -> ?
+  desc: "logs a warn-level message and returns the first argument unchanged."
+
+fn slug.log#debug(@str message, ...args) -> ?
+  desc: "logs a debug-level message using the global log level."
+
+fn slug.log#error(@str message, ...args) -> ?
+  desc: "logs an error-level message using the global log level."
+
+fn slug.log#info(@str path) -> @map
+  desc: "logs an info-level message using the global log level."
+fn slug.log#info(@str message, ...args) -> ?
+  desc: "logs an info-level message using the global log level."
+
+fn slug.log#logger(@str src) -> ?
+  desc: "creates a named logger for a specific source module."
+
+fn slug.log#none(@str message, ...args) -> ?
+  desc: "logs at the `none` level."
+
+fn slug.log#trace(@str message, ...args) -> ?
+  desc: "logs a trace-level message using the global log level."
+
+fn slug.log#warn(@str message, ...args) -> ?
+  desc: "logs a warn-level message using the global log level."
+
 fn slug.map#difference(@map s1, @map s2) -> @map
   desc: "returns `s1` with all keys that appear in `s2` removed."
 
@@ -479,6 +529,9 @@ fn slug.path#join(...parts) -> @str
 
 fn slug.path#libRoot() -> @str
   desc: "Returns the library root of the current module namespace."
+
+fn slug.path#localize(@str path) -> @str
+  desc: "If path starts with '__project__/', '__library__/' or '__module__/' returns path new path with substitution, useful for config."
 
 fn slug.path#moduleDir() -> @str
   desc: "Returns the directory of the current module file."
@@ -647,6 +700,9 @@ fn slug.string#camelCase(@str s, @str sep = " ") -> @str
 
 fn slug.string#contains(@str str, @str seq) -> @bool
   desc: "returns true if `seq` appears anywhere in `str`."
+
+fn slug.string#containsAny(@str str, ...seq) -> @bool
+  desc: "returns true if any on the `seq` strings appear in `str`."
 
 fn slug.string#endsWith(@str str, @str end) -> @bool
   desc: "returns true if `str` ends with `end`."

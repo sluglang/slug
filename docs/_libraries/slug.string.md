@@ -16,6 +16,7 @@ relevant (e.g. `indexOf` is Unicode-aware).
 
 - [`camelCase(s, sep)`](#camelcases-sep)
 - [`contains(str, seq)`](#containsstr-seq)
+- [`containsAny(str, seq)`](#containsanystr-seq)
 - [`endsWith(str, end)`](#endswithstr-end)
 - [`fromCodePoint(codePoint)`](#fromcodepointcodepoint)
 - [`indexOf(str, seq, index)`](#indexofstr-seq-index)
@@ -84,6 +85,29 @@ returns true if `seq` appears anywhere in `str`.
 ```slug
 contains("hello slug", "slug")  // => true
 contains("hello slug", "snail")  // => false
+```
+
+---
+
+#### `containsAny(str, seq)`
+```slug
+fn slug.string#containsAny(@str str, ...seq) -> @bool
+```
+
+
+returns true if any on the `seq` strings appear in `str`.
+
+| Parameter | Type | Default |
+| --- | --- | --- |
+| `str` | @str  | — |
+| `seq` |  | — |
+
+
+#### Examples
+
+```slug
+containsAny("hello slug", "slug")  // => true
+containsAny("hello slug", "snail", "fish")  // => false
 ```
 
 ---
