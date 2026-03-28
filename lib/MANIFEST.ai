@@ -1048,7 +1048,7 @@ fn slug.test#throws(@fn f, expected, @str msg = nil) -> @bool
   errors:
     thrown: @struct(Error{type:AssertionError})
 
-fn slug.thirdparty.ollama#ollamaChat(@list history, @str systemPrompt = nil, @str model = cfg(ollama_model, llama3)) -> ?
+fn slug.thirdparty.ollama#ollamaChat(@list history, @str systemPrompt = nil, @str model = cfg(ollama-model, llama3)) -> ?
   desc: "sends a chat request to Ollama and returns the model's reply text."
   effects: net
 

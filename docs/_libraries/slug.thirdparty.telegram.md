@@ -14,8 +14,8 @@ from Telegram, or `nil` on error.
 
 | Key               | Default                              | Description             |
 |-------------------|--------------------------------------|-------------------------|
-| `telegram_token`  | required                             | Bot token from @BotFather |
-| `telegram_url`    | `https://api.telegram.org/bot`       | API base URL            |
+| `telegram-token`  | required                             | Bot token from @BotFather |
+| `telegram-url`    | `https://api.telegram.org/bot`       | API base URL            |
 
 The module will print a warning at load time if `telegram_token` is
 not set but will not exit — callers will receive `nil` responses until

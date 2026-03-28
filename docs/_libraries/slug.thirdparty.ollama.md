@@ -13,8 +13,8 @@ Sends chat requests to a locally running Ollama instance via the
 
 | Key             | Default                    | Description              |
 |-----------------|----------------------------|--------------------------|
-| `ollama_url`    | `http://localhost:11434`   | Ollama base URL          |
-| `ollama_model`  | `llama3`                   | Model name to use        |
+| `ollama-url`    | `http://localhost:11434`   | Ollama base URL          |
+| `ollama-model`  | `llama3`                   | Model name to use        |
 
 ## Quick start
 
@@ -57,7 +57,7 @@ ollamaChat(history, systemPrompt: "You are a helpful Slug expert.")
 
 #### `ollamaChat(history, systemPrompt, model)`
 ```slug
-fn slug.thirdparty.ollama#ollamaChat(@list history, @str systemPrompt = nil, @str model = cfg(ollama_model, llama3)) -> ?
+fn slug.thirdparty.ollama#ollamaChat(@list history, @str systemPrompt = nil, @str model = cfg(ollama-model, llama3)) -> ?
 ```
 
 
@@ -76,6 +76,6 @@ Returns `nil` on error (details printed to stdout).
 | --- | --- | --- |
 | `history` | @list  | — |
 | `systemPrompt` | @str  | `nil` |
-| `model` | @str  | `cfg(ollama_model, llama3)` |
+| `model` | @str  | `cfg(ollama-model, llama3)` |
 
 **Effects:** `net`
