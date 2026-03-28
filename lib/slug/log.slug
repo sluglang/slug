@@ -17,7 +17,7 @@
  * |----------------------|----------|------------------------------------------------|
  * | `level`              | `"info"` | Global minimum log level                       |
  * | `level__<src>`       |          | Per-source override (dots replaced with `_`)   |
- * | `file-path`          | `nil`    | Write to this file path instead of stdout      |
+ * | `log-file`           | `nil`    | Write to this file path instead of stdout      |
  *
  * ## Quick start
  *
@@ -56,7 +56,7 @@
  *
  * ## File output
  *
- * When `file-path` is set, log entries are appended to that file with no
+ * When `log-file` is set, log entries are appended to that file with no
  * colour codes. When writing to stdout, ANSI colour codes are applied per
  * level.
  *
@@ -118,9 +118,9 @@ val ResetColour = reset
 val LogLevel = indexOf(Levels, cfg('level', DefaultLogLevel) /> toLower)
 
 /**
- * resolved file path from cfg("file-path"), or nil for stdout
+ * resolved file path from cfg("log-file"), or nil for stdout
  */
-val LogPath  = cfg('file-path', nil) /> localize
+val LogPath  = cfg('log-file', nil) /> localize /> println
 
 // --- internal helpers ---
 
@@ -129,7 +129,7 @@ val LogPath  = cfg('file-path', nil) /> localize
 val emit = fn(content, path) {
     match path {
 		nil => println(content)
-		_   => appendFile(content, LogPath)
+		_   => appendFile(content, path)
 	}
 }
 
