@@ -17,7 +17,8 @@
  * |----------------------|----------|------------------------------------------------|
  * | `level`              | `"info"` | Global minimum log level                       |
  * | `level__<src>`       |          | Per-source override (dots replaced with `_`)   |
- * | `log-file`           | `nil`    | Write to this file path instead of stdout      |
+ * | `log-file`           | `nil`    | Write to this file path instead of stderr      |
+ * | `colour`             | `true`   | Write to stderr with ANSI color codes          |
  *
  * ## Quick start
  *
@@ -57,7 +58,7 @@
  * ## File output
  *
  * When `log-file` is set, log entries are appended to that file with no
- * colour codes. When writing to stdout, ANSI colour codes are applied per
+ * colour codes. When writing to stderr, ANSI colour codes are applied per
  * level.
  *
  * @effects('io')
@@ -72,6 +73,7 @@ val {*} = import(
     "slug.io.fs",
     "slug.path",
 )
+val err = import('slug.io.stderr')
 
 // --- level constants ---
 
@@ -118,9 +120,10 @@ val ResetColour = reset
 val LogLevel = indexOf(Levels, cfg('level', DefaultLogLevel) /> toLower)
 
 /**
- * resolved file path from cfg("log-file"), or nil for stdout
+ * resolved file path from cfg("log-file"), or nil for stderr
  */
-val LogPath  = cfg('log-file', nil) /> localize
+val LogPath    = cfg('log-file', nil) /> localize
+val LogColour  = cfg('colour', true)
 
 // --- internal helpers ---
 
@@ -128,8 +131,8 @@ val LogPath  = cfg('log-file', nil) /> localize
 // Stdout gets println; file path gets appendFile.
 val emit = fn(content, path) {
     match path {
-		nil => println(content)
-		_   => appendFile(content, path)
+		nil => err.println(content)
+		_   => appendFile(content + "\n", path)
 	}
 }
 
@@ -143,7 +146,7 @@ val logMsg = fn(@num logLvl, @num level, @str msg, @list args) {
 	match level >= logLvl && level < None {
         false => nil
         _     => {
-            val tag = match LogPath == nil {
+            val tag = match LogPath == nil && LogColour {
                 true  => fmt("{}{:<5s}{}", Colours[level], Levels[level], ResetColour)
                 false => fmt("{:<5s}", Levels[level])
 			}

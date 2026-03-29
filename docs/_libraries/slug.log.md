@@ -22,7 +22,8 @@ Setting the level to `none` suppresses all output.
 |----------------------|----------|------------------------------------------------|
 | `level`              | `"info"` | Global minimum log level                       |
 | `level__<src>`       |          | Per-source override (dots replaced with `_`)   |
-| `log-file`           | `nil`    | Write to this file path instead of stdout      |
+| `log-file`           | `nil`    | Write to this file path instead of stderr      |
+| `colour`             | `true`   | Write to stderr with ANSI color codes          |
 
 ## Quick start
 
@@ -62,7 +63,7 @@ items
 ## File output
 
 When `log-file` is set, log entries are appended to that file with no
-colour codes. When writing to stdout, ANSI colour codes are applied per
+colour codes. When writing to stderr, ANSI colour codes are applied per
 level.
 
 @effects('io')
