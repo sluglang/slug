@@ -51,7 +51,9 @@
 
 val { get, post }      = import("slug.io.http")
 val { decode, encode } = import("slug.json")
-val { fmt }            = import("slug.std")
+val { fmt, moduleName }            = import("slug.std")
+
+val log = import("slug.log").logger(moduleName())
 
 val OLLAMA_BASE = cfg("ollama-url", "http://localhost:11434")
 val OLLAMA_API  = fmt("{}/api/chat", OLLAMA_BASE)
@@ -74,7 +76,7 @@ val buildMessages = fn(history, systemPrompt) {
  * `systemPrompt` is provided it is prepended as a `"system"` message
  * on every call without being stored in `history`.
  *
- * Returns `nil` on error (details printed to stdout).
+ * Returns `nil` on error (details logger).
  *
  * @effects('net')
  */
@@ -96,7 +98,7 @@ val ollamaChat = fn(
       }
     }
     _ => {
-      println(fmt("ollama error {}: {}", status, body))
+      log.error("ollama error {}: {}", status, body)
       nil
     }
   }

@@ -53,6 +53,8 @@ val {*} = import(
 val tcp     = import("slug.io.tcp")
 val request = import("slug.web.request")
 
+val log = import("slug.log").logger(moduleName())
+
 /**
  * starts an HTTP/1.1 server and blocks until it is shut down.
  *
@@ -75,7 +77,7 @@ val serve = nursery limit 1000 fn(
 #
 # Server started on {{addr}}:{{port}}
 #
-""" /> println
+""" /> log.cInfo('{}')
 
 	val listener = tcp.bind(addr, port)
 	defer { tcp.close(listener) }
@@ -93,8 +95,8 @@ val acceptLoop = fn(listener, @fn app) {
 val handleConn = fn(conn, @fn app) {
 	defer { tcp.close(conn) }
 	defer onerror(err) match {
-		Error{ type: 'TimeoutError' } => { println("error:", conn, err); nil }
-		_                             => { println("error:", conn, err, stacktrace(err)); nil }
+		Error{ type: 'TimeoutError' } => { log.error("error: {} {}", conn, err); nil }
+		_                             => { log.error("error: {} {} {}", conn, err, stacktrace(err)); nil }
 	}
 	connLoop(conn, app, "", 0, 100, secsToMillis(10))
 }

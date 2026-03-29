@@ -47,14 +47,16 @@
 
 val { get, post }        = import("slug.io.http")
 val { decode, encode }   = import("slug.json")
-val { fmt, keys, label } = import("slug.std")
+val { fmt, keys, label, moduleName } = import("slug.std")
+
+val log = import("slug.log").logger(moduleName())
 
 val TOKEN         = cfg("telegram-token", nil)
 val TELEGRAM_BASE = cfg("telegram-url", "https://api.telegram.org/bot")
 val TG_API        = fmt("{}{}", TELEGRAM_BASE, TOKEN)
 
 match TOKEN {
-  nil => println("warning: telegram_token is not set in config")
+  nil => log.warn("warning: telegram_token is not set in config")
   _   => nil
 }
 
@@ -127,7 +129,7 @@ val tgGet = fn(method, params) {
   match status {
     200 => decode(body)
     _   => {
-      println(fmt("tg error {}: {}", status, body))
+      log.error("tg error {}: {}", status, body)
       nil
     }
   }
@@ -139,7 +141,7 @@ val tgPost = fn(method, payload) {
   match status {
     200 => decode(body)
     _   => {
-      println(fmt("tg error {}: {}", status, body))
+      log.error("tg error {}: {}", status, body)
       nil
     }
   }
