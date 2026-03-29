@@ -18,6 +18,7 @@ slug.html
 slug.io.db
 slug.io.fs
 slug.io.http
+slug.io.stderr
 slug.io.stdin
 slug.io.tcp
 slug.json
@@ -317,6 +318,12 @@ fn slug.io.http#request(@str method, @str url, @str body = "", @map headers = {}
 
 fn slug.io.http#urlDecode(@str str) -> ?
   desc: "decodes a URL-encoded string."
+
+fn slug.io.stderr#print(...args) -> ?
+  desc: "writes args to stderr without a trailing newline."
+
+fn slug.io.stderr#println(...args) -> ?
+  desc: "writes args to stderr followed by a newline."
 
 fn slug.io.stdin#confirm(@str message, @bool default = false) -> @bool
 
