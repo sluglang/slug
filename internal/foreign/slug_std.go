@@ -86,6 +86,18 @@ func fnStdIsDefined() *object.Foreign {
 	}
 }
 
+func fnStdModuleName() *object.Foreign {
+	return &object.Foreign{
+		Name: "moduleName",
+		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+			if len(args) != 0 {
+				return ctx.NewError("moduleName expects no arguments, got=%d", len(args))
+			}
+			return &object.String{Value: ctx.CurrentEnv().ModuleFqn}
+		},
+	}
+}
+
 func fnStdFmt() *object.Foreign {
 	return &object.Foreign{
 		Name: "fmt",

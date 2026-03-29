@@ -109,6 +109,16 @@ var isStructInstance = fn(v) {
 foreign isDefined = fn(@str varName)
 
 /**
+ * returns the full name of the current module.
+ */
+@testWith(
+	[], 'slug.std'
+)
+@export
+@returns('@str')
+foreign moduleName = fn()
+
+/**
  * formats a string using `{}` placeholders and optional format specifiers.
  *
  * Placeholders:
