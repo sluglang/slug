@@ -15,3 +15,5 @@ label(:foo) /> assertEqual("foo")
 label(sym("foo bar")) /> assertEqual("foo bar")
 
 label(sym("Content-Type")) /> assertEqual("Content-Type")
+
+moduleName() /> assertEqual('test-std')
