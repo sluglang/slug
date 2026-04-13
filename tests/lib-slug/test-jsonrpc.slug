@@ -1,0 +1,82 @@
+var jsonrpc = import("slug.jsonrpc")
+var test = import("slug.test")
+
+// constructor helpers produce spec-shaped payloads
+val req = jsonrpc.request("sum", 1, [1, 2, 3])
+req["jsonrpc"] /> test.assertEqual(jsonrpc.VERSION)
+req["method"] /> test.assertEqual("sum")
+req["id"] /> test.assertEqual(1)
+req["params"] /> test.assertEqual([1, 2, 3])
+
+// notifications are requests without an id
+val note = jsonrpc.notification("ping")
+note["method"] /> test.assertEqual("ping")
+jsonrpc.isNotification(note) /> test.assertTrue
+
+// success and error response constructors
+val ok = jsonrpc.success("abc", { "value": 42 })
+ok["id"] /> test.assertEqual("abc")
+ok["result"]["value"] /> test.assertEqual(42)
+
+val err = jsonrpc.failure(nil, -32601, "Method not found", { "method": "x" })
+err["id"] /> test.assertEqual(nil)
+err["error"]["code"] /> test.assertEqual(-32601)
+err["error"]["message"] /> test.assertEqual("Method not found")
+err["error"]["data"]["method"] /> test.assertEqual("x")
+
+jsonrpc.isRequest(req) /> test.assertTrue
+jsonrpc.isRequest(note) /> test.assertTrue
+jsonrpc.isResponse(ok) /> test.assertTrue
+jsonrpc.isResponse(err) /> test.assertTrue
+
+// round-trip: encode then parse should preserve the message
+val encoded = jsonrpc.encode(req)
+encoded /> jsonrpc.parse() /> test.assertEqual(req)
+
+// valid batch payload (mixed request + notification)
+val parsedBatch = jsonrpc.parse("""
+[
+  {"jsonrpc":"2.0","method":"a","id":1},
+  {"jsonrpc":"2.0","method":"b","params":{"x":1}}
+]
+""")
+jsonrpc.isBatch(parsedBatch) /> test.assertTrue
+
+// malformed JSON should map to PARSE_ERROR
+val parseError = test.runSafe(fn() { jsonrpc.parse("{") })
+parseError.error.type /> test.assertEqual("JsonRpcError")
+parseError.error.code /> test.assertEqual(jsonrpc.PARSE_ERROR)
+
+// protocol-invalid payloads should map to INVALID_REQUEST
+val invalidEmptyBatch = test.runSafe(fn() { jsonrpc.parse("[]") })
+invalidEmptyBatch.error.type /> test.assertEqual("JsonRpcError")
+invalidEmptyBatch.error.code /> test.assertEqual(jsonrpc.INVALID_REQUEST)
+
+// id must be integer/string/null (fractional number is invalid)
+val invalidFracId = test.runSafe(fn() {
+	jsonrpc.validate({ "jsonrpc": "2.0", "method": "sum", "id": 1.5 })
+})
+invalidFracId.error.type /> test.assertEqual("JsonRpcError")
+invalidFracId.error.code /> test.assertEqual(jsonrpc.INVALID_REQUEST)
+
+// params must be object or array when present
+val invalidParams = test.runSafe(fn() {
+	jsonrpc.validate({ "jsonrpc": "2.0", "method": "sum", "params": 10 })
+})
+invalidParams.error.type /> test.assertEqual("JsonRpcError")
+invalidParams.error.code /> test.assertEqual(jsonrpc.INVALID_REQUEST)
+
+// responses must not contain both result and error
+val invalidResponse = test.runSafe(fn() {
+	jsonrpc.validate({
+		"jsonrpc": "2.0",
+		"id": 1,
+		"result": 1,
+		"error": {"code": -32603, "message": "boom"},
+	})
+})
+invalidResponse.error.type /> test.assertEqual("JsonRpcError")
+invalidResponse.error.code /> test.assertEqual(jsonrpc.INVALID_REQUEST)
+
+// empty arrays are not valid JSON-RPC batches
+test.assertFalse(jsonrpc.isBatch([]))

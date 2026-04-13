@@ -1,0 +1,435 @@
+/**
+ * slug.jsonrpc — JSON-RPC 2.0 helpers
+ *
+ * Builders, validators, and parser/encoder utilities for JSON-RPC 2.0
+ * messages as defined by the specification:
+ * https://www.jsonrpc.org/specification
+ */
+
+val json = import("slug.json")
+
+val {*} = import(
+	"slug.std",
+	"slug.list",
+)
+
+// --- protocol constants ---
+
+@export val VERSION = "2.0"
+
+@export val PARSE_ERROR     = -32700
+@export val INVALID_REQUEST = -32600
+@export val METHOD_NOT_FOUND = -32601
+@export val INVALID_PARAMS  = -32602
+@export val INTERNAL_ERROR  = -32603
+
+// --- builders ---
+
+/**
+ * builds a JSON-RPC request object.
+ */
+@export
+@returns('@map')
+val request = fn(@str method, id, params = nil) {
+	assertValidMethod(method)
+	assertValidId(id)
+	assertValidParams(params)
+
+	val base = {
+		"jsonrpc": VERSION,
+		"method": method,
+		"id": id,
+	}
+	putParams(base, params)
+}
+
+/**
+ * builds a JSON-RPC notification object (request without `id`).
+ */
+@export
+@returns('@map')
+val notification = fn(@str method, params = nil) {
+	assertValidMethod(method)
+	assertValidParams(params)
+
+	val base = {
+		"jsonrpc": VERSION,
+		"method": method,
+	}
+	putParams(base, params)
+}
+
+/**
+ * builds a JSON-RPC success response object.
+ *
+ * The `result` member is always present (it may be `nil`).
+ */
+@export
+@returns('@map')
+val success = fn(id, result = nil) {
+	assertValidId(id)
+	{
+		"jsonrpc": VERSION,
+		"id": id,
+		"result": result,
+	}
+}
+
+/**
+ * builds a JSON-RPC error object.
+ */
+@export
+@returns('@map')
+val errorObject = fn(@num code, @str message, data = nil) {
+	assertInteger(code, "error code must be an integer")
+	val base = {
+		"code": code,
+		"message": message,
+	}
+	match data {
+		nil => base
+		_ => base /> put("data", data)
+	}
+}
+
+/**
+ * builds a JSON-RPC error response object.
+ */
+@export
+@returns('@map')
+val failure = fn(id, @num code, @str message, data = nil) {
+	assertValidId(id)
+	{
+		"jsonrpc": VERSION,
+		"id": id,
+		"error": errorObject(code, message, data),
+	}
+}
+
+// --- parser/encoder ---
+
+/**
+ * encodes a JSON-RPC message or batch to JSON.
+ */
+@export
+@returns('@str')
+val encode = fn(message) {
+	validate(message)
+	json.encode(message)
+}
+
+/**
+ * decodes JSON and validates it as JSON-RPC 2.0.
+ *
+ * Throws `JsonRpcError` with code:
+ * - `-32700` for JSON parse errors
+ * - `-32600` for structurally invalid JSON-RPC payloads
+ */
+@export
+@throws('@struct(Error{type:JsonRpcError})')
+val parse = fn(@str payload) {
+	defer onerror(err) {
+		if (isJsonRpcError(err)) {
+			throw err
+		}
+		throw Error {
+			type: "JsonRpcError",
+			msg: "Parse error",
+			code: PARSE_ERROR,
+			data: err,
+		}
+	}
+
+	val message = json.decode(payload)
+	validate(message)
+	message
+}
+
+/**
+ * validates a JSON-RPC message or batch.
+ *
+ * Returns the input when valid, otherwise throws `JsonRpcError`
+ * with `code = -32600` (Invalid Request).
+ */
+@export
+@throws('@struct(Error{type:JsonRpcError})')
+val validate = fn(message) {
+	match type(message) {
+		^MAP_TYPE => validateMessageObject(message)
+		^LIST_TYPE => validateBatch(message)
+		_ => invalidRequest("payload must be an object or a non-empty array")
+	}
+	message
+}
+
+/**
+ * returns true when `v` is a valid single JSON-RPC message object.
+ */
+@export
+@returns('@bool')
+val isMessage = fn(v) {
+	val r = runValidation(fn() { validateMessageObject(v) })
+	r.ok != nil
+}
+
+/**
+ * returns true when `v` is a JSON-RPC batch payload.
+ */
+@export
+@returns('@bool')
+val isBatch = fn(v) {
+	val r = runValidation(fn() { validateBatch(v) })
+	r.ok != nil
+}
+
+/**
+ * returns true when `v` is a request object (includes notifications).
+ */
+@export
+@returns('@bool')
+val isRequest = fn(v) {
+	val r = runValidation(fn() { validateRequest(v) })
+	r.ok != nil
+}
+
+/**
+ * returns true when `v` is a notification object.
+ */
+@export
+@returns('@bool')
+val isNotification = fn(v) {
+	isRequest(v) && !hasField(v, "id")
+}
+
+/**
+ * returns true when `v` is a response object.
+ */
+@export
+@returns('@bool')
+val isResponse = fn(v) {
+	val r = runValidation(fn() { validateResponse(v) })
+	r.ok != nil
+}
+
+/**
+ * returns true when `v` is a success response.
+ */
+@export
+@returns('@bool')
+val isSuccessResponse = fn(v) {
+	isResponse(v) && hasField(v, "result")
+}
+
+/**
+ * returns true when `v` is an error response.
+ */
+@export
+@returns('@bool')
+val isErrorResponse = fn(v) {
+	isResponse(v) && hasField(v, "error")
+}
+
+// --- internals ---
+
+val runValidation = fn(@fn f) {
+	defer onerror(err) {
+		{ error: err }
+	}
+	f()
+	{ ok: true }
+}
+
+val isJsonRpcError = fn(err) {
+	isStructInstance(err) && err.type == "JsonRpcError"
+}
+
+val invalidRequest = fn(@str msg, data = nil) {
+	throw Error {
+		type: "JsonRpcError",
+		msg: msg,
+		code: INVALID_REQUEST,
+		data: data,
+	}
+}
+
+val validateBatch = fn(v) {
+	if (type(v) != LIST_TYPE) {
+		invalidRequest("batch payload must be a list")
+	}
+	if (len(v) == 0) {
+		invalidRequest("batch payload must not be empty")
+	}
+	v /> map(fn(item) {
+		validateMessageObject(item)
+	})
+	v
+}
+
+val validateMessageObject = fn(v) {
+	if (type(v) != MAP_TYPE) {
+		invalidRequest("message must be an object")
+	}
+
+	if (hasField(v, "method")) {
+		validateRequest(v)
+	} else if (hasField(v, "result") || hasField(v, "error")) {
+		validateResponse(v)
+	} else {
+		invalidRequest("object must be either a request or a response")
+	}
+	v
+}
+
+val validateVersion = fn(@map v) {
+	if (!hasField(v, "jsonrpc")) {
+		invalidRequest("missing 'jsonrpc' member")
+	}
+	if (readField(v, "jsonrpc") != VERSION) {
+		invalidRequest("'jsonrpc' must be \"" + VERSION + "\"")
+	}
+}
+
+val validateRequest = fn(v) {
+	if (type(v) != MAP_TYPE) {
+		invalidRequest("request must be an object")
+	}
+	validateVersion(v)
+
+	if (!hasField(v, "method")) {
+		invalidRequest("request missing 'method'")
+	}
+
+	val method = readField(v, "method")
+	if (type(method) != STRING_TYPE) {
+		invalidRequest("'method' must be a string")
+	}
+	if (len(method) >= 4 && method[0:4] == "rpc.") {
+		invalidRequest("methods starting with 'rpc.' are reserved")
+	}
+
+	if (hasField(v, "params")) {
+		assertValidParams(readField(v, "params"))
+	}
+
+	if (hasField(v, "id")) {
+		assertValidId(readField(v, "id"))
+	}
+
+	v
+}
+
+val validateResponse = fn(v) {
+	if (type(v) != MAP_TYPE) {
+		invalidRequest("response must be an object")
+	}
+	validateVersion(v)
+
+	if (!hasField(v, "id")) {
+		invalidRequest("response missing 'id'")
+	}
+	assertValidId(readField(v, "id"))
+
+	val hasResult = hasField(v, "result")
+	val hasError = hasField(v, "error")
+	if (hasResult == hasError) {
+		invalidRequest("response must contain exactly one of 'result' or 'error'")
+	}
+
+	if (hasError) {
+		validateErrorObject(readField(v, "error"))
+	}
+
+	v
+}
+
+val validateErrorObject = fn(v) {
+	if (type(v) != MAP_TYPE) {
+		invalidRequest("'error' must be an object")
+	}
+	if (!hasField(v, "code") || !hasField(v, "message")) {
+		invalidRequest("'error' must contain 'code' and 'message'")
+	}
+	val code = readField(v, "code")
+	val message = readField(v, "message")
+
+	if (type(code) != NUMBER_TYPE) {
+		invalidRequest("'error.code' must be a number")
+	}
+	assertInteger(code, "'error.code' must be an integer")
+	if (type(message) != STRING_TYPE) {
+		invalidRequest("'error.message' must be a string")
+	}
+	v
+}
+
+val putParams = fn(@map payload, params) {
+	match params {
+		nil => payload
+		_ => payload /> put("params", params)
+	}
+}
+
+val assertValidMethod = fn(@str method) {
+	if (len(method) >= 4 && method[0:4] == "rpc.") {
+		throw Error {
+			type: "JsonRpcError",
+			msg: "methods starting with 'rpc.' are reserved",
+			code: INVALID_REQUEST,
+		}
+	}
+}
+
+val assertValidParams = fn(params) {
+	match params {
+		nil => nil
+		_ => {
+			val t = type(params)
+			if (t != LIST_TYPE && t != MAP_TYPE && !isStructInstance(params)) {
+				throw Error {
+					type: "JsonRpcError",
+					msg: "'params' must be an array or object",
+					code: INVALID_REQUEST,
+				}
+			}
+		}
+	}
+}
+
+val assertValidId = fn(id) {
+	match type(id) {
+		^NIL_TYPE => nil
+		^STRING_TYPE => nil
+		^NUMBER_TYPE => assertInteger(id, "'id' number must be an integer")
+		_ => {
+			throw Error {
+				type: "JsonRpcError",
+				msg: "'id' must be string, integer number, or null",
+				code: INVALID_REQUEST,
+			}
+		}
+	}
+}
+
+val assertInteger = fn(@num n, @str msg) {
+	if (n % 1 != 0) {
+		throw Error {
+			type: "JsonRpcError",
+			msg: msg,
+			code: INVALID_REQUEST,
+		}
+	}
+}
+
+val hasField = fn(@map m, @str key) {
+	val ks = m /> keys()
+	(ks /> indexOf(key)) >= 0 || (ks /> indexOf(sym(key))) >= 0
+}
+
+val readField = fn(@map m, @str key) {
+	val ks = m /> keys()
+	if ((ks /> indexOf(key)) >= 0) {
+		m[key]
+	} else {
+		m[sym(key)]
+	}
+}

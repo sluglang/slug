@@ -22,6 +22,7 @@ slug.io.stderr
 slug.io.stdin
 slug.io.tcp
 slug.json
+slug.jsonrpc
 slug.list
 slug.log
 slug.map
@@ -43,7 +44,6 @@ slug.web.request
 slug.web.response
 slug.web.routes
 slug.web.server
-slug.web.session
 slug.web.views
 slug.xkcd.colours
 test
@@ -365,6 +365,67 @@ fn slug.json#pretty(v, @num indent = 2) -> @str
   errors:
     thrown: @struct(Error{type:JsonError})
 
+num slug.jsonrpc#INTERNAL_ERROR
+
+num slug.jsonrpc#INVALID_PARAMS
+
+num slug.jsonrpc#INVALID_REQUEST
+
+num slug.jsonrpc#METHOD_NOT_FOUND
+
+num slug.jsonrpc#PARSE_ERROR
+
+str slug.jsonrpc#VERSION
+
+fn slug.jsonrpc#encode(message) -> @str
+  desc: "encodes a JSON-RPC message or batch to JSON."
+
+fn slug.jsonrpc#errorObject(@num code, @str message, data = nil) -> @map
+  desc: "builds a JSON-RPC error object."
+
+fn slug.jsonrpc#failure(id, @num code, @str message, data = nil) -> @map
+  desc: "builds a JSON-RPC error response object."
+
+fn slug.jsonrpc#isBatch(v) -> @bool
+  desc: "returns true when `v` is a JSON-RPC batch payload."
+
+fn slug.jsonrpc#isErrorResponse(v) -> @bool
+  desc: "returns true when `v` is an error response."
+
+fn slug.jsonrpc#isMessage(v) -> @bool
+  desc: "returns true when `v` is a valid single JSON-RPC message object."
+
+fn slug.jsonrpc#isNotification(v) -> @bool
+  desc: "returns true when `v` is a notification object."
+
+fn slug.jsonrpc#isRequest(v) -> @bool
+  desc: "returns true when `v` is a request object (includes notifications)."
+
+fn slug.jsonrpc#isResponse(v) -> @bool
+  desc: "returns true when `v` is a response object."
+
+fn slug.jsonrpc#isSuccessResponse(v) -> @bool
+  desc: "returns true when `v` is a success response."
+
+fn slug.jsonrpc#notification(@str method, params = nil) -> @map
+  desc: "builds a JSON-RPC notification object (request without `id`)."
+
+fn slug.jsonrpc#parse(@str payload) -> ?
+  desc: "decodes JSON and validates it as JSON-RPC 2.0."
+  errors:
+    thrown: @struct(Error{type:JsonRpcError})
+
+fn slug.jsonrpc#request(@str method, id, params = nil) -> @map
+  desc: "builds a JSON-RPC request object."
+
+fn slug.jsonrpc#success(id, result = nil) -> @map
+  desc: "builds a JSON-RPC success response object."
+
+fn slug.jsonrpc#validate(message) -> ?
+  desc: "validates a JSON-RPC message or batch."
+  errors:
+    thrown: @struct(Error{type:JsonRpcError})
+
 fn slug.list#asList(@str chars, @num i = 0, @list acc = []) -> @list
   desc: "converts a string into a list of single-character strings."
 
@@ -640,6 +701,9 @@ fn slug.std#label(symbol) -> @str
 
 fn slug.std#map(@list vs, @fn f, acc = []) -> @list
   desc: "applies `f` to each element of `vs` and returns the resulting list."
+
+fn slug.std#moduleName() -> @str
+  desc: "returns the full name of the current module."
 
 fn slug.std#nonNil(v, @fn f, default = nil) -> ?
   desc: "returns `default` if `v` is `nil`; calls `f(v)` and returns the result otherwise."

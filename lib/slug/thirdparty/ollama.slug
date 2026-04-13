@@ -49,9 +49,9 @@
  * @effects('net')
  */
 
-val { get, post }      = import("slug.io.http")
-val { decode, encode } = import("slug.json")
-val { fmt, moduleName }            = import("slug.std")
+val { get, post }       = import("slug.io.http")
+val { decode, encode }  = import("slug.json")
+val { fmt, moduleName } = import("slug.std")
 
 val log = import("slug.log").logger(moduleName())
 
