@@ -43,7 +43,7 @@ val confirm = fn(@str message, @bool default = false) {
 	}
 }
 
-
+@export
 val readLine = fn() {
 	defer onerror(err) nil
 	readLines()

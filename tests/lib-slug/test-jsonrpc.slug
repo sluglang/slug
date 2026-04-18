@@ -2,7 +2,7 @@ var jsonrpc = import("slug.jsonrpc")
 var test = import("slug.test")
 
 // constructor helpers produce spec-shaped payloads
-val req = jsonrpc.request("sum", 1, [1, 2, 3])
+val req = jsonrpc.request(1, "sum", [1, 2, 3])
 req["jsonrpc"] /> test.assertEqual(jsonrpc.VERSION)
 req["method"] /> test.assertEqual("sum")
 req["id"] /> test.assertEqual(1)

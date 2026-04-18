@@ -30,7 +30,7 @@ val {*} = import(
  */
 @export
 @returns('@map')
-val request = fn(@str method, id, params = nil) {
+val request = fn(id, @str method, params = nil) {
 	assertValidMethod(method)
 	assertValidId(id)
 	assertValidParams(params)
