@@ -11,6 +11,7 @@ import (
 	"slug/internal/ast"
 	"slug/internal/dec64"
 	"slug/internal/util"
+	"sort"
 	"strings"
 	"unicode/utf8"
 )
@@ -575,15 +576,72 @@ func (fg *FunctionGroup) DispatchToFunction(fnName string, positional []Object, 
 	var a strings.Builder
 	for i, arg := range positional {
 		a.WriteString(string(arg.Type()))
-		if i < len(positional)-1 {
+		if i < len(positional)-1 || len(named) > 0 {
 			a.WriteString(", ")
+		}
+	}
+	if len(named) > 0 {
+		names := make([]string, 0, len(named))
+		for name := range named {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		for i, name := range names {
+			a.WriteString(name)
+			a.WriteString("=")
+			a.WriteString(string(named[name].Type()))
+			if i < len(names)-1 {
+				a.WriteString(", ")
+			}
 		}
 	}
 	if fnName == "" {
 		fnName = "<anonymous>"
 	}
-	err := fmt.Sprintf("No suitable function (%s) found to dispatch", a.String())
+	candidates := fg.dispatchCandidates()
+	err := fmt.Sprintf("No suitable function (%s) found to dispatch. Candidates: %s", a.String(), strings.Join(candidates, "; "))
 	return &Error{Message: err}, errors.New(err)
+}
+
+func (fg *FunctionGroup) dispatchCandidates() []string {
+	seen := map[ast.FSig]struct{}{}
+	for _, g := range fg.allGroups() {
+		for sig := range g.Functions {
+			seen[sig] = struct{}{}
+		}
+	}
+	if len(seen) == 0 {
+		return []string{"<none>"}
+	}
+	sigs := make([]ast.FSig, 0, len(seen))
+	for sig := range seen {
+		sigs = append(sigs, sig)
+	}
+	sort.Slice(sigs, func(i, j int) bool {
+		if sigs[i].Min != sigs[j].Min {
+			return sigs[i].Min < sigs[j].Min
+		}
+		if sigs[i].Max != sigs[j].Max {
+			return sigs[i].Max < sigs[j].Max
+		}
+		if sigs[i].IsVariadic != sigs[j].IsVariadic {
+			return !sigs[i].IsVariadic && sigs[j].IsVariadic
+		}
+		return sigs[i].Tags < sigs[j].Tags
+	})
+	out := make([]string, 0, len(sigs))
+	for _, sig := range sigs {
+		if sig.IsVariadic {
+			out = append(out, fmt.Sprintf("args %d+, tags %q", sig.Min, sig.Tags))
+			continue
+		}
+		if sig.Min == sig.Max {
+			out = append(out, fmt.Sprintf("args %d, tags %q", sig.Min, sig.Tags))
+			continue
+		}
+		out = append(out, fmt.Sprintf("args %d..%d, tags %q", sig.Min, sig.Max, sig.Tags))
+	}
+	return out
 }
 
 func evaluateFunctionMatch(params []*ast.FunctionParameter, bound *BoundArguments) int {
@@ -921,6 +979,7 @@ func (s *Slice) Inspect() string {
 // TailCall is a special object used for tail call optimization
 type TailCall struct {
 	FnName         string
+	Pos            int
 	Function       Object
 	Arguments      []Object
 	NamedArguments map[string]Object

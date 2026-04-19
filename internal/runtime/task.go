@@ -316,6 +316,7 @@ func (e *Task) Eval(node ast.Node) object.Object {
 		if e.isError(function) {
 			return function
 		}
+		fnName := e.callDisplayName(node.Function)
 
 		positional, named, err := e.evalCallArguments(node.Token.Position, node.Arguments)
 		if err != nil {
@@ -325,11 +326,12 @@ func (e *Task) Eval(node ast.Node) object.Object {
 		// If this is a tail call, wrap it in a TailCall object instead of evaluating
 		if node.IsTailCall {
 			slog.Debug("Tail call",
-				slog.Any("function", node.Token.Literal),
+				slog.Any("function", fnName),
 				slog.Any("argument-count", len(positional)+len(named)))
 
 			return &object.TailCall{
-				FnName:         node.Token.Literal,
+				FnName:         fnName,
+				Pos:            node.Token.Position,
 				Function:       function,
 				Arguments:      positional,
 				NamedArguments: named,
@@ -337,10 +339,10 @@ func (e *Task) Eval(node ast.Node) object.Object {
 		}
 
 		slog.Debug("Function call",
-			slog.Any("function", node.Token.Literal),
+			slog.Any("function", fnName),
 			slog.Any("argument-count", len(positional)+len(named)))
 		// For non-tail calls, invoke the function directly
-		return e.ApplyFunction(node.Token.Position, node.Token.Literal, function, positional, named)
+		return e.ApplyFunction(node.Token.Position, fnName, function, positional, named)
 
 	case *ast.RecurExpression:
 		// Evaluate arguments (respecting spread and named args, same as call)
@@ -363,6 +365,7 @@ func (e *Task) Eval(node ast.Node) object.Object {
 		// Map directly to TailCall for the current function
 		return &object.TailCall{
 			FnName:         fnName,
+			Pos:            node.Token.Position,
 			Function:       fnObj,
 			Arguments:      positional,
 			NamedArguments: named,
@@ -438,7 +441,7 @@ func (e *Task) evalProgram(program *ast.Program) object.Object {
 
 		for {
 			if returnVal, ok := result.(*object.TailCall); ok {
-				result = e.ApplyFunction(0, returnVal.FnName, returnVal.Function, returnVal.Arguments, returnVal.NamedArguments)
+				result = e.ApplyFunction(returnVal.Pos, returnVal.FnName, returnVal.Function, returnVal.Arguments, returnVal.NamedArguments)
 			} else if returnVal, ok := result.(*object.ReturnValue); ok {
 				rv, ok := returnVal.Value.(*object.TailCall)
 				if ok {
@@ -537,6 +540,26 @@ func (e *Task) NativeBoolToBooleanObject(input bool) *object.Boolean {
 		return object.TRUE
 	}
 	return object.FALSE
+}
+
+func (e *Task) callDisplayName(expr ast.Expression) string {
+	switch fn := expr.(type) {
+	case *ast.Identifier:
+		return fn.Value
+	case *ast.FunctionLiteral:
+		return "<anonymous>"
+	case *ast.IndexExpression:
+		if fn.IsDotLookup {
+			if key, ok := fn.Index.(*ast.SymbolLiteral); ok {
+				return e.callDisplayName(fn.Left) + "." + key.Value
+			}
+		}
+	}
+	name := strings.TrimSpace(expr.String())
+	if name == "" {
+		return "<anonymous>"
+	}
+	return name
 }
 
 func (e *Task) evalPrefixExpression(pos int, operator string, right object.Object) object.Object {
@@ -1098,13 +1121,26 @@ func (e *Task) newErrorfWithPos(pos int, format string, a ...interface{}) *objec
 	return e.newErrorWithPos(pos, m)
 }
 
-func (e *Task) newErrorWithPos(pos int, m string) *object.Error {
+func (e *Task) newErrorfWithPosAndEnv(pos int, env *object.Environment, format string, a ...interface{}) *object.Error {
+	m := fmt.Sprintf(format, a...)
+	return e.newErrorWithPosAndEnv(pos, env, m)
+}
 
+func (e *Task) newErrorWithPos(pos int, m string) *object.Error {
+	return e.newErrorWithPosAndEnv(pos, e.CurrentEnv(), m)
+}
+
+func (e *Task) newErrorWithPosAndEnv(pos int, env *object.Environment, m string) *object.Error {
 	if pos == 0 {
 		return &object.Error{Message: m}
 	}
 
-	env := e.CurrentEnv()
+	if env == nil {
+		env = e.CurrentEnv()
+	}
+	if env == nil {
+		return &object.Error{Message: m}
+	}
 
 	line, col := util.GetLineAndColumn(env.Src, pos)
 
@@ -1114,8 +1150,32 @@ func (e *Task) newErrorWithPos(pos int, m string) *object.Error {
 
 	lines := util.GetContextLines(env.Src, line, col)
 	errorMsg.WriteString(lines)
+	errorMsg.WriteString("\n")
+	errorMsg.WriteString(e.formatErrorStacktrace(pos, env))
 
 	return &object.Error{Message: errorMsg.String()}
+}
+
+func (e *Task) formatErrorStacktrace(pos int, env *object.Environment) string {
+	frames := e.GatherStackTrace(&object.StackFrame{
+		Function: "error",
+		File:     env.Path,
+		Src:      env.Src,
+		Position: pos,
+	})
+	if len(frames) == 0 {
+		return ""
+	}
+	var buf bytes.Buffer
+	buf.WriteString("Stacktrace:")
+	for _, frame := range frames {
+		if frame == nil {
+			continue
+		}
+		line, col := util.GetLineAndColumn(frame.Src, frame.Position)
+		fmt.Fprintf(&buf, "\n  at [%3d:%3d] %s - %s", line, col, frame.File, frame.Function)
+	}
+	return buf.String()
 }
 
 func (e *Task) newErrorf(format string, a ...interface{}) *object.Error {
@@ -1330,6 +1390,7 @@ func (e *Task) bindArguments(
 }
 
 func (e *Task) ApplyFunction(pos int, fnName string, fnObj object.Object, positional []object.Object, named map[string]object.Object) object.Object {
+	callEnv := e.CurrentEnv()
 	fnObj = e.resolveValue(pos, fnObj)
 	if e.isError(fnObj) {
 		return fnObj
@@ -1339,7 +1400,7 @@ func (e *Task) ApplyFunction(pos int, fnName string, fnObj object.Object, positi
 
 		f, err := fn.DispatchToFunction(fnName, positional, named)
 		if err != nil {
-			return e.newErrorfWithPos(pos, "error calling function '%s': %s", fnName, err.Error())
+			return e.newErrorfWithPosAndEnv(pos, callEnv, "error calling function '%s': %s", fnName, err.Error())
 		} else {
 			return e.ApplyFunction(pos, fnName, f, positional, named)
 		}
@@ -1353,7 +1414,7 @@ func (e *Task) ApplyFunction(pos int, fnName string, fnObj object.Object, positi
 		var result object.Object
 
 		// Create the initial environment
-		argsEnv, errObj := e.extendFunctionEnv(pos, fn, positional, named)
+		argsEnv, errObj := e.extendFunctionEnv(pos, fnName, fn, positional, named)
 		if errObj != nil {
 			return errObj
 		}
@@ -1392,7 +1453,7 @@ func (e *Task) ApplyFunction(pos int, fnName string, fnObj object.Object, positi
 					continue
 				}
 				// Call belongs to a different function. Resolve it now.
-				result = e.ApplyFunction(pos, tc.FnName, tc.Function, tc.Arguments, tc.NamedArguments)
+				result = e.ApplyFunction(tc.Pos, tc.FnName, tc.Function, tc.Arguments, tc.NamedArguments)
 				break
 			}
 
@@ -1408,7 +1469,7 @@ func (e *Task) ApplyFunction(pos int, fnName string, fnObj object.Object, positi
 						continue
 					}
 					// Resolve TailCall for a different function
-					result = e.ApplyFunction(pos, tc.FnName, tc.Function, tc.Arguments, tc.NamedArguments)
+					result = e.ApplyFunction(tc.Pos, tc.FnName, tc.Function, tc.Arguments, tc.NamedArguments)
 					break
 				}
 				// Unwrap the final value
@@ -1474,15 +1535,23 @@ func (e *Task) ApplyFunction(pos int, fnName string, fnObj object.Object, positi
 
 func (e *Task) extendFunctionEnv(
 	pos int,
+	fnName string,
 	fn *object.Function,
 	positional []object.Object,
 	named map[string]object.Object,
 ) (*object.Environment, object.Object) {
+	callerEnv := e.CurrentEnv()
+	callerPath := fn.Env.Path
+	callerSrc := fn.Env.Src
+	if callerEnv != nil {
+		callerPath = callerEnv.Path
+		callerSrc = callerEnv.Src
+	}
 	env := object.NewEnclosedEnvironment(fn.Env, &object.StackFrame{
-		Function: "call: " + e.callStack[len(e.callStack)-1].FnName,
-		File:     fn.Env.Path,
-		Position: fn.Body.Token.Position,
-		Src:      fn.Env.Src,
+		Function: "call " + fnName,
+		File:     callerPath,
+		Position: pos,
+		Src:      callerSrc,
 	})
 
 	bound, errObj := e.bindArguments(pos, fn, fn.Parameters, positional, named)

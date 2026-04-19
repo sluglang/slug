@@ -4,13 +4,21 @@ import (
 	"bytes"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 )
 
 func GetLineAndColumn(src string, pos int) (line int, column int) {
+	if pos < 0 {
+		pos = 0
+	}
+	if pos > len(src) {
+		pos = len(src)
+	}
 	line = 1
 	column = 1
-	for i, char := range src {
-		if i == pos {
+	for i := 0; i < len(src); {
+		char, size := utf8.DecodeRuneInString(src[i:])
+		if i+size > pos {
 			break
 		}
 		if char == '\n' {
@@ -19,6 +27,7 @@ func GetLineAndColumn(src string, pos int) (line int, column int) {
 		} else {
 			column++
 		}
+		i += size
 	}
 	return
 }
@@ -62,8 +71,9 @@ func GetContextLines(src string, errorLine, errorCol int) string {
 			// Error line with arrow
 			margin := fmt.Sprintf("  >  %3d | ", lineNum)
 			result.WriteString(fmt.Sprintf("%s%s\n", margin, lineContent))
+			prefix := firstNRunes(lineContent, errorCol-1)
 			result.WriteString(fmt.Sprintf("%s^ unexpected here",
-				replaceVisibleWithSpaces(margin+lineContent[:errorCol-1])))
+				replaceVisibleWithSpaces(margin+prefix)))
 		} else {
 			// Context line
 			result.WriteString(fmt.Sprintf("     %3d | %s\n", lineNum, lineContent))
@@ -85,6 +95,17 @@ func replaceVisibleWithSpaces(s string) string {
 		}
 	}
 	return buf.String()
+}
+
+func firstNRunes(s string, n int) string {
+	if n <= 0 {
+		return ""
+	}
+	r := []rune(s)
+	if n > len(r) {
+		n = len(r)
+	}
+	return string(r[:n])
 }
 
 func ParseArgs(argv []string) (map[string][]string, []string) {

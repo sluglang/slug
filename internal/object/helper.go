@@ -30,7 +30,7 @@ func formatRuntimeErrorStack(rtErr *RuntimeError) string {
 
 	for _, frame := range rtErr.StackTrace {
 		l, c := util.GetLineAndColumn(frame.Src, frame.Position)
-		fmt.Fprintf(&buf, "\n  at [%3d:%3d] %-8s - %s", l, c, frame.Function, frame.File)
+		fmt.Fprintf(&buf, "\n  at [%3d:%3d] %s - %s", l, c, frame.File, frame.Function)
 	}
 
 	// Optionally include chained causes
