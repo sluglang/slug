@@ -1,0 +1,43 @@
+var { encode, decode } = import(
+	"slug.jsonl",
+)
+
+var { assertEqual, runSafe, assertTrue } = import(
+	"slug.test",
+)
+
+var { contains } = import(
+	"slug.string",
+)
+
+val rows = [
+	{"id": 1, "name": "alpha"},
+	{"id": 2, "name": "beta"},
+	{"id": 3, "name": "gamma", "tags": ["x", "y"]},
+]
+
+val encoded = rows /> encode()
+encoded /> assertEqual("{\"id\":1,\"name\":\"alpha\"}\n{\"id\":2,\"name\":\"beta\"}\n{\"id\":3,\"name\":\"gamma\",\"tags\":[\"x\",\"y\"]}")
+
+rows
+	/> encode("\n", true)
+	/> assertEqual("{\"id\":1,\"name\":\"alpha\"}\n{\"id\":2,\"name\":\"beta\"}\n{\"id\":3,\"name\":\"gamma\",\"tags\":[\"x\",\"y\"]}\n")
+
+rows
+	/> encode()
+	/> decode()
+	/> assertEqual(rows)
+
+"{\"ok\":true}\r\n{\"n\":42}\r\n"
+	/> decode()
+	/> assertEqual([{"ok": true}, {"n": 42}])
+
+"{\"a\":1}\n\n{\"b\":2}"
+	/> decode()
+	/> assertEqual([{"a": 1}, {"b": 2}])
+
+val strict = runSafe(fn() { decode("{\"a\":1}\n\n{\"b\":2}", false) })
+assertTrue(strict.error != nil)
+
+val bad = runSafe(fn() { decode("{\"a\":1}\nnot-json\n{\"b\":2}") })
+assertTrue(bad.error.msg /> contains("line 2"))

@@ -1,0 +1,91 @@
+/**
+ * slug.jsonl — JSON Lines encoding and decoding
+ *
+ * Encodes lists of values into JSONL (`.jsonl`) and decodes JSONL strings
+ * into lists of values. Uses `slug.json` for per-line JSON handling.
+ */
+
+val { decode: jsonDecode, encode: jsonEncode } = import(
+	"slug.json",
+)
+
+val { Error } = import(
+	"slug.std",
+)
+
+val { split, join, replaceAll } = import(
+	"slug.string",
+)
+
+/**
+ * encodes a list of values as JSON Lines text.
+ *
+ * Each value is encoded as one JSON value per line.
+ *
+ * - `eol` controls the line separator (default `"\n"`).
+ * - `trailingEol` appends one final `eol` when `true`.
+ */
+@testWith(
+	[[{"name": "a"}, {"name": "b"}]], "{\"name\":\"a\"}\n{\"name\":\"b\"}",
+	[[1, true, nil], "\n", true], "1\ntrue\nnull\n",
+)
+@export
+@returns('@str')
+val encode = fn(@list values, @str eol = "\n", @bool trailingEol = false) {
+	val out = encodeLines(values, eol, [])
+	val body = out /> join(eol)
+	if (trailingEol && len(values) > 0) { body + eol } else { body }
+}
+
+/**
+ * decodes JSON Lines text into a list of values.
+ *
+ * By default blank lines are ignored. Set `skipEmpty` to `false` to enforce
+ * strict parsing and treat empty lines as errors.
+ */
+@testWith(
+	["{\"a\":1}\n{\"b\":2}"], [{"a": 1}, {"b": 2}],
+	["{\"a\":1}\r\n{\"b\":2}"], [{"a": 1}, {"b": 2}],
+	["{\"a\":1}\n\n{\"b\":2}"], [{"a": 1}, {"b": 2}],
+)
+@export
+@returns('@list')
+val decode = fn(@str jsonl, @bool skipEmpty = true) {
+	if (len(jsonl) == 0) {
+		[]
+	} else {
+		val normalized = jsonl
+			/> replaceAll("\r\n", "\n")
+			/> replaceAll("\r", "\n")
+		val lines = normalized /> split("\n")
+		decodeLines(lines, skipEmpty, 0, [])
+	}
+}
+
+val encodeLines = fn(@list values, @str eol, @list acc) match {
+	[[], ...] => acc
+	[[h, ...t], ...] => recur(t, eol, acc :+ jsonEncode(h))
+}
+
+val decodeLines = fn(@list lines, @bool skipEmpty, @num i, @list acc) match {
+	[[], ...] => acc
+	[[line, ...rest], ...] => {
+		if (line == "" && skipEmpty) {
+			recur(rest, skipEmpty, i + 1, acc)
+		} else {
+			val next = decodeLine(line, i + 1)
+			recur(rest, skipEmpty, i + 1, acc :+ next)
+		}
+	}
+}
+
+val decodeLine = fn(@str line, @num lineNo) {
+	defer onerror(err) {
+		throw Error {
+			type: "JsonlError",
+			msg: "jsonl: invalid JSON on line {{lineNo}}: {{err}}",
+			data: err,
+		}
+	}
+	jsonDecode(line)
+}
