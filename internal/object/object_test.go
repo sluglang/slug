@@ -1,7 +1,9 @@
 package object
 
 import (
+	"slug/internal/ast"
 	"slug/internal/dec64"
+	"strings"
 	"testing"
 )
 
@@ -75,5 +77,27 @@ func TestSymbolMapKey(t *testing.T) {
 	}
 	if s1.MapKey() == s3.MapKey() {
 		t.Errorf("symbols with different names have same map keys")
+	}
+}
+
+func TestDispatchErrorIncludesCandidates(t *testing.T) {
+	fg := &FunctionGroup{
+		Functions: map[ast.FSig]Object{
+			{Tags: "@map|||", Min: 3, Max: 3, IsVariadic: false}: &Foreign{
+				Name: "put",
+			},
+		},
+	}
+
+	_, err := fg.DispatchToFunction("put", nil, nil)
+	if err == nil {
+		t.Fatal("expected dispatch error, got nil")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "Candidates:") {
+		t.Fatalf("expected candidates in dispatch error, got %q", msg)
+	}
+	if !strings.Contains(msg, "args 3") {
+		t.Fatalf("expected arity in candidates, got %q", msg)
 	}
 }
