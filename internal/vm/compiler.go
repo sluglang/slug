@@ -176,6 +176,21 @@ func (c *compiler) compileExpression(expr ast.Expression) error {
 		return nil
 	case *ast.MatchExpression:
 		return c.compileMatchExpression(node)
+	case *ast.SpawnExpression:
+		fnObj, err := c.compileSpawnBody(node)
+		if err != nil {
+			return err
+		}
+		idx := c.addConstant(fnObj)
+		c.emit(Instruction{Op: OpConstant, IntArg: idx, Position: node.Token.Position})
+		c.emit(Instruction{Op: OpSpawn, Position: node.Token.Position})
+		return nil
+	case *ast.AwaitExpression:
+		if err := c.compileExpression(node.Value); err != nil {
+			return err
+		}
+		c.emit(Instruction{Op: OpAwait, Position: node.Token.Position})
+		return nil
 	case *ast.ListLiteral:
 		for _, el := range node.Elements {
 			if err := c.compileExpression(el); err != nil {
@@ -403,6 +418,19 @@ func (c *compiler) compileFunctionLiteral(node *ast.FunctionLiteral) (*VMFunctio
 
 	return &VMFunction{
 		Params: params,
+		Chunk:  child.chunk,
+	}, nil
+}
+
+func (c *compiler) compileSpawnBody(node *ast.SpawnExpression) (*VMFunction, error) {
+	child := &compiler{chunk: &Chunk{}}
+	if err := child.compileExpression(node.Body); err != nil {
+		return nil, err
+	}
+	child.emit(Instruction{Op: OpReturn, Position: node.Token.Position})
+
+	return &VMFunction{
+		Params: []VMParam{},
 		Chunk:  child.chunk,
 	}, nil
 }

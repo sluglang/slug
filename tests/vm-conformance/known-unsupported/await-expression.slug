@@ -1,0 +1,4 @@
+val ch = import("slug.channel")
+val awaitTask = ch[:await]
+val t = spawn { 40 + 2 }
+awaitTask(t)

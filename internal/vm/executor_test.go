@@ -55,7 +55,7 @@ func TestExecutorIfExpression(t *testing.T) {
 }
 
 func TestExecutorUnsupportedExpression(t *testing.T) {
-	got := runVM(t, "spawn { 1 }")
+	got := runVM(t, "throw 1")
 	if got.Type() != object.ERROR_OBJ {
 		t.Fatalf("expected error object, got %T (%s)", got, got.Inspect())
 	}
@@ -257,5 +257,23 @@ func TestExecutorMatchWithGuard(t *testing.T) {
 	}
 	if num.Value.String() != "25" {
 		t.Fatalf("expected 25, got %s", num.Value.String())
+	}
+}
+
+func TestExecutorSpawnAndAwait(t *testing.T) {
+	got := runVM(t, "val t = spawn { 40 + 2 }\nt")
+	if got.Type() != object.TASK_HANDLE_OBJ {
+		t.Fatalf("expected task handle, got %T (%s)", got, got.Inspect())
+	}
+}
+
+func TestExecutorSpawnWithoutAwait(t *testing.T) {
+	got := runVM(t, "spawn { 1 }\n42")
+	num, ok := got.(*object.Number)
+	if !ok {
+		t.Fatalf("expected *object.Number, got %T (%s)", got, got.Inspect())
+	}
+	if num.Value.String() != "42" {
+		t.Fatalf("expected 42, got %s", num.Value.String())
 	}
 }

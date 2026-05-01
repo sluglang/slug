@@ -162,6 +162,50 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 			}
 			e.push(val)
 			e.push(val)
+		case OpSpawn:
+			callee, ok := e.pop()
+			if !ok {
+				return e.errorAt(ins.Position, "stack underflow for spawn")
+			}
+			fn, ok := callee.(*VMFunction)
+			if !ok {
+				return e.errorAt(ins.Position, "spawn expects a VM function body, got %s", callee.Type())
+			}
+			handle := NewVMTaskHandle()
+			closure := fn.Closure
+			if closure == nil {
+				closure = e.env
+			}
+			taskEnv := closure.ShallowCopy()
+
+			go func() {
+				child := NewExecutor(taskEnv, e.externalCall)
+				result := child.run(fn.Chunk)
+				if result == nil {
+					result = object.NIL
+				}
+				handle.Complete(result)
+			}()
+
+			e.push(handle)
+		case OpAwait:
+			taskObj, ok := e.pop()
+			if !ok {
+				return e.errorAt(ins.Position, "stack underflow for await")
+			}
+			handle, ok := taskObj.(*VMTaskHandle)
+			if !ok {
+				return e.errorAt(ins.Position, "await expects a task handle, got %s", taskObj.Type())
+			}
+			<-handle.done
+			result := handle.result
+			if result == nil {
+				result = object.NIL
+			}
+			if result.Type() == object.ERROR_OBJ {
+				return result
+			}
+			e.push(result)
 		case OpAdd, OpSub, OpMul, OpDiv, OpEqual, OpNotEqual, OpGreaterThan, OpLessThan:
 			if errObj := e.evalBinary(ins.Op, ins.Position); errObj != nil {
 				return errObj

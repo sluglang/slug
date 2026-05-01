@@ -19,6 +19,8 @@ const (
 	OpIndex
 	OpIndexDot
 	OpDup
+	OpSpawn
+	OpAwait
 	OpAdd
 	OpSub
 	OpMul
