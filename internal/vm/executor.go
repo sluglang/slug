@@ -256,9 +256,9 @@ func (e *Executor) evalBinary(op Opcode, pos int) object.Object {
 		}
 		e.push(&object.Number{Value: l.Value.Div(r.Value, 14, dec64.RoundHalfEven)})
 	case OpEqual:
-		e.push(e.nativeBool(left == right))
+		e.push(e.nativeBool(objectsEqual(left, right)))
 	case OpNotEqual:
-		e.push(e.nativeBool(left != right))
+		e.push(e.nativeBool(!objectsEqual(left, right)))
 	case OpGreaterThan, OpLessThan:
 		l, lok := left.(*object.Number)
 		r, rok := right.(*object.Number)
@@ -506,6 +506,65 @@ func computeSliceIndices(length int, slice *object.Slice) (int, int, int) {
 	}
 
 	return start, end, step
+}
+
+func objectsEqual(a, b object.Object) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	if a.Type() != b.Type() {
+		return false
+	}
+
+	switch av := a.(type) {
+	case *object.Number:
+		return av.Value.Eq(b.(*object.Number).Value)
+	case *object.Boolean:
+		return av.Value == b.(*object.Boolean).Value
+	case *object.String:
+		return av.Value == b.(*object.String).Value
+	case *object.Symbol:
+		return av == b.(*object.Symbol)
+	case *object.Nil:
+		return true
+	case *object.List:
+		bv := b.(*object.List)
+		if len(av.Elements) != len(bv.Elements) {
+			return false
+		}
+		for i := range av.Elements {
+			if !objectsEqual(av.Elements[i], bv.Elements[i]) {
+				return false
+			}
+		}
+		return true
+	case *object.Bytes:
+		bv := b.(*object.Bytes)
+		if len(av.Value) != len(bv.Value) {
+			return false
+		}
+		for i := range av.Value {
+			if av.Value[i] != bv.Value[i] {
+				return false
+			}
+		}
+		return true
+	case *object.Map:
+		bv := b.(*object.Map)
+		if len(av.Pairs) != len(bv.Pairs) {
+			return false
+		}
+		for k, pairA := range av.Pairs {
+			pairB, ok := bv.Pairs[k]
+			if !ok || !objectsEqual(pairA.Value, pairB.Value) {
+				return false
+			}
+		}
+		return true
+	default:
+		// Fallback for object kinds not yet fully modeled by VM.
+		return a == b
+	}
 }
 
 func (e *Executor) evalIndex(left, index object.Object, pos int, isDotLookup bool) (object.Object, *object.Error) {

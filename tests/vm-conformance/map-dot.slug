@@ -1,0 +1,3 @@
+val m = {:name: "Sym", "name": "Str", age: 9}
+if (m.name == "Sym" && m["name"] == "Str") { m.age } else { 0 }
+

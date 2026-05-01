@@ -1,0 +1,3 @@
+val xs = [10, 20, 30]
+if (xs[-1] == 30 && xs[99] == nil) { "ok" } else { "bad" }
+

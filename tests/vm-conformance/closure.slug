@@ -1,0 +1,4 @@
+val base = 10
+val addBase = fn(x) { x + base }
+addBase(32)
+

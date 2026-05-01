@@ -349,7 +349,6 @@ func (c *compiler) compileShortCircuit(node *ast.InfixExpression) error {
 	}
 	if node.Operator == "&&" {
 		jumpFalse := c.emit(Instruction{Op: OpJumpIfFalse, Position: node.Token.Position})
-		c.emit(Instruction{Op: OpPop, Position: node.Token.Position})
 		if err := c.compileExpression(node.Right); err != nil {
 			return err
 		}

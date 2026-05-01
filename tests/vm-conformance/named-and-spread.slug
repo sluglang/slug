@@ -1,0 +1,6 @@
+val sub = fn(a, b) { a - b }
+val pair = fn(a, b) { [a, b] }
+val picked = sub(b = 2, a = 9)
+val values = pair(...[picked, 40])
+values[0] + values[1]
+
