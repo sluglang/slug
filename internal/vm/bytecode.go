@@ -12,6 +12,7 @@ const (
 	OpGetGlobal
 	OpSetGlobalConst
 	OpSetGlobalVar
+	OpAssignGlobal
 	OpAdd
 	OpSub
 	OpMul
@@ -25,6 +26,7 @@ const (
 	OpPop
 	OpJump
 	OpJumpIfFalse
+	OpCall
 	OpReturn
 )
 

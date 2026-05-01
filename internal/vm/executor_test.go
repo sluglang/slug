@@ -60,3 +60,47 @@ func TestExecutorUnsupportedExpression(t *testing.T) {
 		t.Fatalf("expected error object, got %T (%s)", got, got.Inspect())
 	}
 }
+
+func TestExecutorVarAssignment(t *testing.T) {
+	got := runVM(t, "var x = 2\nx = x + 5\nx")
+	num, ok := got.(*object.Number)
+	if !ok {
+		t.Fatalf("expected *object.Number, got %T (%s)", got, got.Inspect())
+	}
+	if num.Value.String() != "7" {
+		t.Fatalf("expected 7, got %s", num.Value.String())
+	}
+}
+
+func TestExecutorFunctionCall(t *testing.T) {
+	got := runVM(t, "val add = fn(a, b) { a + b }\nadd(40, 2)")
+	num, ok := got.(*object.Number)
+	if !ok {
+		t.Fatalf("expected *object.Number, got %T (%s)", got, got.Inspect())
+	}
+	if num.Value.String() != "42" {
+		t.Fatalf("expected 42, got %s", num.Value.String())
+	}
+}
+
+func TestExecutorClosureCapture(t *testing.T) {
+	got := runVM(t, "val base = 10\nval addBase = fn(x) { x + base }\naddBase(5)")
+	num, ok := got.(*object.Number)
+	if !ok {
+		t.Fatalf("expected *object.Number, got %T (%s)", got, got.Inspect())
+	}
+	if num.Value.String() != "15" {
+		t.Fatalf("expected 15, got %s", num.Value.String())
+	}
+}
+
+func TestExecutorShortCircuitAndOr(t *testing.T) {
+	got := runVM(t, "var x = 0\nfalse && (x = 1)\ntrue || (x = 2)\nx")
+	num, ok := got.(*object.Number)
+	if !ok {
+		t.Fatalf("expected *object.Number, got %T (%s)", got, got.Inspect())
+	}
+	if num.Value.String() != "0" {
+		t.Fatalf("expected 0, got %s", num.Value.String())
+	}
+}

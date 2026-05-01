@@ -105,7 +105,18 @@ func (c *compiler) compileExpression(expr ast.Expression) error {
 		return nil
 	case *ast.InfixExpression:
 		if node.Operator == "=" {
-			return fmt.Errorf("vm compile error at %d: assignment is not yet supported by vm backend", node.Token.Position)
+			ident, ok := node.Left.(*ast.Identifier)
+			if !ok {
+				return fmt.Errorf("vm compile error at %d: left side of assignment must be an identifier", node.Token.Position)
+			}
+			if err := c.compileExpression(node.Right); err != nil {
+				return err
+			}
+			c.emit(Instruction{Op: OpAssignGlobal, StrArg: ident.Value, Position: node.Token.Position})
+			return nil
+		}
+		if node.Operator == "&&" || node.Operator == "||" {
+			return c.compileShortCircuit(node)
 		}
 		if err := c.compileExpression(node.Left); err != nil {
 			return err
@@ -134,6 +145,8 @@ func (c *compiler) compileExpression(expr ast.Expression) error {
 			return fmt.Errorf("vm compile error at %d: unsupported infix operator %q", node.Token.Position, node.Operator)
 		}
 		return nil
+	case *ast.BlockStatement:
+		return c.compileBlock(node)
 	case *ast.IfExpression:
 		if err := c.compileExpression(node.Condition); err != nil {
 			return err
@@ -152,6 +165,28 @@ func (c *compiler) compileExpression(expr ast.Expression) error {
 			c.emit(Instruction{Op: OpNil, Position: node.Token.Position})
 		}
 		c.patchJump(jumpToEndIdx, len(c.chunk.Instructions))
+		return nil
+	case *ast.FunctionLiteral:
+		fnObj, err := c.compileFunctionLiteral(node)
+		if err != nil {
+			return err
+		}
+		idx := c.addConstant(fnObj)
+		c.emit(Instruction{Op: OpConstant, IntArg: idx, Position: node.Token.Position})
+		return nil
+	case *ast.CallExpression:
+		if err := c.compileExpression(node.Function); err != nil {
+			return err
+		}
+		for _, arg := range node.Arguments {
+			if _, ok := arg.(*ast.NamedArgument); ok {
+				return fmt.Errorf("vm compile error at %d: named arguments are not yet supported", node.Token.Position)
+			}
+			if err := c.compileExpression(arg); err != nil {
+				return err
+			}
+		}
+		c.emit(Instruction{Op: OpCall, IntArg: len(node.Arguments), Position: node.Token.Position})
 		return nil
 	default:
 		return unsupportedNodeErr("expression", expr)
@@ -219,4 +254,54 @@ func patternName(pattern ast.MatchPattern) (string, error) {
 
 func unsupportedNodeErr(kind string, node ast.Node) error {
 	return fmt.Errorf("vm compile error: unsupported %s node %T", kind, node)
+}
+
+func (c *compiler) compileShortCircuit(node *ast.InfixExpression) error {
+	if err := c.compileExpression(node.Left); err != nil {
+		return err
+	}
+	if node.Operator == "&&" {
+		jumpFalse := c.emit(Instruction{Op: OpJumpIfFalse, Position: node.Token.Position})
+		c.emit(Instruction{Op: OpPop, Position: node.Token.Position})
+		if err := c.compileExpression(node.Right); err != nil {
+			return err
+		}
+		jumpEnd := c.emit(Instruction{Op: OpJump, Position: node.Token.Position})
+		c.patchJump(jumpFalse, len(c.chunk.Instructions))
+		c.emit(Instruction{Op: OpFalse, Position: node.Token.Position})
+		c.patchJump(jumpEnd, len(c.chunk.Instructions))
+		return nil
+	}
+
+	// ||
+	jumpFalse := c.emit(Instruction{Op: OpJumpIfFalse, Position: node.Token.Position})
+	c.emit(Instruction{Op: OpTrue, Position: node.Token.Position})
+	jumpEnd := c.emit(Instruction{Op: OpJump, Position: node.Token.Position})
+	c.patchJump(jumpFalse, len(c.chunk.Instructions))
+	if err := c.compileExpression(node.Right); err != nil {
+		return err
+	}
+	c.patchJump(jumpEnd, len(c.chunk.Instructions))
+	return nil
+}
+
+func (c *compiler) compileFunctionLiteral(node *ast.FunctionLiteral) (*VMFunction, error) {
+	params := make([]string, 0, len(node.Parameters))
+	for _, p := range node.Parameters {
+		if len(p.Tags) > 0 || p.Default != nil || p.IsVariadic {
+			return nil, fmt.Errorf("vm compile error at %d: tagged/default/variadic params are not yet supported", node.Token.Position)
+		}
+		params = append(params, p.Name.Value)
+	}
+
+	child := &compiler{chunk: &Chunk{}}
+	if err := child.compileBlock(node.Body); err != nil {
+		return nil, err
+	}
+	child.emit(Instruction{Op: OpReturn, Position: node.Token.Position})
+
+	return &VMFunction{
+		Params: params,
+		Chunk:  child.chunk,
+	}, nil
 }

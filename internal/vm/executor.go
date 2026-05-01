@@ -32,7 +32,7 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 		ins := chunk.Instructions[ip]
 		switch ins.Op {
 		case OpConstant:
-			e.push(chunk.Constants[ins.IntArg])
+			e.push(e.bindClosureIfNeeded(chunk.Constants[ins.IntArg]))
 		case OpNil:
 			e.push(object.NIL)
 		case OpTrue:
@@ -60,6 +60,15 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 				return e.errorAt(ins.Position, "stack underflow for var bind")
 			}
 			if _, err := e.env.Define(ins.StrArg, val, false, false); err != nil {
+				return e.errorAt(ins.Position, "%s", err.Error())
+			}
+			e.push(val)
+		case OpAssignGlobal:
+			val, ok := e.pop()
+			if !ok {
+				return e.errorAt(ins.Position, "stack underflow for assignment")
+			}
+			if _, err := e.env.Assign(ins.StrArg, val); err != nil {
 				return e.errorAt(ins.Position, "%s", err.Error())
 			}
 			e.push(val)
@@ -105,6 +114,10 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 			}
 			if !isTruthy(val) {
 				ip = ins.IntArg - 1
+			}
+		case OpCall:
+			if errObj := e.evalCall(ins.IntArg, ins.Position); errObj != nil {
+				return errObj
 			}
 		case OpReturn:
 			if val, ok := e.pop(); ok {
@@ -208,6 +221,68 @@ func (e *Executor) nativeBool(v bool) *object.Boolean {
 		return object.TRUE
 	}
 	return object.FALSE
+}
+
+func (e *Executor) bindClosureIfNeeded(obj object.Object) object.Object {
+	fn, ok := obj.(*VMFunction)
+	if !ok {
+		return obj
+	}
+	// Capture current lexical environment when function literal is evaluated.
+	return &VMFunction{
+		Name:    fn.Name,
+		Params:  append([]string(nil), fn.Params...),
+		Chunk:   fn.Chunk,
+		Closure: e.env,
+	}
+}
+
+func (e *Executor) evalCall(argCount int, pos int) object.Object {
+	if argCount < 0 {
+		return e.errorAt(pos, "invalid call arity")
+	}
+	args := make([]object.Object, argCount)
+	for i := argCount - 1; i >= 0; i-- {
+		arg, ok := e.pop()
+		if !ok {
+			return e.errorAt(pos, "stack underflow for call arguments")
+		}
+		args[i] = arg
+	}
+	callee, ok := e.pop()
+	if !ok {
+		return e.errorAt(pos, "stack underflow for callee")
+	}
+
+	fn, ok := callee.(*VMFunction)
+	if !ok {
+		return e.errorAt(pos, "attempted to call non-vm function value (%s)", callee.Type())
+	}
+	if len(args) != len(fn.Params) {
+		return e.errorAt(pos, "arity mismatch: expected %d args, got %d", len(fn.Params), len(args))
+	}
+
+	closure := fn.Closure
+	if closure == nil {
+		closure = e.env
+	}
+	callEnv := object.NewEnclosedEnvironment(closure, nil)
+	for i, p := range fn.Params {
+		if _, err := callEnv.DefineConstant(p, args[i], false, false); err != nil {
+			return e.errorAt(pos, "%s", err.Error())
+		}
+	}
+
+	child := NewExecutor(callEnv)
+	result := child.run(fn.Chunk)
+	if result == nil {
+		result = object.NIL
+	}
+	if result.Type() == object.ERROR_OBJ {
+		return result
+	}
+	e.push(result)
+	return nil
 }
 
 func (e *Executor) errorAt(pos int, format string, args ...interface{}) *object.Error {
