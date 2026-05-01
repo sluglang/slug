@@ -314,7 +314,7 @@ func (e *Executor) bindClosureIfNeeded(obj object.Object) object.Object {
 	// Capture current lexical environment when function literal is evaluated.
 	return &VMFunction{
 		Name:    fn.Name,
-		Params:  append([]string(nil), fn.Params...),
+		Params:  append([]VMParam(nil), fn.Params...),
 		Chunk:   fn.Chunk,
 		Closure: e.env,
 	}
@@ -393,7 +393,7 @@ func (e *Executor) evalCall(argCount int, plan []CallArgSpec, pos int) object.Ob
 	}
 	callEnv := object.NewEnclosedEnvironment(closure, nil)
 	for i, p := range fn.Params {
-		if _, err := callEnv.DefineConstant(p, bound[i], false, false); err != nil {
+		if _, err := callEnv.DefineConstant(p.Name, bound[i], false, false); err != nil {
 			return e.errorAt(pos, "%s", err.Error())
 		}
 	}
@@ -420,11 +420,13 @@ func bindVMArguments(
 	paramCount := len(fn.Params)
 	values := make([]object.Object, paramCount)
 	provided := make([]bool, paramCount)
+	hasVariadic := paramCount > 0 && fn.Params[paramCount-1].IsVariadic
+	variadicIndex := paramCount - 1
 
 	if len(named) > 0 {
 		index := make(map[string]int, paramCount)
-		for i, name := range fn.Params {
-			index[name] = i
+		for i, p := range fn.Params {
+			index[p.Name] = i
 		}
 		for name, val := range named {
 			idx, ok := index[name]
@@ -434,31 +436,92 @@ func bindVMArguments(
 			if provided[idx] {
 				return nil, e.errorAt(pos, "duplicate assignment to parameter: %s", name)
 			}
+			if fn.Params[idx].IsVariadic {
+				if _, ok := val.(*object.List); !ok {
+					return nil, e.errorAt(pos, "variadic parameter '%s' must be a list when passed by name", name)
+				}
+			}
 			values[idx] = val
 			provided[idx] = true
 		}
 	}
 
 	posIndex := 0
-	for i := 0; i < paramCount; i++ {
-		if posIndex >= len(positional) {
-			break
+	if hasVariadic {
+		for i := 0; i < variadicIndex; i++ {
+			if posIndex >= len(positional) {
+				break
+			}
+			if provided[i] {
+				continue
+			}
+			values[i] = positional[posIndex]
+			provided[i] = true
+			posIndex++
 		}
+		remaining := positional[posIndex:]
+		if provided[variadicIndex] {
+			if len(remaining) > 0 {
+				return nil, e.errorAt(pos, "too many positional arguments")
+			}
+		} else {
+			values[variadicIndex] = &object.List{Elements: remaining}
+			provided[variadicIndex] = true
+		}
+	} else {
+		for i := 0; i < paramCount; i++ {
+			if posIndex >= len(positional) {
+				break
+			}
+			if provided[i] {
+				continue
+			}
+			values[i] = positional[posIndex]
+			provided[i] = true
+			posIndex++
+		}
+		if posIndex < len(positional) {
+			return nil, e.errorAt(pos, "too many positional arguments")
+		}
+	}
+
+	defEnv := fn.Closure
+	if defEnv == nil {
+		defEnv = e.env
+	}
+	if defEnv != nil {
+		for defEnv.Outer != nil {
+			defEnv = defEnv.Outer
+		}
+	}
+
+	for i := 0; i < paramCount; i++ {
 		if provided[i] {
 			continue
 		}
-		values[i] = positional[posIndex]
-		provided[i] = true
-		posIndex++
-	}
-	if posIndex < len(positional) {
-		return nil, e.errorAt(pos, "too many positional arguments")
-	}
-
-	for i, ok := range provided {
-		if !ok {
-			return nil, e.errorAt(pos, "missing required parameter: %s", fn.Params[i])
+		param := fn.Params[i]
+		if param.IsVariadic {
+			values[i] = &object.List{Elements: []object.Object{}}
+			provided[i] = true
+			continue
 		}
+		if param.Default != nil {
+			defaultExec := NewExecutor(defEnv, e.externalCall)
+			defaultVal := defaultExec.run(param.Default)
+			if defaultVal == nil {
+				defaultVal = object.NIL
+			}
+			if defaultVal.Type() == object.ERROR_OBJ {
+				if errObj, ok := defaultVal.(*object.Error); ok {
+					return nil, errObj
+				}
+				return nil, e.errorAt(pos, "%s", defaultVal.Inspect())
+			}
+			values[i] = defaultVal
+			provided[i] = true
+			continue
+		}
+		return nil, e.errorAt(pos, "missing required parameter: %s", param.Name)
 	}
 	return values, nil
 }

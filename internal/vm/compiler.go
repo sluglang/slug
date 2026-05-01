@@ -372,12 +372,25 @@ func (c *compiler) compileShortCircuit(node *ast.InfixExpression) error {
 }
 
 func (c *compiler) compileFunctionLiteral(node *ast.FunctionLiteral) (*VMFunction, error) {
-	params := make([]string, 0, len(node.Parameters))
+	params := make([]VMParam, 0, len(node.Parameters))
 	for _, p := range node.Parameters {
-		if len(p.Tags) > 0 || p.Default != nil || p.IsVariadic {
-			return nil, fmt.Errorf("vm compile error at %d: tagged/default/variadic params are not yet supported", node.Token.Position)
+		if len(p.Tags) > 0 {
+			return nil, fmt.Errorf("vm compile error at %d: tagged params are not yet supported", node.Token.Position)
 		}
-		params = append(params, p.Name.Value)
+		var defaultChunk *Chunk
+		if p.Default != nil {
+			dc := &compiler{chunk: &Chunk{}}
+			if err := dc.compileExpression(p.Default); err != nil {
+				return nil, err
+			}
+			dc.emit(Instruction{Op: OpReturn, Position: node.Token.Position})
+			defaultChunk = dc.chunk
+		}
+		params = append(params, VMParam{
+			Name:       p.Name.Value,
+			IsVariadic: p.IsVariadic,
+			Default:    defaultChunk,
+		})
 	}
 
 	child := &compiler{chunk: &Chunk{}}

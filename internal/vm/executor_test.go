@@ -215,3 +215,25 @@ func TestExecutorMapDotLookupTolerance(t *testing.T) {
 		}
 	}
 }
+
+func TestExecutorFunctionDefaultParameter(t *testing.T) {
+	got := runVM(t, "val add1 = fn(a = 41) { a + 1 }\nadd1()")
+	num, ok := got.(*object.Number)
+	if !ok {
+		t.Fatalf("expected *object.Number, got %T (%s)", got, got.Inspect())
+	}
+	if num.Value.String() != "42" {
+		t.Fatalf("expected 42, got %s", num.Value.String())
+	}
+}
+
+func TestExecutorFunctionVariadicParameter(t *testing.T) {
+	got := runVM(t, "val pick = fn(...xs) { xs[2] }\npick(1, 2, 3)")
+	num, ok := got.(*object.Number)
+	if !ok {
+		t.Fatalf("expected *object.Number, got %T (%s)", got, got.Inspect())
+	}
+	if num.Value.String() != "3" {
+		t.Fatalf("expected 3, got %s", num.Value.String())
+	}
+}
