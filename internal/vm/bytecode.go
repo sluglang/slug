@@ -13,6 +13,10 @@ const (
 	OpSetGlobalConst
 	OpSetGlobalVar
 	OpAssignGlobal
+	OpArray
+	OpHash
+	OpIndex
+	OpIndexDot
 	OpAdd
 	OpSub
 	OpMul

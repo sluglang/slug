@@ -57,6 +57,14 @@ func (c *compiler) compileExpression(expr ast.Expression) error {
 		idx := c.addConstant(&object.String{Value: node.Value})
 		c.emit(Instruction{Op: OpConstant, IntArg: idx, Position: node.Token.Position})
 		return nil
+	case *ast.BytesLiteral:
+		idx := c.addConstant(&object.Bytes{Value: node.Value})
+		c.emit(Instruction{Op: OpConstant, IntArg: idx, Position: node.Token.Position})
+		return nil
+	case *ast.SymbolLiteral:
+		idx := c.addConstant(object.InternSymbol(node.Value))
+		c.emit(Instruction{Op: OpConstant, IntArg: idx, Position: node.Token.Position})
+		return nil
 	case *ast.Boolean:
 		op := OpFalse
 		if node.Value {
@@ -165,6 +173,40 @@ func (c *compiler) compileExpression(expr ast.Expression) error {
 			c.emit(Instruction{Op: OpNil, Position: node.Token.Position})
 		}
 		c.patchJump(jumpToEndIdx, len(c.chunk.Instructions))
+		return nil
+	case *ast.ListLiteral:
+		for _, el := range node.Elements {
+			if err := c.compileExpression(el); err != nil {
+				return err
+			}
+		}
+		c.emit(Instruction{Op: OpArray, IntArg: len(node.Elements), Position: node.Token.Position})
+		return nil
+	case *ast.MapLiteral:
+		pairCount := 0
+		for key, value := range node.Pairs {
+			if err := c.compileExpression(key); err != nil {
+				return err
+			}
+			if err := c.compileExpression(value); err != nil {
+				return err
+			}
+			pairCount++
+		}
+		c.emit(Instruction{Op: OpHash, IntArg: pairCount, Position: node.Token.Position})
+		return nil
+	case *ast.IndexExpression:
+		if err := c.compileExpression(node.Left); err != nil {
+			return err
+		}
+		if err := c.compileExpression(node.Index); err != nil {
+			return err
+		}
+		op := OpIndex
+		if node.IsDotLookup {
+			op = OpIndexDot
+		}
+		c.emit(Instruction{Op: op, Position: node.Token.Position})
 		return nil
 	case *ast.FunctionLiteral:
 		fnObj, err := c.compileFunctionLiteral(node)

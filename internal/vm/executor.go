@@ -79,6 +79,55 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 				return e.errorAt(ins.Position, "%s", err.Error())
 			}
 			e.push(val)
+		case OpArray:
+			if ins.IntArg < 0 {
+				return e.errorAt(ins.Position, "invalid array arity")
+			}
+			elements := make([]object.Object, ins.IntArg)
+			for i := ins.IntArg - 1; i >= 0; i-- {
+				val, ok := e.pop()
+				if !ok {
+					return e.errorAt(ins.Position, "stack underflow for array literal")
+				}
+				elements[i] = val
+			}
+			e.push(&object.List{Elements: elements})
+		case OpHash:
+			if ins.IntArg < 0 {
+				return e.errorAt(ins.Position, "invalid map arity")
+			}
+			pairs := make(map[object.MapKey]object.MapPair, ins.IntArg)
+			for i := 0; i < ins.IntArg; i++ {
+				value, ok := e.pop()
+				if !ok {
+					return e.errorAt(ins.Position, "stack underflow for map value")
+				}
+				keyObj, ok := e.pop()
+				if !ok {
+					return e.errorAt(ins.Position, "stack underflow for map key")
+				}
+				hashable, ok := keyObj.(object.Hashable)
+				if !ok {
+					return e.errorAt(ins.Position, "unusable as map key: %s", keyObj.Type())
+				}
+				mapKey := hashable.MapKey()
+				pairs[mapKey] = object.MapPair{Key: keyObj, Value: value}
+			}
+			e.push(&object.Map{Pairs: pairs})
+		case OpIndex, OpIndexDot:
+			index, ok := e.pop()
+			if !ok {
+				return e.errorAt(ins.Position, "stack underflow for index operand")
+			}
+			left, ok := e.pop()
+			if !ok {
+				return e.errorAt(ins.Position, "stack underflow for indexed value")
+			}
+			value, errObj := e.evalIndex(left, index, ins.Position, ins.Op == OpIndexDot)
+			if errObj != nil {
+				return errObj
+			}
+			e.push(value)
 		case OpAdd, OpSub, OpMul, OpDiv, OpEqual, OpNotEqual, OpGreaterThan, OpLessThan:
 			if errObj := e.evalBinary(ins.Op, ins.Position); errObj != nil {
 				return errObj
@@ -397,4 +446,72 @@ func (e *Executor) errorAt(pos int, format string, args ...interface{}) *object.
 
 func isTruthy(obj object.Object) bool {
 	return obj != object.FALSE && obj != object.NIL
+}
+
+func (e *Executor) evalIndex(left, index object.Object, pos int, isDotLookup bool) (object.Object, *object.Error) {
+	switch l := left.(type) {
+	case *object.List:
+		num, ok := index.(*object.Number)
+		if !ok {
+			return nil, e.errorAt(pos, "index operator not supported: %s", index.Type())
+		}
+		idx := num.Value.ToInt64()
+		max := int64(len(l.Elements) - 1)
+		if idx < 0 {
+			idx = max + idx + 1
+		}
+		if idx < 0 || idx > max {
+			return object.NIL, nil
+		}
+		return l.Elements[idx], nil
+	case *object.String:
+		num, ok := index.(*object.Number)
+		if !ok {
+			return nil, e.errorAt(pos, "index operator not supported: %s", index.Type())
+		}
+		idx := num.Value.ToInt64()
+		runes := []rune(l.Value)
+		max := int64(len(runes) - 1)
+		if idx < 0 {
+			idx = max + idx + 1
+		}
+		if idx < 0 || idx > max {
+			return object.NIL, nil
+		}
+		return &object.String{Value: string(runes[idx])}, nil
+	case *object.Bytes:
+		num, ok := index.(*object.Number)
+		if !ok {
+			return nil, e.errorAt(pos, "index operator not supported: %s", index.Type())
+		}
+		idx := num.Value.ToInt64()
+		max := int64(len(l.Value) - 1)
+		if idx < 0 {
+			idx = max + idx + 1
+		}
+		if idx < 0 || idx > max {
+			return object.NIL, nil
+		}
+		return &object.Number{Value: dec64.FromInt(int(l.Value[idx]))}, nil
+	case *object.Map:
+		key, ok := index.(object.Hashable)
+		if !ok {
+			return nil, e.errorAt(pos, "unusable as map key: %s", index.Type())
+		}
+		pair, ok := l.Pairs[key.MapKey()]
+		if !ok {
+			if isDotLookup {
+				if symbol, ok := index.(*object.Symbol); ok {
+					strKey := (&object.String{Value: symbol.Name}).MapKey()
+					if strPair, ok := l.Pairs[strKey]; ok {
+						return strPair.Value, nil
+					}
+				}
+			}
+			return object.NIL, nil
+		}
+		return pair.Value, nil
+	default:
+		return nil, e.errorAt(pos, "index operator not supported: %s", left.Type())
+	}
 }

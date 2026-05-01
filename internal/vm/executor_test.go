@@ -55,7 +55,7 @@ func TestExecutorIfExpression(t *testing.T) {
 }
 
 func TestExecutorUnsupportedExpression(t *testing.T) {
-	got := runVM(t, "[1, 2, 3]")
+	got := runVM(t, "match 1 { 1 => 2 }")
 	if got.Type() != object.ERROR_OBJ {
 		t.Fatalf("expected error object, got %T (%s)", got, got.Inspect())
 	}
@@ -120,5 +120,78 @@ func TestExecutorPositionalAfterNamedRejected(t *testing.T) {
 	got := runVM(t, "val sub = fn(a, b) { a - b }\nsub(a = 9, 2)")
 	if got.Type() != object.ERROR_OBJ {
 		t.Fatalf("expected error object, got %T (%s)", got, got.Inspect())
+	}
+}
+
+func TestExecutorSpreadArgumentsVMFunction(t *testing.T) {
+	got := runVM(t, "val pair = fn(a, b) { a + b }\nval xs = [20, 22]\npair(...xs)")
+	num, ok := got.(*object.Number)
+	if !ok {
+		t.Fatalf("expected *object.Number, got %T (%s)", got, got.Inspect())
+	}
+	if num.Value.String() != "42" {
+		t.Fatalf("expected 42, got %s", num.Value.String())
+	}
+}
+
+func TestExecutorListStringBytesIndexing(t *testing.T) {
+	tests := []struct {
+		code string
+		want string
+	}{
+		{code: "val xs = [10, 20, 30]\nxs[1]", want: "20"},
+		{code: "\"slug\"[2]", want: "u"},
+		{code: "0x\"0102ff\"[2]", want: "255"},
+		{code: "[1][-99]", want: "nil"},
+	}
+
+	for _, tt := range tests {
+		got := runVM(t, tt.code)
+		if got.Inspect() != tt.want {
+			t.Fatalf("for %q expected %q got %q", tt.code, tt.want, got.Inspect())
+		}
+	}
+}
+
+func TestExecutorMapLiteralAndIndex(t *testing.T) {
+	tests := []struct {
+		code string
+		want string
+	}{
+		{code: "{:a: 1, \"a\": 2}[:a]", want: "1"},
+		{code: "{:a: 1, \"a\": 2}[\"a\"]", want: "2"},
+		{code: "{:a: 1}[:missing]", want: "nil"},
+	}
+
+	for _, tt := range tests {
+		got := runVM(t, tt.code)
+		if got.Inspect() != tt.want {
+			t.Fatalf("for %q expected %q got %q", tt.code, tt.want, got.Inspect())
+		}
+	}
+}
+
+func TestExecutorMapKeyMustBeHashable(t *testing.T) {
+	got := runVM(t, "{:a: 1}[[]]")
+	if got.Type() != object.ERROR_OBJ {
+		t.Fatalf("expected error object, got %T (%s)", got, got.Inspect())
+	}
+}
+
+func TestExecutorMapDotLookupTolerance(t *testing.T) {
+	tests := []struct {
+		code string
+		want string
+	}{
+		{code: "{\"name\": \"slug\"}.name", want: "slug"},
+		{code: "{:name: \"sym\", \"name\": \"str\"}.name", want: "sym"},
+		{code: "{}.missing", want: "nil"},
+	}
+
+	for _, tt := range tests {
+		got := runVM(t, tt.code)
+		if got.Inspect() != tt.want {
+			t.Fatalf("for %q expected %q got %q", tt.code, tt.want, got.Inspect())
+		}
 	}
 }
