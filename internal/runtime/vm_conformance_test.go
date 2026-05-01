@@ -1,6 +1,9 @@
 package runtime
 
 import (
+	"bytes"
+	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -11,6 +14,12 @@ import (
 	"strings"
 	"testing"
 )
+
+type conformanceRun struct {
+	result object.Object
+	stdout string
+	stderr string
+}
 
 func TestVMConformanceFixtures(t *testing.T) {
 	root := repoRoot(t)
@@ -36,11 +45,17 @@ func TestVMConformanceFixtures(t *testing.T) {
 			treewalk := runProgramForConformance(t, RuntimeTreewalk, path, source)
 			vm := runProgramForConformance(t, RuntimeVM, path, source)
 
-			if treewalk.Type() == object.ERROR_OBJ || vm.Type() == object.ERROR_OBJ {
-				t.Fatalf("supported fixture must succeed in both runtimes treewalk=%T vm=%T\n--- treewalk ---\n%s\n--- vm ---\n%s", treewalk, vm, treewalk.Inspect(), vm.Inspect())
+			if treewalk.result.Type() == object.ERROR_OBJ || vm.result.Type() == object.ERROR_OBJ {
+				t.Fatalf("supported fixture must succeed in both runtimes treewalk=%T vm=%T\n--- treewalk ---\n%s\n--- vm ---\n%s", treewalk.result, vm.result, treewalk.result.Inspect(), vm.result.Inspect())
 			}
-			if treewalk.Inspect() != vm.Inspect() {
-				t.Fatalf("inspect mismatch\n--- treewalk ---\n%s\n--- vm ---\n%s", treewalk.Inspect(), vm.Inspect())
+			if treewalk.result.Inspect() != vm.result.Inspect() {
+				t.Fatalf("inspect mismatch\n--- treewalk ---\n%s\n--- vm ---\n%s", treewalk.result.Inspect(), vm.result.Inspect())
+			}
+			if treewalk.stdout != vm.stdout {
+				t.Fatalf("stdout mismatch\n--- treewalk ---\n%s\n--- vm ---\n%s", treewalk.stdout, vm.stdout)
+			}
+			if treewalk.stderr != vm.stderr {
+				t.Fatalf("stderr mismatch\n--- treewalk ---\n%s\n--- vm ---\n%s", treewalk.stderr, vm.stderr)
 			}
 		})
 	}
@@ -68,13 +83,13 @@ func TestVMKnownUnsupportedFixtures(t *testing.T) {
 			source := string(sourceBytes)
 
 			treewalk := runProgramForConformance(t, RuntimeTreewalk, path, source)
-			if treewalk.Type() == object.ERROR_OBJ {
-				t.Fatalf("unsupported fixture must succeed on treewalk, got error:\n%s", treewalk.Inspect())
+			if treewalk.result.Type() == object.ERROR_OBJ {
+				t.Fatalf("unsupported fixture must succeed on treewalk, got error:\n%s", treewalk.result.Inspect())
 			}
 
 			vm := runProgramForConformance(t, RuntimeVM, path, source)
-			if vm.Type() != object.ERROR_OBJ {
-				t.Fatalf("unsupported fixture expected VM error, got %T (%s)", vm, vm.Inspect())
+			if vm.result.Type() != object.ERROR_OBJ {
+				t.Fatalf("unsupported fixture expected VM error, got %T (%s)", vm.result, vm.result.Inspect())
 			}
 		})
 	}
@@ -104,15 +119,15 @@ func TestVMConformanceErrorParityFixtures(t *testing.T) {
 			treewalk := runProgramForConformance(t, RuntimeTreewalk, path, source)
 			vm := runProgramForConformance(t, RuntimeVM, path, source)
 
-			if treewalk.Type() != object.ERROR_OBJ {
-				t.Fatalf("error-parity fixture must fail on treewalk, got %T (%s)", treewalk, treewalk.Inspect())
+			if treewalk.result.Type() != object.ERROR_OBJ {
+				t.Fatalf("error-parity fixture must fail on treewalk, got %T (%s)", treewalk.result, treewalk.result.Inspect())
 			}
-			if vm.Type() != object.ERROR_OBJ {
-				t.Fatalf("error-parity fixture must fail on vm, got %T (%s)", vm, vm.Inspect())
+			if vm.result.Type() != object.ERROR_OBJ {
+				t.Fatalf("error-parity fixture must fail on vm, got %T (%s)", vm.result, vm.result.Inspect())
 			}
 
-			sigTreewalk := canonicalErrorSignature(treewalk.Inspect())
-			sigVM := canonicalErrorSignature(vm.Inspect())
+			sigTreewalk := canonicalErrorSignature(treewalk.result.Inspect())
+			sigVM := canonicalErrorSignature(vm.result.Inspect())
 			if sigTreewalk != sigVM {
 				t.Fatalf("canonical error mismatch\n--- treewalk ---\n%s\n--- vm ---\n%s", sigTreewalk, sigVM)
 			}
@@ -192,7 +207,7 @@ func canonicalErrorSignature(inspect string) string {
 	}
 }
 
-func runProgramForConformance(t *testing.T, mode, scriptPath, source string) object.Object {
+func runProgramForConformance(t *testing.T, mode, scriptPath, source string) conformanceRun {
 	t.Helper()
 
 	l := lexer.New(source)
@@ -232,5 +247,59 @@ func runProgramForConformance(t *testing.T, mode, scriptPath, source string) obj
 		HasDoc:  program.HasModuleDoc,
 	}
 
-	return ExecuteProgram(mode, rt, env, program)
+	result, stdout, stderr := captureExecutionOutput(func() object.Object {
+		prevLogger := slog.Default()
+		slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))
+		defer slog.SetDefault(prevLogger)
+		return ExecuteProgram(mode, rt, env, program)
+	})
+
+	return conformanceRun{
+		result: result,
+		stdout: normalizeOutput(stdout),
+		stderr: normalizeOutput(stderr),
+	}
+}
+
+func captureExecutionOutput(run func() object.Object) (object.Object, string, string) {
+	origStdout := os.Stdout
+	origStderr := os.Stderr
+	defer func() {
+		os.Stdout = origStdout
+		os.Stderr = origStderr
+	}()
+
+	stdoutR, stdoutW, _ := os.Pipe()
+	stderrR, stderrW, _ := os.Pipe()
+	os.Stdout = stdoutW
+	os.Stderr = stderrW
+
+	var outBuf bytes.Buffer
+	var errBuf bytes.Buffer
+	doneOut := make(chan struct{})
+	doneErr := make(chan struct{})
+	go func() {
+		_, _ = io.Copy(&outBuf, stdoutR)
+		close(doneOut)
+	}()
+	go func() {
+		_, _ = io.Copy(&errBuf, stderrR)
+		close(doneErr)
+	}()
+
+	result := run()
+
+	_ = stdoutW.Close()
+	_ = stderrW.Close()
+	<-doneOut
+	<-doneErr
+	_ = stdoutR.Close()
+	_ = stderrR.Close()
+
+	return result, outBuf.String(), errBuf.String()
+}
+
+func normalizeOutput(s string) string {
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	return strings.TrimSpace(s)
 }
