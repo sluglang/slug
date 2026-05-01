@@ -10,6 +10,7 @@ import (
 	"slug/internal/foreign"
 	"slug/internal/object"
 	"slug/internal/util"
+	"slug/internal/vm"
 	"strings"
 	"sync"
 )
@@ -2930,17 +2931,19 @@ func (e *Task) evalAwaitExpression(node *ast.AwaitExpression) object.Object {
 		return obj
 	}
 
-	handle, ok := obj.(*Task)
-	if !ok {
+	var handle awaitHandle
+	switch h := obj.(type) {
+	case *Task:
+		handle = h
+	case *vm.VMTaskHandle:
+		handle = h
+	}
+	if handle == nil {
 		return e.newErrorfWithPos(node.Token.Position, "await expects a task handle, got %s", obj.Type())
 	}
 
-	<-handle.Done
-
-	if handle.Err != nil {
-		return handle.Err
-	}
-	return handle.Result
+	<-handle.DoneChan()
+	return handle.AwaitResult()
 }
 
 func (e *Task) applyTagsIfPresent(tags []*ast.Tag, val object.Object) object.Object {
@@ -3041,6 +3044,20 @@ func byteValue(n *object.Number) (byte, error) {
 func (th *Task) Type() object.ObjectType { return object.TASK_HANDLE_OBJ }
 func (th *Task) Inspect() string {
 	return fmt.Sprintf("<task %d>", th.ID)
+}
+
+func (th *Task) DoneChan() <-chan struct{} {
+	return th.Done
+}
+
+func (th *Task) AwaitResult() object.Object {
+	if th.Err != nil {
+		return th.Err
+	}
+	if th.Result == nil {
+		return object.NIL
+	}
+	return th.Result
 }
 
 // Complete sets the result and signals any waiters

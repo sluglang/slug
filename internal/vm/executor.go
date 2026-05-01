@@ -184,6 +184,9 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 				if result == nil {
 					result = object.NIL
 				}
+				if spawnedFn, ok := result.(*VMFunction); ok && len(spawnedFn.Params) == 0 {
+					result = child.invokeVMFunction(spawnedFn, nil, nil, ins.Position)
+				}
 				handle.Complete(result)
 			}()
 
@@ -433,6 +436,15 @@ func (e *Executor) evalCall(argCount int, plan []CallArgSpec, pos int) object.Ob
 		return nil
 	}
 
+	result := e.invokeVMFunction(fn, positional, named, pos)
+	if result.Type() == object.ERROR_OBJ {
+		return result
+	}
+	e.push(result)
+	return nil
+}
+
+func (e *Executor) invokeVMFunction(fn *VMFunction, positional []object.Object, named map[string]object.Object, pos int) object.Object {
 	bound, errObj := bindVMArguments(fn, positional, named, pos, e)
 	if errObj != nil {
 		return errObj
@@ -452,13 +464,9 @@ func (e *Executor) evalCall(argCount int, plan []CallArgSpec, pos int) object.Ob
 	child := NewExecutor(callEnv, e.externalCall)
 	result := child.run(fn.Chunk)
 	if result == nil {
-		result = object.NIL
+		return object.NIL
 	}
-	if result.Type() == object.ERROR_OBJ {
-		return result
-	}
-	e.push(result)
-	return nil
+	return result
 }
 
 func bindVMArguments(

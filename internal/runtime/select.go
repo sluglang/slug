@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"slug/internal/ast"
 	"slug/internal/object"
+	"slug/internal/vm"
 	"time"
 )
 
@@ -15,7 +16,7 @@ type selectEvalCase struct {
 	sendValue  object.Object
 	afterValue object.Object
 	afterTimer *time.Timer
-	awaitTask  *Task
+	awaitTask  awaitHandle
 	handler    ast.Expression
 	closedSend bool
 }
@@ -136,13 +137,19 @@ func (e *Task) evalSelectExpression(node *ast.SelectExpression) object.Object {
 			if e.isError(taskObj) {
 				return taskObj
 			}
-			task, ok := taskObj.(*Task)
-			if !ok {
+			var task awaitHandle
+			switch h := taskObj.(type) {
+			case *Task:
+				task = h
+			case *vm.VMTaskHandle:
+				task = h
+			}
+			if task == nil {
 				return e.newErrorfWithPos(c.Token.Position, "await expects a task handle, got %s", taskObj.Type())
 			}
 			cases = append(cases, reflect.SelectCase{
 				Dir:  reflect.SelectRecv,
-				Chan: reflect.ValueOf(task.Done),
+				Chan: reflect.ValueOf(task.DoneChan()),
 			})
 			evals = append(evals, selectEvalCase{
 				kind:      ast.SelectAwait,
@@ -150,7 +157,9 @@ func (e *Task) evalSelectExpression(node *ast.SelectExpression) object.Object {
 				awaitTask: task,
 				handler:   c.Handler,
 			})
-			awaitTasks = append(awaitTasks, task)
+			if rtTask, ok := task.(*Task); ok {
+				awaitTasks = append(awaitTasks, rtTask)
+			}
 		case ast.SelectDefault:
 			if defaultSeen {
 				return e.newErrorWithPos(c.Token.Position, "select cannot have multiple default cases")
@@ -205,7 +214,9 @@ func (e *Task) evalSelectExpression(node *ast.SelectExpression) object.Object {
 	if len(awaitTasks) > 0 {
 		var keep *Task
 		if selected.kind == ast.SelectAwait {
-			keep = selected.awaitTask
+			if rtTask, ok := selected.awaitTask.(*Task); ok {
+				keep = rtTask
+			}
 		}
 		for _, task := range awaitTasks {
 			if keep != nil && task == keep {
@@ -236,13 +247,7 @@ func (e *Task) evalSelectExpression(node *ast.SelectExpression) object.Object {
 		}
 		return e.evalSelectHandler(selected.token, selected.handler, val)
 	case ast.SelectAwait:
-		if selected.awaitTask.Err != nil {
-			return selected.awaitTask.Err
-		}
-		val := selected.awaitTask.Result
-		if val == nil {
-			val = object.NIL
-		}
+		val := selected.awaitTask.AwaitResult()
 		return e.evalSelectHandler(selected.token, selected.handler, val)
 	default:
 		return e.newErrorWithPos(node.Token.Position, "invalid select case")

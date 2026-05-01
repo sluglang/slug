@@ -17,6 +17,17 @@ func (h *VMTaskHandle) Type() object.ObjectType { return object.TASK_HANDLE_OBJ 
 
 func (h *VMTaskHandle) Inspect() string { return "<task>" }
 
+func (h *VMTaskHandle) DoneChan() <-chan struct{} {
+	return h.done
+}
+
+func (h *VMTaskHandle) AwaitResult() object.Object {
+	if h.result == nil {
+		return object.NIL
+	}
+	return h.result
+}
+
 func (h *VMTaskHandle) Complete(result object.Object) {
 	h.result = result
 	close(h.done)
