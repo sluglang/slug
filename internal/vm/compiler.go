@@ -174,6 +174,8 @@ func (c *compiler) compileExpression(expr ast.Expression) error {
 		}
 		c.patchJump(jumpToEndIdx, len(c.chunk.Instructions))
 		return nil
+	case *ast.MatchExpression:
+		return c.compileMatchExpression(node)
 	case *ast.ListLiteral:
 		for _, el := range node.Elements {
 			if err := c.compileExpression(el); err != nil {
@@ -403,4 +405,99 @@ func (c *compiler) compileFunctionLiteral(node *ast.FunctionLiteral) (*VMFunctio
 		Params: params,
 		Chunk:  child.chunk,
 	}, nil
+}
+
+func (c *compiler) compileMatchExpression(node *ast.MatchExpression) error {
+	if node.Value == nil {
+		return fmt.Errorf("vm compile error at %d: pipeline-style match without explicit value is not yet supported", node.Token.Position)
+	}
+	if len(node.Cases) == 0 {
+		return fmt.Errorf("vm compile error at %d: match requires at least one case", node.Token.Position)
+	}
+	if err := c.compileExpression(node.Value); err != nil {
+		return err
+	}
+
+	endJumps := make([]int, 0, len(node.Cases))
+
+	for _, cs := range node.Cases {
+		pat := cs.Pattern
+
+		// wildcard case: consume scrutinee and execute body
+		if _, ok := pat.(*ast.WildcardPattern); ok {
+			if cs.Guard != nil {
+				if err := c.compileExpression(cs.Guard); err != nil {
+					return err
+				}
+				guardJump := c.emit(Instruction{Op: OpJumpIfFalse, Position: cs.Token.Position})
+				c.emit(Instruction{Op: OpPop, Position: cs.Token.Position})
+				if err := c.compileExpression(cs.Body); err != nil {
+					return err
+				}
+				j := c.emit(Instruction{Op: OpJump, Position: cs.Token.Position})
+				endJumps = append(endJumps, j)
+				c.patchJump(guardJump, len(c.chunk.Instructions))
+				continue
+			}
+			c.emit(Instruction{Op: OpPop, Position: cs.Token.Position})
+			if err := c.compileExpression(cs.Body); err != nil {
+				return err
+			}
+			j := c.emit(Instruction{Op: OpJump, Position: cs.Token.Position})
+			endJumps = append(endJumps, j)
+			continue
+		}
+
+		// Compare scrutinee with literal-like pattern
+		c.emit(Instruction{Op: OpDup, Position: cs.Token.Position})
+		if err := c.compilePatternValue(pat); err != nil {
+			return err
+		}
+		c.emit(Instruction{Op: OpEqual, Position: cs.Token.Position})
+		nextCaseJump := c.emit(Instruction{Op: OpJumpIfFalse, Position: cs.Token.Position})
+
+		if cs.Guard != nil {
+			if err := c.compileExpression(cs.Guard); err != nil {
+				return err
+			}
+			guardJump := c.emit(Instruction{Op: OpJumpIfFalse, Position: cs.Token.Position})
+			c.emit(Instruction{Op: OpPop, Position: cs.Token.Position})
+			if err := c.compileExpression(cs.Body); err != nil {
+				return err
+			}
+			j := c.emit(Instruction{Op: OpJump, Position: cs.Token.Position})
+			endJumps = append(endJumps, j)
+			c.patchJump(guardJump, len(c.chunk.Instructions))
+			c.patchJump(nextCaseJump, len(c.chunk.Instructions))
+			continue
+		}
+
+		// Matched: consume scrutinee and run body
+		c.emit(Instruction{Op: OpPop, Position: cs.Token.Position})
+		if err := c.compileExpression(cs.Body); err != nil {
+			return err
+		}
+		j := c.emit(Instruction{Op: OpJump, Position: cs.Token.Position})
+		endJumps = append(endJumps, j)
+		c.patchJump(nextCaseJump, len(c.chunk.Instructions))
+	}
+
+	// No case matched: consume scrutinee and produce nil.
+	c.emit(Instruction{Op: OpPop, Position: node.Token.Position})
+	c.emit(Instruction{Op: OpNil, Position: node.Token.Position})
+
+	end := len(c.chunk.Instructions)
+	for _, j := range endJumps {
+		c.patchJump(j, end)
+	}
+	return nil
+}
+
+func (c *compiler) compilePatternValue(pattern ast.MatchPattern) error {
+	switch p := pattern.(type) {
+	case *ast.LiteralPattern:
+		return c.compileExpression(p.Value)
+	default:
+		return fmt.Errorf("vm compile error: unsupported match pattern %T", pattern)
+	}
 }

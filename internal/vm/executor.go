@@ -155,6 +155,13 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 				return errObj
 			}
 			e.push(value)
+		case OpDup:
+			val, ok := e.pop()
+			if !ok {
+				return e.errorAt(ins.Position, "stack underflow for dup")
+			}
+			e.push(val)
+			e.push(val)
 		case OpAdd, OpSub, OpMul, OpDiv, OpEqual, OpNotEqual, OpGreaterThan, OpLessThan:
 			if errObj := e.evalBinary(ins.Op, ins.Position); errObj != nil {
 				return errObj

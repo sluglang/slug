@@ -18,6 +18,7 @@ const (
 	OpSlice
 	OpIndex
 	OpIndexDot
+	OpDup
 	OpAdd
 	OpSub
 	OpMul

@@ -55,7 +55,7 @@ func TestExecutorIfExpression(t *testing.T) {
 }
 
 func TestExecutorUnsupportedExpression(t *testing.T) {
-	got := runVM(t, "match 1 { 1 => 2 }")
+	got := runVM(t, "spawn { 1 }")
 	if got.Type() != object.ERROR_OBJ {
 		t.Fatalf("expected error object, got %T (%s)", got, got.Inspect())
 	}
@@ -235,5 +235,27 @@ func TestExecutorFunctionVariadicParameter(t *testing.T) {
 	}
 	if num.Value.String() != "3" {
 		t.Fatalf("expected 3, got %s", num.Value.String())
+	}
+}
+
+func TestExecutorMatchLiteralAndWildcard(t *testing.T) {
+	got := runVM(t, "match 2 {\n2 => { 20 }\n_ => { 30 }\n}")
+	num, ok := got.(*object.Number)
+	if !ok {
+		t.Fatalf("expected *object.Number, got %T (%s)", got, got.Inspect())
+	}
+	if num.Value.String() != "20" {
+		t.Fatalf("expected 20, got %s", num.Value.String())
+	}
+}
+
+func TestExecutorMatchWithGuard(t *testing.T) {
+	got := runVM(t, "match 2 {\n2 if false => { 20 }\n2 if true => { 25 }\n_ => { 30 }\n}")
+	num, ok := got.(*object.Number)
+	if !ok {
+		t.Fatalf("expected *object.Number, got %T (%s)", got, got.Inspect())
+	}
+	if num.Value.String() != "25" {
+		t.Fatalf("expected 25, got %s", num.Value.String())
 	}
 }
