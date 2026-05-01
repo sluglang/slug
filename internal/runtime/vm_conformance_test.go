@@ -13,8 +13,8 @@ import (
 
 func TestVMConformanceFixtures(t *testing.T) {
 	root := repoRoot(t)
-	fixturesDir := filepath.Join(root, "tests", "vm-conformance")
-	entries, err := os.ReadDir(fixturesDir)
+	supportedDir := filepath.Join(root, "tests", "vm-conformance", "supported")
+	entries, err := os.ReadDir(supportedDir)
 	if err != nil {
 		t.Fatalf("read fixtures dir: %v", err)
 	}
@@ -25,7 +25,7 @@ func TestVMConformanceFixtures(t *testing.T) {
 		}
 		name := entry.Name()
 		t.Run(name, func(t *testing.T) {
-			path := filepath.Join(fixturesDir, name)
+			path := filepath.Join(supportedDir, name)
 			sourceBytes, err := os.ReadFile(path)
 			if err != nil {
 				t.Fatalf("read fixture %s: %v", name, err)
@@ -35,11 +35,45 @@ func TestVMConformanceFixtures(t *testing.T) {
 			treewalk := runProgramForConformance(t, RuntimeTreewalk, path, source)
 			vm := runProgramForConformance(t, RuntimeVM, path, source)
 
-			if (treewalk.Type() == object.ERROR_OBJ) != (vm.Type() == object.ERROR_OBJ) {
-				t.Fatalf("error-state mismatch treewalk=%T vm=%T\n--- treewalk ---\n%s\n--- vm ---\n%s", treewalk, vm, treewalk.Inspect(), vm.Inspect())
+			if treewalk.Type() == object.ERROR_OBJ || vm.Type() == object.ERROR_OBJ {
+				t.Fatalf("supported fixture must succeed in both runtimes treewalk=%T vm=%T\n--- treewalk ---\n%s\n--- vm ---\n%s", treewalk, vm, treewalk.Inspect(), vm.Inspect())
 			}
 			if treewalk.Inspect() != vm.Inspect() {
 				t.Fatalf("inspect mismatch\n--- treewalk ---\n%s\n--- vm ---\n%s", treewalk.Inspect(), vm.Inspect())
+			}
+		})
+	}
+}
+
+func TestVMKnownUnsupportedFixtures(t *testing.T) {
+	root := repoRoot(t)
+	unsupportedDir := filepath.Join(root, "tests", "vm-conformance", "known-unsupported")
+	entries, err := os.ReadDir(unsupportedDir)
+	if err != nil {
+		t.Fatalf("read unsupported fixtures dir: %v", err)
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".slug") {
+			continue
+		}
+		name := entry.Name()
+		t.Run(name, func(t *testing.T) {
+			path := filepath.Join(unsupportedDir, name)
+			sourceBytes, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatalf("read fixture %s: %v", name, err)
+			}
+			source := string(sourceBytes)
+
+			treewalk := runProgramForConformance(t, RuntimeTreewalk, path, source)
+			if treewalk.Type() == object.ERROR_OBJ {
+				t.Fatalf("unsupported fixture must succeed on treewalk, got error:\n%s", treewalk.Inspect())
+			}
+
+			vm := runProgramForConformance(t, RuntimeVM, path, source)
+			if vm.Type() != object.ERROR_OBJ {
+				t.Fatalf("unsupported fixture expected VM error, got %T (%s)", vm, vm.Inspect())
 			}
 		})
 	}

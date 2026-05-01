@@ -1,0 +1,5 @@
+val mods = import("mod.simple")
+val inc = mods[:inc]
+val forty = mods[:forty]
+inc(forty + 1)
+

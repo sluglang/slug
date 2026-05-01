@@ -52,6 +52,10 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 			if !ok {
 				return e.errorAt(ins.Position, "identifier not found: %s", ins.StrArg)
 			}
+			val, errObj := e.resolveValue(ins.Position, val)
+			if errObj != nil {
+				return errObj
+			}
 			e.push(val)
 		case OpSetGlobalConst:
 			val, ok := e.pop()
@@ -143,6 +147,10 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 				return e.errorAt(ins.Position, "stack underflow for indexed value")
 			}
 			value, errObj := e.evalIndex(left, index, ins.Position, ins.Op == OpIndexDot)
+			if errObj != nil {
+				return errObj
+			}
+			value, errObj = e.resolveValue(ins.Position, value)
 			if errObj != nil {
 				return errObj
 			}
@@ -506,6 +514,26 @@ func computeSliceIndices(length int, slice *object.Slice) (int, int, int) {
 	}
 
 	return start, end, step
+}
+
+func (e *Executor) resolveValue(pos int, obj object.Object) (object.Object, *object.Error) {
+	for {
+		ref, ok := obj.(*object.BindingRef)
+		if !ok {
+			return obj, nil
+		}
+		if ref.Env == nil {
+			return nil, e.errorAt(pos, "invalid binding reference: %s", ref.Inspect())
+		}
+		val, _, ok := ref.Env.GetLocalBindingValue(ref.Name)
+		if !ok {
+			return nil, e.errorAt(pos, "binding reference not found: %s", ref.Name)
+		}
+		if val == object.BINDING_UNINITIALIZED {
+			return nil, e.errorAt(pos, "%s used before initialization (likely circular import)", ref.Name)
+		}
+		obj = val
+	}
 }
 
 func objectsEqual(a, b object.Object) bool {
