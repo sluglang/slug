@@ -1,0 +1,3 @@
+val add1 = fn(a = 41) { a + 1 }
+add1()
+

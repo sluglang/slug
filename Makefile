@@ -41,6 +41,9 @@ test:
 #	go run ./cmd/app/main.go -log-level error --root . test \
 #		$(shell find './test-suites' -name "*.slug" | sort) || exit 1
 
+test-vm-conformance:
+	go test ./internal/runtime -run 'TestVMConformanceFixtures|TestVMKnownUnsupportedFixtures' -count=1
+
 lc: clean
 	cloc  --exclude-dir=.idea --read-lang-def=slug_cloc_definition.txt .
 
