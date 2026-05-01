@@ -79,6 +79,40 @@ func TestVMKnownUnsupportedFixtures(t *testing.T) {
 	}
 }
 
+func TestVMConformanceErrorParityFixtures(t *testing.T) {
+	root := repoRoot(t)
+	errorDir := filepath.Join(root, "tests", "vm-conformance", "error-parity")
+	entries, err := os.ReadDir(errorDir)
+	if err != nil {
+		t.Fatalf("read error-parity fixtures dir: %v", err)
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".slug") {
+			continue
+		}
+		name := entry.Name()
+		t.Run(name, func(t *testing.T) {
+			path := filepath.Join(errorDir, name)
+			sourceBytes, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatalf("read fixture %s: %v", name, err)
+			}
+			source := string(sourceBytes)
+
+			treewalk := runProgramForConformance(t, RuntimeTreewalk, path, source)
+			vm := runProgramForConformance(t, RuntimeVM, path, source)
+
+			if treewalk.Type() != object.ERROR_OBJ {
+				t.Fatalf("error-parity fixture must fail on treewalk, got %T (%s)", treewalk, treewalk.Inspect())
+			}
+			if vm.Type() != object.ERROR_OBJ {
+				t.Fatalf("error-parity fixture must fail on vm, got %T (%s)", vm, vm.Inspect())
+			}
+		})
+	}
+}
+
 func runProgramForConformance(t *testing.T, mode, scriptPath, source string) object.Object {
 	t.Helper()
 
