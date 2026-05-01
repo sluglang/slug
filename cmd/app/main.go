@@ -26,6 +26,7 @@ var (
 	logSource bool
 	// config vars
 	rootPath     string
+	runtimeMode  string
 	debugJsonAST bool
 	debugTxtAST  bool
 )
@@ -37,6 +38,7 @@ func init() {
 	flag.BoolVar(&version, "v", false, "Display version information and exit")
 	// evaluator config
 	flag.StringVar(&rootPath, "root", "", "Set the root context for the program (used for imports)")
+	flag.StringVar(&runtimeMode, "runtime", runtime.RuntimeTreewalk, "Runtime backend: treewalk or vm")
 	// parser config
 	flag.BoolVar(&debugJsonAST, "debug-json-ast", false, "Render the AST as a JSON file")
 	flag.BoolVar(&debugTxtAST, "debug-txt-ast", false, "Render the AST as a TXT file")
@@ -99,6 +101,7 @@ func main() {
 		ProjectRoot:  filepath.Clean(projectRoot),
 		Cwd:          filepath.Clean(processCwd),
 		SlugHome:     os.Getenv("SLUG_HOME"),
+		RuntimeMode:  runtimeMode,
 		DebugJsonAST: debugJsonAST,
 		DebugTxtAST:  debugTxtAST,
 		DefaultLimit: max(stdrt.NumCPU()*2, 4),
@@ -119,7 +122,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	// 5. Initialize Task & Environment
+	normalizedMode, err := runtime.NormalizeRuntimeMode(config.RuntimeMode)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+	config.RuntimeMode = normalizedMode
+
+	// 5. Initialize Runtime & Environment
 	env := object.NewRootEnvironment(config.DefaultLimit)
 
 	// Ensure stacktraces have file/source context for line/column lookup.
@@ -142,31 +152,8 @@ func main() {
 		Doc:     program.ModuleDoc,
 		HasDoc:  program.HasModuleDoc,
 	}
-	eval := &runtime.Task{
-		Runtime: rt,
-	}
-	eval.PushNurseryScope(&runtime.NurseryScope{
-		Limit: make(chan struct{}, config.DefaultLimit),
-	})
-	eval.PushEnv(env)
-
 	// 6. Execute
-	result := eval.Eval(program)
-	if result == nil || result.Type() != object.ERROR_OBJ {
-		entrypoint, err := runtime.FindMainEntrypoint(env)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Slug Error:\n%s\n", err.Error())
-			os.Exit(1)
-		}
-		if entrypoint != nil {
-			result = eval.ApplyFunction(0, "@main", entrypoint, nil, nil)
-		}
-	}
-	// make sure defers execute
-	result = eval.PopEnv(result)
-	if eval.CurrentEnvStackSize() != 0 {
-		panic("environment stack not empty after evaluation")
-	}
+	result := runtime.ExecuteProgram(config.RuntimeMode, rt, env, program)
 
 	// 7. Handle Result/Errors
 	if result != nil {

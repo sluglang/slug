@@ -15,6 +15,7 @@ type Configuration struct {
 	Cwd          string
 	SlugHome     string
 	Argv         []string
+	RuntimeMode  string
 	DebugJsonAST bool
 	DebugTxtAST  bool
 	DefaultLimit int
