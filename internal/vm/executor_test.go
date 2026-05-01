@@ -104,3 +104,21 @@ func TestExecutorShortCircuitAndOr(t *testing.T) {
 		t.Fatalf("expected 0, got %s", num.Value.String())
 	}
 }
+
+func TestExecutorNamedArgumentsVMFunction(t *testing.T) {
+	got := runVM(t, "val sub = fn(a, b) { a - b }\nsub(b = 2, a = 9)")
+	num, ok := got.(*object.Number)
+	if !ok {
+		t.Fatalf("expected *object.Number, got %T (%s)", got, got.Inspect())
+	}
+	if num.Value.String() != "7" {
+		t.Fatalf("expected 7, got %s", num.Value.String())
+	}
+}
+
+func TestExecutorPositionalAfterNamedRejected(t *testing.T) {
+	got := runVM(t, "val sub = fn(a, b) { a - b }\nsub(a = 9, 2)")
+	if got.Type() != object.ERROR_OBJ {
+		t.Fatalf("expected error object, got %T (%s)", got, got.Inspect())
+	}
+}

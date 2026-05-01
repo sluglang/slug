@@ -34,7 +34,21 @@ type Instruction struct {
 	Op       Opcode
 	IntArg   int
 	StrArg   string
+	CallPlan []CallArgSpec
 	Position int
+}
+
+type CallArgKind byte
+
+const (
+	CallArgPositional CallArgKind = iota
+	CallArgNamed
+	CallArgSpread
+)
+
+type CallArgSpec struct {
+	Kind CallArgKind
+	Name string
 }
 
 type Chunk struct {

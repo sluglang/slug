@@ -10,12 +10,12 @@ import (
 type Executor struct {
 	env          *object.Environment
 	stack        []object.Object
-	externalCall func(pos int, callee object.Object, args []object.Object) object.Object
+	externalCall func(pos int, callee object.Object, positional []object.Object, named map[string]object.Object) object.Object
 }
 
 func NewExecutor(
 	env *object.Environment,
-	externalCall func(pos int, callee object.Object, args []object.Object) object.Object,
+	externalCall func(pos int, callee object.Object, positional []object.Object, named map[string]object.Object) object.Object,
 ) *Executor {
 	return &Executor{
 		env:          env,
@@ -123,7 +123,7 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 				ip = ins.IntArg - 1
 			}
 		case OpCall:
-			if errObj := e.evalCall(ins.IntArg, ins.Position); errObj != nil {
+			if errObj := e.evalCall(ins.IntArg, ins.CallPlan, ins.Position); errObj != nil {
 				return errObj
 			}
 		case OpReturn:
@@ -244,9 +244,12 @@ func (e *Executor) bindClosureIfNeeded(obj object.Object) object.Object {
 	}
 }
 
-func (e *Executor) evalCall(argCount int, pos int) object.Object {
+func (e *Executor) evalCall(argCount int, plan []CallArgSpec, pos int) object.Object {
 	if argCount < 0 {
 		return e.errorAt(pos, "invalid call arity")
+	}
+	if len(plan) != argCount {
+		return e.errorAt(pos, "invalid call metadata: expected %d args in plan, got %d", argCount, len(plan))
 	}
 	args := make([]object.Object, argCount)
 	for i := argCount - 1; i >= 0; i-- {
@@ -261,12 +264,38 @@ func (e *Executor) evalCall(argCount int, pos int) object.Object {
 		return e.errorAt(pos, "stack underflow for callee")
 	}
 
+	positional := make([]object.Object, 0, argCount)
+	var named map[string]object.Object
+	for i, spec := range plan {
+		val := args[i]
+		switch spec.Kind {
+		case CallArgPositional:
+			positional = append(positional, val)
+		case CallArgSpread:
+			list, ok := val.(*object.List)
+			if !ok {
+				return e.errorAt(pos, "spread operator can only be used on lists, got %s", val.Type())
+			}
+			positional = append(positional, list.Elements...)
+		case CallArgNamed:
+			if named == nil {
+				named = make(map[string]object.Object)
+			}
+			if _, exists := named[spec.Name]; exists {
+				return e.errorAt(pos, "duplicate named argument: %s", spec.Name)
+			}
+			named[spec.Name] = val
+		default:
+			return e.errorAt(pos, "invalid call argument kind: %d", spec.Kind)
+		}
+	}
+
 	fn, ok := callee.(*VMFunction)
 	if !ok {
 		if e.externalCall == nil {
 			return e.errorAt(pos, "attempted to call non-vm function value (%s)", callee.Type())
 		}
-		result := e.externalCall(pos, callee, args)
+		result := e.externalCall(pos, callee, positional, named)
 		if result == nil {
 			result = object.NIL
 		}
@@ -276,8 +305,10 @@ func (e *Executor) evalCall(argCount int, pos int) object.Object {
 		e.push(result)
 		return nil
 	}
-	if len(args) != len(fn.Params) {
-		return e.errorAt(pos, "arity mismatch: expected %d args, got %d", len(fn.Params), len(args))
+
+	bound, errObj := bindVMArguments(fn, positional, named, pos, e)
+	if errObj != nil {
+		return errObj
 	}
 
 	closure := fn.Closure
@@ -286,7 +317,7 @@ func (e *Executor) evalCall(argCount int, pos int) object.Object {
 	}
 	callEnv := object.NewEnclosedEnvironment(closure, nil)
 	for i, p := range fn.Params {
-		if _, err := callEnv.DefineConstant(p, args[i], false, false); err != nil {
+		if _, err := callEnv.DefineConstant(p, bound[i], false, false); err != nil {
 			return e.errorAt(pos, "%s", err.Error())
 		}
 	}
@@ -301,6 +332,59 @@ func (e *Executor) evalCall(argCount int, pos int) object.Object {
 	}
 	e.push(result)
 	return nil
+}
+
+func bindVMArguments(
+	fn *VMFunction,
+	positional []object.Object,
+	named map[string]object.Object,
+	pos int,
+	e *Executor,
+) ([]object.Object, *object.Error) {
+	paramCount := len(fn.Params)
+	values := make([]object.Object, paramCount)
+	provided := make([]bool, paramCount)
+
+	if len(named) > 0 {
+		index := make(map[string]int, paramCount)
+		for i, name := range fn.Params {
+			index[name] = i
+		}
+		for name, val := range named {
+			idx, ok := index[name]
+			if !ok {
+				return nil, e.errorAt(pos, "unknown named parameter: %s", name)
+			}
+			if provided[idx] {
+				return nil, e.errorAt(pos, "duplicate assignment to parameter: %s", name)
+			}
+			values[idx] = val
+			provided[idx] = true
+		}
+	}
+
+	posIndex := 0
+	for i := 0; i < paramCount; i++ {
+		if posIndex >= len(positional) {
+			break
+		}
+		if provided[i] {
+			continue
+		}
+		values[i] = positional[posIndex]
+		provided[i] = true
+		posIndex++
+	}
+	if posIndex < len(positional) {
+		return nil, e.errorAt(pos, "too many positional arguments")
+	}
+
+	for i, ok := range provided {
+		if !ok {
+			return nil, e.errorAt(pos, "missing required parameter: %s", fn.Params[i])
+		}
+	}
+	return values, nil
 }
 
 func (e *Executor) errorAt(pos int, format string, args ...interface{}) *object.Error {

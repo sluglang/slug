@@ -178,15 +178,40 @@ func (c *compiler) compileExpression(expr ast.Expression) error {
 		if err := c.compileExpression(node.Function); err != nil {
 			return err
 		}
+		plan := make([]CallArgSpec, 0, len(node.Arguments))
+		sawNamed := false
 		for _, arg := range node.Arguments {
-			if _, ok := arg.(*ast.NamedArgument); ok {
-				return fmt.Errorf("vm compile error at %d: named arguments are not yet supported", node.Token.Position)
-			}
-			if err := c.compileExpression(arg); err != nil {
-				return err
+			switch a := arg.(type) {
+			case *ast.NamedArgument:
+				sawNamed = true
+				if err := c.compileExpression(a.Value); err != nil {
+					return err
+				}
+				plan = append(plan, CallArgSpec{Kind: CallArgNamed, Name: a.Name.Value})
+			case *ast.SpreadExpression:
+				if sawNamed {
+					return fmt.Errorf("vm compile error at %d: positional arguments must appear before named arguments", a.Token.Position)
+				}
+				if err := c.compileExpression(a.Value); err != nil {
+					return err
+				}
+				plan = append(plan, CallArgSpec{Kind: CallArgSpread})
+			default:
+				if sawNamed {
+					return fmt.Errorf("vm compile error at %d: positional arguments must appear before named arguments", node.Token.Position)
+				}
+				if err := c.compileExpression(arg); err != nil {
+					return err
+				}
+				plan = append(plan, CallArgSpec{Kind: CallArgPositional})
 			}
 		}
-		c.emit(Instruction{Op: OpCall, IntArg: len(node.Arguments), Position: node.Token.Position})
+		c.emit(Instruction{
+			Op:       OpCall,
+			IntArg:   len(node.Arguments),
+			CallPlan: plan,
+			Position: node.Token.Position,
+		})
 		return nil
 	default:
 		return unsupportedNodeErr("expression", expr)

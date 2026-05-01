@@ -55,8 +55,8 @@ func installBuiltinsIntoEnv(rt *Runtime, env *object.Environment) {
 	}
 }
 
-func makeVMCallBridge(rt *Runtime, env *object.Environment) func(pos int, callee object.Object, args []object.Object) object.Object {
-	return func(pos int, callee object.Object, args []object.Object) object.Object {
+func makeVMCallBridge(rt *Runtime, env *object.Environment) func(pos int, callee object.Object, positional []object.Object, named map[string]object.Object) object.Object {
+	return func(pos int, callee object.Object, positional []object.Object, named map[string]object.Object) object.Object {
 		task := &Task{
 			Runtime: rt,
 		}
@@ -64,7 +64,7 @@ func makeVMCallBridge(rt *Runtime, env *object.Environment) func(pos int, callee
 			Limit: make(chan struct{}, rt.Config.DefaultLimit),
 		})
 		task.PushEnv(env)
-		out := task.ApplyFunction(pos, "<vm>", callee, args, nil)
+		out := task.ApplyFunction(pos, "<vm>", callee, positional, named)
 		out = task.PopEnv(out)
 		return out
 	}
