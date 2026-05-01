@@ -208,6 +208,18 @@ func (c *compiler) compileExpression(expr ast.Expression) error {
 		}
 		c.emit(Instruction{Op: op, Position: node.Token.Position})
 		return nil
+	case *ast.SliceExpression:
+		if err := c.compileMaybeExpression(node.Start); err != nil {
+			return err
+		}
+		if err := c.compileMaybeExpression(node.End); err != nil {
+			return err
+		}
+		if err := c.compileMaybeExpression(node.Step); err != nil {
+			return err
+		}
+		c.emit(Instruction{Op: OpSlice, Position: node.Token.Position})
+		return nil
 	case *ast.FunctionLiteral:
 		fnObj, err := c.compileFunctionLiteral(node)
 		if err != nil {
@@ -258,6 +270,14 @@ func (c *compiler) compileExpression(expr ast.Expression) error {
 	default:
 		return unsupportedNodeErr("expression", expr)
 	}
+}
+
+func (c *compiler) compileMaybeExpression(expr ast.Expression) error {
+	if expr == nil {
+		c.emit(Instruction{Op: OpNil})
+		return nil
+	}
+	return c.compileExpression(expr)
 }
 
 func (c *compiler) compileBlock(block *ast.BlockStatement) error {

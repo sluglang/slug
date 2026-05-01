@@ -5,6 +5,7 @@ import (
 	"slug/internal/ast"
 	"slug/internal/dec64"
 	"slug/internal/object"
+	"strings"
 )
 
 type Executor struct {
@@ -114,6 +115,24 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 				pairs[mapKey] = object.MapPair{Key: keyObj, Value: value}
 			}
 			e.push(&object.Map{Pairs: pairs})
+		case OpSlice:
+			step, ok := e.pop()
+			if !ok {
+				return e.errorAt(ins.Position, "stack underflow for slice step")
+			}
+			end, ok := e.pop()
+			if !ok {
+				return e.errorAt(ins.Position, "stack underflow for slice end")
+			}
+			start, ok := e.pop()
+			if !ok {
+				return e.errorAt(ins.Position, "stack underflow for slice start")
+			}
+			e.push(&object.Slice{
+				Start: nilIfNilObject(start),
+				End:   nilIfNilObject(end),
+				Step:  nilIfNilObject(step),
+			})
 		case OpIndex, OpIndexDot:
 			index, ok := e.pop()
 			if !ok {
@@ -448,9 +467,58 @@ func isTruthy(obj object.Object) bool {
 	return obj != object.FALSE && obj != object.NIL
 }
 
+func nilIfNilObject(v object.Object) object.Object {
+	if v == object.NIL {
+		return nil
+	}
+	return v
+}
+
+func computeSliceIndices(length int, slice *object.Slice) (int, int, int) {
+	start := 0
+	end := length
+	step := 1
+
+	if slice.Start != nil {
+		start = int(slice.Start.(*object.Number).Value.ToInt64())
+	}
+	if slice.End != nil {
+		end = int(slice.End.(*object.Number).Value.ToInt64())
+	}
+	if slice.Step != nil {
+		step = int(slice.Step.(*object.Number).Value.ToInt64())
+	}
+
+	if start < 0 {
+		start += length
+	}
+	if end < 0 {
+		end += length
+	}
+	if start < 0 {
+		start = 0
+	}
+	if end > length {
+		end = length
+	}
+	if step <= 0 {
+		step = 1
+	}
+
+	return start, end, step
+}
+
 func (e *Executor) evalIndex(left, index object.Object, pos int, isDotLookup bool) (object.Object, *object.Error) {
 	switch l := left.(type) {
 	case *object.List:
+		if slice, ok := index.(*object.Slice); ok {
+			start, end, step := computeSliceIndices(len(l.Elements), slice)
+			result := make([]object.Object, 0)
+			for i := start; i < end; i += step {
+				result = append(result, l.Elements[i])
+			}
+			return &object.List{Elements: result}, nil
+		}
 		num, ok := index.(*object.Number)
 		if !ok {
 			return nil, e.errorAt(pos, "index operator not supported: %s", index.Type())
@@ -465,6 +533,15 @@ func (e *Executor) evalIndex(left, index object.Object, pos int, isDotLookup boo
 		}
 		return l.Elements[idx], nil
 	case *object.String:
+		if slice, ok := index.(*object.Slice); ok {
+			runes := []rune(l.Value)
+			start, end, step := computeSliceIndices(len(runes), slice)
+			var b strings.Builder
+			for i := start; i < end; i += step {
+				b.WriteRune(runes[i])
+			}
+			return &object.String{Value: b.String()}, nil
+		}
 		num, ok := index.(*object.Number)
 		if !ok {
 			return nil, e.errorAt(pos, "index operator not supported: %s", index.Type())
@@ -480,6 +557,14 @@ func (e *Executor) evalIndex(left, index object.Object, pos int, isDotLookup boo
 		}
 		return &object.String{Value: string(runes[idx])}, nil
 	case *object.Bytes:
+		if slice, ok := index.(*object.Slice); ok {
+			start, end, step := computeSliceIndices(len(l.Value), slice)
+			result := make([]byte, 0)
+			for i := start; i < end; i += step {
+				result = append(result, l.Value[i])
+			}
+			return &object.Bytes{Value: result}, nil
+		}
 		num, ok := index.(*object.Number)
 		if !ok {
 			return nil, e.errorAt(pos, "index operator not supported: %s", index.Type())

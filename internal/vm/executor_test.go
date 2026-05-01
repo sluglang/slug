@@ -153,6 +153,26 @@ func TestExecutorListStringBytesIndexing(t *testing.T) {
 	}
 }
 
+func TestExecutorListStringBytesSlicing(t *testing.T) {
+	tests := []struct {
+		code string
+		want string
+	}{
+		{code: "[10, 20, 30, 40][1:3]", want: "[20, 30]"},
+		{code: "\"slug\"[1:]", want: "lug"},
+		{code: "\"slug\"[0:-1]", want: "slu"},
+		{code: "0x\"01020304\"[1:4:2]", want: "0x\"0204\""},
+		{code: "[1,2,3,4,5][0:5:2]", want: "[1, 3, 5]"},
+	}
+
+	for _, tt := range tests {
+		got := runVM(t, tt.code)
+		if got.Inspect() != tt.want {
+			t.Fatalf("for %q expected %q got %q", tt.code, tt.want, got.Inspect())
+		}
+	}
+}
+
 func TestExecutorMapLiteralAndIndex(t *testing.T) {
 	tests := []struct {
 		code string

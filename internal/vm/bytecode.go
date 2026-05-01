@@ -15,6 +15,7 @@ const (
 	OpAssignGlobal
 	OpArray
 	OpHash
+	OpSlice
 	OpIndex
 	OpIndexDot
 	OpAdd
