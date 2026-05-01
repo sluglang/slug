@@ -169,6 +169,10 @@ func canonicalErrorSignature(inspect string) string {
 
 	category := "other"
 	switch {
+	case strings.Contains(lower, "failed to import"),
+		strings.Contains(lower, "could not load module"),
+		strings.Contains(lower, "parse errors in module"):
+		category = "import-load"
 	case strings.Contains(lower, "identifier not found"):
 		category = "identifier-not-found"
 	case strings.Contains(lower, "failed to assign to val"):
@@ -181,7 +185,7 @@ func canonicalErrorSignature(inspect string) string {
 	}
 
 	switch category {
-	case "identifier-not-found", "assign-to-val", "call-arity", "map-key-type":
+	case "identifier-not-found", "assign-to-val", "call-arity", "map-key-type", "import-load":
 		return category
 	default:
 		return category + "::" + normalized
