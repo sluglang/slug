@@ -17,7 +17,7 @@ func runVM(t *testing.T, input string) object.Object {
 		t.Fatalf("parse errors: %v", p.Errors())
 	}
 
-	exec := NewExecutor(object.NewRootEnvironment(4))
+	exec := NewExecutor(object.NewRootEnvironment(4), nil)
 	return exec.EvalProgram(program)
 }
 

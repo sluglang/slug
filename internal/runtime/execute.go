@@ -10,7 +10,8 @@ import (
 func ExecuteProgram(mode string, rt *Runtime, env *object.Environment, program *ast.Program) object.Object {
 	switch mode {
 	case RuntimeVM:
-		exec := vm.NewExecutor(env)
+		installBuiltinsIntoEnv(rt, env)
+		exec := vm.NewExecutor(env, makeVMCallBridge(rt, env))
 		return exec.EvalProgram(program)
 	default:
 		task := &Task{
@@ -35,5 +36,36 @@ func ExecuteProgram(mode string, rt *Runtime, env *object.Environment, program *
 			panic("environment stack not empty after evaluation")
 		}
 		return result
+	}
+}
+
+func installBuiltinsIntoEnv(rt *Runtime, env *object.Environment) {
+	for name, fn := range rt.Builtins {
+		if _, ok := env.Get(name); ok {
+			continue
+		}
+		env.Bindings[name] = &object.Binding{
+			Value:     fn,
+			IsMutable: false,
+			Meta: object.Meta{
+				IsImport: false,
+				IsExport: false,
+			},
+		}
+	}
+}
+
+func makeVMCallBridge(rt *Runtime, env *object.Environment) func(pos int, callee object.Object, args []object.Object) object.Object {
+	return func(pos int, callee object.Object, args []object.Object) object.Object {
+		task := &Task{
+			Runtime: rt,
+		}
+		task.PushNurseryScope(&NurseryScope{
+			Limit: make(chan struct{}, rt.Config.DefaultLimit),
+		})
+		task.PushEnv(env)
+		out := task.ApplyFunction(pos, "<vm>", callee, args, nil)
+		out = task.PopEnv(out)
+		return out
 	}
 }

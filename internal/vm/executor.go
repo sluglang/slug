@@ -8,12 +8,19 @@ import (
 )
 
 type Executor struct {
-	env   *object.Environment
-	stack []object.Object
+	env          *object.Environment
+	stack        []object.Object
+	externalCall func(pos int, callee object.Object, args []object.Object) object.Object
 }
 
-func NewExecutor(env *object.Environment) *Executor {
-	return &Executor{env: env}
+func NewExecutor(
+	env *object.Environment,
+	externalCall func(pos int, callee object.Object, args []object.Object) object.Object,
+) *Executor {
+	return &Executor{
+		env:          env,
+		externalCall: externalCall,
+	}
 }
 
 func (e *Executor) EvalProgram(program *ast.Program) object.Object {
@@ -256,7 +263,18 @@ func (e *Executor) evalCall(argCount int, pos int) object.Object {
 
 	fn, ok := callee.(*VMFunction)
 	if !ok {
-		return e.errorAt(pos, "attempted to call non-vm function value (%s)", callee.Type())
+		if e.externalCall == nil {
+			return e.errorAt(pos, "attempted to call non-vm function value (%s)", callee.Type())
+		}
+		result := e.externalCall(pos, callee, args)
+		if result == nil {
+			result = object.NIL
+		}
+		if result.Type() == object.ERROR_OBJ {
+			return result
+		}
+		e.push(result)
+		return nil
 	}
 	if len(args) != len(fn.Params) {
 		return e.errorAt(pos, "arity mismatch: expected %d args, got %d", len(fn.Params), len(args))
@@ -273,7 +291,7 @@ func (e *Executor) evalCall(argCount int, pos int) object.Object {
 		}
 	}
 
-	child := NewExecutor(callEnv)
+	child := NewExecutor(callEnv, e.externalCall)
 	result := child.run(fn.Chunk)
 	if result == nil {
 		result = object.NIL
