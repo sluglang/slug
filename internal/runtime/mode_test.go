@@ -9,10 +9,9 @@ func TestNormalizeRuntimeMode(t *testing.T) {
 		wantErr bool
 	}{
 		{in: "", want: RuntimeVM},
-		{in: "treewalk", want: RuntimeVM},
-		{in: "TREEWALK", want: RuntimeVM},
 		{in: "vm", want: RuntimeVM},
 		{in: " VM ", want: RuntimeVM},
+		{in: "treewalk", wantErr: true},
 		{in: "jit", wantErr: true},
 	}
 

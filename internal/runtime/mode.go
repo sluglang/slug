@@ -6,9 +6,7 @@ import (
 )
 
 const (
-	// RuntimeTreewalk is retained as a legacy alias during treewalker removal.
-	RuntimeTreewalk = "treewalk"
-	RuntimeVM       = "vm"
+	RuntimeVM = "vm"
 )
 
 func NormalizeRuntimeMode(mode string) (string, error) {
@@ -18,8 +16,6 @@ func NormalizeRuntimeMode(mode string) (string, error) {
 	}
 	switch normalized {
 	case RuntimeVM:
-		return RuntimeVM, nil
-	case RuntimeTreewalk:
 		return RuntimeVM, nil
 	default:
 		return "", fmt.Errorf("invalid runtime mode %q (expected %q)", mode, RuntimeVM)
