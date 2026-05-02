@@ -740,10 +740,9 @@ func (c *compiler) compileListPatternFromValue(p *ast.ListPattern, pos int, fail
 			}
 			c.emit(Instruction{Op: OpPop, Position: pos})
 		case *ast.MapPattern:
-			if err := c.compileBindPattern(ep, true, pos); err != nil {
+			if err := c.compileMapPatternFromValue(ep, pos, &localFailJumps); err != nil {
 				return err
 			}
-			c.emit(Instruction{Op: OpPop, Position: pos})
 		case *ast.PinnedIdentifierPattern:
 			c.emit(Instruction{Op: OpGetGlobal, StrArg: ep.Value.Value, Position: pos})
 			c.emit(Instruction{Op: OpEqual, Position: pos})
@@ -774,6 +773,69 @@ func (c *compiler) compileListPatternFromValue(p *ast.ListPattern, pos int, fail
 	c.emit(Instruction{Op: OpPop, Position: pos})
 	*failJumps = append(*failJumps, c.emit(Instruction{Op: OpJump, Position: pos}))
 	c.patchJump(doneJump, len(c.chunk.Instructions))
+	return nil
+}
+
+func (c *compiler) compileMapPatternFromValue(mp *ast.MapPattern, pos int, failJumps *[]int) error {
+	c.emit(Instruction{Op: OpDup, Position: pos})
+	if mp.Exact {
+		c.emit(Instruction{Op: OpMatchMapLenEq, IntArg: len(mp.Pairs), Position: pos})
+	} else if len(mp.Pairs) > 0 {
+		c.emit(Instruction{Op: OpMatchMapLenGte, IntArg: len(mp.Pairs), Position: pos})
+	} else if mp.Spread != nil || mp.SelectAll {
+		c.emit(Instruction{Op: OpMatchMapLenGte, IntArg: 0, Position: pos})
+	} else {
+		c.emit(Instruction{Op: OpMatchMapLenEq, IntArg: 0, Position: pos})
+	}
+	*failJumps = append(*failJumps, c.emit(Instruction{Op: OpJumpIfFalse, Position: pos}))
+
+	if mp.SelectAll {
+		c.emit(Instruction{Op: OpBindMapAllConst, Position: pos})
+	}
+
+	for _, entry := range mp.Pairs {
+		c.emit(Instruction{Op: OpDup, Position: pos})
+		if err := c.compileMapPatternKey(entry.Key, pos); err != nil {
+			return err
+		}
+		c.emit(Instruction{Op: OpMapHasKey, Position: pos})
+		*failJumps = append(*failJumps, c.emit(Instruction{Op: OpJumpIfFalse, Position: pos}))
+
+		c.emit(Instruction{Op: OpDup, Position: pos})
+		if err := c.compileMapPatternKey(entry.Key, pos); err != nil {
+			return err
+		}
+		c.emit(Instruction{Op: OpIndex, Position: pos})
+		switch ep := entry.Pattern.(type) {
+		case *ast.IdentifierPattern:
+			if err := c.compileBindPattern(ep, true, pos); err != nil {
+				return err
+			}
+			c.emit(Instruction{Op: OpPop, Position: pos})
+		case *ast.PinnedIdentifierPattern:
+			c.emit(Instruction{Op: OpGetGlobal, StrArg: ep.Value.Value, Position: pos})
+			c.emit(Instruction{Op: OpEqual, Position: pos})
+			*failJumps = append(*failJumps, c.emit(Instruction{Op: OpJumpIfFalse, Position: pos}))
+		case *ast.LiteralPattern:
+			if err := c.compileExpression(ep.Value); err != nil {
+				return err
+			}
+			c.emit(Instruction{Op: OpEqual, Position: pos})
+			*failJumps = append(*failJumps, c.emit(Instruction{Op: OpJumpIfFalse, Position: pos}))
+		case *ast.MapPattern:
+			if err := c.compileMapPatternFromValue(ep, pos, failJumps); err != nil {
+				return err
+			}
+		case *ast.ListPattern:
+			if err := c.compileListPatternFromValue(ep, pos, failJumps); err != nil {
+				return err
+			}
+		default:
+			return fmt.Errorf("vm compile error: unsupported map entry pattern %T", ep)
+		}
+	}
+
+	c.emit(Instruction{Op: OpPop, Position: pos})
 	return nil
 }
 
@@ -1006,10 +1068,9 @@ func (c *compiler) compileMatchExpression(node *ast.MatchExpression) error {
 					}
 					c.emit(Instruction{Op: OpPop, Position: cs.Token.Position})
 				case *ast.MapPattern:
-					if err := c.compileBindPattern(ep, true, cs.Token.Position); err != nil {
+					if err := c.compileMapPatternFromValue(ep, cs.Token.Position, &failJumps); err != nil {
 						return err
 					}
-					c.emit(Instruction{Op: OpPop, Position: cs.Token.Position})
 				case *ast.PinnedIdentifierPattern:
 					c.emit(Instruction{Op: OpGetGlobal, StrArg: ep.Value.Value, Position: cs.Token.Position})
 					c.emit(Instruction{Op: OpEqual, Position: cs.Token.Position})
