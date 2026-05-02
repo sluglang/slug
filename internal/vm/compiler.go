@@ -220,6 +220,8 @@ func (c *compiler) compileExpression(expr ast.Expression) error {
 		return nil
 	case *ast.MatchExpression:
 		return c.compileMatchExpression(node)
+	case *ast.SelectExpression:
+		return c.compileSelectExpression(node)
 	case *ast.SpawnExpression:
 		fnObj, err := c.compileSpawnBody(node)
 		if err != nil {
@@ -1248,6 +1250,29 @@ func (c *compiler) compileMatchExpression(node *ast.MatchExpression) error {
 	for _, j := range endJumps {
 		c.patchJump(j, end)
 	}
+	return nil
+}
+
+func (c *compiler) compileSelectExpression(node *ast.SelectExpression) error {
+	// Temporary lowering: delegate select scheduling semantics to treewalk via thunk call.
+	// This preserves concurrency behavior while native VM select opcodes are pending.
+	thunk := &object.Function{
+		Signature:  ast.FSig{Min: 0, Max: 0},
+		Parameters: []*ast.FunctionParameter{},
+		ParamIndex: map[string]int{},
+		Body: &ast.BlockStatement{
+			Token: node.Token,
+			Statements: []ast.Statement{
+				&ast.ExpressionStatement{
+					Token:      node.Token,
+					Expression: node,
+				},
+			},
+		},
+	}
+	idx := c.addConstant(thunk)
+	c.emit(Instruction{Op: OpConstant, IntArg: idx, Position: node.Token.Position})
+	c.emit(Instruction{Op: OpCall, IntArg: 0, CallPlan: []CallArgSpec{}, Position: node.Token.Position})
 	return nil
 }
 

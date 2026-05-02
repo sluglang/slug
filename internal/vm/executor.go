@@ -796,6 +796,9 @@ func (e *Executor) executeDeferredEntries(entries []vmDeferEntry, current object
 		}
 
 		if isError && ds.errorName != "" {
+			if e.env.Bindings == nil {
+				e.env.Bindings = make(map[string]*object.Binding)
+			}
 			e.env.Bindings[ds.errorName] = &object.Binding{
 				Value:     errorPayload,
 				Err:       activeRuntimeErr,
@@ -1301,19 +1304,33 @@ func (e *Executor) nativeBool(v bool) *object.Boolean {
 }
 
 func (e *Executor) bindClosureIfNeeded(obj object.Object) object.Object {
-	fn, ok := obj.(*VMFunction)
-	if !ok {
+	switch fn := obj.(type) {
+	case *VMFunction:
+		// Capture current lexical environment when function literal is evaluated.
+		return &VMFunction{
+			Name:       fn.Name,
+			Tags:       fn.Tags,
+			Params:     append([]VMParam(nil), fn.Params...),
+			Chunk:      fn.Chunk,
+			Closure:    e.env,
+			Signature:  fn.Signature,
+			Parameters: fn.Parameters,
+		}
+	case *object.Function:
+		if fn.Env != nil {
+			return obj
+		}
+		return &object.Function{
+			Signature:   fn.Signature,
+			Tags:        fn.Tags,
+			Parameters:  fn.Parameters,
+			ParamIndex:  fn.ParamIndex,
+			Body:        fn.Body,
+			Env:         e.env,
+			HasTailCall: fn.HasTailCall,
+		}
+	default:
 		return obj
-	}
-	// Capture current lexical environment when function literal is evaluated.
-	return &VMFunction{
-		Name:       fn.Name,
-		Tags:       fn.Tags,
-		Params:     append([]VMParam(nil), fn.Params...),
-		Chunk:      fn.Chunk,
-		Closure:    e.env,
-		Signature:  fn.Signature,
-		Parameters: fn.Parameters,
 	}
 }
 

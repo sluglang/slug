@@ -55,14 +55,17 @@ func nextEnvID() uint64 {
 // NewEnclosedEnvironment initializes an environment with a parent and optional stack frame.
 func NewEnclosedEnvironment(outer *Environment, stackFrame *StackFrame) *Environment {
 	slog.Debug("------ new env ------\n")
-	env := NewEnvironment()
-	env.Outer = outer
-	env.Path = outer.Path
-	env.LibRoot = outer.LibRoot
-	env.ModuleFqn = outer.ModuleFqn
-	env.Src = outer.Src
-	env.StackInfo = stackFrame
-	return env
+	return &Environment{
+		ID:        nextEnvID(),
+		Bindings:  nil,
+		Defers:    nil,
+		Outer:     outer,
+		Src:       outer.Src,
+		Path:      outer.Path,
+		LibRoot:   outer.LibRoot,
+		ModuleFqn: outer.ModuleFqn,
+		StackInfo: stackFrame,
+	}
 }
 
 func NewEnvironment() *Environment {
@@ -227,6 +230,9 @@ func mergeCallableIntoBinding(name string, binding *Binding, val Object) error {
 func (e *Environment) define(name string, val Object, isMutable bool, isExported bool, isImport bool) (Object, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if e.Bindings == nil {
+		e.Bindings = make(map[string]*Binding)
+	}
 	declaration := "val"
 	if isMutable {
 		declaration = "var"
@@ -416,6 +422,9 @@ func (e *Environment) ExecuteDeferred(result Object, evalFunc func(stmt ast.Stat
 		if shouldRun {
 			if isError && ds.Mode == ast.DeferOnError && ds.ErrorName != nil {
 				// Force bind the error variable in the current environment
+				if e.Bindings == nil {
+					e.Bindings = make(map[string]*Binding)
+				}
 				e.Bindings[ds.ErrorName.Value] = &Binding{
 					Value:     errorPayload,
 					Err:       activeRuntimeErr,
