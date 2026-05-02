@@ -12,6 +12,8 @@ import (
 	"slug/internal/object"
 	"slug/internal/parser"
 	"slug/internal/util"
+	"slug/internal/vm"
+	"strconv"
 	"strings"
 	"sync/atomic"
 )
@@ -188,6 +190,10 @@ func (r *Runtime) LoadModule(modName string) (*object.Module, error) {
 	// 5. Evaluate the module in its own environment
 	slog.Debug("loading module", slog.String("name", modName), slog.String("path", fullPath))
 
+	if r.useVMModuleLoader() {
+		return r.evalModuleWithVM(modName, module, moduleEnv, program)
+	}
+
 	e := &Task{
 		Runtime: r,
 	}
@@ -204,6 +210,45 @@ func (r *Runtime) LoadModule(modName string) (*object.Module, error) {
 	}
 
 	return module, nil
+}
+
+func (r *Runtime) evalModuleWithVM(modName string, module *object.Module, moduleEnv *object.Environment, program *ast.Program) (*object.Module, error) {
+	moduleEnv.Outer = moduleBuiltinsEnvironment(r, moduleEnv)
+	vmProgram, prepErr := prepareProgramForVM(r, moduleEnv, program)
+	if prepErr != nil {
+		return nil, fmt.Errorf("runtime error while loading module %s: %s", modName, prepErr.Error())
+	}
+	exec := vm.NewExecutor(moduleEnv, makeVMCallBridge(r, moduleEnv))
+	out := exec.EvalProgram(vmProgram)
+	if out != nil && out.Type() == object.ERROR_OBJ {
+		return nil, fmt.Errorf("runtime error while loading module %s: %s", modName, out.Inspect())
+	}
+	applyTopLevelExportMetadata(program, moduleEnv)
+	return module, nil
+}
+
+func (r *Runtime) useVMModuleLoader() bool {
+	if raw, ok := os.LookupEnv("SLUG_VM_MODULE_LOADER"); ok {
+		if parsed, err := strconv.ParseBool(strings.TrimSpace(raw)); err == nil {
+			return parsed
+		}
+	}
+	if r.Config.Store == nil {
+		return false
+	}
+	raw, ok := r.Config.Store.Get("runtime.vm-module-loader")
+	if !ok {
+		return false
+	}
+	switch v := raw.(type) {
+	case bool:
+		return v
+	case string:
+		parsed, err := strconv.ParseBool(strings.TrimSpace(v))
+		return err == nil && parsed
+	default:
+		return false
+	}
 }
 
 func moduleLibRoot(loadRoot, _ string) string {
@@ -311,6 +356,83 @@ func predeclarePattern(pat ast.MatchPattern, isConst bool, isExport bool, env *o
 		// LiteralPattern, WildcardPattern, etc: no bindings
 		return nil
 	}
+}
+
+func applyTopLevelExportMetadata(program *ast.Program, env *object.Environment) {
+	for _, stmt := range program.Statements {
+		exprStmt, ok := stmt.(*ast.ExpressionStatement)
+		if !ok {
+			continue
+		}
+		var pat ast.MatchPattern
+		var tags []*ast.Tag
+		switch ex := exprStmt.Expression.(type) {
+		case *ast.ValExpression:
+			pat = ex.Pattern
+			tags = ex.Tags
+		case *ast.VarExpression:
+			pat = ex.Pattern
+			tags = ex.Tags
+		default:
+			continue
+		}
+		if !hasExportTag(tags) {
+			continue
+		}
+		applyExportToPattern(pat, env)
+	}
+}
+
+func applyExportToPattern(pat ast.MatchPattern, env *object.Environment) {
+	switch p := pat.(type) {
+	case *ast.IdentifierPattern:
+		if binding, ok := env.GetLocalBinding(p.Value.Value); ok {
+			binding.Meta.IsExport = true
+		}
+	case *ast.BindingPattern:
+		if binding, ok := env.GetLocalBinding(p.Name.Value); ok {
+			binding.Meta.IsExport = true
+		}
+		applyExportToPattern(p.Pattern, env)
+	case *ast.ListPattern:
+		for _, el := range p.Elements {
+			applyExportToPattern(el, env)
+		}
+	case *ast.MapPattern:
+		for _, entry := range p.Pairs {
+			if entry.Pattern != nil {
+				applyExportToPattern(entry.Pattern, env)
+			}
+		}
+		if p.Spread != nil {
+			applyExportToPattern(p.Spread, env)
+		}
+	case *ast.StructPattern:
+		for _, field := range p.Fields {
+			if field.Pattern != nil {
+				applyExportToPattern(field.Pattern, env)
+			}
+		}
+	}
+}
+
+func moduleBuiltinsEnvironment(rt *Runtime, moduleEnv *object.Environment) *object.Environment {
+	builtinsEnv := object.NewEnvironment()
+	builtinsEnv.Path = moduleEnv.Path
+	builtinsEnv.LibRoot = moduleEnv.LibRoot
+	builtinsEnv.ModuleFqn = moduleEnv.ModuleFqn
+	builtinsEnv.Src = moduleEnv.Src
+	for name, fn := range rt.Builtins {
+		builtinsEnv.Bindings[name] = &object.Binding{
+			Value:     fn,
+			IsMutable: false,
+			Meta: object.Meta{
+				IsImport: false,
+				IsExport: false,
+			},
+		}
+	}
+	return builtinsEnv
 }
 
 func hasExportTag(tags []*ast.Tag) bool {
