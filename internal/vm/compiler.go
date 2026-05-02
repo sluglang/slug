@@ -856,6 +856,11 @@ func (c *compiler) compileMatchExpression(node *ast.MatchExpression) error {
 
 	for _, cs := range node.Cases {
 		pat := cs.Pattern
+		var wholeBinding *ast.Identifier
+		if bp, ok := pat.(*ast.BindingPattern); ok {
+			wholeBinding = bp.Name
+			pat = bp.Pattern
+		}
 
 		// wildcard case: consume scrutinee and execute body
 		if _, ok := pat.(*ast.WildcardPattern); ok {
@@ -884,6 +889,13 @@ func (c *compiler) compileMatchExpression(node *ast.MatchExpression) error {
 
 		if idp, ok := pat.(*ast.IdentifierPattern); ok {
 			c.emit(Instruction{Op: OpPushScope, Position: cs.Token.Position})
+			if wholeBinding != nil {
+				c.emit(Instruction{Op: OpDup, Position: cs.Token.Position})
+				if err := c.compileBindPattern(&ast.IdentifierPattern{Value: wholeBinding}, true, cs.Token.Position); err != nil {
+					return err
+				}
+				c.emit(Instruction{Op: OpPop, Position: cs.Token.Position})
+			}
 			c.emit(Instruction{Op: OpDup, Position: cs.Token.Position})
 			if err := c.compileBindPattern(idp, true, cs.Token.Position); err != nil {
 				return err
@@ -932,6 +944,13 @@ func (c *compiler) compileMatchExpression(node *ast.MatchExpression) error {
 				}
 			}
 			c.emit(Instruction{Op: OpPushScope, Position: cs.Token.Position})
+			if wholeBinding != nil {
+				c.emit(Instruction{Op: OpDup, Position: cs.Token.Position})
+				if err := c.compileBindPattern(&ast.IdentifierPattern{Value: wholeBinding}, true, cs.Token.Position); err != nil {
+					return err
+				}
+				c.emit(Instruction{Op: OpPop, Position: cs.Token.Position})
+			}
 			c.emit(Instruction{Op: OpDup, Position: cs.Token.Position})
 			if spreadIndex >= 0 {
 				c.emit(Instruction{Op: OpMatchSeqLenGte, IntArg: spreadIndex, Position: cs.Token.Position})
@@ -1010,6 +1029,13 @@ func (c *compiler) compileMatchExpression(node *ast.MatchExpression) error {
 
 		if mp, ok := pat.(*ast.MapPattern); ok {
 			c.emit(Instruction{Op: OpPushScope, Position: cs.Token.Position})
+			if wholeBinding != nil {
+				c.emit(Instruction{Op: OpDup, Position: cs.Token.Position})
+				if err := c.compileBindPattern(&ast.IdentifierPattern{Value: wholeBinding}, true, cs.Token.Position); err != nil {
+					return err
+				}
+				c.emit(Instruction{Op: OpPop, Position: cs.Token.Position})
+			}
 			c.emit(Instruction{Op: OpDup, Position: cs.Token.Position})
 			if mp.Exact {
 				c.emit(Instruction{Op: OpMatchMapLenEq, IntArg: len(mp.Pairs), Position: cs.Token.Position})
@@ -1110,6 +1136,13 @@ func (c *compiler) compileMatchExpression(node *ast.MatchExpression) error {
 
 		if sp, ok := pat.(*ast.StructPattern); ok {
 			c.emit(Instruction{Op: OpPushScope, Position: cs.Token.Position})
+			if wholeBinding != nil {
+				c.emit(Instruction{Op: OpDup, Position: cs.Token.Position})
+				if err := c.compileBindPattern(&ast.IdentifierPattern{Value: wholeBinding}, true, cs.Token.Position); err != nil {
+					return err
+				}
+				c.emit(Instruction{Op: OpPop, Position: cs.Token.Position})
+			}
 			c.emit(Instruction{Op: OpDup, Position: cs.Token.Position})
 			c.emit(Instruction{Op: OpMatchStructSchema, StrArg: sp.Schema.Value, Position: cs.Token.Position})
 			failJumps := []int{c.emit(Instruction{Op: OpJumpIfFalse, Position: cs.Token.Position})}
