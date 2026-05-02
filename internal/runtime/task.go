@@ -1527,7 +1527,11 @@ func (e *Task) ApplyFunction(pos int, fnName string, fnObj object.Object, positi
 		return result
 
 	case *vm.VMFunction:
-		vmExec := vm.NewExecutor(callEnv, makeVMCallBridge(e.Runtime, callEnv))
+		execEnv := callEnv
+		if fn.Closure != nil {
+			execEnv = fn.Closure
+		}
+		vmExec := vm.NewExecutor(execEnv, makeVMCallBridge(e.Runtime, execEnv))
 		return vmExec.EvalFunction(fn, positional, named, pos)
 
 	default:

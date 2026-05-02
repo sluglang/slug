@@ -321,7 +321,13 @@ func fnBuiltinCfg() *object.Foreign {
 
 			// Logic for local vs absolute keys
 			if !strings.Contains(key, ".") {
-				moduleName := ctx.CurrentEnv().ModuleFqn
+				moduleName := ""
+				for env := ctx.CurrentEnv(); env != nil; env = env.Outer {
+					if env.ModuleFqn != "" {
+						moduleName = env.ModuleFqn
+						break
+					}
+				}
 				if moduleName != "" {
 					key = moduleName + "." + key
 				}

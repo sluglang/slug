@@ -1287,7 +1287,7 @@ func (c *compiler) compileMatchExpression(node *ast.MatchExpression) error {
 }
 
 func (c *compiler) compileSelectExpression(node *ast.SelectExpression) error {
-	// Temporary lowering: delegate select scheduling semantics to treewalk via thunk call.
+	// Temporary lowering: delegate select scheduling semantics to runtime thunk call.
 	// This preserves concurrency behavior while native VM select opcodes are pending.
 	thunk := &object.Function{
 		Signature:  ast.FSig{Min: 0, Max: 0},

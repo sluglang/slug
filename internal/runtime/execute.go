@@ -10,8 +10,13 @@ import (
 func ExecuteProgram(mode string, rt *Runtime, env *object.Environment, program *ast.Program) object.Object {
 	_ = mode
 	installBuiltinsIntoEnv(rt, env)
+	vmProgram, prepErr := prepareProgramForVM(rt, env, program)
+	if prepErr != nil {
+		task := &Task{Runtime: rt}
+		return task.NewError("%s", prepErr.Error())
+	}
 	exec := vm.NewExecutor(env, makeVMCallBridge(rt, env))
-	result := exec.EvalProgram(program)
+	result := exec.EvalProgram(vmProgram)
 	if result == nil || result.Type() != object.ERROR_OBJ {
 		entrypoint, err := FindMainEntrypoint(env)
 		if err != nil {
@@ -68,12 +73,12 @@ func makeVMCallBridge(rt *Runtime, env *object.Environment) func(pos int, callee
 		if shouldAdaptArgsForIntrospection(callee) {
 			adaptedPositional = make([]object.Object, len(positional))
 			for i, v := range positional {
-				adaptedPositional[i] = adaptVMObjectForTreewalk(v, env)
+				adaptedPositional[i] = adaptVMObjectForForeignBridge(v, env)
 			}
 			if len(named) > 0 {
 				adaptedNamed = make(map[string]object.Object, len(named))
 				for k, v := range named {
-					adaptedNamed[k] = adaptVMObjectForTreewalk(v, env)
+					adaptedNamed[k] = adaptVMObjectForForeignBridge(v, env)
 				}
 			}
 		}
@@ -104,7 +109,7 @@ func shouldAdaptArgsForIntrospection(callee object.Object) bool {
 	return false
 }
 
-func adaptVMObjectForTreewalk(obj object.Object, env *object.Environment) object.Object {
+func adaptVMObjectForForeignBridge(obj object.Object, env *object.Environment) object.Object {
 	switch v := obj.(type) {
 	case *vm.VMFunction:
 		return &object.Function{
@@ -120,19 +125,19 @@ func adaptVMObjectForTreewalk(obj object.Object, env *object.Environment) object
 			Functions: make(map[ast.FSig]object.Object, len(v.Functions)),
 		}
 		for sig, fn := range v.Functions {
-			out.Functions[sig] = adaptVMObjectForTreewalk(fn, env)
+			out.Functions[sig] = adaptVMObjectForForeignBridge(fn, env)
 		}
 		return out
 	case *object.List:
 		els := make([]object.Object, len(v.Elements))
 		for i, e := range v.Elements {
-			els[i] = adaptVMObjectForTreewalk(e, env)
+			els[i] = adaptVMObjectForForeignBridge(e, env)
 		}
 		return &object.List{Elements: els}
 	case *object.Map:
 		pairs := make(map[object.MapKey]object.MapPair, len(v.Pairs))
 		for k, p := range v.Pairs {
-			pairs[k] = object.MapPair{Key: p.Key, Value: adaptVMObjectForTreewalk(p.Value, env)}
+			pairs[k] = object.MapPair{Key: p.Key, Value: adaptVMObjectForForeignBridge(p.Value, env)}
 		}
 		return &object.Map{Pairs: pairs}
 	default:

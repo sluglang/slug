@@ -92,6 +92,17 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 			if !ok {
 				return e.errorAt(ins.Position, "stack underflow for const bind")
 			}
+			if existing, exists := e.env.Get(ins.StrArg); exists {
+				if merged, ok := mergeFunctionOverload(existing, val); ok {
+					if binding, ok := e.env.GetBinding(ins.StrArg); ok {
+						binding.Value = merged
+					} else if _, err := e.env.DefineConstant(ins.StrArg, merged, false, false); err != nil {
+						return e.errorAt(ins.Position, "%s", err.Error())
+					}
+					e.push(merged)
+					continue
+				}
+			}
 			if schema, ok := val.(*object.StructSchema); ok && schema.Name == "" {
 				schema.Name = ins.StrArg
 			}
@@ -1613,11 +1624,6 @@ func bindVMArgumentsInto(
 	if defEnv == nil {
 		defEnv = e.env
 	}
-	if defEnv != nil {
-		for defEnv.Outer != nil {
-			defEnv = defEnv.Outer
-		}
-	}
 
 	for i := 0; i < paramCount; i++ {
 		if provided[i] {
@@ -1630,7 +1636,8 @@ func bindVMArgumentsInto(
 			continue
 		}
 		if param.Default != nil {
-			defaultExec := NewExecutor(defEnv, e.externalCall)
+			defaultEnv := object.NewEnclosedEnvironment(defEnv, nil)
+			defaultExec := NewExecutor(defaultEnv, e.externalCall)
 			defaultVal := defaultExec.run(param.Default)
 			if defaultVal == nil {
 				defaultVal = object.NIL
