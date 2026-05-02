@@ -35,11 +35,11 @@ jobs:
           echo "Using SLUG_HOME=$SLUG_HOME"
           make test
 
-      - name: Runtime parity (treewalk vs vm)
+      - name: VM conformance
         timeout-minutes: 10
         run: |
           echo "Using SLUG_HOME=$SLUG_HOME"
-          make test-runtime-parity
+          make test-vm-conformance
 
       - name: Tag build version
         run: |

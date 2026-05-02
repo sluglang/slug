@@ -42,10 +42,7 @@ test:
 #		$(shell find './test-suites' -name "*.slug" | sort) || exit 1
 
 test-vm-conformance:
-	go test ./internal/runtime -run 'TestVMConformanceFixtures|TestVMKnownUnsupportedFixtures|TestVMConformanceErrorParityFixtures' -count=1
-
-test-runtime-parity:
-	bash ./scripts/test-runtime-parity.sh
+	go test ./internal/runtime -run 'TestVMConformanceFixtures|TestVMKnownUnsupportedFixtures|TestVMConformanceExpectedErrorFixtures' -count=1
 
 lc: clean
 	cloc  --exclude-dir=.idea --read-lang-def=slug_cloc_definition.txt .

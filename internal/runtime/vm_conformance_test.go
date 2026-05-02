@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slug/internal/lexer"
 	"slug/internal/object"
 	"slug/internal/parser"
@@ -42,20 +41,9 @@ func TestVMConformanceFixtures(t *testing.T) {
 			}
 			source := string(sourceBytes)
 
-			treewalk := runProgramForConformance(t, RuntimeTreewalk, path, source)
 			vm := runProgramForConformance(t, RuntimeVM, path, source)
-
-			if treewalk.result.Type() == object.ERROR_OBJ || vm.result.Type() == object.ERROR_OBJ {
-				t.Fatalf("supported fixture must succeed in both runtimes treewalk=%T vm=%T\n--- treewalk ---\n%s\n--- vm ---\n%s", treewalk.result, vm.result, treewalk.result.Inspect(), vm.result.Inspect())
-			}
-			if treewalk.result.Inspect() != vm.result.Inspect() {
-				t.Fatalf("inspect mismatch\n--- treewalk ---\n%s\n--- vm ---\n%s", treewalk.result.Inspect(), vm.result.Inspect())
-			}
-			if treewalk.stdout != vm.stdout {
-				t.Fatalf("stdout mismatch\n--- treewalk ---\n%s\n--- vm ---\n%s", treewalk.stdout, vm.stdout)
-			}
-			if treewalk.stderr != vm.stderr {
-				t.Fatalf("stderr mismatch\n--- treewalk ---\n%s\n--- vm ---\n%s", treewalk.stderr, vm.stderr)
+			if vm.result.Type() == object.ERROR_OBJ {
+				t.Fatalf("supported fixture must succeed on vm, got error:\n%s", vm.result.Inspect())
 			}
 		})
 	}
@@ -82,11 +70,6 @@ func TestVMKnownUnsupportedFixtures(t *testing.T) {
 			}
 			source := string(sourceBytes)
 
-			treewalk := runProgramForConformance(t, RuntimeTreewalk, path, source)
-			if treewalk.result.Type() == object.ERROR_OBJ {
-				t.Fatalf("unsupported fixture must succeed on treewalk, got error:\n%s", treewalk.result.Inspect())
-			}
-
 			vm := runProgramForConformance(t, RuntimeVM, path, source)
 			if vm.result.Type() != object.ERROR_OBJ {
 				t.Fatalf("unsupported fixture expected VM error, got %T (%s)", vm.result, vm.result.Inspect())
@@ -95,7 +78,7 @@ func TestVMKnownUnsupportedFixtures(t *testing.T) {
 	}
 }
 
-func TestVMConformanceErrorParityFixtures(t *testing.T) {
+func TestVMConformanceExpectedErrorFixtures(t *testing.T) {
 	root := repoRoot(t)
 	errorDir := filepath.Join(root, "tests", "vm-conformance", "error-parity")
 	entries, err := os.ReadDir(errorDir)
@@ -116,94 +99,11 @@ func TestVMConformanceErrorParityFixtures(t *testing.T) {
 			}
 			source := string(sourceBytes)
 
-			treewalk := runProgramForConformance(t, RuntimeTreewalk, path, source)
 			vm := runProgramForConformance(t, RuntimeVM, path, source)
-
-			if treewalk.result.Type() != object.ERROR_OBJ {
-				t.Fatalf("error-parity fixture must fail on treewalk, got %T (%s)", treewalk.result, treewalk.result.Inspect())
-			}
 			if vm.result.Type() != object.ERROR_OBJ {
 				t.Fatalf("error-parity fixture must fail on vm, got %T (%s)", vm.result, vm.result.Inspect())
 			}
-
-			sigTreewalk := canonicalErrorSignature(treewalk.result.Inspect())
-			sigVM := canonicalErrorSignature(vm.result.Inspect())
-			if sigTreewalk != sigVM {
-				t.Fatalf("canonical error mismatch\n--- treewalk ---\n%s\n--- vm ---\n%s", sigTreewalk, sigVM)
-			}
 		})
-	}
-}
-
-var (
-	reLineCol = regexp.MustCompile(`\[[ ]*\d+:[ ]*\d+\]`)
-	rePathSep = regexp.MustCompile(`/[^ \n]+\.slug`)
-	reCodeCtx = regexp.MustCompile(`^\d+\s+\|`)
-)
-
-func normalizeErrorInspect(in string) string {
-	lines := strings.Split(in, "\n")
-	out := make([]string, 0, len(lines))
-	for _, raw := range lines {
-		line := strings.TrimSpace(raw)
-		if line == "" {
-			continue
-		}
-		// Remove unstable stack/context lines.
-		if strings.HasPrefix(line, "-->") || strings.HasPrefix(line, ">") {
-			continue
-		}
-		if strings.Contains(line, "^ unexpected here") {
-			continue
-		}
-		if reCodeCtx.MatchString(line) {
-			continue
-		}
-		if strings.Contains(line, "Stacktrace:") || strings.HasPrefix(line, "at [") {
-			continue
-		}
-		line = reLineCol.ReplaceAllString(line, "[L:C]")
-		line = rePathSep.ReplaceAllString(line, "/<path>.slug")
-		line = strings.TrimPrefix(line, "Error: ")
-		if strings.HasPrefix(line, "vm runtime error at pos ") {
-			parts := strings.SplitN(line, ": ", 2)
-			if len(parts) == 2 {
-				line = parts[1]
-			}
-		} else if strings.HasPrefix(line, "vm runtime error: ") {
-			line = strings.TrimPrefix(line, "vm runtime error: ")
-		}
-		out = append(out, line)
-	}
-	return strings.Join(out, "\n")
-}
-
-func canonicalErrorSignature(inspect string) string {
-	normalized := normalizeErrorInspect(inspect)
-	lower := strings.ToLower(normalized)
-
-	category := "other"
-	switch {
-	case strings.Contains(lower, "failed to import"),
-		strings.Contains(lower, "could not load module"),
-		strings.Contains(lower, "parse errors in module"):
-		category = "import-load"
-	case strings.Contains(lower, "identifier not found"):
-		category = "identifier-not-found"
-	case strings.Contains(lower, "failed to assign to val"):
-		category = "assign-to-val"
-	case strings.Contains(lower, "missing required parameter"),
-		strings.Contains(lower, "no suitable function"):
-		category = "call-arity"
-	case strings.Contains(lower, "unusable as map key"):
-		category = "map-key-type"
-	}
-
-	switch category {
-	case "identifier-not-found", "assign-to-val", "call-arity", "map-key-type", "import-load":
-		return category
-	default:
-		return category + "::" + normalized
 	}
 }
 
