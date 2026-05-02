@@ -238,6 +238,13 @@ func TestExecutorFunctionVariadicParameter(t *testing.T) {
 	}
 }
 
+func TestExecutorListPrependAppendOperators(t *testing.T) {
+	got := runVM(t, "val xs = [1, 2]\nval ys = 0 +: xs\nval zs = ys :+ 3\nzs")
+	if got.Inspect() != "[0, 1, 2, 3]" {
+		t.Fatalf("expected [0, 1, 2, 3], got %s", got.Inspect())
+	}
+}
+
 func TestExecutorMatchLiteralAndWildcard(t *testing.T) {
 	got := runVM(t, "match 2 {\n2 => { 20 }\n_ => { 30 }\n}")
 	num, ok := got.(*object.Number)
@@ -257,6 +264,17 @@ func TestExecutorMatchWithGuard(t *testing.T) {
 	}
 	if num.Value.String() != "25" {
 		t.Fatalf("expected 25, got %s", num.Value.String())
+	}
+}
+
+func TestExecutorMatchListPatternHeadTail(t *testing.T) {
+	got := runVM(t, "val sum = fn(ns, acc = 0) { match ns { [h, ...t] => { sum(t, acc + h) } [] => { acc } } }\nsum([1,2,3])")
+	num, ok := got.(*object.Number)
+	if !ok {
+		t.Fatalf("expected *object.Number, got %T (%s)", got, got.Inspect())
+	}
+	if num.Value.String() != "6" {
+		t.Fatalf("expected 6, got %s", num.Value.String())
 	}
 }
 

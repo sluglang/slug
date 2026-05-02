@@ -5,6 +5,7 @@ import (
 	"slug/internal/ast"
 	"slug/internal/dec64"
 	"slug/internal/object"
+	"strconv"
 	"strings"
 )
 
@@ -75,6 +76,31 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 				return e.errorAt(ins.Position, "%s", err.Error())
 			}
 			e.push(val)
+		case OpBindMapAllConst, OpBindMapAllVar:
+			mObj, ok := e.pop()
+			if !ok {
+				return e.errorAt(ins.Position, "stack underflow for map select-all binding")
+			}
+			m, ok := mObj.(*object.Map)
+			if !ok {
+				return e.errorAt(ins.Position, "map select-all expects map value, got %s", mObj.Type())
+			}
+			for _, pair := range m.Pairs {
+				name, ok := mapBindingName(pair.Key)
+				if !ok || name == "" {
+					continue
+				}
+				var err error
+				if ins.Op == OpBindMapAllConst {
+					_, err = e.env.DefineConstant(name, pair.Value, false, false)
+				} else {
+					_, err = e.env.Define(name, pair.Value, false, false)
+				}
+				if err != nil {
+					return e.errorAt(ins.Position, "%s", err.Error())
+				}
+			}
+			e.push(mObj)
 		case OpAssignGlobal:
 			val, ok := e.pop()
 			if !ok {
@@ -209,6 +235,66 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 				return result
 			}
 			e.push(result)
+		case OpListPrepend:
+			right, ok := e.pop()
+			if !ok {
+				return e.errorAt(ins.Position, "stack underflow for list prepend")
+			}
+			left, ok := e.pop()
+			if !ok {
+				return e.errorAt(ins.Position, "stack underflow for list prepend")
+			}
+			rList, ok := right.(*object.List)
+			if !ok {
+				return e.errorAt(ins.Position, "type mismatch: %s +: %s", left.Type(), right.Type())
+			}
+			newElements := make([]object.Object, 0, len(rList.Elements)+1)
+			newElements = append(newElements, left)
+			newElements = append(newElements, rList.Elements...)
+			e.push(&object.List{Elements: newElements})
+		case OpListAppend:
+			right, ok := e.pop()
+			if !ok {
+				return e.errorAt(ins.Position, "stack underflow for list append")
+			}
+			left, ok := e.pop()
+			if !ok {
+				return e.errorAt(ins.Position, "stack underflow for list append")
+			}
+			lList, ok := left.(*object.List)
+			if !ok {
+				return e.errorAt(ins.Position, "type mismatch: %s :+ %s", left.Type(), right.Type())
+			}
+			newElements := make([]object.Object, 0, len(lList.Elements)+1)
+			newElements = append(newElements, lList.Elements...)
+			newElements = append(newElements, right)
+			e.push(&object.List{Elements: newElements})
+		case OpMatchListEmpty:
+			val, ok := e.pop()
+			if !ok {
+				return e.errorAt(ins.Position, "stack underflow for list match")
+			}
+			lst, ok := val.(*object.List)
+			e.push(e.nativeBool(ok && len(lst.Elements) == 0))
+		case OpMatchListHeadTail:
+			val, ok := e.pop()
+			if !ok {
+				return e.errorAt(ins.Position, "stack underflow for list match")
+			}
+			lst, ok := val.(*object.List)
+			if !ok || len(lst.Elements) == 0 {
+				e.push(object.FALSE)
+				continue
+			}
+			head := lst.Elements[0]
+			tail := &object.List{Elements: append([]object.Object(nil), lst.Elements[1:]...)}
+			if _, err := e.env.DefineConstant(ins.StrArg, head, false, false); err != nil {
+				return e.errorAt(ins.Position, "%s", err.Error())
+			}
+			if _, err := e.env.DefineConstant(ins.StrArg2, tail, false, false); err != nil {
+				return e.errorAt(ins.Position, "%s", err.Error())
+			}
+			e.push(object.TRUE)
 		case OpAdd, OpSub, OpMul, OpDiv, OpEqual, OpNotEqual, OpGreaterThan, OpLessThan:
 			if errObj := e.evalBinary(ins.Op, ins.Position); errObj != nil {
 				return errObj
@@ -271,6 +357,17 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 	return last
 }
 
+func mapBindingName(key object.Object) (string, bool) {
+	switch k := key.(type) {
+	case *object.Symbol:
+		return k.Name, true
+	case *object.String:
+		return k.Value, true
+	default:
+		return "", false
+	}
+}
+
 func (e *Executor) evalBinary(op Opcode, pos int) object.Object {
 	right, ok := e.pop()
 	if !ok {
@@ -295,6 +392,23 @@ func (e *Executor) evalBinary(op Opcode, pos int) object.Object {
 				return nil
 			}
 		}
+		if l, ok := left.(*object.String); ok {
+			e.push(&object.String{Value: l.Value + right.Inspect()})
+			return nil
+		}
+		if r, ok := right.(*object.String); ok {
+			e.push(&object.String{Value: left.Inspect() + r.Value})
+			return nil
+		}
+		if l, ok := left.(*object.List); ok {
+			if r, ok := right.(*object.List); ok {
+				combined := make([]object.Object, 0, len(l.Elements)+len(r.Elements))
+				combined = append(combined, l.Elements...)
+				combined = append(combined, r.Elements...)
+				e.push(&object.List{Elements: combined})
+				return nil
+			}
+		}
 		return e.errorAt(pos, "type mismatch: %s + %s", left.Type(), right.Type())
 	case OpSub:
 		l, lok := left.(*object.Number)
@@ -306,10 +420,21 @@ func (e *Executor) evalBinary(op Opcode, pos int) object.Object {
 	case OpMul:
 		l, lok := left.(*object.Number)
 		r, rok := right.(*object.Number)
-		if !lok || !rok {
-			return e.errorAt(pos, "type mismatch: %s * %s", left.Type(), right.Type())
+		if lok && rok {
+			e.push(&object.Number{Value: l.Value.Mul(r.Value)})
+			return nil
 		}
-		e.push(&object.Number{Value: l.Value.Mul(r.Value)})
+		if s, ok := left.(*object.String); ok {
+			if n, ok := right.(*object.Number); ok {
+				times := n.Value.ToInt64()
+				if times < 0 {
+					return e.errorAt(pos, "repetition count must be a non-negative NUMBER, got %s", strconv.FormatInt(times, 10))
+				}
+				e.push(&object.String{Value: strings.Repeat(s.Value, int(times))})
+				return nil
+			}
+		}
+		return e.errorAt(pos, "type mismatch: %s * %s", left.Type(), right.Type())
 	case OpDiv:
 		l, lok := left.(*object.Number)
 		r, rok := right.(*object.Number)

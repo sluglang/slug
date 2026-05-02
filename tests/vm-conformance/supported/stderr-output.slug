@@ -1,0 +1,3 @@
+val stderr = import("slug.io.stderr")
+stderr[:println]("vm-error")
+1

@@ -12,6 +12,8 @@ const (
 	OpGetGlobal
 	OpSetGlobalConst
 	OpSetGlobalVar
+	OpBindMapAllConst
+	OpBindMapAllVar
 	OpAssignGlobal
 	OpArray
 	OpHash
@@ -21,6 +23,10 @@ const (
 	OpDup
 	OpSpawn
 	OpAwait
+	OpListPrepend
+	OpListAppend
+	OpMatchListEmpty
+	OpMatchListHeadTail
 	OpAdd
 	OpSub
 	OpMul
@@ -42,6 +48,7 @@ type Instruction struct {
 	Op       Opcode
 	IntArg   int
 	StrArg   string
+	StrArg2  string
 	CallPlan []CallArgSpec
 	Position int
 }

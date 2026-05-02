@@ -79,24 +79,20 @@ func (c *compiler) compileExpression(expr ast.Expression) error {
 		c.emit(Instruction{Op: OpGetGlobal, StrArg: node.Value, Position: node.Token.Position})
 		return nil
 	case *ast.ValExpression:
-		name, err := patternName(node.Pattern)
-		if err != nil {
-			return fmt.Errorf("vm compile error at %d: %w", node.Token.Position, err)
-		}
 		if err := c.compileExpression(node.Value); err != nil {
 			return err
 		}
-		c.emit(Instruction{Op: OpSetGlobalConst, StrArg: name, Position: node.Token.Position})
+		if err := c.compileBindPattern(node.Pattern, true, node.Token.Position); err != nil {
+			return err
+		}
 		return nil
 	case *ast.VarExpression:
-		name, err := patternName(node.Pattern)
-		if err != nil {
-			return fmt.Errorf("vm compile error at %d: %w", node.Token.Position, err)
-		}
 		if err := c.compileExpression(node.Value); err != nil {
 			return err
 		}
-		c.emit(Instruction{Op: OpSetGlobalVar, StrArg: name, Position: node.Token.Position})
+		if err := c.compileBindPattern(node.Pattern, false, node.Token.Position); err != nil {
+			return err
+		}
 		return nil
 	case *ast.PrefixExpression:
 		if err := c.compileExpression(node.Right); err != nil {
@@ -135,6 +131,10 @@ func (c *compiler) compileExpression(expr ast.Expression) error {
 		switch node.Operator {
 		case "+":
 			c.emit(Instruction{Op: OpAdd, Position: node.Token.Position})
+		case "+:":
+			c.emit(Instruction{Op: OpListPrepend, Position: node.Token.Position})
+		case ":+":
+			c.emit(Instruction{Op: OpListAppend, Position: node.Token.Position})
 		case "-":
 			c.emit(Instruction{Op: OpSub, Position: node.Token.Position})
 		case "*":
@@ -356,6 +356,80 @@ func patternName(pattern ast.MatchPattern) (string, error) {
 	}
 }
 
+func (c *compiler) compileBindPattern(pattern ast.MatchPattern, isConst bool, pos int) error {
+	switch p := pattern.(type) {
+	case *ast.IdentifierPattern:
+		op := OpSetGlobalVar
+		if isConst {
+			op = OpSetGlobalConst
+		}
+		c.emit(Instruction{Op: op, StrArg: p.Value.Value, Position: pos})
+		return nil
+	case *ast.BindingPattern:
+		if p.Name == nil {
+			return fmt.Errorf("vm compile error at %d: binding pattern missing name", pos)
+		}
+		op := OpSetGlobalVar
+		if isConst {
+			op = OpSetGlobalConst
+		}
+		c.emit(Instruction{Op: OpDup, Position: pos})
+		c.emit(Instruction{Op: op, StrArg: p.Name.Value, Position: pos})
+		c.emit(Instruction{Op: OpPop, Position: pos})
+		return c.compileBindPattern(p.Pattern, isConst, pos)
+	case *ast.MapPattern:
+		if p.Exact {
+			return fmt.Errorf("vm compile error at %d: exact map patterns are not yet supported", pos)
+		}
+		if p.Spread != nil {
+			return fmt.Errorf("vm compile error at %d: spread map patterns are not yet supported", pos)
+		}
+		if p.SelectAll {
+			op := OpBindMapAllVar
+			if isConst {
+				op = OpBindMapAllConst
+			}
+			c.emit(Instruction{Op: op, Position: pos})
+		}
+		for _, entry := range p.Pairs {
+			if entry.Pattern == nil {
+				continue
+			}
+			c.emit(Instruction{Op: OpDup, Position: pos})
+			if err := c.compileMapPatternKey(entry.Key, pos); err != nil {
+				return err
+			}
+			c.emit(Instruction{Op: OpIndex, Position: pos})
+			if err := c.compileBindPattern(entry.Pattern, isConst, pos); err != nil {
+				return err
+			}
+			c.emit(Instruction{Op: OpPop, Position: pos})
+		}
+		return nil
+	default:
+		return fmt.Errorf("vm compile error at %d: unsupported binding pattern %T", pos, pattern)
+	}
+}
+
+func (c *compiler) compileMapPatternKey(key ast.Expression, pos int) error {
+	switch k := key.(type) {
+	case *ast.Identifier:
+		idx := c.addConstant(object.InternSymbol(k.Value))
+		c.emit(Instruction{Op: OpConstant, IntArg: idx, Position: pos})
+		return nil
+	case *ast.SymbolLiteral:
+		idx := c.addConstant(object.InternSymbol(k.Value))
+		c.emit(Instruction{Op: OpConstant, IntArg: idx, Position: pos})
+		return nil
+	case *ast.StringLiteral:
+		idx := c.addConstant(&object.String{Value: k.Value})
+		c.emit(Instruction{Op: OpConstant, IntArg: idx, Position: pos})
+		return nil
+	default:
+		return c.compileExpression(key)
+	}
+}
+
 func unsupportedNodeErr(kind string, node ast.Node) error {
 	return fmt.Errorf("vm compile error: unsupported %s node %T", kind, node)
 }
@@ -474,6 +548,48 @@ func (c *compiler) compileMatchExpression(node *ast.MatchExpression) error {
 			j := c.emit(Instruction{Op: OpJump, Position: cs.Token.Position})
 			endJumps = append(endJumps, j)
 			continue
+		}
+
+		if lp, ok := pat.(*ast.ListPattern); ok {
+			// [] case
+			if len(lp.Elements) == 0 {
+				c.emit(Instruction{Op: OpDup, Position: cs.Token.Position})
+				c.emit(Instruction{Op: OpMatchListEmpty, Position: cs.Token.Position})
+				nextCaseJump := c.emit(Instruction{Op: OpJumpIfFalse, Position: cs.Token.Position})
+				c.emit(Instruction{Op: OpPop, Position: cs.Token.Position})
+				if err := c.compileExpression(cs.Body); err != nil {
+					return err
+				}
+				j := c.emit(Instruction{Op: OpJump, Position: cs.Token.Position})
+				endJumps = append(endJumps, j)
+				c.patchJump(nextCaseJump, len(c.chunk.Instructions))
+				continue
+			}
+
+			// [h, ...t] case
+			if len(lp.Elements) == 2 {
+				headPat, headOK := lp.Elements[0].(*ast.IdentifierPattern)
+				spreadPat, spreadOK := lp.Elements[1].(*ast.SpreadPattern)
+				if headOK && spreadOK && spreadPat.Value != nil {
+					c.emit(Instruction{Op: OpDup, Position: cs.Token.Position})
+					c.emit(Instruction{
+						Op:       OpMatchListHeadTail,
+						StrArg:   headPat.Value.Value,
+						StrArg2:  spreadPat.Value.Value,
+						Position: cs.Token.Position,
+					})
+					nextCaseJump := c.emit(Instruction{Op: OpJumpIfFalse, Position: cs.Token.Position})
+					c.emit(Instruction{Op: OpPop, Position: cs.Token.Position})
+					if err := c.compileExpression(cs.Body); err != nil {
+						return err
+					}
+					j := c.emit(Instruction{Op: OpJump, Position: cs.Token.Position})
+					endJumps = append(endJumps, j)
+					c.patchJump(nextCaseJump, len(c.chunk.Instructions))
+					continue
+				}
+			}
+			return fmt.Errorf("vm compile error at %d: unsupported list pattern shape", cs.Token.Position)
 		}
 
 		// Compare scrutinee with literal-like pattern
