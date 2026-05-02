@@ -1421,7 +1421,7 @@ func (e *Executor) invokeVMFunction(fn *VMFunction, positional []object.Object, 
 
 		callEnv := object.NewEnclosedEnvironment(closure, nil)
 		for i, p := range fn.Params {
-			if _, err := callEnv.DefineConstant(p.Name, bound[i], false, false); err != nil {
+			if _, err := callEnv.Define(p.Name, bound[i], false, false); err != nil {
 				return e.errorAt(pos, "%s", err.Error())
 			}
 		}

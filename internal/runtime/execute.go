@@ -64,7 +64,9 @@ func makeVMCallBridge(rt *Runtime, env *object.Environment) func(pos int, callee
 		task.PushNurseryScope(&NurseryScope{
 			Limit: make(chan struct{}, rt.Config.DefaultLimit),
 		})
-		task.PushEnv(env)
+		// Use an isolated call environment for bridge calls so we inherit bindings
+		// via the outer chain without reusing the caller's deferred stack.
+		task.PushEnv(object.NewEnclosedEnvironment(env, nil))
 		adaptedPositional := positional
 		adaptedNamed := named
 		if shouldAdaptArgsForIntrospection(callee) {
