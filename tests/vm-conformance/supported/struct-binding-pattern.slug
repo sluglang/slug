@@ -1,0 +1,12 @@
+var {*} = import("slug.test")
+
+val Pair = struct {
+    left,
+    right,
+}
+
+val p = Pair{left: 10, right: 20}
+val Pair{left, right} = p
+
+left /> assertEqual(10)
+right /> assertEqual(20)

@@ -15,7 +15,9 @@ func ExecuteProgram(mode string, rt *Runtime, env *object.Environment, program *
 		task := &Task{Runtime: rt}
 		return task.NewError("%s", prepErr.Error())
 	}
-	exec := vm.NewExecutor(env, makeVMCallBridge(rt, env))
+	exec := vm.NewExecutorWithBridgeFactory(env, func(callEnv *object.Environment) func(pos int, callee object.Object, positional []object.Object, named map[string]object.Object) object.Object {
+		return makeVMCallBridge(rt, callEnv)
+	})
 	result := exec.EvalProgram(vmProgram)
 	if result == nil || result.Type() != object.ERROR_OBJ {
 		entrypoint, err := FindMainEntrypoint(env)

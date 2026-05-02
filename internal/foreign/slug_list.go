@@ -21,22 +21,16 @@ func fnListSortWithComparator() *object.Foreign {
 				return ctx.NewError("first argument to `sortWithComparator` must be a LIST, got=%s", args[0].Type())
 			}
 
-			// Ensure the second argument is a FUNCTION_GROUP_OBJ (the comparator function group).
-			compFnGroup, okFg := args[1].(*object.FunctionGroup)
-			compFn, okFn := args[1].(*object.Function)
-			if !okFg && !okFn {
-				return ctx.NewError("second argument to `sortWithComparator` must be a FUNCTION_GROUP, got=%s", args[1].Type())
+			comparator := args[1]
+			switch comparator.Type() {
+			case object.FUNCTION_OBJ, object.FUNCTION_GROUP_OBJ, object.FOREIGN_OBJ:
+				// accepted callable types
+			default:
+				return ctx.NewError("second argument to `sortWithComparator` must be callable, got=%s", comparator.Type())
 			}
 
-			var call func(args []object.Object) object.Object
-			if okFg {
-				call = func(args []object.Object) object.Object {
-					return ctx.ApplyFunction(0, "", compFnGroup, args, nil)
-				}
-			} else {
-				call = func(args []object.Object) object.Object {
-					return ctx.ApplyFunction(0, "", compFn, args, nil)
-				}
+			call := func(args []object.Object) object.Object {
+				return ctx.ApplyFunction(0, "", comparator, args, nil)
 			}
 
 			// Sorting logic using the custom comparator.

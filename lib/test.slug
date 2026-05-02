@@ -126,6 +126,9 @@ val runTests = fn(f, name, args, stats) {
 }
 
 val testRunner = fn(module, stats) {
+  if (module == nil || module /> type() != STRING_TYPE) {
+    return stats
+  }
   var modName = match module /> endsWith(".slug") {
     true  => module[0:-len(".slug")]
     false => module

@@ -1,0 +1,13 @@
+var {*} = import("slug.test")
+
+val xs = [
+    {kind: "a", n: 1},
+    {kind: "b", n: 2},
+]
+
+val out = match xs {
+    [{kind: "a", n}, _] => n
+    _                     => -1
+}
+
+out /> assertEqual(1)

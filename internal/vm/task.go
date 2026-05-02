@@ -1,10 +1,15 @@
 package vm
 
-import "slug/internal/object"
+import (
+	"slug/internal/object"
+	"sync"
+)
 
 type VMTaskHandle struct {
 	done   chan struct{}
 	result object.Object
+	mu     sync.Mutex
+	closed bool
 }
 
 func NewVMTaskHandle() *VMTaskHandle {
@@ -29,6 +34,21 @@ func (h *VMTaskHandle) AwaitResult() object.Object {
 }
 
 func (h *VMTaskHandle) Complete(result object.Object) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.closed {
+		return
+	}
 	h.result = result
+	h.closed = true
 	close(h.done)
+}
+
+func (h *VMTaskHandle) Cancel(reason string) {
+	payload := &object.Map{Pairs: map[object.MapKey]object.MapPair{}}
+	payload.Put(&object.String{Value: "type"}, &object.String{Value: "cancelled"})
+	payload.Put(&object.String{Value: "reason"}, &object.String{Value: reason})
+	h.Complete(&object.RuntimeError{
+		Payload: payload,
+	})
 }

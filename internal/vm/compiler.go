@@ -625,6 +625,21 @@ func (c *compiler) compileBindPattern(pattern ast.MatchPattern, isConst bool, po
 			// no spread: nothing extra to bind
 		}
 		return nil
+	case *ast.StructPattern:
+		for _, field := range p.Fields {
+			if field == nil || field.Pattern == nil {
+				continue
+			}
+			c.emit(Instruction{Op: OpDup, Position: pos})
+			symIdx := c.addConstant(object.InternSymbol(field.Name))
+			c.emit(Instruction{Op: OpConstant, IntArg: symIdx, Position: pos})
+			c.emit(Instruction{Op: OpIndexDot, Position: pos})
+			if err := c.compileBindPattern(field.Pattern, isConst, pos); err != nil {
+				return err
+			}
+			c.emit(Instruction{Op: OpPop, Position: pos})
+		}
+		return nil
 	default:
 		return fmt.Errorf("vm compile error at %d: unsupported binding pattern %T", pos, pattern)
 	}
@@ -720,6 +735,11 @@ func (c *compiler) compileListPatternFromValue(p *ast.ListPattern, pos int, fail
 		c.emit(Instruction{Op: OpIndex, Position: pos})
 		switch ep := el.(type) {
 		case *ast.IdentifierPattern:
+			if err := c.compileBindPattern(ep, true, pos); err != nil {
+				return err
+			}
+			c.emit(Instruction{Op: OpPop, Position: pos})
+		case *ast.MapPattern:
 			if err := c.compileBindPattern(ep, true, pos); err != nil {
 				return err
 			}
@@ -981,6 +1001,11 @@ func (c *compiler) compileMatchExpression(node *ast.MatchExpression) error {
 				c.emit(Instruction{Op: OpIndex, Position: cs.Token.Position})
 				switch ep := el.(type) {
 				case *ast.IdentifierPattern:
+					if err := c.compileBindPattern(ep, true, cs.Token.Position); err != nil {
+						return err
+					}
+					c.emit(Instruction{Op: OpPop, Position: cs.Token.Position})
+				case *ast.MapPattern:
 					if err := c.compileBindPattern(ep, true, cs.Token.Position); err != nil {
 						return err
 					}

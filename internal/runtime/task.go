@@ -1531,7 +1531,9 @@ func (e *Task) ApplyFunction(pos int, fnName string, fnObj object.Object, positi
 		if fn.Closure != nil {
 			execEnv = fn.Closure
 		}
-		vmExec := vm.NewExecutor(execEnv, makeVMCallBridge(e.Runtime, execEnv))
+		vmExec := vm.NewExecutorWithBridgeFactory(execEnv, func(callEnv *object.Environment) func(pos int, callee object.Object, positional []object.Object, named map[string]object.Object) object.Object {
+			return makeVMCallBridge(e.Runtime, callEnv)
+		})
 		return vmExec.EvalFunction(fn, positional, named, pos)
 
 	default:

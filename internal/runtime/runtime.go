@@ -218,7 +218,9 @@ func (r *Runtime) evalModuleWithVM(modName string, module *object.Module, module
 	if prepErr != nil {
 		return nil, fmt.Errorf("runtime error while loading module %s: %s", modName, prepErr.Error())
 	}
-	exec := vm.NewExecutor(moduleEnv, makeVMCallBridge(r, moduleEnv))
+	exec := vm.NewExecutorWithBridgeFactory(moduleEnv, func(callEnv *object.Environment) func(pos int, callee object.Object, positional []object.Object, named map[string]object.Object) object.Object {
+		return makeVMCallBridge(r, callEnv)
+	})
 	out := exec.EvalProgram(vmProgram)
 	if out != nil && out.Type() == object.ERROR_OBJ {
 		return nil, fmt.Errorf("runtime error while loading module %s: %s", modName, out.Inspect())

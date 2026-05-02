@@ -17,6 +17,7 @@ type Executor struct {
 	deferScopes  [][]vmDeferEntry
 	taskScopes   [][]*VMTaskHandle
 	externalCall func(pos int, callee object.Object, positional []object.Object, named map[string]object.Object) object.Object
+	callForEnv   func(env *object.Environment) func(pos int, callee object.Object, positional []object.Object, named map[string]object.Object) object.Object
 }
 
 type vmDeferEntry struct {
@@ -42,6 +43,20 @@ func NewExecutor(
 		env:          env,
 		externalCall: externalCall,
 	}
+}
+
+func NewExecutorWithBridgeFactory(
+	env *object.Environment,
+	callForEnv func(env *object.Environment) func(pos int, callee object.Object, positional []object.Object, named map[string]object.Object) object.Object,
+) *Executor {
+	exec := &Executor{
+		env:        env,
+		callForEnv: callForEnv,
+	}
+	if callForEnv != nil {
+		exec.externalCall = callForEnv(env)
+	}
+	return exec
 }
 
 func (e *Executor) EvalProgram(program *ast.Program) object.Object {
@@ -146,6 +161,10 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 			if !ok {
 				return e.errorAt(ins.Position, "map select-all expects map value, got %s", mObj.Type())
 			}
+			isImport := false
+			if m.Tags != nil {
+				_, isImport = m.Tags[object.IMPORT_TAG]
+			}
 			for _, pair := range m.Pairs {
 				name, ok := mapBindingName(pair.Key)
 				if !ok || name == "" {
@@ -153,9 +172,9 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 				}
 				var err error
 				if ins.Op == OpBindMapAllConst {
-					_, err = e.env.DefineConstant(name, pair.Value, false, false)
+					_, err = e.env.DefineConstant(name, pair.Value, false, isImport)
 				} else {
-					_, err = e.env.Define(name, pair.Value, false, false)
+					_, err = e.env.Define(name, pair.Value, false, isImport)
 				}
 				if err != nil {
 					return e.errorAt(ins.Position, "%s", err.Error())
@@ -379,6 +398,7 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 
 			go func() {
 				child := NewExecutor(taskEnv, e.externalCall)
+				child.callForEnv = e.callForEnv
 				result := child.run(fn.Chunk)
 				if result == nil {
 					result = object.NIL
@@ -857,7 +877,7 @@ func (e *Executor) executeTaskHandlesInCurrentScope(current object.Object) objec
 	handles := e.taskScopes[len(e.taskScopes)-1]
 	e.taskScopes = e.taskScopes[:len(e.taskScopes)-1]
 	currentResult := current
-	for _, h := range handles {
+	for i, h := range handles {
 		if h == nil {
 			continue
 		}
@@ -869,6 +889,11 @@ func (e *Executor) executeTaskHandlesInCurrentScope(current object.Object) objec
 		if res.Type() == object.ERROR_OBJ {
 			if currentResult == nil || currentResult.Type() != object.ERROR_OBJ && currentResult.Type() != object.RETURN_VALUE_OBJ {
 				currentResult = res
+				for j := i + 1; j < len(handles); j++ {
+					if handles[j] != nil {
+						handles[j].Cancel("sibling cancelled due to fail-fast")
+					}
+				}
 			}
 		}
 	}
@@ -1405,10 +1430,14 @@ func (e *Executor) evalCall(argCount int, plan []CallArgSpec, pos int) object.Ob
 
 	fn, ok := callee.(*VMFunction)
 	if !ok {
-		if e.externalCall == nil {
+		call := e.externalCall
+		if e.callForEnv != nil {
+			call = e.callForEnv(e.env)
+		}
+		if call == nil {
 			return e.errorAt(pos, "attempted to call non-vm function value (%s)", callee.Type())
 		}
-		result := e.externalCall(pos, callee, positional, named)
+		result := call(pos, callee, positional, named)
 		if result == nil {
 			result = object.NIL
 		}
@@ -1491,6 +1520,7 @@ func (e *Executor) invokeVMFunction(fn *VMFunction, positional []object.Object, 
 	setVMCallFrameParams(callEnv, fn.Params, bound)
 
 	child := NewExecutor(callEnv, e.externalCall)
+	child.callForEnv = e.callForEnv
 	for {
 		result := child.run(fn.Chunk)
 		if recur, ok := result.(*vmRecurSignal); ok {
@@ -1638,6 +1668,7 @@ func bindVMArgumentsInto(
 		if param.Default != nil {
 			defaultEnv := object.NewEnclosedEnvironment(defEnv, nil)
 			defaultExec := NewExecutor(defaultEnv, e.externalCall)
+			defaultExec.callForEnv = e.callForEnv
 			defaultVal := defaultExec.run(param.Default)
 			if defaultVal == nil {
 				defaultVal = object.NIL
@@ -1938,6 +1969,7 @@ func (e *Executor) evalStructDefault(schema *object.StructSchema, expr ast.Expre
 	}
 	tmp := object.NewEnclosedEnvironment(defEnv, nil)
 	inner := NewExecutor(tmp, e.externalCall)
+	inner.callForEnv = e.callForEnv
 	res := inner.evalExpressionOnly(expr, pos)
 	if res == nil {
 		return object.NIL

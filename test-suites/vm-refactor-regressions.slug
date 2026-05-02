@@ -1,0 +1,27 @@
+var {*} = import(
+    "slug.test",
+    "slug.list",
+)
+
+@test
+var test_struct_binding_pattern_in_val_assignment = fn() {
+    val User = struct {
+        name,
+        age,
+    }
+
+    val u = User{name: "Slug", age: 7}
+    val User{name, age} = u
+
+    name /> assertEqual("Slug")
+    age /> assertEqual(7)
+}
+
+@test
+var test_list_sort_with_inline_comparator = fn() {
+    val sorted = sortWithComparator([3, 1, 2], fn(a, b) {
+        a - b
+    })
+
+    sorted /> assertEqual([1, 2, 3])
+}
