@@ -1260,6 +1260,8 @@ func selectVMFunctionFromGroup(fg *object.FunctionGroup, positional []object.Obj
 	var best *VMFunction
 	bestMax := math.MaxInt
 	bestScore := -1
+	bestSpecificity := -1
+	bestSigKey := ""
 	foundNonVariadic := false
 	for sig, candidate := range fg.Functions {
 		fn, ok := candidate.(*VMFunction)
@@ -1274,12 +1276,18 @@ func selectVMFunctionFromGroup(fg *object.FunctionGroup, positional []object.Obj
 			continue
 		}
 		isVariadic := sig.IsVariadic
+		specificity := vmSignatureSpecificity(sig)
+		sigKey := vmSignatureKey(sig)
 		if (score >= 0 && sig.Max < bestMax) ||
 			(sig.Max == bestMax && score > bestScore) ||
-			(sig.Max == bestMax && score == bestScore && (!foundNonVariadic || !isVariadic)) {
+			(sig.Max == bestMax && score == bestScore && !foundNonVariadic && !isVariadic) ||
+			(sig.Max == bestMax && score == bestScore && foundNonVariadic == !isVariadic && specificity > bestSpecificity) ||
+			(sig.Max == bestMax && score == bestScore && foundNonVariadic == !isVariadic && specificity == bestSpecificity && (bestSigKey == "" || sigKey < bestSigKey)) {
 			best = fn
 			bestMax = sig.Max
 			bestScore = score
+			bestSpecificity = specificity
+			bestSigKey = sigKey
 			foundNonVariadic = !isVariadic
 		}
 	}
@@ -1355,6 +1363,14 @@ func vmParamValue(index int, param VMParam, params []VMParam, positional []objec
 		return &object.List{Elements: positional[len(params)-1:]}, true
 	}
 	return nil, false
+}
+
+func vmSignatureSpecificity(sig ast.FSig) int {
+	return len(sig.Tags)
+}
+
+func vmSignatureKey(sig ast.FSig) string {
+	return fmt.Sprintf("%d|%d|%t|%s", sig.Min, sig.Max, sig.IsVariadic, sig.Tags)
 }
 
 func (e *Executor) push(obj object.Object) {

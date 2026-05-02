@@ -519,6 +519,8 @@ func (fg *FunctionGroup) DispatchToFunction(fnName string, positional []Object, 
 	var bestMatch Object
 	var bestMax = math.MaxInt
 	var bestScore = -1
+	var bestSpecificity = -1
+	var bestSigKey string
 	var foundNonVariadic bool
 	var firstBindErr error
 
@@ -551,10 +553,14 @@ func (fg *FunctionGroup) DispatchToFunction(fnName string, positional []Object, 
 
 				if (score >= 0 && sig.Max < bestMax) ||
 					(sig.Max == bestMax && score > bestScore) ||
-					(sig.Max == bestMax && score == bestScore && (!foundNonVariadic || !isVariadic)) {
+					(sig.Max == bestMax && score == bestScore && !foundNonVariadic && !isVariadic) ||
+					(sig.Max == bestMax && score == bestScore && foundNonVariadic == !isVariadic && signatureSpecificity(sig) > bestSpecificity) ||
+					(sig.Max == bestMax && score == bestScore && foundNonVariadic == !isVariadic && signatureSpecificity(sig) == bestSpecificity && (bestSigKey == "" || signatureKey(sig) < bestSigKey)) {
 					bestMatch = fn
 					bestMax = sig.Max
 					bestScore = score
+					bestSpecificity = signatureSpecificity(sig)
+					bestSigKey = signatureKey(sig)
 					foundNonVariadic = !isVariadic
 				}
 			}
@@ -601,6 +607,14 @@ func (fg *FunctionGroup) DispatchToFunction(fnName string, positional []Object, 
 	candidates := fg.dispatchCandidates()
 	err := fmt.Sprintf("No suitable function (%s) found to dispatch. Candidates: %s", a.String(), strings.Join(candidates, "; "))
 	return &Error{Message: err}, errors.New(err)
+}
+
+func signatureSpecificity(sig ast.FSig) int {
+	return len(sig.Tags)
+}
+
+func signatureKey(sig ast.FSig) string {
+	return fmt.Sprintf("%d|%d|%t|%s", sig.Min, sig.Max, sig.IsVariadic, sig.Tags)
 }
 
 func (fg *FunctionGroup) dispatchCandidates() []string {
