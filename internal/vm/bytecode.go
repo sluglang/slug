@@ -20,6 +20,7 @@ const (
 	OpSlice
 	OpIndex
 	OpIndexDot
+	OpMapHasKey
 	OpDup
 	OpSpawn
 	OpAwait
@@ -30,6 +31,9 @@ const (
 	OpMatchSeqLenEq
 	OpMatchSeqLenGte
 	OpMatchSeqTail
+	OpMatchMapLenEq
+	OpMatchMapLenGte
+	OpMatchMapBindRemainder
 	OpPushScope
 	OpPopScope
 	OpAdd

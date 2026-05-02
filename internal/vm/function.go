@@ -3,6 +3,7 @@ package vm
 import (
 	"bytes"
 	"fmt"
+	"slug/internal/ast"
 	"slug/internal/object"
 	"strings"
 )
@@ -18,6 +19,7 @@ type VMParam struct {
 	Name       string
 	IsVariadic bool
 	Default    *Chunk
+	Tags       []*ast.Tag
 }
 
 func (f *VMFunction) Type() object.ObjectType { return object.FUNCTION_OBJ }

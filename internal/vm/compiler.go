@@ -5,6 +5,7 @@ import (
 	"slug/internal/ast"
 	"slug/internal/dec64"
 	"slug/internal/object"
+	"strings"
 )
 
 func Compile(program *ast.Program) (*Chunk, error) {
@@ -531,6 +532,19 @@ func (c *compiler) compileMapPatternKey(key ast.Expression, pos int) error {
 	}
 }
 
+func mapPatternKeyName(key ast.Expression) string {
+	switch k := key.(type) {
+	case *ast.Identifier:
+		return k.Value
+	case *ast.SymbolLiteral:
+		return k.Value
+	case *ast.StringLiteral:
+		return k.Value
+	default:
+		return ""
+	}
+}
+
 func (c *compiler) emitNumberConstant(pos int, n int) {
 	idx := c.addConstant(&object.Number{Value: dec64.FromInt(n)})
 	c.emit(Instruction{Op: OpConstant, IntArg: idx, Position: pos})
@@ -571,9 +585,6 @@ func (c *compiler) compileShortCircuit(node *ast.InfixExpression) error {
 func (c *compiler) compileFunctionLiteral(node *ast.FunctionLiteral) (*VMFunction, error) {
 	params := make([]VMParam, 0, len(node.Parameters))
 	for _, p := range node.Parameters {
-		if len(p.Tags) > 0 {
-			return nil, fmt.Errorf("vm compile error at %d: tagged params are not yet supported", node.Token.Position)
-		}
 		var defaultChunk *Chunk
 		if p.Default != nil {
 			dc := &compiler{chunk: &Chunk{}}
@@ -587,6 +598,7 @@ func (c *compiler) compileFunctionLiteral(node *ast.FunctionLiteral) (*VMFunctio
 			Name:       p.Name.Value,
 			IsVariadic: p.IsVariadic,
 			Default:    defaultChunk,
+			Tags:       p.Tags,
 		})
 	}
 
@@ -740,6 +752,10 @@ func (c *compiler) compileMatchExpression(node *ast.MatchExpression) error {
 						return err
 					}
 					c.emit(Instruction{Op: OpPop, Position: cs.Token.Position})
+				case *ast.PinnedIdentifierPattern:
+					c.emit(Instruction{Op: OpGetGlobal, StrArg: ep.Value.Value, Position: cs.Token.Position})
+					c.emit(Instruction{Op: OpEqual, Position: cs.Token.Position})
+					failJumps = append(failJumps, c.emit(Instruction{Op: OpJumpIfFalse, Position: cs.Token.Position}))
 				case *ast.LiteralPattern:
 					if err := c.compileExpression(ep.Value); err != nil {
 						return err
@@ -771,6 +787,155 @@ func (c *compiler) compileMatchExpression(node *ast.MatchExpression) error {
 				c.patchJump(fj, failTarget)
 			}
 			c.emit(Instruction{Op: OpPopScope, Position: cs.Token.Position})
+			continue
+		}
+
+		if mp, ok := pat.(*ast.MapPattern); ok {
+			c.emit(Instruction{Op: OpPushScope, Position: cs.Token.Position})
+			c.emit(Instruction{Op: OpDup, Position: cs.Token.Position})
+			if mp.Exact {
+				c.emit(Instruction{Op: OpMatchMapLenEq, IntArg: len(mp.Pairs), Position: cs.Token.Position})
+			} else if len(mp.Pairs) > 0 {
+				c.emit(Instruction{Op: OpMatchMapLenGte, IntArg: len(mp.Pairs), Position: cs.Token.Position})
+			} else if mp.Spread != nil || mp.SelectAll {
+				c.emit(Instruction{Op: OpMatchMapLenGte, IntArg: 0, Position: cs.Token.Position})
+			} else {
+				// {} must be exact-empty in Slug patterns
+				c.emit(Instruction{Op: OpMatchMapLenEq, IntArg: 0, Position: cs.Token.Position})
+			}
+			failJumps := []int{c.emit(Instruction{Op: OpJumpIfFalse, Position: cs.Token.Position})}
+
+			matchedKeys := make([]string, 0, len(mp.Pairs))
+			if mp.SelectAll {
+				c.emit(Instruction{Op: OpBindMapAllConst, Position: cs.Token.Position})
+			}
+
+			for _, entry := range mp.Pairs {
+				keyName := mapPatternKeyName(entry.Key)
+				if keyName != "" {
+					matchedKeys = append(matchedKeys, keyName)
+				}
+				c.emit(Instruction{Op: OpDup, Position: cs.Token.Position})
+				if err := c.compileMapPatternKey(entry.Key, cs.Token.Position); err != nil {
+					return err
+				}
+				c.emit(Instruction{Op: OpMapHasKey, Position: cs.Token.Position})
+				failJumps = append(failJumps, c.emit(Instruction{Op: OpJumpIfFalse, Position: cs.Token.Position}))
+
+				c.emit(Instruction{Op: OpDup, Position: cs.Token.Position})
+				if err := c.compileMapPatternKey(entry.Key, cs.Token.Position); err != nil {
+					return err
+				}
+				c.emit(Instruction{Op: OpIndex, Position: cs.Token.Position})
+				switch ep := entry.Pattern.(type) {
+				case *ast.IdentifierPattern:
+					if err := c.compileBindPattern(ep, true, cs.Token.Position); err != nil {
+						return err
+					}
+					c.emit(Instruction{Op: OpPop, Position: cs.Token.Position})
+				case *ast.PinnedIdentifierPattern:
+					c.emit(Instruction{Op: OpGetGlobal, StrArg: ep.Value.Value, Position: cs.Token.Position})
+					c.emit(Instruction{Op: OpEqual, Position: cs.Token.Position})
+					failJumps = append(failJumps, c.emit(Instruction{Op: OpJumpIfFalse, Position: cs.Token.Position}))
+				case *ast.LiteralPattern:
+					if err := c.compileExpression(ep.Value); err != nil {
+						return err
+					}
+					c.emit(Instruction{Op: OpEqual, Position: cs.Token.Position})
+					failJumps = append(failJumps, c.emit(Instruction{Op: OpJumpIfFalse, Position: cs.Token.Position}))
+				default:
+					return fmt.Errorf("vm compile error: unsupported map entry pattern %T", ep)
+				}
+			}
+
+			if sp, ok := mp.Spread.(*ast.SpreadPattern); ok && sp.Value != nil {
+				c.emit(Instruction{Op: OpDup, Position: cs.Token.Position})
+				c.emit(Instruction{
+					Op:       OpMatchMapBindRemainder,
+					StrArg:   sp.Value.Value,
+					StrArg2:  strings.Join(matchedKeys, ","),
+					Position: cs.Token.Position,
+				})
+				c.emit(Instruction{Op: OpPop, Position: cs.Token.Position})
+			} else if idp, ok := mp.Spread.(*ast.IdentifierPattern); ok && idp.Value != nil {
+				c.emit(Instruction{Op: OpDup, Position: cs.Token.Position})
+				c.emit(Instruction{
+					Op:       OpMatchMapBindRemainder,
+					StrArg:   idp.Value.Value,
+					StrArg2:  strings.Join(matchedKeys, ","),
+					Position: cs.Token.Position,
+				})
+				c.emit(Instruction{Op: OpPop, Position: cs.Token.Position})
+			}
+
+			if cs.Guard != nil {
+				if err := c.compileExpression(cs.Guard); err != nil {
+					return err
+				}
+				failJumps = append(failJumps, c.emit(Instruction{Op: OpJumpIfFalse, Position: cs.Token.Position}))
+			}
+
+			c.emit(Instruction{Op: OpPop, Position: cs.Token.Position})
+			if err := c.compileExpression(cs.Body); err != nil {
+				return err
+			}
+			c.emit(Instruction{Op: OpPopScope, Position: cs.Token.Position})
+			j := c.emit(Instruction{Op: OpJump, Position: cs.Token.Position})
+			endJumps = append(endJumps, j)
+			failTarget := len(c.chunk.Instructions)
+			for _, fj := range failJumps {
+				c.patchJump(fj, failTarget)
+			}
+			c.emit(Instruction{Op: OpPopScope, Position: cs.Token.Position})
+			continue
+		}
+
+		if multi, ok := pat.(*ast.MultiPattern); ok {
+			if len(multi.Patterns) == 0 {
+				return fmt.Errorf("vm compile error at %d: empty multi pattern", cs.Token.Position)
+			}
+			matchedJumps := make([]int, 0, len(multi.Patterns))
+			for _, sub := range multi.Patterns {
+				c.emit(Instruction{Op: OpDup, Position: cs.Token.Position})
+				if err := c.compilePatternValue(sub); err != nil {
+					return err
+				}
+				c.emit(Instruction{Op: OpEqual, Position: cs.Token.Position})
+				jf := c.emit(Instruction{Op: OpJumpIfFalse, Position: cs.Token.Position})
+				c.emit(Instruction{Op: OpTrue, Position: cs.Token.Position})
+				j := c.emit(Instruction{Op: OpJump, Position: cs.Token.Position})
+				matchedJumps = append(matchedJumps, j)
+				c.patchJump(jf, len(c.chunk.Instructions))
+			}
+			c.emit(Instruction{Op: OpFalse, Position: cs.Token.Position})
+			matchedLabel := len(c.chunk.Instructions)
+			for _, j := range matchedJumps {
+				c.patchJump(j, matchedLabel)
+			}
+
+			nextCaseJump := c.emit(Instruction{Op: OpJumpIfFalse, Position: cs.Token.Position})
+			if cs.Guard != nil {
+				if err := c.compileExpression(cs.Guard); err != nil {
+					return err
+				}
+				guardJump := c.emit(Instruction{Op: OpJumpIfFalse, Position: cs.Token.Position})
+				c.emit(Instruction{Op: OpPop, Position: cs.Token.Position})
+				if err := c.compileExpression(cs.Body); err != nil {
+					return err
+				}
+				j := c.emit(Instruction{Op: OpJump, Position: cs.Token.Position})
+				endJumps = append(endJumps, j)
+				c.patchJump(guardJump, len(c.chunk.Instructions))
+				c.patchJump(nextCaseJump, len(c.chunk.Instructions))
+				continue
+			}
+			c.emit(Instruction{Op: OpPop, Position: cs.Token.Position})
+			if err := c.compileExpression(cs.Body); err != nil {
+				return err
+			}
+			j := c.emit(Instruction{Op: OpJump, Position: cs.Token.Position})
+			endJumps = append(endJumps, j)
+			c.patchJump(nextCaseJump, len(c.chunk.Instructions))
 			continue
 		}
 
@@ -823,6 +988,11 @@ func (c *compiler) compilePatternValue(pattern ast.MatchPattern) error {
 	switch p := pattern.(type) {
 	case *ast.LiteralPattern:
 		return c.compileExpression(p.Value)
+	case *ast.PinnedIdentifierPattern:
+		c.emit(Instruction{Op: OpGetGlobal, StrArg: p.Value.Value, Position: p.Token.Position})
+		return nil
+	case *ast.MultiPattern:
+		return fmt.Errorf("vm compile error: multi pattern requires special case lowering")
 	default:
 		return fmt.Errorf("vm compile error: unsupported match pattern %T", pattern)
 	}

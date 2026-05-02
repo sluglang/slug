@@ -2,6 +2,7 @@ package vm
 
 import (
 	"fmt"
+	"math"
 	"slug/internal/ast"
 	"slug/internal/dec64"
 	"slug/internal/object"
@@ -87,6 +88,17 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 			val, ok := e.pop()
 			if !ok {
 				return e.errorAt(ins.Position, "stack underflow for var bind")
+			}
+			if existing, exists := e.env.Get(ins.StrArg); exists {
+				if merged, ok := mergeFunctionOverload(existing, val); ok {
+					if binding, ok := e.env.GetBinding(ins.StrArg); ok {
+						binding.Value = merged
+					} else if _, err := e.env.Define(ins.StrArg, merged, false, false); err != nil {
+						return e.errorAt(ins.Position, "%s", err.Error())
+					}
+					e.push(merged)
+					continue
+				}
 			}
 			if _, err := e.env.Define(ins.StrArg, val, false, false); err != nil {
 				return e.errorAt(ins.Position, "%s", err.Error())
@@ -197,6 +209,27 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 				return errObj
 			}
 			e.push(value)
+		case OpMapHasKey:
+			key, ok := e.pop()
+			if !ok {
+				return e.errorAt(ins.Position, "stack underflow for map key check")
+			}
+			val, ok := e.pop()
+			if !ok {
+				return e.errorAt(ins.Position, "stack underflow for map key check")
+			}
+			m, ok := val.(*object.Map)
+			if !ok {
+				e.push(object.FALSE)
+				continue
+			}
+			hashable, ok := key.(object.Hashable)
+			if !ok {
+				e.push(object.FALSE)
+				continue
+			}
+			_, exists := m.Get(hashable)
+			e.push(e.nativeBool(exists))
 		case OpDup:
 			val, ok := e.pop()
 			if !ok {
@@ -387,6 +420,52 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 			default:
 				return e.errorAt(ins.Position, "sequence tail expects LIST or BYTES, got %s", val.Type())
 			}
+		case OpMatchMapLenEq, OpMatchMapLenGte:
+			val, ok := e.pop()
+			if !ok {
+				return e.errorAt(ins.Position, "stack underflow for map length match")
+			}
+			m, ok := val.(*object.Map)
+			if !ok {
+				e.push(object.FALSE)
+				continue
+			}
+			if ins.Op == OpMatchMapLenEq {
+				e.push(e.nativeBool(len(m.Pairs) == ins.IntArg))
+			} else {
+				e.push(e.nativeBool(len(m.Pairs) >= ins.IntArg))
+			}
+		case OpMatchMapBindRemainder:
+			val, ok := e.pop()
+			if !ok {
+				return e.errorAt(ins.Position, "stack underflow for map remainder bind")
+			}
+			m, ok := val.(*object.Map)
+			if !ok {
+				return e.errorAt(ins.Position, "map remainder expects MAP, got %s", val.Type())
+			}
+			excluded := map[string]struct{}{}
+			if ins.StrArg2 != "" {
+				for _, k := range strings.Split(ins.StrArg2, ",") {
+					if k != "" {
+						excluded[k] = struct{}{}
+					}
+				}
+			}
+			rest := &object.Map{Pairs: map[object.MapKey]object.MapPair{}}
+			for mk, pair := range m.Pairs {
+				name, ok := mapBindingName(pair.Key)
+				if ok {
+					if _, skip := excluded[name]; skip {
+						continue
+					}
+				}
+				rest.Pairs[mk] = pair
+			}
+			if _, err := e.env.DefineConstant(ins.StrArg, rest, false, false); err != nil {
+				return e.errorAt(ins.Position, "%s", err.Error())
+			}
+			e.push(object.TRUE)
 		case OpPushScope:
 			e.env = object.NewEnclosedEnvironment(e.env, nil)
 		case OpPopScope:
@@ -772,6 +851,132 @@ func numberToByte(n *object.Number) (byte, error) {
 	return byte(v), nil
 }
 
+func mergeFunctionOverload(existing, added object.Object) (object.Object, bool) {
+	sig, ok := functionSignatureOf(added)
+	if !ok {
+		return nil, false
+	}
+	if group, ok := existing.(*object.FunctionGroup); ok {
+		if group.Functions == nil {
+			group.Functions = map[ast.FSig]object.Object{}
+		}
+		group.Functions[sig] = added
+		return group, true
+	}
+	if existingSig, ok := functionSignatureOf(existing); ok {
+		group := &object.FunctionGroup{Functions: map[ast.FSig]object.Object{}}
+		group.Functions[existingSig] = existing
+		group.Functions[sig] = added
+		return group, true
+	}
+	return nil, false
+}
+
+func functionSignatureOf(obj object.Object) (ast.FSig, bool) {
+	switch fn := obj.(type) {
+	case *VMFunction:
+		return signatureForVMFunction(fn), true
+	case *object.Function:
+		return fn.Signature, true
+	case *object.Foreign:
+		return fn.Signature, true
+	default:
+		return ast.FSig{}, false
+	}
+}
+
+func signatureForVMFunction(fn *VMFunction) ast.FSig {
+	minP := len(fn.Params)
+	maxP := len(fn.Params)
+	variadic := false
+	if maxP > 0 && fn.Params[maxP-1].IsVariadic {
+		maxP = math.MaxInt
+		minP -= 1
+		variadic = true
+	}
+	for i := minP - 1; i >= 0; i-- {
+		if fn.Params[i].Default != nil {
+			minP = i
+		} else {
+			break
+		}
+	}
+	return ast.FSig{
+		Min:        minP,
+		Max:        maxP,
+		IsVariadic: variadic,
+	}
+}
+
+func selectVMFunctionFromGroup(fg *object.FunctionGroup, positional []object.Object, named map[string]object.Object) (*VMFunction, bool) {
+	n := len(positional) + len(named)
+	var best *VMFunction
+	bestMax := math.MaxInt
+	bestScore := -1
+	foundNonVariadic := false
+	for sig, candidate := range fg.Functions {
+		fn, ok := candidate.(*VMFunction)
+		if !ok {
+			continue
+		}
+		if n < sig.Min || n > sig.Max {
+			continue
+		}
+		score := evaluateVMTagMatch(fn, positional, named)
+		if score < 0 {
+			continue
+		}
+		isVariadic := sig.IsVariadic
+		if (score >= 0 && sig.Max < bestMax) ||
+			(sig.Max == bestMax && score > bestScore) ||
+			(sig.Max == bestMax && score == bestScore && (!foundNonVariadic || !isVariadic)) {
+			best = fn
+			bestMax = sig.Max
+			bestScore = score
+			foundNonVariadic = !isVariadic
+		}
+	}
+	if best == nil {
+		return nil, false
+	}
+	return best, true
+}
+
+func evaluateVMTagMatch(fn *VMFunction, positional []object.Object, named map[string]object.Object) int {
+	score := 0
+	for i, p := range fn.Params {
+		arg, provided := vmParamValue(i, p, fn.Params, positional, named)
+		if !provided || len(p.Tags) == 0 {
+			continue
+		}
+		for _, tag := range p.Tags {
+			if tagType, exists := object.TypeTags[tag.Name]; exists {
+				if string(arg.Type()) == tagType || (tag.Name == object.FUNCTION_TAG && arg.Type() == object.FUNCTION_GROUP_OBJ) || arg.Type() == object.NIL_OBJ {
+					score++
+					break
+				}
+				return -1
+			}
+		}
+	}
+	return score
+}
+
+func vmParamValue(index int, param VMParam, params []VMParam, positional []object.Object, named map[string]object.Object) (object.Object, bool) {
+	if named != nil {
+		if v, ok := named[param.Name]; ok {
+			return v, true
+		}
+	}
+	if index < len(positional) {
+		return positional[index], true
+	}
+	if index == len(params)-1 && param.IsVariadic && len(positional) >= len(params)-1 {
+		return &object.List{Elements: positional[len(params)-1:]}, true
+	}
+	return nil, false
+}
+
 func (e *Executor) push(obj object.Object) {
 	e.stack = append(e.stack, obj)
 }
@@ -814,6 +1019,16 @@ func (e *Executor) evalCall(argCount int, plan []CallArgSpec, pos int) object.Ob
 	callee, ok := e.pop()
 	if !ok {
 		return e.errorAt(pos, "stack underflow for callee")
+	}
+	if fg, ok := callee.(*object.FunctionGroup); ok {
+		if vmFn, ok := selectVMFunctionFromGroup(fg, positional, named); ok {
+			result := e.invokeVMFunction(vmFn, positional, named, pos)
+			if result.Type() == object.ERROR_OBJ {
+				return result
+			}
+			e.push(result)
+			return nil
+		}
 	}
 
 	fn, ok := callee.(*VMFunction)
