@@ -27,20 +27,35 @@ const (
 	OpListAppend
 	OpMatchListEmpty
 	OpMatchListHeadTail
+	OpMatchSeqLenEq
+	OpMatchSeqLenGte
+	OpMatchSeqTail
+	OpPushScope
+	OpPopScope
 	OpAdd
 	OpSub
 	OpMul
 	OpDiv
+	OpMod
 	OpEqual
 	OpNotEqual
 	OpGreaterThan
+	OpGreaterThanEqual
 	OpLessThan
+	OpLessThanEqual
+	OpBitAnd
+	OpBitOr
+	OpBitXor
+	OpShiftLeft
+	OpShiftRight
 	OpBang
 	OpNegate
+	OpBitNot
 	OpPop
 	OpJump
 	OpJumpIfFalse
 	OpCall
+	OpRecur
 	OpReturn
 )
 

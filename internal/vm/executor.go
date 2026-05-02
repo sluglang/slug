@@ -15,6 +15,14 @@ type Executor struct {
 	externalCall func(pos int, callee object.Object, positional []object.Object, named map[string]object.Object) object.Object
 }
 
+type vmRecurSignal struct {
+	positional []object.Object
+	named      map[string]object.Object
+}
+
+func (r *vmRecurSignal) Type() object.ObjectType { return "VM_RECUR" }
+func (r *vmRecurSignal) Inspect() string         { return "<vm recur>" }
+
 func NewExecutor(
 	env *object.Environment,
 	externalCall func(pos int, callee object.Object, positional []object.Object, named map[string]object.Object) object.Object,
@@ -31,6 +39,14 @@ func (e *Executor) EvalProgram(program *ast.Program) object.Object {
 		return &object.Error{Message: err.Error()}
 	}
 	return e.run(chunk)
+}
+
+// EvalFunction invokes a VM function value with the provided arguments.
+func (e *Executor) EvalFunction(fn *VMFunction, positional []object.Object, named map[string]object.Object, pos int) object.Object {
+	if fn == nil {
+		return e.errorAt(pos, "no function found")
+	}
+	return e.invokeVMFunction(fn, positional, named, pos)
 }
 
 func (e *Executor) run(chunk *Chunk) object.Object {
@@ -244,14 +260,29 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 			if !ok {
 				return e.errorAt(ins.Position, "stack underflow for list prepend")
 			}
-			rList, ok := right.(*object.List)
-			if !ok {
-				return e.errorAt(ins.Position, "type mismatch: %s +: %s", left.Type(), right.Type())
+			if rList, ok := right.(*object.List); ok {
+				newElements := make([]object.Object, 0, len(rList.Elements)+1)
+				newElements = append(newElements, left)
+				newElements = append(newElements, rList.Elements...)
+				e.push(&object.List{Elements: newElements})
+				continue
 			}
-			newElements := make([]object.Object, 0, len(rList.Elements)+1)
-			newElements = append(newElements, left)
-			newElements = append(newElements, rList.Elements...)
-			e.push(&object.List{Elements: newElements})
+			if rBytes, ok := right.(*object.Bytes); ok {
+				lNum, ok := left.(*object.Number)
+				if !ok {
+					return e.errorAt(ins.Position, "type mismatch: %s +: %s", left.Type(), right.Type())
+				}
+				b, err := numberToByte(lNum)
+				if err != nil {
+					return e.errorAt(ins.Position, "cannot convert number to byte: %s", err.Error())
+				}
+				newBytes := make([]byte, 0, len(rBytes.Value)+1)
+				newBytes = append(newBytes, b)
+				newBytes = append(newBytes, rBytes.Value...)
+				e.push(&object.Bytes{Value: newBytes})
+				continue
+			}
+			return e.errorAt(ins.Position, "type mismatch: %s +: %s", left.Type(), right.Type())
 		case OpListAppend:
 			right, ok := e.pop()
 			if !ok {
@@ -261,14 +292,29 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 			if !ok {
 				return e.errorAt(ins.Position, "stack underflow for list append")
 			}
-			lList, ok := left.(*object.List)
-			if !ok {
-				return e.errorAt(ins.Position, "type mismatch: %s :+ %s", left.Type(), right.Type())
+			if lList, ok := left.(*object.List); ok {
+				newElements := make([]object.Object, 0, len(lList.Elements)+1)
+				newElements = append(newElements, lList.Elements...)
+				newElements = append(newElements, right)
+				e.push(&object.List{Elements: newElements})
+				continue
 			}
-			newElements := make([]object.Object, 0, len(lList.Elements)+1)
-			newElements = append(newElements, lList.Elements...)
-			newElements = append(newElements, right)
-			e.push(&object.List{Elements: newElements})
+			if lBytes, ok := left.(*object.Bytes); ok {
+				rNum, ok := right.(*object.Number)
+				if !ok {
+					return e.errorAt(ins.Position, "type mismatch: %s :+ %s", left.Type(), right.Type())
+				}
+				b, err := numberToByte(rNum)
+				if err != nil {
+					return e.errorAt(ins.Position, "cannot convert number to byte: %s", err.Error())
+				}
+				newBytes := make([]byte, 0, len(lBytes.Value)+1)
+				newBytes = append(newBytes, lBytes.Value...)
+				newBytes = append(newBytes, b)
+				e.push(&object.Bytes{Value: newBytes})
+				continue
+			}
+			return e.errorAt(ins.Position, "type mismatch: %s :+ %s", left.Type(), right.Type())
 		case OpMatchListEmpty:
 			val, ok := e.pop()
 			if !ok {
@@ -295,7 +341,65 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 				return e.errorAt(ins.Position, "%s", err.Error())
 			}
 			e.push(object.TRUE)
-		case OpAdd, OpSub, OpMul, OpDiv, OpEqual, OpNotEqual, OpGreaterThan, OpLessThan:
+		case OpMatchSeqLenEq, OpMatchSeqLenGte:
+			val, ok := e.pop()
+			if !ok {
+				return e.errorAt(ins.Position, "stack underflow for sequence length match")
+			}
+			seqLen := -1
+			switch s := val.(type) {
+			case *object.List:
+				seqLen = len(s.Elements)
+			case *object.Bytes:
+				seqLen = len(s.Value)
+			}
+			if seqLen < 0 {
+				e.push(object.FALSE)
+				continue
+			}
+			if ins.Op == OpMatchSeqLenEq {
+				e.push(e.nativeBool(seqLen == ins.IntArg))
+			} else {
+				e.push(e.nativeBool(seqLen >= ins.IntArg))
+			}
+		case OpMatchSeqTail:
+			val, ok := e.pop()
+			if !ok {
+				return e.errorAt(ins.Position, "stack underflow for sequence tail extraction")
+			}
+			start := ins.IntArg
+			if start < 0 {
+				start = 0
+			}
+			switch s := val.(type) {
+			case *object.List:
+				if start > len(s.Elements) {
+					start = len(s.Elements)
+				}
+				tail := append([]object.Object(nil), s.Elements[start:]...)
+				e.push(&object.List{Elements: tail})
+			case *object.Bytes:
+				if start > len(s.Value) {
+					start = len(s.Value)
+				}
+				tail := append([]byte(nil), s.Value[start:]...)
+				e.push(&object.Bytes{Value: tail})
+			default:
+				return e.errorAt(ins.Position, "sequence tail expects LIST or BYTES, got %s", val.Type())
+			}
+		case OpPushScope:
+			e.env = object.NewEnclosedEnvironment(e.env, nil)
+		case OpPopScope:
+			var top object.Object = object.NIL
+			if len(e.stack) > 0 {
+				top, _ = e.pop()
+			}
+			if e.env == nil || e.env.Outer == nil {
+				return e.errorAt(ins.Position, "cannot pop root scope")
+			}
+			e.env = e.env.Outer
+			e.push(top)
+		case OpAdd, OpSub, OpMul, OpDiv, OpMod, OpEqual, OpNotEqual, OpGreaterThan, OpGreaterThanEqual, OpLessThan, OpLessThanEqual, OpBitAnd, OpBitOr, OpBitXor, OpShiftLeft, OpShiftRight:
 			if errObj := e.evalBinary(ins.Op, ins.Position); errObj != nil {
 				return errObj
 			}
@@ -322,6 +426,23 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 				return e.errorAt(ins.Position, "unknown operator: -%s", val.Type())
 			}
 			e.push(&object.Number{Value: num.Value.Neg()})
+		case OpBitNot:
+			val, ok := e.pop()
+			if !ok {
+				return e.errorAt(ins.Position, "stack underflow for unary ~ operator")
+			}
+			switch v := val.(type) {
+			case *object.Number:
+				e.push(&object.Number{Value: v.Value.Not()})
+			case *object.Bytes:
+				out := make([]byte, len(v.Value))
+				for i, b := range v.Value {
+					out[i] = ^b
+				}
+				e.push(&object.Bytes{Value: out})
+			default:
+				return e.errorAt(ins.Position, "unknown operator: ~%s", val.Type())
+			}
 		case OpPop:
 			val, ok := e.pop()
 			if !ok {
@@ -342,6 +463,12 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 			if errObj := e.evalCall(ins.IntArg, ins.CallPlan, ins.Position); errObj != nil {
 				return errObj
 			}
+		case OpRecur:
+			positional, named, errObj := e.popCallArguments(ins.IntArg, ins.CallPlan, ins.Position)
+			if errObj != nil {
+				return errObj
+			}
+			return &vmRecurSignal{positional: positional, named: named}
 		case OpReturn:
 			if val, ok := e.pop(); ok {
 				return val
@@ -409,6 +536,15 @@ func (e *Executor) evalBinary(op Opcode, pos int) object.Object {
 				return nil
 			}
 		}
+		if l, ok := left.(*object.Bytes); ok {
+			if r, ok := right.(*object.Bytes); ok {
+				combined := make([]byte, 0, len(l.Value)+len(r.Value))
+				combined = append(combined, l.Value...)
+				combined = append(combined, r.Value...)
+				e.push(&object.Bytes{Value: combined})
+				return nil
+			}
+		}
 		return e.errorAt(pos, "type mismatch: %s + %s", left.Type(), right.Type())
 	case OpSub:
 		l, lok := left.(*object.Number)
@@ -442,27 +578,198 @@ func (e *Executor) evalBinary(op Opcode, pos int) object.Object {
 			return e.errorAt(pos, "type mismatch: %s / %s", left.Type(), right.Type())
 		}
 		e.push(&object.Number{Value: l.Value.Div(r.Value, 14, dec64.RoundHalfEven)})
+	case OpMod:
+		l, lok := left.(*object.Number)
+		r, rok := right.(*object.Number)
+		if !lok || !rok {
+			return e.errorAt(pos, "type mismatch: %s %% %s", left.Type(), right.Type())
+		}
+		e.push(&object.Number{Value: l.Value.Mod(r.Value)})
 	case OpEqual:
 		e.push(e.nativeBool(objectsEqual(left, right)))
 	case OpNotEqual:
 		e.push(e.nativeBool(!objectsEqual(left, right)))
-	case OpGreaterThan, OpLessThan:
+	case OpGreaterThan, OpGreaterThanEqual, OpLessThan, OpLessThanEqual:
+		switch l := left.(type) {
+		case *object.Number:
+			r, ok := right.(*object.Number)
+			if !ok {
+				return e.errorAt(pos, "type mismatch: %s %s %s", left.Type(), binaryOpName(op), right.Type())
+			}
+			switch op {
+			case OpGreaterThan:
+				e.push(e.nativeBool(l.Value.Gt(r.Value)))
+			case OpGreaterThanEqual:
+				e.push(e.nativeBool(l.Value.Gte(r.Value)))
+			case OpLessThan:
+				e.push(e.nativeBool(l.Value.Lt(r.Value)))
+			case OpLessThanEqual:
+				e.push(e.nativeBool(l.Value.Lte(r.Value)))
+			}
+		case *object.String:
+			r, ok := right.(*object.String)
+			if !ok {
+				return e.errorAt(pos, "type mismatch: %s %s %s", left.Type(), binaryOpName(op), right.Type())
+			}
+			switch op {
+			case OpGreaterThan:
+				e.push(e.nativeBool(l.Value > r.Value))
+			case OpGreaterThanEqual:
+				e.push(e.nativeBool(l.Value >= r.Value))
+			case OpLessThan:
+				e.push(e.nativeBool(l.Value < r.Value))
+			case OpLessThanEqual:
+				e.push(e.nativeBool(l.Value <= r.Value))
+			}
+		case *object.Symbol:
+			r, ok := right.(*object.Symbol)
+			if !ok {
+				return e.errorAt(pos, "type mismatch: %s %s %s", left.Type(), binaryOpName(op), right.Type())
+			}
+			switch op {
+			case OpGreaterThan:
+				e.push(e.nativeBool(l.Name > r.Name))
+			case OpGreaterThanEqual:
+				e.push(e.nativeBool(l.Name >= r.Name))
+			case OpLessThan:
+				e.push(e.nativeBool(l.Name < r.Name))
+			case OpLessThanEqual:
+				e.push(e.nativeBool(l.Name <= r.Name))
+			}
+		default:
+			return e.errorAt(pos, "type mismatch: %s %s %s", left.Type(), binaryOpName(op), right.Type())
+		}
+	case OpBitAnd, OpBitOr, OpBitXor:
+		if l, lok := left.(*object.Number); lok {
+			if r, rok := right.(*object.Number); rok {
+				switch op {
+				case OpBitAnd:
+					e.push(&object.Number{Value: l.Value.And(r.Value)})
+				case OpBitOr:
+					e.push(&object.Number{Value: l.Value.Or(r.Value)})
+				case OpBitXor:
+					e.push(&object.Number{Value: l.Value.Xor(r.Value)})
+				}
+				return nil
+			}
+		}
+		if bytesResult, ok := evalBytesBitwise(op, left, right); ok {
+			e.push(bytesResult)
+			return nil
+		}
+		return e.errorAt(pos, "type mismatch: %s %s %s", left.Type(), binaryOpName(op), right.Type())
+	case OpShiftLeft, OpShiftRight:
 		l, lok := left.(*object.Number)
 		r, rok := right.(*object.Number)
 		if !lok || !rok {
-			opName := ">"
-			if op == OpLessThan {
-				opName = "<"
-			}
-			return e.errorAt(pos, "type mismatch: %s %s %s", left.Type(), opName, right.Type())
+			return e.errorAt(pos, "type mismatch: %s %s %s", left.Type(), binaryOpName(op), right.Type())
 		}
-		if op == OpGreaterThan {
-			e.push(e.nativeBool(l.Value.Gt(r.Value)))
+		if op == OpShiftLeft {
+			e.push(&object.Number{Value: l.Value.ShiftLeft(r.Value)})
 		} else {
-			e.push(e.nativeBool(l.Value.Lt(r.Value)))
+			e.push(&object.Number{Value: l.Value.ShiftRight(r.Value)})
 		}
 	}
 	return nil
+}
+
+func binaryOpName(op Opcode) string {
+	switch op {
+	case OpAdd:
+		return "+"
+	case OpSub:
+		return "-"
+	case OpMul:
+		return "*"
+	case OpDiv:
+		return "/"
+	case OpMod:
+		return "%"
+	case OpEqual:
+		return "=="
+	case OpNotEqual:
+		return "!="
+	case OpGreaterThan:
+		return ">"
+	case OpGreaterThanEqual:
+		return ">="
+	case OpLessThan:
+		return "<"
+	case OpLessThanEqual:
+		return "<="
+	case OpBitAnd:
+		return "&"
+	case OpBitOr:
+		return "|"
+	case OpBitXor:
+		return "^"
+	case OpShiftLeft:
+		return "<<"
+	case OpShiftRight:
+		return ">>"
+	default:
+		return "<?>"
+	}
+}
+
+func evalBytesBitwise(op Opcode, left, right object.Object) (object.Object, bool) {
+	lb, lok := left.(*object.Bytes)
+	rb, rok := right.(*object.Bytes)
+	if lok && rok {
+		return doBytesBitwise(lb.Value, rb.Value, op), true
+	}
+
+	if lok {
+		if rn, ok := right.(*object.Number); ok {
+			b, err := numberToByte(rn)
+			if err != nil {
+				return nil, false
+			}
+			return doBytesBitwise(lb.Value, []byte{b}, op), true
+		}
+	}
+	if rok {
+		if ln, ok := left.(*object.Number); ok {
+			b, err := numberToByte(ln)
+			if err != nil {
+				return nil, false
+			}
+			return doBytesBitwise([]byte{b}, rb.Value, op), true
+		}
+	}
+	return nil, false
+}
+
+func doBytesBitwise(left, right []byte, op Opcode) object.Object {
+	var long, short []byte
+	if len(left) >= len(right) {
+		long, short = left, right
+	} else {
+		long, short = right, left
+	}
+	if len(short) == 0 {
+		return &object.Bytes{Value: []byte{}}
+	}
+	out := make([]byte, len(long))
+	for i := range long {
+		switch op {
+		case OpBitAnd:
+			out[i] = long[i] & short[i%len(short)]
+		case OpBitOr:
+			out[i] = long[i] | short[i%len(short)]
+		case OpBitXor:
+			out[i] = long[i] ^ short[i%len(short)]
+		}
+	}
+	return &object.Bytes{Value: out}
+}
+
+func numberToByte(n *object.Number) (byte, error) {
+	v := n.Value.ToInt64()
+	if v < 0 || v > 255 {
+		return 0, fmt.Errorf("value out of byte range: %d", v)
+	}
+	return byte(v), nil
 }
 
 func (e *Executor) push(obj object.Object) {
@@ -500,49 +807,13 @@ func (e *Executor) bindClosureIfNeeded(obj object.Object) object.Object {
 }
 
 func (e *Executor) evalCall(argCount int, plan []CallArgSpec, pos int) object.Object {
-	if argCount < 0 {
-		return e.errorAt(pos, "invalid call arity")
-	}
-	if len(plan) != argCount {
-		return e.errorAt(pos, "invalid call metadata: expected %d args in plan, got %d", argCount, len(plan))
-	}
-	args := make([]object.Object, argCount)
-	for i := argCount - 1; i >= 0; i-- {
-		arg, ok := e.pop()
-		if !ok {
-			return e.errorAt(pos, "stack underflow for call arguments")
-		}
-		args[i] = arg
+	positional, named, errObj := e.popCallArguments(argCount, plan, pos)
+	if errObj != nil {
+		return errObj
 	}
 	callee, ok := e.pop()
 	if !ok {
 		return e.errorAt(pos, "stack underflow for callee")
-	}
-
-	positional := make([]object.Object, 0, argCount)
-	var named map[string]object.Object
-	for i, spec := range plan {
-		val := args[i]
-		switch spec.Kind {
-		case CallArgPositional:
-			positional = append(positional, val)
-		case CallArgSpread:
-			list, ok := val.(*object.List)
-			if !ok {
-				return e.errorAt(pos, "spread operator can only be used on lists, got %s", val.Type())
-			}
-			positional = append(positional, list.Elements...)
-		case CallArgNamed:
-			if named == nil {
-				named = make(map[string]object.Object)
-			}
-			if _, exists := named[spec.Name]; exists {
-				return e.errorAt(pos, "duplicate named argument: %s", spec.Name)
-			}
-			named[spec.Name] = val
-		default:
-			return e.errorAt(pos, "invalid call argument kind: %d", spec.Kind)
-		}
 	}
 
 	fn, ok := callee.(*VMFunction)
@@ -569,29 +840,83 @@ func (e *Executor) evalCall(argCount int, plan []CallArgSpec, pos int) object.Ob
 	return nil
 }
 
-func (e *Executor) invokeVMFunction(fn *VMFunction, positional []object.Object, named map[string]object.Object, pos int) object.Object {
-	bound, errObj := bindVMArguments(fn, positional, named, pos, e)
-	if errObj != nil {
-		return errObj
+func (e *Executor) popCallArguments(argCount int, plan []CallArgSpec, pos int) ([]object.Object, map[string]object.Object, *object.Error) {
+	if argCount < 0 {
+		return nil, nil, e.errorAt(pos, "invalid call arity")
+	}
+	if len(plan) != argCount {
+		return nil, nil, e.errorAt(pos, "invalid call metadata: expected %d args in plan, got %d", argCount, len(plan))
+	}
+	args := make([]object.Object, argCount)
+	for i := argCount - 1; i >= 0; i-- {
+		arg, ok := e.pop()
+		if !ok {
+			return nil, nil, e.errorAt(pos, "stack underflow for call arguments")
+		}
+		args[i] = arg
 	}
 
+	positional := make([]object.Object, 0, argCount)
+	var named map[string]object.Object
+	for i, spec := range plan {
+		val := args[i]
+		switch spec.Kind {
+		case CallArgPositional:
+			positional = append(positional, val)
+		case CallArgSpread:
+			list, ok := val.(*object.List)
+			if !ok {
+				return nil, nil, e.errorAt(pos, "spread operator can only be used on lists, got %s", val.Type())
+			}
+			positional = append(positional, list.Elements...)
+		case CallArgNamed:
+			if named == nil {
+				named = make(map[string]object.Object)
+			}
+			if _, exists := named[spec.Name]; exists {
+				return nil, nil, e.errorAt(pos, "duplicate named argument: %s", spec.Name)
+			}
+			named[spec.Name] = val
+		default:
+			return nil, nil, e.errorAt(pos, "invalid call argument kind: %d", spec.Kind)
+		}
+	}
+	return positional, named, nil
+}
+
+func (e *Executor) invokeVMFunction(fn *VMFunction, positional []object.Object, named map[string]object.Object, pos int) object.Object {
 	closure := fn.Closure
 	if closure == nil {
 		closure = e.env
 	}
-	callEnv := object.NewEnclosedEnvironment(closure, nil)
-	for i, p := range fn.Params {
-		if _, err := callEnv.DefineConstant(p.Name, bound[i], false, false); err != nil {
-			return e.errorAt(pos, "%s", err.Error())
-		}
-	}
 
-	child := NewExecutor(callEnv, e.externalCall)
-	result := child.run(fn.Chunk)
-	if result == nil {
-		return object.NIL
+	curPositional := positional
+	curNamed := named
+	for {
+		bound, errObj := bindVMArguments(fn, curPositional, curNamed, pos, e)
+		if errObj != nil {
+			return errObj
+		}
+
+		callEnv := object.NewEnclosedEnvironment(closure, nil)
+		for i, p := range fn.Params {
+			if _, err := callEnv.DefineConstant(p.Name, bound[i], false, false); err != nil {
+				return e.errorAt(pos, "%s", err.Error())
+			}
+		}
+
+		child := NewExecutor(callEnv, e.externalCall)
+		result := child.run(fn.Chunk)
+		if recur, ok := result.(*vmRecurSignal); ok {
+			curPositional = recur.positional
+			curNamed = recur.named
+			continue
+		}
+		if result == nil {
+			return object.NIL
+		}
+		return result
 	}
-	return result
 }
 
 func bindVMArguments(
