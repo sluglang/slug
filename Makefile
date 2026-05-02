@@ -44,6 +44,9 @@ test:
 test-vm-conformance:
 	go test ./internal/runtime -run 'TestVMConformanceFixtures|TestVMKnownUnsupportedFixtures|TestVMConformanceErrorParityFixtures' -count=1
 
+test-runtime-parity:
+	bash ./scripts/test-runtime-parity.sh
+
 lc: clean
 	cloc  --exclude-dir=.idea --read-lang-def=slug_cloc_definition.txt .
 
