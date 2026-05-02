@@ -38,7 +38,7 @@ func init() {
 	flag.BoolVar(&version, "v", false, "Display version information and exit")
 	// evaluator config
 	flag.StringVar(&rootPath, "root", "", "Set the root context for the program (used for imports)")
-	flag.StringVar(&runtimeMode, "runtime", runtime.RuntimeTreewalk, "Runtime backend: treewalk or vm")
+	flag.StringVar(&runtimeMode, "runtime", runtime.RuntimeVM, "Runtime backend: treewalk or vm")
 	// parser config
 	flag.BoolVar(&debugJsonAST, "debug-json-ast", false, "Render the AST as a JSON file")
 	flag.BoolVar(&debugTxtAST, "debug-txt-ast", false, "Render the AST as a TXT file")

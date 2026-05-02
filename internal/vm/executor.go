@@ -15,6 +15,7 @@ type Executor struct {
 	env          *object.Environment
 	stack        []object.Object
 	deferScopes  [][]vmDeferEntry
+	taskScopes   [][]*VMTaskHandle
 	externalCall func(pos int, callee object.Object, positional []object.Object, named map[string]object.Object) object.Object
 }
 
@@ -62,6 +63,7 @@ func (e *Executor) EvalFunction(fn *VMFunction, positional []object.Object, name
 func (e *Executor) run(chunk *Chunk) object.Object {
 	e.stack = e.stack[:0]
 	e.deferScopes = e.deferScopes[:0]
+	e.taskScopes = e.taskScopes[:0]
 	var last object.Object = object.NIL
 
 	for ip := 0; ip < len(chunk.Instructions); ip++ {
@@ -376,6 +378,12 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 				handle.Complete(result)
 			}()
 
+			if len(e.taskScopes) == 0 {
+				e.taskScopes = append(e.taskScopes, []*VMTaskHandle{})
+			}
+			idx := len(e.taskScopes) - 1
+			e.taskScopes[idx] = append(e.taskScopes[idx], handle)
+
 			e.push(handle)
 		case OpAwait:
 			taskObj, ok := e.pop()
@@ -609,6 +617,7 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 			})
 		case OpPushScope:
 			e.deferScopes = append(e.deferScopes, []vmDeferEntry{})
+			e.taskScopes = append(e.taskScopes, []*VMTaskHandle{})
 			e.env = object.NewEnclosedEnvironment(e.env, nil)
 		case OpPopScope:
 			var top object.Object = object.NIL
@@ -622,6 +631,7 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 			} else {
 				top = e.executeDeferredInCurrentScope(top)
 			}
+			top = e.executeTaskHandlesInCurrentScope(top)
 			if e.env == nil || e.env.Outer == nil {
 				return e.errorAt(ins.Position, "cannot pop root scope")
 			}
@@ -766,6 +776,9 @@ func (e *Executor) unwindDeferredScopes(current object.Object) object.Object {
 	for len(e.deferScopes) > 0 {
 		current = e.executeDeferredInCurrentScope(current)
 	}
+	for len(e.taskScopes) > 0 {
+		current = e.executeTaskHandlesInCurrentScope(current)
+	}
 	return current
 }
 
@@ -820,6 +833,31 @@ func (e *Executor) executeDeferredEntries(entries []vmDeferEntry, current object
 				currentResult = retVal.Value
 			} else {
 				currentResult = deferResult
+			}
+		}
+	}
+	return currentResult
+}
+
+func (e *Executor) executeTaskHandlesInCurrentScope(current object.Object) object.Object {
+	if len(e.taskScopes) == 0 {
+		return current
+	}
+	handles := e.taskScopes[len(e.taskScopes)-1]
+	e.taskScopes = e.taskScopes[:len(e.taskScopes)-1]
+	currentResult := current
+	for _, h := range handles {
+		if h == nil {
+			continue
+		}
+		<-h.done
+		res := h.result
+		if res == nil {
+			continue
+		}
+		if res.Type() == object.ERROR_OBJ {
+			if currentResult == nil || currentResult.Type() != object.ERROR_OBJ && currentResult.Type() != object.RETURN_VALUE_OBJ {
+				currentResult = res
 			}
 		}
 	}
