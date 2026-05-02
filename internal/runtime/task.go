@@ -2866,7 +2866,7 @@ func (e *Task) evalForeignFunctionDeclaration(ff *ast.ForeignFunctionDeclaration
 		if err != nil {
 			return e.newErrorWithPos(ff.Token.Position, err.Error())
 		}
-		if ff.HasDoc && env.Outer == nil {
+		if ff.HasDoc {
 			env.SetLocalDoc(functionName, ff.Doc)
 		}
 		return object.NIL
@@ -2977,7 +2977,7 @@ func (e *Task) applyDocIfPresent(pattern ast.MatchPattern, doc string, hasDoc bo
 		return
 	}
 	env := e.CurrentEnv()
-	if env == nil || env.Outer != nil {
+	if env == nil {
 		return
 	}
 	e.applyDocToPattern(pattern, doc, env)

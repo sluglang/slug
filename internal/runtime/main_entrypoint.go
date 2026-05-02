@@ -43,6 +43,10 @@ func taggedMainFunctions(value object.Object) []object.Object {
 		if hasMainTag(v) {
 			result = append(result, v)
 		}
+	default:
+		if value != nil && value.Type() == object.FUNCTION_OBJ && hasMainTag(value) {
+			result = append(result, value)
+		}
 	}
 
 	return result

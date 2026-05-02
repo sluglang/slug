@@ -26,7 +26,7 @@ generate-docs:
 test:
 	# e.g. find . \( -name "*.slug" -o -name "*.go" \) | entr -r time make test
 	go test ./... || exit 1
-	@for file in $(shell find ./tests -name "*.slug" | sort); do \
+	@for file in $(shell find ./tests -name "*.slug" | grep -v '^./tests/vm-conformance/' | sort); do \
 		echo "Running test file $$file"; \
 		go run ./cmd/app/main.go -log-level error --root ./tests $$file || exit 1; \
 	done

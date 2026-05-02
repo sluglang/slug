@@ -12,7 +12,18 @@ func ExecuteProgram(mode string, rt *Runtime, env *object.Environment, program *
 	case RuntimeVM:
 		installBuiltinsIntoEnv(rt, env)
 		exec := vm.NewExecutor(env, makeVMCallBridge(rt, env))
-		return exec.EvalProgram(program)
+		result := exec.EvalProgram(program)
+		if result == nil || result.Type() != object.ERROR_OBJ {
+			entrypoint, err := FindMainEntrypoint(env)
+			if err != nil {
+				task := &Task{Runtime: rt}
+				return task.NewError("%s", err.Error())
+			}
+			if entrypoint != nil {
+				result = invokeEntrypoint(rt, env, entrypoint)
+			}
+		}
+		return result
 	default:
 		task := &Task{
 			Runtime: rt,
@@ -25,7 +36,7 @@ func ExecuteProgram(mode string, rt *Runtime, env *object.Environment, program *
 
 		result := task.Eval(program)
 		if result == nil || result.Type() != object.ERROR_OBJ {
-			entrypoint, err := FindMainEntrypoint(env)
+			entrypoint, err := FindMainEntrypoint(callEnv)
 			if err != nil {
 				result = task.NewError("%s", err.Error())
 			} else if entrypoint != nil {
@@ -38,6 +49,17 @@ func ExecuteProgram(mode string, rt *Runtime, env *object.Environment, program *
 		}
 		return result
 	}
+}
+
+func invokeEntrypoint(rt *Runtime, moduleEnv *object.Environment, entrypoint object.Object) object.Object {
+	task := &Task{Runtime: rt}
+	task.PushNurseryScope(&NurseryScope{
+		Limit: make(chan struct{}, rt.Config.DefaultLimit),
+	})
+	task.PushEnv(object.NewEnclosedEnvironment(moduleEnv, nil))
+	out := task.ApplyFunction(0, "@main", entrypoint, nil, nil)
+	out = task.PopEnv(out)
+	return out
 }
 
 func installBuiltinsIntoEnv(rt *Runtime, env *object.Environment) {

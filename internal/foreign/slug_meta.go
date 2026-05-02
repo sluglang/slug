@@ -631,10 +631,12 @@ func findDocForValue(ctx object.EvaluatorContext, value object.Object) (string, 
 	if env == nil {
 		return "", false
 	}
-	for env.Outer != nil {
-		env = env.Outer
+	for cur := env; cur != nil; cur = cur.Outer {
+		if doc, ok := docFromEnvValue(cur, value); ok {
+			return doc, true
+		}
 	}
-	return docFromEnvValue(env, value)
+	return "", false
 }
 
 func docFromBinding(env *object.Environment, name string) (string, bool) {

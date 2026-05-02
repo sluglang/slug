@@ -672,6 +672,8 @@ func encodeTagNames(tags []*ast.Tag) string {
 }
 
 func (c *compiler) compileListPatternFromValue(p *ast.ListPattern, pos int, failJumps *[]int) error {
+	localFailJumps := make([]int, 0, 8)
+
 	spreadIndex := -1
 	var spreadPat *ast.SpreadPattern
 	for i, el := range p.Elements {
@@ -693,7 +695,7 @@ func (c *compiler) compileListPatternFromValue(p *ast.ListPattern, pos int, fail
 	} else {
 		c.emit(Instruction{Op: OpMatchSeqLenEq, IntArg: len(p.Elements), Position: pos})
 	}
-	*failJumps = append(*failJumps, c.emit(Instruction{Op: OpJumpIfFalse, Position: pos}))
+	localFailJumps = append(localFailJumps, c.emit(Instruction{Op: OpJumpIfFalse, Position: pos}))
 
 	for i, el := range p.Elements {
 		if spreadIndex >= 0 && i == spreadIndex {
@@ -723,23 +725,33 @@ func (c *compiler) compileListPatternFromValue(p *ast.ListPattern, pos int, fail
 		case *ast.PinnedIdentifierPattern:
 			c.emit(Instruction{Op: OpGetGlobal, StrArg: ep.Value.Value, Position: pos})
 			c.emit(Instruction{Op: OpEqual, Position: pos})
-			*failJumps = append(*failJumps, c.emit(Instruction{Op: OpJumpIfFalse, Position: pos}))
+			localFailJumps = append(localFailJumps, c.emit(Instruction{Op: OpJumpIfFalse, Position: pos}))
 		case *ast.LiteralPattern:
 			if err := c.compileExpression(ep.Value); err != nil {
 				return err
 			}
 			c.emit(Instruction{Op: OpEqual, Position: pos})
-			*failJumps = append(*failJumps, c.emit(Instruction{Op: OpJumpIfFalse, Position: pos}))
+			localFailJumps = append(localFailJumps, c.emit(Instruction{Op: OpJumpIfFalse, Position: pos}))
 		case *ast.ListPattern:
-			if err := c.compileListPatternFromValue(ep, pos, failJumps); err != nil {
+			nestedFailJumps := make([]int, 0, 4)
+			if err := c.compileListPatternFromValue(ep, pos, &nestedFailJumps); err != nil {
 				return err
 			}
+			localFailJumps = append(localFailJumps, nestedFailJumps...)
 		default:
 			return fmt.Errorf("vm compile error at %d: unsupported list pattern shape", pos)
 		}
 	}
 
 	c.emit(Instruction{Op: OpPop, Position: pos})
+	doneJump := c.emit(Instruction{Op: OpJump, Position: pos})
+	localFailTarget := len(c.chunk.Instructions)
+	for _, fj := range localFailJumps {
+		c.patchJump(fj, localFailTarget)
+	}
+	c.emit(Instruction{Op: OpPop, Position: pos})
+	*failJumps = append(*failJumps, c.emit(Instruction{Op: OpJump, Position: pos}))
+	c.patchJump(doneJump, len(c.chunk.Instructions))
 	return nil
 }
 
