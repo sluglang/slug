@@ -26,7 +26,6 @@ var (
 	logSource bool
 	// config vars
 	rootPath     string
-	runtimeMode  string
 	debugJsonAST bool
 	debugTxtAST  bool
 )
@@ -38,7 +37,6 @@ func init() {
 	flag.BoolVar(&version, "v", false, "Display version information and exit")
 	// evaluator config
 	flag.StringVar(&rootPath, "root", "", "Set the root context for the program (used for imports)")
-	flag.StringVar(&runtimeMode, "runtime", runtime.RuntimeVM, "Runtime backend: vm")
 	// parser config
 	flag.BoolVar(&debugJsonAST, "debug-json-ast", false, "Render the AST as a JSON file")
 	flag.BoolVar(&debugTxtAST, "debug-txt-ast", false, "Render the AST as a TXT file")
@@ -101,7 +99,6 @@ func main() {
 		ProjectRoot:  filepath.Clean(projectRoot),
 		Cwd:          filepath.Clean(processCwd),
 		SlugHome:     os.Getenv("SLUG_HOME"),
-		RuntimeMode:  runtimeMode,
 		DebugJsonAST: debugJsonAST,
 		DebugTxtAST:  debugTxtAST,
 		DefaultLimit: max(stdrt.NumCPU()*2, 4),
@@ -121,13 +118,6 @@ func main() {
 		}
 		os.Exit(1)
 	}
-
-	normalizedMode, err := runtime.NormalizeRuntimeMode(config.RuntimeMode)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
-	}
-	config.RuntimeMode = normalizedMode
 
 	// 5. Initialize Runtime & Environment
 	env := object.NewRootEnvironment(config.DefaultLimit)

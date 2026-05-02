@@ -124,7 +124,6 @@ func runProgramForConformance(t *testing.T, scriptPath, source string) conforman
 		SlugHome:     repoRoot(t),
 		DefaultLimit: 4,
 		MainModule:   strings.TrimSuffix(filepath.Base(scriptPath), ".slug"),
-		RuntimeMode:  RuntimeVM,
 	}
 	rt := NewRuntime(cfg)
 	if rt.Modules == nil {

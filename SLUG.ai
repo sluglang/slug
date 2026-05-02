@@ -179,7 +179,7 @@ map dot-access "m.foo uses dot lookup tolerance: attempts symbol key :foo first;
 map dot-access-strict "dot lookup tolerance applies to dot access only; bracket lookups m[:foo] and m[\"foo\"] remain exact with no coercion or fallback."
 map dot-json "prefer dot access (m.name) when working with JSON-decoded maps; slug.json#decode produces string-keyed maps so m[:name] will always return nil on decoded data."
 map trailing-comma "trailing commas in map literals are permitted."
-map absence "missing map key returns nil unless a stricter runtime mode is documented elsewhere."
+map absence "missing map key returns nil."
 sym purpose "symbols are stable lightweight identity keys commonly used for internal records, tags, and metadata."
 
 @section structs

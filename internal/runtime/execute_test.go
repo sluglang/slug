@@ -24,7 +24,6 @@ func TestExecuteProgramVMCallsBuiltinThroughBridge(t *testing.T) {
 		Cwd:          ".",
 		DefaultLimit: 4,
 		MainModule:   "vm-test",
-		RuntimeMode:  RuntimeVM,
 	}
 	rt := NewRuntime(cfg)
 	env := object.NewRootEnvironment(cfg.DefaultLimit)
