@@ -1,6 +1,7 @@
 package object
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"runtime"
@@ -8,6 +9,10 @@ import (
 	"sync"
 	"sync/atomic"
 )
+
+func envDebugEnabled() bool {
+	return slog.Default().Enabled(context.Background(), slog.LevelDebug)
+}
 
 var nextID atomic.Uint64
 
@@ -64,7 +69,7 @@ func NewEnvironment() *Environment {
 	return &Environment{
 		ID:       nextEnvID(),
 		Bindings: make(map[string]*Binding),
-		Defers:   make([]*ast.DeferStatement, 0),
+		Defers:   nil,
 	}
 }
 
@@ -150,9 +155,11 @@ func (e *Environment) Get(name string) (Object, bool) {
 	if !ok {
 		return nil, false
 	}
-	slog.Debug("Found binding",
-		slog.Any("name", name),
-		slog.Any("binding", binding))
+	if envDebugEnabled() {
+		slog.Debug("Found binding",
+			slog.Any("name", name),
+			slog.Any("binding", binding))
+	}
 	return binding.Value, true
 }
 
@@ -220,7 +227,6 @@ func mergeCallableIntoBinding(name string, binding *Binding, val Object) error {
 func (e *Environment) define(name string, val Object, isMutable bool, isExported bool, isImport bool) (Object, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-
 	declaration := "val"
 	if isMutable {
 		declaration = "var"
@@ -277,10 +283,12 @@ func (e *Environment) define(name string, val Object, isMutable bool, isExported
 		typ = binding.Value.Type()
 	}
 
-	slog.Debug("binding value",
-		slog.Any("type", typ),
-		slog.Any("name", name),
-		slog.Any("meta", binding.Meta))
+	if envDebugEnabled() {
+		slog.Debug("binding value",
+			slog.Any("type", typ),
+			slog.Any("name", name),
+			slog.Any("meta", binding.Meta))
+	}
 	return val, nil
 }
 
@@ -321,10 +329,12 @@ func (e *Environment) Assign(name string, val Object) (Object, error) {
 			binding.Value = val
 		}
 		//fmt.Printf("assigning: %v %v %v %v\n", binding.Value.Type(), name, binding.Value, binding.Meta)
-		slog.Debug("assigning bound value",
-			slog.Any("type", binding.Value.Type()),
-			slog.Any("name", name),
-			slog.Any("meta", binding.Meta))
+		if envDebugEnabled() {
+			slog.Debug("assigning bound value",
+				slog.Any("type", binding.Value.Type()),
+				slog.Any("name", name),
+				slog.Any("meta", binding.Meta))
+		}
 		return val, nil
 	}
 	e.mu.Unlock()
@@ -339,6 +349,9 @@ func (e *Environment) Assign(name string, val Object) (Object, error) {
 func (e *Environment) SetLocalDoc(name, doc string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if e.Bindings == nil {
+		return
+	}
 	binding, ok := e.Bindings[name]
 	if !ok {
 		return
@@ -354,6 +367,9 @@ func (e *Environment) SetLocalDoc(name, doc string) {
 func (e *Environment) RegisterDefer(deferStmt *ast.DeferStatement) {
 	slog.Debug("Stashing deferred block",
 		slog.Any("deferred-statement", deferStmt))
+	if e.Defers == nil {
+		e.Defers = make([]*ast.DeferStatement, 0, 4)
+	}
 	e.Defers = append(e.Defers, deferStmt)
 }
 

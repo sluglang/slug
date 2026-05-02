@@ -1411,32 +1411,49 @@ func (e *Executor) invokeVMFunction(fn *VMFunction, positional []object.Object, 
 		closure = e.env
 	}
 
-	curPositional := positional
-	curNamed := named
+	bound := make([]object.Object, len(fn.Params))
+	provided := make([]bool, len(fn.Params))
+	errObj := bindVMArgumentsInto(fn, positional, named, pos, e, bound, provided)
+	if errObj != nil {
+		return errObj
+	}
+
+	callEnv := object.NewEnclosedEnvironment(closure, nil)
+	if callEnv.Bindings == nil {
+		callEnv.Bindings = make(map[string]*object.Binding, len(fn.Params))
+	}
+	setVMCallFrameParams(callEnv, fn.Params, bound)
+
+	child := NewExecutor(callEnv, e.externalCall)
 	for {
-		bound, errObj := bindVMArguments(fn, curPositional, curNamed, pos, e)
-		if errObj != nil {
-			return errObj
-		}
-
-		callEnv := object.NewEnclosedEnvironment(closure, nil)
-		for i, p := range fn.Params {
-			if _, err := callEnv.Define(p.Name, bound[i], false, false); err != nil {
-				return e.errorAt(pos, "%s", err.Error())
-			}
-		}
-
-		child := NewExecutor(callEnv, e.externalCall)
 		result := child.run(fn.Chunk)
 		if recur, ok := result.(*vmRecurSignal); ok {
-			curPositional = recur.positional
-			curNamed = recur.named
+			errObj = bindVMArgumentsInto(fn, recur.positional, recur.named, pos, e, bound, provided)
+			if errObj != nil {
+				return errObj
+			}
+			setVMCallFrameParams(callEnv, fn.Params, bound)
 			continue
 		}
 		if result == nil {
 			return object.NIL
 		}
 		return result
+	}
+}
+
+func setVMCallFrameParams(callEnv *object.Environment, params []VMParam, values []object.Object) {
+	for i, p := range params {
+		if binding, ok := callEnv.Bindings[p.Name]; ok && binding != nil {
+			binding.Value = values[i]
+			binding.IsMutable = true
+			continue
+		}
+		callEnv.Bindings[p.Name] = &object.Binding{
+			Value:     values[i],
+			IsMutable: true,
+			Meta:      object.Meta{},
+		}
 	}
 }
 
@@ -1447,9 +1464,31 @@ func bindVMArguments(
 	pos int,
 	e *Executor,
 ) ([]object.Object, *object.Error) {
+	values := make([]object.Object, len(fn.Params))
+	provided := make([]bool, len(fn.Params))
+	if errObj := bindVMArgumentsInto(fn, positional, named, pos, e, values, provided); errObj != nil {
+		return nil, errObj
+	}
+	return values, nil
+}
+
+func bindVMArgumentsInto(
+	fn *VMFunction,
+	positional []object.Object,
+	named map[string]object.Object,
+	pos int,
+	e *Executor,
+	values []object.Object,
+	provided []bool,
+) *object.Error {
 	paramCount := len(fn.Params)
-	values := make([]object.Object, paramCount)
-	provided := make([]bool, paramCount)
+	if len(values) != paramCount || len(provided) != paramCount {
+		return e.errorAt(pos, "internal error: invalid argument binding buffers")
+	}
+	for i := 0; i < paramCount; i++ {
+		values[i] = nil
+		provided[i] = false
+	}
 	hasVariadic := paramCount > 0 && fn.Params[paramCount-1].IsVariadic
 	variadicIndex := paramCount - 1
 
@@ -1461,14 +1500,14 @@ func bindVMArguments(
 		for name, val := range named {
 			idx, ok := index[name]
 			if !ok {
-				return nil, e.errorAt(pos, "unknown named parameter: %s", name)
+				return e.errorAt(pos, "unknown named parameter: %s", name)
 			}
 			if provided[idx] {
-				return nil, e.errorAt(pos, "duplicate assignment to parameter: %s", name)
+				return e.errorAt(pos, "duplicate assignment to parameter: %s", name)
 			}
 			if fn.Params[idx].IsVariadic {
 				if _, ok := val.(*object.List); !ok {
-					return nil, e.errorAt(pos, "variadic parameter '%s' must be a list when passed by name", name)
+					return e.errorAt(pos, "variadic parameter '%s' must be a list when passed by name", name)
 				}
 			}
 			values[idx] = val
@@ -1492,7 +1531,7 @@ func bindVMArguments(
 		remaining := positional[posIndex:]
 		if provided[variadicIndex] {
 			if len(remaining) > 0 {
-				return nil, e.errorAt(pos, "too many positional arguments")
+				return e.errorAt(pos, "too many positional arguments")
 			}
 		} else {
 			values[variadicIndex] = &object.List{Elements: remaining}
@@ -1511,7 +1550,7 @@ func bindVMArguments(
 			posIndex++
 		}
 		if posIndex < len(positional) {
-			return nil, e.errorAt(pos, "too many positional arguments")
+			return e.errorAt(pos, "too many positional arguments")
 		}
 	}
 
@@ -1543,17 +1582,17 @@ func bindVMArguments(
 			}
 			if defaultVal.Type() == object.ERROR_OBJ {
 				if errObj, ok := defaultVal.(*object.Error); ok {
-					return nil, errObj
+					return errObj
 				}
-				return nil, e.errorAt(pos, "%s", defaultVal.Inspect())
+				return e.errorAt(pos, "%s", defaultVal.Inspect())
 			}
 			values[i] = defaultVal
 			provided[i] = true
 			continue
 		}
-		return nil, e.errorAt(pos, "missing required parameter: %s", param.Name)
+		return e.errorAt(pos, "missing required parameter: %s", param.Name)
 	}
-	return values, nil
+	return nil
 }
 
 func (e *Executor) errorAt(pos int, format string, args ...interface{}) *object.Error {
