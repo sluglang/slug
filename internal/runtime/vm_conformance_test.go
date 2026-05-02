@@ -41,7 +41,7 @@ func TestVMConformanceFixtures(t *testing.T) {
 			}
 			source := string(sourceBytes)
 
-			vm := runProgramForConformance(t, RuntimeVM, path, source)
+			vm := runProgramForConformance(t, path, source)
 			if vm.result.Type() == object.ERROR_OBJ {
 				t.Fatalf("supported fixture must succeed on vm, got error:\n%s", vm.result.Inspect())
 			}
@@ -70,7 +70,7 @@ func TestVMKnownUnsupportedFixtures(t *testing.T) {
 			}
 			source := string(sourceBytes)
 
-			vm := runProgramForConformance(t, RuntimeVM, path, source)
+			vm := runProgramForConformance(t, path, source)
 			if vm.result.Type() != object.ERROR_OBJ {
 				t.Fatalf("unsupported fixture expected VM error, got %T (%s)", vm.result, vm.result.Inspect())
 			}
@@ -99,7 +99,7 @@ func TestVMConformanceExpectedErrorFixtures(t *testing.T) {
 			}
 			source := string(sourceBytes)
 
-			vm := runProgramForConformance(t, RuntimeVM, path, source)
+			vm := runProgramForConformance(t, path, source)
 			if vm.result.Type() != object.ERROR_OBJ {
 				t.Fatalf("error-parity fixture must fail on vm, got %T (%s)", vm.result, vm.result.Inspect())
 			}
@@ -107,7 +107,7 @@ func TestVMConformanceExpectedErrorFixtures(t *testing.T) {
 	}
 }
 
-func runProgramForConformance(t *testing.T, mode, scriptPath, source string) conformanceRun {
+func runProgramForConformance(t *testing.T, scriptPath, source string) conformanceRun {
 	t.Helper()
 
 	l := lexer.New(source)
@@ -124,7 +124,7 @@ func runProgramForConformance(t *testing.T, mode, scriptPath, source string) con
 		SlugHome:     repoRoot(t),
 		DefaultLimit: 4,
 		MainModule:   strings.TrimSuffix(filepath.Base(scriptPath), ".slug"),
-		RuntimeMode:  mode,
+		RuntimeMode:  RuntimeVM,
 	}
 	rt := NewRuntime(cfg)
 	if rt.Modules == nil {
@@ -151,7 +151,7 @@ func runProgramForConformance(t *testing.T, mode, scriptPath, source string) con
 		prevLogger := slog.Default()
 		slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))
 		defer slog.SetDefault(prevLogger)
-		return ExecuteProgram(mode, rt, env, program)
+		return ExecuteProgram(rt, env, program)
 	})
 
 	return conformanceRun{

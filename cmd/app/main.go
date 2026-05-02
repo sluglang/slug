@@ -153,7 +153,7 @@ func main() {
 		HasDoc:  program.HasModuleDoc,
 	}
 	// 6. Execute
-	result := runtime.ExecuteProgram(config.RuntimeMode, rt, env, program)
+	result := runtime.ExecuteProgram(rt, env, program)
 
 	// 7. Handle Result/Errors
 	if result != nil {

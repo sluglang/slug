@@ -32,7 +32,7 @@ func TestExecuteProgramVMCallsBuiltinThroughBridge(t *testing.T) {
 	env.Src = source
 	env.ModuleFqn = "vm-test"
 
-	result := ExecuteProgram(RuntimeVM, rt, env, program)
+	result := ExecuteProgram(rt, env, program)
 	num, ok := result.(*object.Number)
 	if !ok {
 		t.Fatalf("expected number result, got %T (%s)", result, result.Inspect())

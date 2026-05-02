@@ -6,9 +6,8 @@ import (
 	"slug/internal/vm"
 )
 
-// ExecuteProgram runs a parsed Slug program on the configured runtime backend.
-func ExecuteProgram(mode string, rt *Runtime, env *object.Environment, program *ast.Program) object.Object {
-	_ = mode
+// ExecuteProgram runs a parsed Slug program on the VM runtime backend.
+func ExecuteProgram(rt *Runtime, env *object.Environment, program *ast.Program) object.Object {
 	installBuiltinsIntoEnv(rt, env)
 	vmProgram, prepErr := prepareProgramForVM(rt, env, program)
 	if prepErr != nil {
