@@ -1,0 +1,14 @@
+var {*} = import(
+	"slug.std",
+	"slug.test",
+)
+
+var input = {k: "test"}
+
+var out = match input {
+	v @ {k: "test"} => v
+	_               => "other"
+}
+
+out.k /> assertEqual("test")
+

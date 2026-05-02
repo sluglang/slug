@@ -1,0 +1,24 @@
+var {*} = import(
+	"slug.std",
+	"slug.test",
+	"slug.time",
+	"slug.channel",
+)
+
+var c = chan()
+defer close(c)
+
+var worker = spawn {
+	select {
+		recv c /> match {
+			Full{value} => value * 2
+			Empty       => "closed"
+		}
+		after 100 /> fn(_) { "timeout" }
+	}
+}
+
+send(c, 21)
+val got = await(worker)
+assertEqual(42, got)
+nil
