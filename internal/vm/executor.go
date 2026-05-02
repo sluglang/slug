@@ -6,6 +6,7 @@ import (
 	"slug/internal/ast"
 	"slug/internal/dec64"
 	"slug/internal/object"
+	"slug/internal/token"
 	"strconv"
 	"strings"
 )
@@ -13,7 +14,15 @@ import (
 type Executor struct {
 	env          *object.Environment
 	stack        []object.Object
+	deferScopes  [][]vmDeferEntry
 	externalCall func(pos int, callee object.Object, positional []object.Object, named map[string]object.Object) object.Object
+}
+
+type vmDeferEntry struct {
+	fn        *VMFunction
+	mode      int
+	errorName string
+	pos       int
 }
 
 type vmRecurSignal struct {
@@ -52,6 +61,7 @@ func (e *Executor) EvalFunction(fn *VMFunction, positional []object.Object, name
 
 func (e *Executor) run(chunk *Chunk) object.Object {
 	e.stack = e.stack[:0]
+	e.deferScopes = e.deferScopes[:0]
 	var last object.Object = object.NIL
 
 	for ip := 0; ip < len(chunk.Instructions); ip++ {
@@ -80,6 +90,9 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 			if !ok {
 				return e.errorAt(ins.Position, "stack underflow for const bind")
 			}
+			if schema, ok := val.(*object.StructSchema); ok && schema.Name == "" {
+				schema.Name = ins.StrArg
+			}
 			if _, err := e.env.DefineConstant(ins.StrArg, val, false, false); err != nil {
 				return e.errorAt(ins.Position, "%s", err.Error())
 			}
@@ -103,7 +116,14 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 			if _, err := e.env.Define(ins.StrArg, val, false, false); err != nil {
 				return e.errorAt(ins.Position, "%s", err.Error())
 			}
+			if schema, ok := val.(*object.StructSchema); ok && schema.Name == "" {
+				schema.Name = ins.StrArg
+			}
 			e.push(val)
+		case OpSetDoc:
+			if e.env != nil && e.env.Outer == nil && ins.StrArg != "" {
+				e.env.SetLocalDoc(ins.StrArg, ins.StrArg2)
+			}
 		case OpBindMapAllConst, OpBindMapAllVar:
 			mObj, ok := e.pop()
 			if !ok {
@@ -173,6 +193,97 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 				pairs[mapKey] = object.MapPair{Key: keyObj, Value: value}
 			}
 			e.push(&object.Map{Pairs: pairs})
+		case OpStructSchema:
+			val, ok := e.pop()
+			if !ok {
+				return e.errorAt(ins.Position, "stack underflow for struct schema")
+			}
+			schema, ok := val.(*object.StructSchema)
+			if !ok {
+				return e.errorAt(ins.Position, "expected struct schema, got %s", val.Type())
+			}
+			// Bind schema to current lexical environment for default-value evaluation.
+			cp := &object.StructSchema{
+				Name:       schema.Name,
+				Fields:     append([]object.StructSchemaField(nil), schema.Fields...),
+				FieldIndex: make(map[string]int, len(schema.FieldIndex)),
+				Env:        e.env,
+			}
+			for k, v := range schema.FieldIndex {
+				cp.FieldIndex[k] = v
+			}
+			e.push(cp)
+		case OpStructInit:
+			fieldsObj, ok := e.pop()
+			if !ok {
+				return e.errorAt(ins.Position, "stack underflow for struct initializer fields")
+			}
+			schemaObj, ok := e.pop()
+			if !ok {
+				return e.errorAt(ins.Position, "stack underflow for struct initializer schema")
+			}
+			schema, ok := schemaObj.(*object.StructSchema)
+			if !ok {
+				return e.errorAt(ins.Position, "expected struct schema, got %s", schemaObj.Type())
+			}
+			fieldsMap, ok := fieldsObj.(*object.Map)
+			if !ok {
+				return e.errorAt(ins.Position, "struct initializer expects map fields, got %s", fieldsObj.Type())
+			}
+			values, errObj := e.structValuesFromMap(ins.Position, schema, fieldsMap)
+			if errObj != nil {
+				return errObj
+			}
+			for _, field := range schema.Fields {
+				if _, ok := values[field.Name]; ok {
+					continue
+				}
+				if field.Default != nil {
+					dv := e.evalStructDefault(schema, field.Default, ins.Position)
+					if dv.Type() == object.ERROR_OBJ {
+						return dv
+					}
+					values[field.Name] = dv
+				} else {
+					values[field.Name] = object.NIL
+				}
+			}
+			if errObj := e.validateStructHints(ins.Position, schema, values); errObj != nil {
+				return errObj
+			}
+			e.push(&object.StructValue{Schema: schema, Fields: values})
+		case OpStructCopy:
+			fieldsObj, ok := e.pop()
+			if !ok {
+				return e.errorAt(ins.Position, "stack underflow for struct copy fields")
+			}
+			srcObj, ok := e.pop()
+			if !ok {
+				return e.errorAt(ins.Position, "stack underflow for struct copy source")
+			}
+			src, ok := srcObj.(*object.StructValue)
+			if !ok {
+				return e.errorAt(ins.Position, "copy expects a struct value, got %s", srcObj.Type())
+			}
+			fieldsMap, ok := fieldsObj.(*object.Map)
+			if !ok {
+				return e.errorAt(ins.Position, "copy expects a map for data, got %s", fieldsObj.Type())
+			}
+			values := make(map[string]object.Object, len(src.Fields))
+			for k, v := range src.Fields {
+				values[k] = v
+			}
+			updates, errObj := e.structValuesFromMap(ins.Position, src.Schema, fieldsMap)
+			if errObj != nil {
+				return errObj
+			}
+			for k, v := range updates {
+				values[k] = v
+			}
+			if errObj := e.validateStructHints(ins.Position, src.Schema, values); errObj != nil {
+				return errObj
+			}
+			e.push(&object.StructValue{Schema: src.Schema, Fields: values})
 		case OpSlice:
 			step, ok := e.pop()
 			if !ok {
@@ -466,12 +577,50 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 				return e.errorAt(ins.Position, "%s", err.Error())
 			}
 			e.push(object.TRUE)
+		case OpMatchStructSchema:
+			val, ok := e.pop()
+			if !ok {
+				return e.errorAt(ins.Position, "stack underflow for struct schema match")
+			}
+			st, ok := val.(*object.StructValue)
+			if !ok || st.Schema == nil {
+				e.push(object.FALSE)
+				continue
+			}
+			e.push(e.nativeBool(st.Schema.Name == ins.StrArg))
+		case OpDefer:
+			val, ok := e.pop()
+			if !ok {
+				return e.errorAt(ins.Position, "stack underflow for defer registration")
+			}
+			fn, ok := val.(*VMFunction)
+			if !ok {
+				return e.errorAt(ins.Position, "defer expects a function value, got %s", val.Type())
+			}
+			if len(e.deferScopes) == 0 {
+				e.deferScopes = append(e.deferScopes, []vmDeferEntry{})
+			}
+			idx := len(e.deferScopes) - 1
+			e.deferScopes[idx] = append(e.deferScopes[idx], vmDeferEntry{
+				fn:        fn,
+				mode:      ins.IntArg,
+				errorName: ins.StrArg,
+				pos:       ins.Position,
+			})
 		case OpPushScope:
+			e.deferScopes = append(e.deferScopes, []vmDeferEntry{})
 			e.env = object.NewEnclosedEnvironment(e.env, nil)
 		case OpPopScope:
 			var top object.Object = object.NIL
 			if len(e.stack) > 0 {
 				top, _ = e.pop()
+			}
+			if _, isRecur := top.(*vmRecurSignal); isRecur && len(e.deferScopes) == 1 {
+				// Function-body defer semantics: on tail recur, carry to next iteration
+				// by discarding current frame defers instead of executing now.
+				e.deferScopes = e.deferScopes[:0]
+			} else {
+				top = e.executeDeferredInCurrentScope(top)
 			}
 			if e.env == nil || e.env.Outer == nil {
 				return e.errorAt(ins.Position, "cannot pop root scope")
@@ -522,6 +671,37 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 			default:
 				return e.errorAt(ins.Position, "unknown operator: ~%s", val.Type())
 			}
+		case OpApplyTags:
+			val, ok := e.pop()
+			if !ok {
+				return e.errorAt(ins.Position, "stack underflow for tag application")
+			}
+			if ins.StrArg != "" {
+				for _, name := range strings.Split(ins.StrArg, ",") {
+					if name == "" {
+						continue
+					}
+					switch t := val.(type) {
+					case *object.Boolean:
+						t.SetTag(name, object.List{Elements: []object.Object{}})
+					case *object.Number:
+						t.SetTag(name, object.List{Elements: []object.Object{}})
+					case *object.String:
+						t.SetTag(name, object.List{Elements: []object.Object{}})
+					case *object.Function:
+						t.SetTag(name, object.List{Elements: []object.Object{}})
+					case *object.Foreign:
+						t.SetTag(name, object.List{Elements: []object.Object{}})
+					case *object.Map:
+						t.SetTag(name, object.List{Elements: []object.Object{}})
+					case *object.List:
+						t.SetTag(name, object.List{Elements: []object.Object{}})
+					case *VMFunction:
+						t.SetTag(name, object.List{Elements: []object.Object{}})
+					}
+				}
+			}
+			e.push(val)
 		case OpPop:
 			val, ok := e.pop()
 			if !ok {
@@ -547,12 +727,22 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 			if errObj != nil {
 				return errObj
 			}
-			return &vmRecurSignal{positional: positional, named: named}
+			e.push(&vmRecurSignal{positional: positional, named: named})
+		case OpThrow:
+			val, ok := e.pop()
+			if !ok {
+				return e.errorAt(ins.Position, "stack underflow for throw")
+			}
+			rtErr := &object.RuntimeError{
+				Payload:    val,
+				StackTrace: nil,
+			}
+			return e.unwindDeferredScopes(rtErr)
 		case OpReturn:
 			if val, ok := e.pop(); ok {
-				return val
+				return e.unwindDeferredScopes(val)
 			}
-			return last
+			return e.unwindDeferredScopes(last)
 		default:
 			return e.errorAt(ins.Position, "unsupported opcode: %d", ins.Op)
 		}
@@ -561,6 +751,76 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 		return val
 	}
 	return last
+}
+
+func (e *Executor) executeDeferredInCurrentScope(current object.Object) object.Object {
+	if len(e.deferScopes) == 0 {
+		return current
+	}
+	entries := e.deferScopes[len(e.deferScopes)-1]
+	e.deferScopes = e.deferScopes[:len(e.deferScopes)-1]
+	return e.executeDeferredEntries(entries, current)
+}
+
+func (e *Executor) unwindDeferredScopes(current object.Object) object.Object {
+	for len(e.deferScopes) > 0 {
+		current = e.executeDeferredInCurrentScope(current)
+	}
+	return current
+}
+
+func (e *Executor) executeDeferredEntries(entries []vmDeferEntry, current object.Object) object.Object {
+	currentResult := current
+	for i := len(entries) - 1; i >= 0; i-- {
+		ds := entries[i]
+		isError := false
+		var errorPayload object.Object = object.NIL
+		var activeRuntimeErr *object.RuntimeError
+		if rtErr, ok := currentResult.(*object.RuntimeError); ok {
+			isError = true
+			activeRuntimeErr = rtErr
+			errorPayload = rtErr.Payload
+		}
+
+		shouldRun := false
+		switch ast.DeferMode(ds.mode) {
+		case ast.DeferAlways:
+			shouldRun = true
+		case ast.DeferOnSuccess:
+			shouldRun = !isError
+		case ast.DeferOnError:
+			shouldRun = isError
+		}
+		if !shouldRun {
+			continue
+		}
+
+		if isError && ds.errorName != "" {
+			e.env.Bindings[ds.errorName] = &object.Binding{
+				Value:     errorPayload,
+				Err:       activeRuntimeErr,
+				IsMutable: false,
+				Meta:      object.Meta{},
+			}
+		}
+
+		deferResult := e.invokeVMFunction(ds.fn, nil, nil, ds.pos)
+		if newRtErr, ok := deferResult.(*object.RuntimeError); ok {
+			if activeRuntimeErr != nil {
+				newRtErr.Cause = activeRuntimeErr
+			}
+			currentResult = newRtErr
+			continue
+		}
+		if isError && ast.DeferMode(ds.mode) == ast.DeferOnError {
+			if retVal, ok := deferResult.(*object.ReturnValue); ok {
+				currentResult = retVal.Value
+			} else {
+				currentResult = deferResult
+			}
+		}
+	}
+	return currentResult
 }
 
 func mapBindingName(key object.Object) (string, bool) {
@@ -901,7 +1161,17 @@ func signatureForVMFunction(fn *VMFunction) ast.FSig {
 			break
 		}
 	}
+	var tags strings.Builder
+	for _, p := range fn.Params {
+		for _, t := range p.Tags {
+			if t != nil {
+				tags.WriteString(t.String())
+			}
+		}
+		tags.WriteString("|")
+	}
 	return ast.FSig{
+		Tags:       tags.String(),
 		Min:        minP,
 		Max:        maxP,
 		IsVariadic: variadic,
@@ -957,6 +1227,39 @@ func evaluateVMTagMatch(fn *VMFunction, positional []object.Object, named map[st
 				}
 				return -1
 			}
+			if tag.Name == "@struct" {
+				if arg.Type() == object.NIL_OBJ {
+					score++
+					break
+				}
+				if len(tag.Args) == 1 {
+					expected := ""
+					switch a := tag.Args[0].(type) {
+					case *ast.Identifier:
+						expected = a.Value
+					case *ast.StringLiteral:
+						expected = strings.Trim(a.Value, "\"")
+					}
+					switch v := arg.(type) {
+					case *object.StructValue:
+						if v.Schema != nil && v.Schema.Name == expected {
+							score += 2
+							break
+						}
+					case *object.StructSchema:
+						if v.Name == expected {
+							score += 2
+							break
+						}
+					}
+					return -1
+				}
+				if arg.Type() == object.STRUCT_OBJ || arg.Type() == object.STRUCT_SCHEMA_OBJ {
+					score++
+					break
+				}
+				return -1
+			}
 		}
 	}
 	return score
@@ -1004,10 +1307,13 @@ func (e *Executor) bindClosureIfNeeded(obj object.Object) object.Object {
 	}
 	// Capture current lexical environment when function literal is evaluated.
 	return &VMFunction{
-		Name:    fn.Name,
-		Params:  append([]VMParam(nil), fn.Params...),
-		Chunk:   fn.Chunk,
-		Closure: e.env,
+		Name:       fn.Name,
+		Tags:       fn.Tags,
+		Params:     append([]VMParam(nil), fn.Params...),
+		Chunk:      fn.Chunk,
+		Closure:    e.env,
+		Signature:  fn.Signature,
+		Parameters: fn.Parameters,
 	}
 }
 
@@ -1041,7 +1347,7 @@ func (e *Executor) evalCall(argCount int, plan []CallArgSpec, pos int) object.Ob
 			result = object.NIL
 		}
 		if result.Type() == object.ERROR_OBJ {
-			return result
+			return e.unwindDeferredScopes(result)
 		}
 		e.push(result)
 		return nil
@@ -1049,7 +1355,7 @@ func (e *Executor) evalCall(argCount int, plan []CallArgSpec, pos int) object.Ob
 
 	result := e.invokeVMFunction(fn, positional, named, pos)
 	if result.Type() == object.ERROR_OBJ {
-		return result
+		return e.unwindDeferredScopes(result)
 	}
 	e.push(result)
 	return nil
@@ -1470,7 +1776,150 @@ func (e *Executor) evalIndex(left, index object.Object, pos int, isDotLookup boo
 			return object.NIL, nil
 		}
 		return pair.Value, nil
+	case *object.StructValue:
+		var field string
+		switch k := index.(type) {
+		case *object.Symbol:
+			field = k.Name
+		case *object.String:
+			field = k.Value
+		default:
+			return nil, e.errorAt(pos, "struct field access expects symbol, got %s", index.Type())
+		}
+		if v, ok := l.Fields[field]; ok {
+			return v, nil
+		}
+		return object.NIL, nil
 	default:
 		return nil, e.errorAt(pos, "index operator not supported: %s", left.Type())
 	}
+}
+
+func (e *Executor) structValuesFromMap(pos int, schema *object.StructSchema, m *object.Map) (map[string]object.Object, *object.Error) {
+	out := make(map[string]object.Object, len(m.Pairs))
+	for _, pair := range m.Pairs {
+		name, ok := structFieldNameFromKey(pair.Key)
+		if !ok {
+			return nil, e.errorAt(pos, "struct field access expects symbol, got %s", pair.Key.Type())
+		}
+		if _, exists := schema.FieldIndex[name]; !exists {
+			return nil, e.errorAt(pos, "unknown field '%s' for struct %s", name, structSchemaName(schema))
+		}
+		if _, dup := out[name]; dup {
+			return nil, e.errorAt(pos, "duplicate field '%s' in struct data", name)
+		}
+		out[name] = pair.Value
+	}
+	return out, nil
+}
+
+func structFieldNameFromKey(key object.Object) (string, bool) {
+	switch k := key.(type) {
+	case *object.Symbol:
+		return k.Name, true
+	case *object.String:
+		return k.Value, true
+	default:
+		return "", false
+	}
+}
+
+func (e *Executor) evalStructDefault(schema *object.StructSchema, expr ast.Expression, pos int) object.Object {
+	if expr == nil {
+		return object.NIL
+	}
+	defEnv := schema.Env
+	if defEnv == nil {
+		defEnv = e.env
+	}
+	for defEnv != nil && defEnv.Outer != nil {
+		defEnv = defEnv.Outer
+	}
+	tmp := object.NewEnclosedEnvironment(defEnv, nil)
+	inner := NewExecutor(tmp, e.externalCall)
+	res := inner.evalExpressionOnly(expr, pos)
+	if res == nil {
+		return object.NIL
+	}
+	return res
+}
+
+func (e *Executor) evalExpressionOnly(expr ast.Expression, pos int) object.Object {
+	prog := &ast.Program{
+		Statements: []ast.Statement{
+			&ast.ReturnStatement{
+				Token:       tokenFromPos(pos),
+				ReturnValue: expr,
+			},
+		},
+	}
+	return e.EvalProgram(prog)
+}
+
+func (e *Executor) validateStructHints(pos int, schema *object.StructSchema, values map[string]object.Object) *object.Error {
+	for _, field := range schema.Fields {
+		if len(field.Tags) == 0 {
+			continue
+		}
+		value := values[field.Name]
+		if value == nil || value.Type() == object.NIL_OBJ {
+			continue
+		}
+		for _, tag := range field.Tags {
+			if tag == nil {
+				continue
+			}
+			if tag.Name == object.FUNCTION_TAG {
+				if value.Type() == object.FUNCTION_OBJ || value.Type() == object.FUNCTION_GROUP_OBJ {
+					continue
+				}
+				return e.errorAt(pos, "struct %s field %s expected %s, got %s", structSchemaName(schema), field.Name, tag.Name, value.Type())
+			}
+			if tag.Name == "@struct" {
+				if len(tag.Args) == 1 {
+					expected := ""
+					switch a := tag.Args[0].(type) {
+					case *ast.Identifier:
+						expected = a.Value
+					case *ast.StringLiteral:
+						expected = strings.Trim(a.Value, "\"")
+					}
+					switch v := value.(type) {
+					case *object.StructValue:
+						if v.Schema != nil && v.Schema.Name == expected {
+							continue
+						}
+					case *object.StructSchema:
+						if v.Name == expected {
+							continue
+						}
+					}
+					return e.errorAt(pos, "struct %s field %s expected @struct(%s), got %s", structSchemaName(schema), field.Name, expected, value.Type())
+				}
+				if value.Type() == object.STRUCT_OBJ || value.Type() == object.STRUCT_SCHEMA_OBJ {
+					continue
+				}
+				return e.errorAt(pos, "struct %s field %s expected %s, got %s", structSchemaName(schema), field.Name, tag.Name, value.Type())
+			}
+			expected, ok := object.TypeTags[tag.Name]
+			if !ok {
+				return e.errorAt(pos, "unknown struct field type hint: %s", tag.Name)
+			}
+			if string(value.Type()) != expected {
+				return e.errorAt(pos, "struct %s field %s expected %s, got %s", structSchemaName(schema), field.Name, tag.Name, value.Type())
+			}
+		}
+	}
+	return nil
+}
+
+func structSchemaName(schema *object.StructSchema) string {
+	if schema != nil && schema.Name != "" {
+		return schema.Name
+	}
+	return "<anonymous>"
+}
+
+func tokenFromPos(pos int) token.Token {
+	return token.Token{Position: pos}
 }

@@ -20,7 +20,8 @@ func ExecuteProgram(mode string, rt *Runtime, env *object.Environment, program *
 		task.PushNurseryScope(&NurseryScope{
 			Limit: make(chan struct{}, rt.Config.DefaultLimit),
 		})
-		task.PushEnv(env)
+		callEnv := object.NewEnclosedEnvironment(env, nil)
+		task.PushEnv(callEnv)
 
 		result := task.Eval(program)
 		if result == nil || result.Type() != object.ERROR_OBJ {
@@ -64,8 +65,79 @@ func makeVMCallBridge(rt *Runtime, env *object.Environment) func(pos int, callee
 			Limit: make(chan struct{}, rt.Config.DefaultLimit),
 		})
 		task.PushEnv(env)
-		out := task.ApplyFunction(pos, "<vm>", callee, positional, named)
+		adaptedPositional := positional
+		adaptedNamed := named
+		if shouldAdaptArgsForIntrospection(callee) {
+			adaptedPositional = make([]object.Object, len(positional))
+			for i, v := range positional {
+				adaptedPositional[i] = adaptVMObjectForTreewalk(v, env)
+			}
+			if len(named) > 0 {
+				adaptedNamed = make(map[string]object.Object, len(named))
+				for k, v := range named {
+					adaptedNamed[k] = adaptVMObjectForTreewalk(v, env)
+				}
+			}
+		}
+		out := task.ApplyFunction(pos, "<vm>", callee, adaptedPositional, adaptedNamed)
 		out = task.PopEnv(out)
 		return out
+	}
+}
+
+func shouldAdaptArgsForIntrospection(callee object.Object) bool {
+	switch c := callee.(type) {
+	case *object.Foreign:
+		return c.Name == "describe"
+	case *object.FunctionGroup:
+		for _, fn := range c.Functions {
+			if f, ok := fn.(*object.Foreign); ok && f.Name == "describe" {
+				return true
+			}
+		}
+		for _, g := range c.Delegates {
+			for _, fn := range g.Functions {
+				if f, ok := fn.(*object.Foreign); ok && f.Name == "describe" {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+func adaptVMObjectForTreewalk(obj object.Object, env *object.Environment) object.Object {
+	switch v := obj.(type) {
+	case *vm.VMFunction:
+		return &object.Function{
+			Signature:  v.Signature,
+			Tags:       v.Tags,
+			Parameters: v.Parameters,
+			ParamIndex: buildParamIndex(v.Parameters),
+			Env:        env,
+			Body:       &ast.BlockStatement{},
+		}
+	case *object.FunctionGroup:
+		out := &object.FunctionGroup{
+			Functions: make(map[ast.FSig]object.Object, len(v.Functions)),
+		}
+		for sig, fn := range v.Functions {
+			out.Functions[sig] = adaptVMObjectForTreewalk(fn, env)
+		}
+		return out
+	case *object.List:
+		els := make([]object.Object, len(v.Elements))
+		for i, e := range v.Elements {
+			els[i] = adaptVMObjectForTreewalk(e, env)
+		}
+		return &object.List{Elements: els}
+	case *object.Map:
+		pairs := make(map[object.MapKey]object.MapPair, len(v.Pairs))
+		for k, p := range v.Pairs {
+			pairs[k] = object.MapPair{Key: p.Key, Value: adaptVMObjectForTreewalk(p.Value, env)}
+		}
+		return &object.Map{Pairs: pairs}
+	default:
+		return obj
 	}
 }

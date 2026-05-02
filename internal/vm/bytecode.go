@@ -12,11 +12,15 @@ const (
 	OpGetGlobal
 	OpSetGlobalConst
 	OpSetGlobalVar
+	OpSetDoc
 	OpBindMapAllConst
 	OpBindMapAllVar
 	OpAssignGlobal
 	OpArray
 	OpHash
+	OpStructSchema
+	OpStructInit
+	OpStructCopy
 	OpSlice
 	OpIndex
 	OpIndexDot
@@ -34,6 +38,8 @@ const (
 	OpMatchMapLenEq
 	OpMatchMapLenGte
 	OpMatchMapBindRemainder
+	OpMatchStructSchema
+	OpDefer
 	OpPushScope
 	OpPopScope
 	OpAdd
@@ -55,11 +61,13 @@ const (
 	OpBang
 	OpNegate
 	OpBitNot
+	OpApplyTags
 	OpPop
 	OpJump
 	OpJumpIfFalse
 	OpCall
 	OpRecur
+	OpThrow
 	OpReturn
 )
 

@@ -9,10 +9,13 @@ import (
 )
 
 type VMFunction struct {
-	Name    string
-	Params  []VMParam
-	Chunk   *Chunk
-	Closure *object.Environment
+	Name       string
+	Tags       map[string]object.List
+	Params     []VMParam
+	Chunk      *Chunk
+	Closure    *object.Environment
+	Signature  ast.FSig
+	Parameters []*ast.FunctionParameter
 }
 
 type VMParam struct {
@@ -44,4 +47,28 @@ func (f *VMFunction) Inspect() string {
 		return fmt.Sprintf("%s %s", f.Name, out.String())
 	}
 	return out.String()
+}
+
+func (f *VMFunction) HasTag(tag string) bool {
+	_, ok := f.Tags[tag]
+	return ok
+}
+
+func (f *VMFunction) GetTagParams(tag string) (object.List, bool) {
+	v, ok := f.Tags[tag]
+	return v, ok
+}
+
+func (f *VMFunction) GetTags() map[string]object.List {
+	if f.Tags == nil {
+		f.Tags = map[string]object.List{}
+	}
+	return f.Tags
+}
+
+func (f *VMFunction) SetTag(tag string, params object.List) {
+	if f.Tags == nil {
+		f.Tags = map[string]object.List{}
+	}
+	f.Tags[tag] = params
 }

@@ -44,6 +44,14 @@ func (c *compiler) compileStatement(stmt ast.Statement) error {
 		}
 		c.emit(Instruction{Op: OpReturn, Position: node.Token.Position})
 		return nil
+	case *ast.DeferStatement:
+		return c.compileDeferStatement(node)
+	case *ast.ThrowStatement:
+		if err := c.compileExpression(node.Value); err != nil {
+			return err
+		}
+		c.emit(Instruction{Op: OpThrow, Position: node.Token.Position})
+		return nil
 	default:
 		return unsupportedNodeErr("statement", stmt)
 	}
@@ -84,16 +92,32 @@ func (c *compiler) compileExpression(expr ast.Expression) error {
 		if err := c.compileExpression(node.Value); err != nil {
 			return err
 		}
+		if len(node.Tags) > 0 {
+			c.emit(Instruction{Op: OpApplyTags, StrArg: encodeTagNames(node.Tags), Position: node.Token.Position})
+		}
 		if err := c.compileBindPattern(node.Pattern, true, node.Token.Position); err != nil {
 			return err
+		}
+		if node.HasDoc {
+			if idp, ok := node.Pattern.(*ast.IdentifierPattern); ok {
+				c.emit(Instruction{Op: OpSetDoc, StrArg: idp.Value.Value, StrArg2: node.Doc, Position: node.Token.Position})
+			}
 		}
 		return nil
 	case *ast.VarExpression:
 		if err := c.compileExpression(node.Value); err != nil {
 			return err
 		}
+		if len(node.Tags) > 0 {
+			c.emit(Instruction{Op: OpApplyTags, StrArg: encodeTagNames(node.Tags), Position: node.Token.Position})
+		}
 		if err := c.compileBindPattern(node.Pattern, false, node.Token.Position); err != nil {
 			return err
+		}
+		if node.HasDoc {
+			if idp, ok := node.Pattern.(*ast.IdentifierPattern); ok {
+				c.emit(Instruction{Op: OpSetDoc, StrArg: idp.Value.Value, StrArg2: node.Doc, Position: node.Token.Position})
+			}
 		}
 		return nil
 	case *ast.PrefixExpression:
@@ -231,6 +255,49 @@ func (c *compiler) compileExpression(expr ast.Expression) error {
 			pairCount++
 		}
 		c.emit(Instruction{Op: OpHash, IntArg: pairCount, Position: node.Token.Position})
+		return nil
+	case *ast.StructSchemaExpression:
+		schema := &object.StructSchema{
+			Fields:     make([]object.StructSchemaField, 0, len(node.Fields)),
+			FieldIndex: make(map[string]int, len(node.Fields)),
+		}
+		for _, field := range node.Fields {
+			if _, exists := schema.FieldIndex[field.Name]; exists {
+				return fmt.Errorf("vm compile error at %d: duplicate struct field: %s", field.Token.Position, field.Name)
+			}
+			schema.FieldIndex[field.Name] = len(schema.Fields)
+			schema.Fields = append(schema.Fields, object.StructSchemaField{
+				Name:    field.Name,
+				Default: field.Default,
+				Tags:    field.Tags,
+			})
+		}
+		idx := c.addConstant(schema)
+		c.emit(Instruction{Op: OpConstant, IntArg: idx, Position: node.Token.Position})
+		c.emit(Instruction{Op: OpStructSchema, Position: node.Token.Position})
+		return nil
+	case *ast.StructInitExpression:
+		if err := c.compileExpression(node.Schema); err != nil {
+			return err
+		}
+		for _, field := range node.Fields {
+			idx := c.addConstant(object.InternSymbol(field.Name))
+			c.emit(Instruction{Op: OpConstant, IntArg: idx, Position: field.Token.Position})
+			if err := c.compileExpression(field.Value); err != nil {
+				return err
+			}
+		}
+		c.emit(Instruction{Op: OpHash, IntArg: len(node.Fields), Position: node.Token.Position})
+		c.emit(Instruction{Op: OpStructInit, Position: node.Token.Position})
+		return nil
+	case *ast.StructCopyExpression:
+		if err := c.compileExpression(node.Source); err != nil {
+			return err
+		}
+		if err := c.compileExpression(node.Fields); err != nil {
+			return err
+		}
+		c.emit(Instruction{Op: OpStructCopy, Position: node.Token.Position})
 		return nil
 	case *ast.IndexExpression:
 		if err := c.compileExpression(node.Left); err != nil {
@@ -385,6 +452,54 @@ func (c *compiler) compileBlock(block *ast.BlockStatement) error {
 	}
 	c.emit(Instruction{Op: OpPopScope, Position: block.Token.Position})
 	return nil
+}
+
+func (c *compiler) compileDeferStatement(node *ast.DeferStatement) error {
+	fnObj, err := c.compileDeferBody(node)
+	if err != nil {
+		return err
+	}
+	idx := c.addConstant(fnObj)
+	c.emit(Instruction{Op: OpConstant, IntArg: idx, Position: node.Token.Position})
+	errName := ""
+	if node.ErrorName != nil {
+		errName = node.ErrorName.Value
+	}
+	c.emit(Instruction{
+		Op:       OpDefer,
+		IntArg:   int(node.Mode),
+		StrArg:   errName,
+		Position: node.Token.Position,
+	})
+	c.emit(Instruction{Op: OpNil, Position: node.Token.Position})
+	return nil
+}
+
+func (c *compiler) compileDeferBody(node *ast.DeferStatement) (*VMFunction, error) {
+	child := &compiler{chunk: &Chunk{}}
+	if node.Call == nil {
+		child.emit(Instruction{Op: OpNil, Position: node.Token.Position})
+	} else {
+		switch s := node.Call.(type) {
+		case *ast.ExpressionStatement:
+			if err := child.compileExpression(s.Expression); err != nil {
+				return nil, err
+			}
+		case *ast.BlockStatement:
+			if err := child.compileBlock(s); err != nil {
+				return nil, err
+			}
+		default:
+			if err := child.compileStatement(s); err != nil {
+				return nil, err
+			}
+		}
+	}
+	child.emit(Instruction{Op: OpReturn, Position: node.Token.Position})
+	return &VMFunction{
+		Params: []VMParam{},
+		Chunk:  child.chunk,
+	}, nil
 }
 
 func (c *compiler) addConstant(obj object.Object) int {
@@ -545,6 +660,89 @@ func mapPatternKeyName(key ast.Expression) string {
 	}
 }
 
+func encodeTagNames(tags []*ast.Tag) string {
+	parts := make([]string, 0, len(tags))
+	for _, t := range tags {
+		if t == nil || t.Name == "" {
+			continue
+		}
+		parts = append(parts, t.Name)
+	}
+	return strings.Join(parts, ",")
+}
+
+func (c *compiler) compileListPatternFromValue(p *ast.ListPattern, pos int, failJumps *[]int) error {
+	spreadIndex := -1
+	var spreadPat *ast.SpreadPattern
+	for i, el := range p.Elements {
+		if sp, ok := el.(*ast.SpreadPattern); ok {
+			if spreadIndex != -1 {
+				return fmt.Errorf("vm compile error at %d: list pattern supports only one spread", pos)
+			}
+			if i != len(p.Elements)-1 {
+				return fmt.Errorf("vm compile error at %d: spread (...) must be final element in list pattern", pos)
+			}
+			spreadIndex = i
+			spreadPat = sp
+		}
+	}
+
+	c.emit(Instruction{Op: OpDup, Position: pos})
+	if spreadIndex >= 0 {
+		c.emit(Instruction{Op: OpMatchSeqLenGte, IntArg: spreadIndex, Position: pos})
+	} else {
+		c.emit(Instruction{Op: OpMatchSeqLenEq, IntArg: len(p.Elements), Position: pos})
+	}
+	*failJumps = append(*failJumps, c.emit(Instruction{Op: OpJumpIfFalse, Position: pos}))
+
+	for i, el := range p.Elements {
+		if spreadIndex >= 0 && i == spreadIndex {
+			if spreadPat != nil && spreadPat.Value != nil {
+				c.emit(Instruction{Op: OpDup, Position: pos})
+				c.emit(Instruction{Op: OpMatchSeqTail, IntArg: spreadIndex, Position: pos})
+				if err := c.compileBindPattern(&ast.IdentifierPattern{Value: spreadPat.Value}, true, pos); err != nil {
+					return err
+				}
+				c.emit(Instruction{Op: OpPop, Position: pos})
+			}
+			break
+		}
+		if _, ok := el.(*ast.WildcardPattern); ok {
+			continue
+		}
+
+		c.emit(Instruction{Op: OpDup, Position: pos})
+		c.emitNumberConstant(pos, i)
+		c.emit(Instruction{Op: OpIndex, Position: pos})
+		switch ep := el.(type) {
+		case *ast.IdentifierPattern:
+			if err := c.compileBindPattern(ep, true, pos); err != nil {
+				return err
+			}
+			c.emit(Instruction{Op: OpPop, Position: pos})
+		case *ast.PinnedIdentifierPattern:
+			c.emit(Instruction{Op: OpGetGlobal, StrArg: ep.Value.Value, Position: pos})
+			c.emit(Instruction{Op: OpEqual, Position: pos})
+			*failJumps = append(*failJumps, c.emit(Instruction{Op: OpJumpIfFalse, Position: pos}))
+		case *ast.LiteralPattern:
+			if err := c.compileExpression(ep.Value); err != nil {
+				return err
+			}
+			c.emit(Instruction{Op: OpEqual, Position: pos})
+			*failJumps = append(*failJumps, c.emit(Instruction{Op: OpJumpIfFalse, Position: pos}))
+		case *ast.ListPattern:
+			if err := c.compileListPatternFromValue(ep, pos, failJumps); err != nil {
+				return err
+			}
+		default:
+			return fmt.Errorf("vm compile error at %d: unsupported list pattern shape", pos)
+		}
+	}
+
+	c.emit(Instruction{Op: OpPop, Position: pos})
+	return nil
+}
+
 func (c *compiler) emitNumberConstant(pos int, n int) {
 	idx := c.addConstant(&object.Number{Value: dec64.FromInt(n)})
 	c.emit(Instruction{Op: OpConstant, IntArg: idx, Position: pos})
@@ -609,8 +807,10 @@ func (c *compiler) compileFunctionLiteral(node *ast.FunctionLiteral) (*VMFunctio
 	child.emit(Instruction{Op: OpReturn, Position: node.Token.Position})
 
 	return &VMFunction{
-		Params: params,
-		Chunk:  child.chunk,
+		Params:     params,
+		Chunk:      child.chunk,
+		Signature:  node.Signature,
+		Parameters: node.Parameters,
 	}, nil
 }
 
@@ -762,6 +962,10 @@ func (c *compiler) compileMatchExpression(node *ast.MatchExpression) error {
 					}
 					c.emit(Instruction{Op: OpEqual, Position: cs.Token.Position})
 					failJumps = append(failJumps, c.emit(Instruction{Op: OpJumpIfFalse, Position: cs.Token.Position}))
+				case *ast.ListPattern:
+					if err := c.compileListPatternFromValue(ep, cs.Token.Position, &failJumps); err != nil {
+						return err
+					}
 				default:
 					return fmt.Errorf("vm compile error at %d: unsupported list pattern shape", cs.Token.Position)
 				}
@@ -875,6 +1079,57 @@ func (c *compiler) compileMatchExpression(node *ast.MatchExpression) error {
 				failJumps = append(failJumps, c.emit(Instruction{Op: OpJumpIfFalse, Position: cs.Token.Position}))
 			}
 
+			c.emit(Instruction{Op: OpPop, Position: cs.Token.Position})
+			if err := c.compileExpression(cs.Body); err != nil {
+				return err
+			}
+			c.emit(Instruction{Op: OpPopScope, Position: cs.Token.Position})
+			j := c.emit(Instruction{Op: OpJump, Position: cs.Token.Position})
+			endJumps = append(endJumps, j)
+			failTarget := len(c.chunk.Instructions)
+			for _, fj := range failJumps {
+				c.patchJump(fj, failTarget)
+			}
+			c.emit(Instruction{Op: OpPopScope, Position: cs.Token.Position})
+			continue
+		}
+
+		if sp, ok := pat.(*ast.StructPattern); ok {
+			c.emit(Instruction{Op: OpPushScope, Position: cs.Token.Position})
+			c.emit(Instruction{Op: OpDup, Position: cs.Token.Position})
+			c.emit(Instruction{Op: OpMatchStructSchema, StrArg: sp.Schema.Value, Position: cs.Token.Position})
+			failJumps := []int{c.emit(Instruction{Op: OpJumpIfFalse, Position: cs.Token.Position})}
+			for _, field := range sp.Fields {
+				c.emit(Instruction{Op: OpDup, Position: cs.Token.Position})
+				idx := c.addConstant(object.InternSymbol(field.Name))
+				c.emit(Instruction{Op: OpConstant, IntArg: idx, Position: cs.Token.Position})
+				c.emit(Instruction{Op: OpIndex, Position: cs.Token.Position})
+				switch ep := field.Pattern.(type) {
+				case *ast.IdentifierPattern:
+					if err := c.compileBindPattern(ep, true, cs.Token.Position); err != nil {
+						return err
+					}
+					c.emit(Instruction{Op: OpPop, Position: cs.Token.Position})
+				case *ast.PinnedIdentifierPattern:
+					c.emit(Instruction{Op: OpGetGlobal, StrArg: ep.Value.Value, Position: cs.Token.Position})
+					c.emit(Instruction{Op: OpEqual, Position: cs.Token.Position})
+					failJumps = append(failJumps, c.emit(Instruction{Op: OpJumpIfFalse, Position: cs.Token.Position}))
+				case *ast.LiteralPattern:
+					if err := c.compileExpression(ep.Value); err != nil {
+						return err
+					}
+					c.emit(Instruction{Op: OpEqual, Position: cs.Token.Position})
+					failJumps = append(failJumps, c.emit(Instruction{Op: OpJumpIfFalse, Position: cs.Token.Position}))
+				default:
+					return fmt.Errorf("vm compile error: unsupported struct field pattern %T", ep)
+				}
+			}
+			if cs.Guard != nil {
+				if err := c.compileExpression(cs.Guard); err != nil {
+					return err
+				}
+				failJumps = append(failJumps, c.emit(Instruction{Op: OpJumpIfFalse, Position: cs.Token.Position}))
+			}
 			c.emit(Instruction{Op: OpPop, Position: cs.Token.Position})
 			if err := c.compileExpression(cs.Body); err != nil {
 				return err
