@@ -295,3 +295,30 @@ func TestExecutorSpawnWithoutAwait(t *testing.T) {
 		t.Fatalf("expected 42, got %s", num.Value.String())
 	}
 }
+
+func TestExecutorDispatchPrefersSpecificStructTagDeterministically(t *testing.T) {
+	input := `
+val User = struct {
+	name,
+	@num age,
+	active = true,
+}
+
+val u = User {
+	name: "Slug",
+	age: 42,
+}
+
+var f = fn(@struct v) { 'struct' }
+var f = fn(@struct(User) v) { 'user' }
+
+f(u)
+`
+
+	for i := 0; i < 100; i++ {
+		got := runVM(t, input)
+		if got.Inspect() != "user" {
+			t.Fatalf("run %d: expected user dispatch, got %T (%s)", i, got, got.Inspect())
+		}
+	}
+}
