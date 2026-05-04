@@ -10,7 +10,9 @@ import (
 	"sync"
 )
 
-type Task struct {
+type Task = VMCallContext
+
+type VMCallContext struct {
 	ID           int64
 	Runtime      *Runtime
 	OwnerNursery *NurseryScope
@@ -25,26 +27,26 @@ type Task struct {
 	nurseryStack []*NurseryScope
 }
 
-func (e *Task) NextHandleID() int64                  { return e.Runtime.NextHandleID() }
-func (e *Task) GetConfiguration() util.Configuration { return e.Runtime.Config }
-func (e *Task) Nil() *object.Nil                     { return object.NIL }
-func (e *Task) CurrentEnvStackSize() int             { return len(e.envStack) }
+func (e *VMCallContext) NextHandleID() int64                  { return e.Runtime.NextHandleID() }
+func (e *VMCallContext) GetConfiguration() util.Configuration { return e.Runtime.Config }
+func (e *VMCallContext) Nil() *object.Nil                     { return object.NIL }
+func (e *VMCallContext) CurrentEnvStackSize() int             { return len(e.envStack) }
 
-func (e *Task) PushEnv(env *object.Environment) {
+func (e *VMCallContext) PushEnv(env *object.Environment) {
 	if env.IsThreadNurseryScope {
 		e.PushNurseryScope(&NurseryScope{Limit: make(chan struct{}, env.Limit)})
 	}
 	e.envStack = append(e.envStack, env)
 }
 
-func (e *Task) CurrentEnv() *object.Environment {
+func (e *VMCallContext) CurrentEnv() *object.Environment {
 	if len(e.envStack) == 0 {
 		panic("Environment stack is empty in the current frame")
 	}
 	return e.envStack[len(e.envStack)-1]
 }
 
-func (e *Task) PopEnv(result object.Object) object.Object {
+func (e *VMCallContext) PopEnv(result object.Object) object.Object {
 	if len(e.envStack) == 0 {
 		panic("Attempted to pop from an empty environment stack")
 	}
@@ -57,18 +59,18 @@ func (e *Task) PopEnv(result object.Object) object.Object {
 	return result
 }
 
-func (e *Task) PushNurseryScope(scope *NurseryScope) {
+func (e *VMCallContext) PushNurseryScope(scope *NurseryScope) {
 	e.nurseryStack = append(e.nurseryStack, scope)
 }
 
-func (e *Task) currentNurseryScope() *NurseryScope {
+func (e *VMCallContext) currentNurseryScope() *NurseryScope {
 	if len(e.nurseryStack) == 0 {
 		panic("Nursery stack is empty in the current frame")
 	}
 	return e.nurseryStack[len(e.nurseryStack)-1]
 }
 
-func (e *Task) popNurseryScope(result object.Object) (object.Object, bool) {
+func (e *VMCallContext) popNurseryScope(result object.Object) (object.Object, bool) {
 	currentScope := e.currentNurseryScope()
 	nurseryInjected := false
 	switch result.(type) {
@@ -91,15 +93,15 @@ func (e *Task) popNurseryScope(result object.Object) (object.Object, bool) {
 	return result, nurseryInjected
 }
 
-func (e *Task) LoadModule(modName string) (*object.Module, error) {
+func (e *VMCallContext) LoadModule(modName string) (*object.Module, error) {
 	return e.Runtime.LoadModule(modName)
 }
 
-func (e *Task) NewError(format string, a ...interface{}) *object.Error {
+func (e *VMCallContext) NewError(format string, a ...interface{}) *object.Error {
 	return &object.Error{Message: fmt.Sprintf(format, a...)}
 }
 
-func (e *Task) NativeBoolToBooleanObject(input bool) *object.Boolean {
+func (e *VMCallContext) NativeBoolToBooleanObject(input bool) *object.Boolean {
 	if input {
 		return object.TRUE
 	}
@@ -119,7 +121,7 @@ type boundArguments struct {
 	Provided []bool
 }
 
-func (e *Task) bindArguments(
+func (e *VMCallContext) bindArguments(
 	pos int,
 	fnObj object.Object,
 	params []*ast.FunctionParameter,
@@ -233,7 +235,7 @@ func (e *Task) bindArguments(
 	return &boundArguments{Values: values, Provided: provided}, nil
 }
 
-func (e *Task) evalDefaultParam(fnObj object.Object, expr ast.Expression) object.Object {
+func (e *VMCallContext) evalDefaultParam(fnObj object.Object, expr ast.Expression) object.Object {
 	if expr == nil {
 		return object.NIL
 	}
@@ -251,7 +253,7 @@ func (e *Task) evalDefaultParam(fnObj object.Object, expr ast.Expression) object
 	return val
 }
 
-func (e *Task) ApplyFunction(pos int, fnName string, fnObj object.Object, positional []object.Object, named map[string]object.Object) object.Object {
+func (e *VMCallContext) ApplyFunction(pos int, fnName string, fnObj object.Object, positional []object.Object, named map[string]object.Object) object.Object {
 	callEnv := e.CurrentEnv()
 	fnObj = resolveValue(fnObj)
 	if isError(fnObj) {
@@ -339,14 +341,14 @@ func isError(obj object.Object) bool {
 	return obj.Type() == object.ERROR_OBJ
 }
 
-func (e *Task) runtimeError(pos int, typ string, payload object.Object) *object.RuntimeError {
+func (e *VMCallContext) runtimeError(pos int, typ string, payload object.Object) *object.RuntimeError {
 	return &object.RuntimeError{
 		Payload:    payload,
 		StackTrace: e.GatherStackTrace(nil),
 	}
 }
 
-func (e *Task) GatherStackTrace(frame *object.StackFrame) []*object.StackFrame {
+func (e *VMCallContext) GatherStackTrace(frame *object.StackFrame) []*object.StackFrame {
 	if frame != nil {
 		return []*object.StackFrame{frame}
 	}
@@ -356,10 +358,10 @@ func (e *Task) GatherStackTrace(frame *object.StackFrame) []*object.StackFrame {
 	return nil
 }
 
-func (th *Task) Type() object.ObjectType   { return object.TASK_HANDLE_OBJ }
-func (th *Task) Inspect() string           { return fmt.Sprintf("<task %d>", th.ID) }
-func (th *Task) DoneChan() <-chan struct{} { return th.Done }
-func (th *Task) AwaitResult() object.Object {
+func (th *VMCallContext) Type() object.ObjectType   { return object.TASK_HANDLE_OBJ }
+func (th *VMCallContext) Inspect() string           { return fmt.Sprintf("<task %d>", th.ID) }
+func (th *VMCallContext) DoneChan() <-chan struct{} { return th.Done }
+func (th *VMCallContext) AwaitResult() object.Object {
 	if th.Err != nil {
 		return th.Err
 	}
@@ -369,7 +371,7 @@ func (th *Task) AwaitResult() object.Object {
 	return th.Result
 }
 
-func (th *Task) Complete(res object.Object) {
+func (th *VMCallContext) Complete(res object.Object) {
 	th.mu.Lock()
 	defer th.mu.Unlock()
 	if th.IsFinished {
@@ -387,7 +389,7 @@ func (th *Task) Complete(res object.Object) {
 	}
 }
 
-func (th *Task) Cancel(cause *object.RuntimeError, reason string) {
+func (th *VMCallContext) Cancel(cause *object.RuntimeError, reason string) {
 	payload := &object.Map{Pairs: map[object.MapKey]object.MapPair{}}
 	foreign.PutString(payload, "type", "cancelled")
 	foreign.PutString(payload, "reason", reason)
