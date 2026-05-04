@@ -13,7 +13,6 @@ import (
 	"slug/internal/parser"
 	"slug/internal/util"
 	"slug/internal/vm"
-	"strconv"
 	"strings"
 	"sync/atomic"
 )
@@ -189,27 +188,7 @@ func (r *Runtime) LoadModule(modName string) (*object.Module, error) {
 
 	// 5. Evaluate the module in its own environment
 	slog.Debug("loading module", slog.String("name", modName), slog.String("path", fullPath))
-
-	if r.useVMModuleLoader() {
-		return r.evalModuleWithVM(modName, module, moduleEnv, program)
-	}
-
-	e := &Task{
-		Runtime: r,
-	}
-	e.PushNurseryScope(&NurseryScope{
-		Limit: make(chan struct{}, r.Config.DefaultLimit),
-	})
-	e.PushEnv(moduleEnv)
-	out := e.Eval(program)
-	// We pop the env, but the moduleEnv now contains all the defined bindings
-	e.PopEnv(out)
-
-	if e.isError(out) {
-		return nil, fmt.Errorf("runtime error while loading module %s: %s", modName, out.Inspect())
-	}
-
-	return module, nil
+	return r.evalModuleWithVM(modName, module, moduleEnv, program)
 }
 
 func (r *Runtime) evalModuleWithVM(modName string, module *object.Module, moduleEnv *object.Environment, program *ast.Program) (*object.Module, error) {
@@ -225,32 +204,12 @@ func (r *Runtime) evalModuleWithVM(modName string, module *object.Module, module
 	if out != nil && out.Type() == object.ERROR_OBJ {
 		return nil, fmt.Errorf("runtime error while loading module %s: %s", modName, out.Inspect())
 	}
+	if err := applyForeignTagsForVM(r, moduleEnv, program); err != nil {
+		return nil, fmt.Errorf("runtime error while loading module %s: %s", modName, err.Error())
+	}
+	applyTopLevelTagsForVM(r, program, moduleEnv)
 	applyTopLevelExportMetadata(program, moduleEnv)
 	return module, nil
-}
-
-func (r *Runtime) useVMModuleLoader() bool {
-	if raw, ok := os.LookupEnv("SLUG_VM_MODULE_LOADER"); ok {
-		if parsed, err := strconv.ParseBool(strings.TrimSpace(raw)); err == nil {
-			return parsed
-		}
-	}
-	if r.Config.Store == nil {
-		return false
-	}
-	raw, ok := r.Config.Store.Get("runtime.vm-module-loader")
-	if !ok {
-		return false
-	}
-	switch v := raw.(type) {
-	case bool:
-		return v
-	case string:
-		parsed, err := strconv.ParseBool(strings.TrimSpace(v))
-		return err == nil && parsed
-	default:
-		return false
-	}
 }
 
 func moduleLibRoot(loadRoot, _ string) string {
@@ -382,6 +341,79 @@ func applyTopLevelExportMetadata(program *ast.Program, env *object.Environment) 
 			continue
 		}
 		applyExportToPattern(pat, env)
+	}
+}
+
+func applyTopLevelTagsForVM(rt *Runtime, program *ast.Program, env *object.Environment) {
+	if program == nil || env == nil {
+		return
+	}
+	tagEvalTask := &Task{Runtime: rt}
+	tagEvalTask.PushEnv(env)
+	for _, stmt := range program.Statements {
+		exprStmt, ok := stmt.(*ast.ExpressionStatement)
+		if !ok {
+			continue
+		}
+		var pat ast.MatchPattern
+		var tags []*ast.Tag
+		switch ex := exprStmt.Expression.(type) {
+		case *ast.ValExpression:
+			pat = ex.Pattern
+			tags = ex.Tags
+		case *ast.VarExpression:
+			pat = ex.Pattern
+			tags = ex.Tags
+		default:
+			continue
+		}
+		if len(tags) == 0 {
+			continue
+		}
+		applyTagsToPatternValues(pat, tagEvalTask.evalTags(tags), env)
+	}
+}
+
+func applyTagsToPatternValues(pat ast.MatchPattern, tags map[string]object.List, env *object.Environment) {
+	switch p := pat.(type) {
+	case *ast.IdentifierPattern:
+		applyTagMapToBindingValue(p.Value.Value, tags, env)
+	case *ast.BindingPattern:
+		applyTagMapToBindingValue(p.Name.Value, tags, env)
+		applyTagsToPatternValues(p.Pattern, tags, env)
+	case *ast.ListPattern:
+		for _, el := range p.Elements {
+			applyTagsToPatternValues(el, tags, env)
+		}
+	case *ast.MapPattern:
+		for _, entry := range p.Pairs {
+			if entry.Pattern != nil {
+				applyTagsToPatternValues(entry.Pattern, tags, env)
+			}
+		}
+		if p.Spread != nil {
+			applyTagsToPatternValues(p.Spread, tags, env)
+		}
+	case *ast.StructPattern:
+		for _, field := range p.Fields {
+			if field.Pattern != nil {
+				applyTagsToPatternValues(field.Pattern, tags, env)
+			}
+		}
+	}
+}
+
+func applyTagMapToBindingValue(name string, tags map[string]object.List, env *object.Environment) {
+	binding, ok := env.GetLocalBinding(name)
+	if !ok || binding == nil || binding.Value == nil {
+		return
+	}
+	taggable, ok := binding.Value.(object.Taggable)
+	if !ok {
+		return
+	}
+	for tag, params := range tags {
+		taggable.SetTag(tag, params)
 	}
 }
 

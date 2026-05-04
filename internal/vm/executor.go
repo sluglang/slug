@@ -12,12 +12,16 @@ import (
 )
 
 type Executor struct {
-	env          *object.Environment
-	stack        []object.Object
-	deferScopes  [][]vmDeferEntry
-	taskScopes   [][]*VMTaskHandle
-	externalCall func(pos int, callee object.Object, positional []object.Object, named map[string]object.Object) object.Object
-	callForEnv   func(env *object.Environment) func(pos int, callee object.Object, positional []object.Object, named map[string]object.Object) object.Object
+	env                *object.Environment
+	stack              []object.Object
+	deferScopes        [][]vmDeferEntry
+	taskScopes         [][]*VMTaskHandle
+	taskLimits         []chan struct{}
+	recurCarryHandles  []*VMTaskHandle
+	borrowedTaskDepth  int
+	borrowedLimitDepth int
+	externalCall       func(pos int, callee object.Object, positional []object.Object, named map[string]object.Object) object.Object
+	callForEnv         func(env *object.Environment) func(pos int, callee object.Object, positional []object.Object, named map[string]object.Object) object.Object
 }
 
 type vmDeferEntry struct {
@@ -60,6 +64,13 @@ func NewExecutorWithBridgeFactory(
 }
 
 func (e *Executor) EvalProgram(program *ast.Program) object.Object {
+	e.stack = e.stack[:0]
+	e.deferScopes = e.deferScopes[:0]
+	e.taskScopes = e.taskScopes[:0]
+	e.taskLimits = e.taskLimits[:0]
+	e.recurCarryHandles = e.recurCarryHandles[:0]
+	e.borrowedTaskDepth = 0
+	e.borrowedLimitDepth = 0
 	chunk, err := Compile(program)
 	if err != nil {
 		return &object.Error{Message: err.Error()}
@@ -76,9 +87,6 @@ func (e *Executor) EvalFunction(fn *VMFunction, positional []object.Object, name
 }
 
 func (e *Executor) run(chunk *Chunk) object.Object {
-	e.stack = e.stack[:0]
-	e.deferScopes = e.deferScopes[:0]
-	e.taskScopes = e.taskScopes[:0]
 	var last object.Object = object.NIL
 
 	for ip := 0; ip < len(chunk.Instructions); ip++ {
@@ -395,8 +403,18 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 				closure = e.env
 			}
 			taskEnv := closure.ShallowCopy()
+			var limiter chan struct{}
+			if len(e.taskLimits) > 0 {
+				limiter = e.taskLimits[len(e.taskLimits)-1]
+			}
+			if limiter != nil {
+				limiter <- struct{}{}
+			}
 
 			go func() {
+				if limiter != nil {
+					defer func() { <-limiter }()
+				}
 				child := NewExecutor(taskEnv, e.externalCall)
 				child.callForEnv = e.callForEnv
 				result := child.run(fn.Chunk)
@@ -409,11 +427,16 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 				handle.Complete(result)
 			}()
 
-			if len(e.taskScopes) == 0 {
-				e.taskScopes = append(e.taskScopes, []*VMTaskHandle{})
+			ownerIdx := -1
+			for i := len(e.taskScopes) - 1; i >= 0; i-- {
+				if e.taskScopes[i] != nil {
+					ownerIdx = i
+					break
+				}
 			}
-			idx := len(e.taskScopes) - 1
-			e.taskScopes[idx] = append(e.taskScopes[idx], handle)
+			if ownerIdx >= 0 {
+				e.taskScopes[ownerIdx] = append(e.taskScopes[ownerIdx], handle)
+			}
 
 			e.push(handle)
 		case OpAwait:
@@ -648,21 +671,73 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 			})
 		case OpPushScope:
 			e.deferScopes = append(e.deferScopes, []vmDeferEntry{})
-			e.taskScopes = append(e.taskScopes, []*VMTaskHandle{})
+			if ins.IntArg == 0 {
+				e.taskScopes = append(e.taskScopes, nil)
+			} else {
+				scopeHandles := []*VMTaskHandle{}
+				if len(e.recurCarryHandles) > 0 {
+					scopeHandles = append(scopeHandles, e.recurCarryHandles...)
+					e.recurCarryHandles = e.recurCarryHandles[:0]
+				}
+				e.taskScopes = append(e.taskScopes, scopeHandles)
+			}
+			limit := e.resolveScopeLimit(ins.IntArg)
+			e.taskLimits = append(e.taskLimits, limit)
 			e.env = object.NewEnclosedEnvironment(e.env, nil)
 		case OpPopScope:
 			var top object.Object = object.NIL
 			if len(e.stack) > 0 {
 				top, _ = e.pop()
 			}
-			if _, isRecur := top.(*vmRecurSignal); isRecur && len(e.deferScopes) == 1 {
-				// Function-body defer semantics: on tail recur, carry to next iteration
-				// by discarding current frame defers instead of executing now.
-				e.deferScopes = e.deferScopes[:0]
+			if _, isRecur := top.(*vmRecurSignal); isRecur {
+				// Tail recur should not join tasks yet; they are carried forward.
+				// Inner block defers execute per-iteration, while function-root defers
+				// stay deferred until function exit.
+				if ins.StrArg == "fnroot" {
+					if len(e.deferScopes) > 0 {
+						e.deferScopes = e.deferScopes[:len(e.deferScopes)-1]
+					}
+				} else {
+					top = e.executeDeferredInCurrentScope(top)
+					if _, stillRecur := top.(*vmRecurSignal); !stillRecur {
+						e.push(top)
+						continue
+					}
+				}
+				if len(e.taskScopes) > 0 {
+					handles := e.taskScopes[len(e.taskScopes)-1]
+					e.taskScopes = e.taskScopes[:len(e.taskScopes)-1]
+					if len(handles) > 0 {
+						ownerIdx := -1
+						for i := len(e.taskScopes) - 1; i >= 0; i-- {
+							if e.taskScopes[i] != nil {
+								ownerIdx = i
+								break
+							}
+						}
+						if ownerIdx >= 0 {
+							e.taskScopes[ownerIdx] = append(e.taskScopes[ownerIdx], handles...)
+						} else {
+							e.recurCarryHandles = append(e.recurCarryHandles, handles...)
+						}
+					}
+				}
+				if len(e.taskLimits) > 0 {
+					e.taskLimits = e.taskLimits[:len(e.taskLimits)-1]
+				}
+				if e.env == nil || e.env.Outer == nil {
+					return e.errorAt(ins.Position, "cannot pop root scope")
+				}
+				e.env = e.env.Outer
+				e.push(top)
+				continue
 			} else {
+				top = e.executeTaskHandlesInCurrentScope(top)
 				top = e.executeDeferredInCurrentScope(top)
 			}
-			top = e.executeTaskHandlesInCurrentScope(top)
+			if len(e.taskLimits) > 0 {
+				e.taskLimits = e.taskLimits[:len(e.taskLimits)-1]
+			}
 			if e.env == nil || e.env.Outer == nil {
 				return e.errorAt(ins.Position, "cannot pop root scope")
 			}
@@ -804,13 +879,41 @@ func (e *Executor) executeDeferredInCurrentScope(current object.Object) object.O
 }
 
 func (e *Executor) unwindDeferredScopes(current object.Object) object.Object {
-	for len(e.deferScopes) > 0 {
-		current = e.executeDeferredInCurrentScope(current)
-	}
-	for len(e.taskScopes) > 0 {
-		current = e.executeTaskHandlesInCurrentScope(current)
+	for len(e.deferScopes) > 0 || len(e.taskScopes) > e.borrowedTaskDepth {
+		if len(e.taskScopes) > e.borrowedTaskDepth {
+			current = e.executeTaskHandlesInCurrentScope(current)
+		}
+		if len(e.deferScopes) > 0 {
+			current = e.executeDeferredInCurrentScope(current)
+		}
+		if len(e.taskLimits) > e.borrowedLimitDepth {
+			e.taskLimits = e.taskLimits[:len(e.taskLimits)-1]
+		}
 	}
 	return current
+}
+
+func (e *Executor) resolveScopeLimit(scopeLimitArg int) chan struct{} {
+	// Non-positive values:
+	// 0  => non-nursery scope: no enforced spawn limit.
+	// -1 => nursery scope inheriting parent/root limit.
+	if scopeLimitArg == 0 {
+		return nil
+	}
+	limit := scopeLimitArg
+	if scopeLimitArg < 0 {
+		if e.env != nil && e.env.Limit > 0 {
+			limit = e.env.Limit
+		} else if len(e.taskLimits) > 0 && e.taskLimits[len(e.taskLimits)-1] != nil {
+			limit = cap(e.taskLimits[len(e.taskLimits)-1])
+		} else {
+			limit = 4
+		}
+	}
+	if limit < 1 {
+		return nil
+	}
+	return make(chan struct{}, limit)
 }
 
 func (e *Executor) executeDeferredEntries(entries []vmDeferEntry, current object.Object) object.Object {
@@ -824,6 +927,9 @@ func (e *Executor) executeDeferredEntries(entries []vmDeferEntry, current object
 			isError = true
 			activeRuntimeErr = rtErr
 			errorPayload = rtErr.Payload
+		} else if errObj, ok := currentResult.(*object.Error); ok {
+			isError = true
+			errorPayload = errObj
 		}
 
 		shouldRun := false
@@ -1537,8 +1643,14 @@ func (e *Executor) invokeVMFunction(fn *VMFunction, positional []object.Object, 
 
 	child := NewExecutor(callEnv, e.externalCall)
 	child.callForEnv = e.callForEnv
+	child.taskScopes = e.taskScopes
+	child.taskLimits = e.taskLimits
+	child.borrowedTaskDepth = len(e.taskScopes)
+	child.borrowedLimitDepth = len(e.taskLimits)
 	for {
 		result := child.run(fn.Chunk)
+		e.taskScopes = child.taskScopes
+		e.taskLimits = child.taskLimits
 		if recur, ok := result.(*vmRecurSignal); ok {
 			errObj = bindVMArgumentsInto(fn, recur.positional, recur.named, pos, e, bound, provided)
 			if errObj != nil {

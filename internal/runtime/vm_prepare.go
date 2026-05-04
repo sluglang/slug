@@ -49,3 +49,27 @@ func prepareProgramForVM(rt *Runtime, env *object.Environment, program *ast.Prog
 
 	return out, nil
 }
+
+// applyForeignTagsForVM evaluates and applies tag payloads for foreign declarations
+// after module code has executed, so tag expressions can reference module bindings.
+func applyForeignTagsForVM(rt *Runtime, env *object.Environment, program *ast.Program) error {
+	if program == nil {
+		return nil
+	}
+	tagEvalTask := &Task{Runtime: rt}
+	tagEvalTask.PushEnv(env)
+	for _, stmt := range program.Statements {
+		ff, ok := stmt.(*ast.ForeignFunctionDeclaration)
+		if !ok {
+			continue
+		}
+		functionName := ff.Name.Value
+		fqn := env.ModuleFqn + "." + functionName
+		foreignFn, exists := rt.LookupForeign(fqn)
+		if !exists {
+			return fmt.Errorf("unknown foreign function %s", fqn)
+		}
+		foreignFn.Tags = tagEvalTask.evalTags(ff.Tags)
+	}
+	return nil
+}

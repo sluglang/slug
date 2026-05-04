@@ -55,7 +55,7 @@ func fnBuiltinImport() *object.Foreign {
 							existingFg, ok := existing.(*object.FunctionGroup)
 							if !ok {
 								// Short-term: warn and keep the first value.
-								fmt.Printf("WARNING: import name collision for '%s' (non-function vs function) while importing '%s' (keeping first)", name, strArg.Value)
+								fmt.Printf("WARNING: import name collision for '%s' (non-function vs function) while importing '%s' (keeping first)\n", name, strArg.Value)
 								continue
 							}
 
@@ -112,7 +112,7 @@ func fnBuiltinImport() *object.Foreign {
 
 					// Non-function exports: warn on collisions and keep the first value.
 					if _, exists := tempMap[name]; exists {
-						fmt.Printf("WARNING: import name collision for '%s' while importing '%s' (keeping first)", name, strArg.Value)
+						fmt.Printf("WARNING: import name collision for '%s' while importing '%s' (keeping first)\n", name, strArg.Value)
 						continue
 					}
 

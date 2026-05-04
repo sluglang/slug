@@ -65,6 +65,7 @@ func NewEnclosedEnvironment(outer *Environment, stackFrame *StackFrame) *Environ
 		LibRoot:   outer.LibRoot,
 		ModuleFqn: outer.ModuleFqn,
 		StackInfo: stackFrame,
+		Limit:     outer.Limit,
 	}
 }
 

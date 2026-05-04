@@ -427,7 +427,23 @@ func (c *compiler) compileBlock(block *ast.BlockStatement) error {
 		c.emit(Instruction{Op: OpNil})
 		return nil
 	}
-	c.emit(Instruction{Op: OpPushScope, Position: block.Token.Position})
+	scopeLimit := 0
+	if block.IsNursery {
+		// -1 means "use inherited/default limit at runtime".
+		scopeLimit = -1
+		if block.Limit != nil {
+			n, ok := block.Limit.(*ast.NumberLiteral)
+			if !ok {
+				return fmt.Errorf("vm compile error at %d: nursery limit must be a numeric literal", block.Token.Position)
+			}
+			limit := int(n.Value.ToInt64())
+			if limit < 1 {
+				return fmt.Errorf("vm compile error at %d: nursery limit must be >= 1", block.Token.Position)
+			}
+			scopeLimit = limit
+		}
+	}
+	c.emit(Instruction{Op: OpPushScope, IntArg: scopeLimit, Position: block.Token.Position})
 	if len(block.Statements) == 0 {
 		c.emit(Instruction{Op: OpNil, Position: block.Token.Position})
 		c.emit(Instruction{Op: OpPopScope, Position: block.Token.Position})
@@ -899,6 +915,12 @@ func (c *compiler) compileFunctionLiteral(node *ast.FunctionLiteral) (*VMFunctio
 	child := &compiler{chunk: &Chunk{}}
 	if err := child.compileBlock(node.Body); err != nil {
 		return nil, err
+	}
+	// Mark the function body's outer lexical scope so VM recur cleanup can
+	// distinguish it from inner block scopes.
+	if len(child.chunk.Instructions) >= 2 {
+		child.chunk.Instructions[0].StrArg = "fnroot"
+		child.chunk.Instructions[len(child.chunk.Instructions)-1].StrArg = "fnroot"
 	}
 	child.emit(Instruction{Op: OpReturn, Position: node.Token.Position})
 
