@@ -42,7 +42,7 @@
  */
 @export
 @returns('[@num, @str]')
-foreign request = fn(@str method, @str url, @str body = "", @map headers = {})
+foreign request = fn(@str method, @str url, @str body = "", @map headers = {}, @num timeout = 30000)
 
 /**
  * makes a GET request and returns `[status, body]`.

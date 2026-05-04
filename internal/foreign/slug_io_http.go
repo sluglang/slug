@@ -6,15 +6,20 @@ import (
 	"slug/internal/dec64"
 	"slug/internal/object"
 	"strings"
+	"time"
 )
+
+var newHTTPClient = func(timeout time.Duration) *http.Client {
+	return &http.Client{Timeout: timeout}
+}
 
 func fnIoHttpRequest() *object.Foreign {
 	return &object.Foreign{
 		Name: "request",
 		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 
-			if len(args) != 4 {
-				return ctx.NewError("wrong number of arguments to `request`, got=%d, want=4", len(args))
+			if len(args) != 5 {
+				return ctx.NewError("wrong number of arguments to `request`, got=%d, want=5", len(args))
 			}
 
 			method, err := unpackString(args[0], "method")
@@ -37,7 +42,15 @@ func fnIoHttpRequest() *object.Foreign {
 				return ctx.NewError("argument to `headers` must be a MAP, got=%s", args[3].Type())
 			}
 
-			client := &http.Client{}
+			timeoutMs, err := unpackNumber(args[4], "timeout")
+			if err != nil {
+				return ctx.NewError(err.Error())
+			}
+			if timeoutMs <= 0 {
+				return ctx.NewError("argument to `timeout` must be greater than 0, got=%d", timeoutMs)
+			}
+
+			client := newHTTPClient(time.Duration(timeoutMs) * time.Millisecond)
 			req, err := http.NewRequest(method, url, strings.NewReader(body))
 			if err != nil {
 				return ctx.NewError(err.Error())
@@ -49,10 +62,13 @@ func fnIoHttpRequest() *object.Foreign {
 			}
 
 			resp, err := client.Do(req)
-			defer resp.Body.Close()
 			if err != nil {
 				return ctx.NewError(err.Error())
 			}
+			if resp == nil || resp.Body == nil {
+				return ctx.NewError("http request failed: empty response")
+			}
+			defer resp.Body.Close()
 
 			bytes, err := io.ReadAll(resp.Body)
 			if err != nil {
