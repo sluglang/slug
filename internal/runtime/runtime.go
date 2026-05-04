@@ -207,7 +207,9 @@ func (r *Runtime) evalModuleWithVM(modName string, module *object.Module, module
 	if err := applyForeignTagsForVM(r, moduleEnv, program); err != nil {
 		return nil, fmt.Errorf("runtime error while loading module %s: %s", modName, err.Error())
 	}
-	applyTopLevelTagsForVM(r, program, moduleEnv)
+	if err := applyTopLevelTagsForVM(r, program, moduleEnv); err != nil {
+		return nil, fmt.Errorf("runtime error while loading module %s: %s", modName, err.Error())
+	}
 	applyTopLevelExportMetadata(program, moduleEnv)
 	return module, nil
 }
@@ -344,12 +346,10 @@ func applyTopLevelExportMetadata(program *ast.Program, env *object.Environment) 
 	}
 }
 
-func applyTopLevelTagsForVM(rt *Runtime, program *ast.Program, env *object.Environment) {
+func applyTopLevelTagsForVM(rt *Runtime, program *ast.Program, env *object.Environment) error {
 	if program == nil || env == nil {
-		return
+		return nil
 	}
-	tagEvalTask := &Task{Runtime: rt}
-	tagEvalTask.PushEnv(env)
 	for _, stmt := range program.Statements {
 		exprStmt, ok := stmt.(*ast.ExpressionStatement)
 		if !ok {
@@ -370,8 +370,13 @@ func applyTopLevelTagsForVM(rt *Runtime, program *ast.Program, env *object.Envir
 		if len(tags) == 0 {
 			continue
 		}
-		applyTagsToPatternValues(pat, tagEvalTask.evalTags(tags), env)
+		evaluated, err := evalTagArgsWithVM(rt, env, tags)
+		if err != nil {
+			return err
+		}
+		applyTagsToPatternValues(pat, evaluated, env)
 	}
+	return nil
 }
 
 func applyTagsToPatternValues(pat ast.MatchPattern, tags map[string]object.List, env *object.Environment) {

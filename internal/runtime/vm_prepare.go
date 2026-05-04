@@ -56,8 +56,6 @@ func applyForeignTagsForVM(rt *Runtime, env *object.Environment, program *ast.Pr
 	if program == nil {
 		return nil
 	}
-	tagEvalTask := &Task{Runtime: rt}
-	tagEvalTask.PushEnv(env)
 	for _, stmt := range program.Statements {
 		ff, ok := stmt.(*ast.ForeignFunctionDeclaration)
 		if !ok {
@@ -69,7 +67,11 @@ func applyForeignTagsForVM(rt *Runtime, env *object.Environment, program *ast.Pr
 		if !exists {
 			return fmt.Errorf("unknown foreign function %s", fqn)
 		}
-		foreignFn.Tags = tagEvalTask.evalTags(ff.Tags)
+		tags, err := evalTagArgsWithVM(rt, env, ff.Tags)
+		if err != nil {
+			return err
+		}
+		foreignFn.Tags = tags
 	}
 	return nil
 }

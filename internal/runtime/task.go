@@ -1407,74 +1407,7 @@ func (e *Task) ApplyFunction(pos int, fnName string, fnObj object.Object, positi
 		}
 
 	case *object.Function:
-		// Track current function for `recur`
-		e.pushCallFrame(fnName, fn)
-		defer e.popCallFrame()
-
-		var result object.Object
-
-		// Create the initial environment
-		argsEnv, errObj := e.extendFunctionEnv(pos, fnName, fn, positional, named)
-		if errObj != nil {
-			return errObj
-		}
-		e.PushEnv(argsEnv)
-
-		blockEnv := e.newBlockEnv(fn.Body)
-		e.PushEnv(blockEnv)
-
-		for {
-			result = e.evalBlockStatementWithinEnv(fn.Body)
-
-			_, ok := result.(*object.Error)
-			if ok {
-				break
-			}
-
-			nurseryScope := e.currentNurseryScope()
-			if nurseryScope.NurseryErr != nil {
-				_, ok := nurseryScope.NurseryErr.(*object.Error)
-				if ok {
-					result = nurseryScope.NurseryErr
-					break
-				}
-			}
-
-			if tc, ok := result.(*object.TailCall); ok {
-				if tc.Function == fn {
-					blockEnv.ResetForTCO()
-					if errObj := e.rebindFunctionEnv(pos, argsEnv, fn, tc.Arguments, tc.NamedArguments); errObj != nil {
-						result = errObj
-						break
-					}
-					continue
-				}
-				result = e.ApplyFunction(tc.Pos, tc.FnName, tc.Function, tc.Arguments, tc.NamedArguments)
-				break
-			}
-
-			if rv, ok := result.(*object.ReturnValue); ok {
-				if tc, ok := rv.Value.(*object.TailCall); ok {
-					if tc.Function == fn {
-						blockEnv.ResetForTCO()
-						if errObj := e.rebindFunctionEnv(pos, argsEnv, fn, tc.Arguments, tc.NamedArguments); errObj != nil {
-							result = errObj
-							break
-						}
-						continue
-					}
-					result = e.ApplyFunction(tc.Pos, tc.FnName, tc.Function, tc.Arguments, tc.NamedArguments)
-					break
-				}
-				result = rv.Value
-				break
-			}
-
-			break
-		}
-
-		result = e.PopEnv(result)
-		return e.PopEnv(result)
+		return e.newErrorfWithPos(pos, "treewalking evaluator removed: cannot call AST function value %q", fnName)
 
 	case *object.Foreign:
 		var result object.Object
