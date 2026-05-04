@@ -66,6 +66,7 @@ const (
 	OpJump
 	OpJumpIfFalse
 	OpCall
+	OpSelect
 	OpRecur
 	OpThrow
 	OpReturn
@@ -77,7 +78,18 @@ type Instruction struct {
 	StrArg   string
 	StrArg2  string
 	CallPlan []CallArgSpec
+	Select   []SelectCaseSpec
 	Position int
+}
+
+type SelectCaseSpec struct {
+	Kind      int
+	TokenPos  int
+	ChannelFn int
+	ValueFn   int
+	AfterFn   int
+	AwaitFn   int
+	HandlerFn int
 }
 
 type CallArgKind byte

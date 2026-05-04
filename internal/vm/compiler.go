@@ -5,6 +5,7 @@ import (
 	"slug/internal/ast"
 	"slug/internal/dec64"
 	"slug/internal/object"
+	"slug/internal/token"
 	"strings"
 )
 
@@ -1395,26 +1396,122 @@ func (c *compiler) compileMatchExpression(node *ast.MatchExpression) error {
 }
 
 func (c *compiler) compileSelectExpression(node *ast.SelectExpression) error {
-	// Temporary lowering: delegate select scheduling semantics to runtime thunk call.
-	// This preserves concurrency behavior while native VM select opcodes are pending.
-	thunk := &object.Function{
-		Signature:  ast.FSig{Min: 0, Max: 0},
-		Parameters: []*ast.FunctionParameter{},
-		ParamIndex: map[string]int{},
-		Body: &ast.BlockStatement{
-			Token: node.Token,
-			Statements: []ast.Statement{
-				&ast.ExpressionStatement{
-					Token:      node.Token,
-					Expression: node,
-				},
-			},
-		},
+	specs := make([]SelectCaseSpec, 0, len(node.Cases))
+	for _, cs := range node.Cases {
+		spec := SelectCaseSpec{
+			Kind:      int(cs.Kind),
+			TokenPos:  cs.Token.Position,
+			ChannelFn: -1,
+			ValueFn:   -1,
+			AfterFn:   -1,
+			AwaitFn:   -1,
+			HandlerFn: -1,
+		}
+		switch cs.Kind {
+		case ast.SelectRecv:
+			fnObj, err := c.compileSelectExprThunk(cs.Channel, cs.Token.Position)
+			if err != nil {
+				return err
+			}
+			spec.ChannelFn = c.addConstant(fnObj)
+		case ast.SelectSend:
+			chFn, err := c.compileSelectExprThunk(cs.Channel, cs.Token.Position)
+			if err != nil {
+				return err
+			}
+			valFn, err := c.compileSelectExprThunk(cs.Value, cs.Token.Position)
+			if err != nil {
+				return err
+			}
+			spec.ChannelFn = c.addConstant(chFn)
+			spec.ValueFn = c.addConstant(valFn)
+		case ast.SelectAfter:
+			afterFn, err := c.compileSelectExprThunk(cs.After, cs.Token.Position)
+			if err != nil {
+				return err
+			}
+			spec.AfterFn = c.addConstant(afterFn)
+		case ast.SelectAwait:
+			awaitFn, err := c.compileSelectExprThunk(cs.Await, cs.Token.Position)
+			if err != nil {
+				return err
+			}
+			spec.AwaitFn = c.addConstant(awaitFn)
+		case ast.SelectDefault:
+			// no-op
+		default:
+			return fmt.Errorf("vm compile error at %d: invalid select case", cs.Token.Position)
+		}
+		if cs.Handler != nil {
+			hFn, err := c.compileSelectHandlerThunk(cs.Handler, cs.Token.Position)
+			if err != nil {
+				return err
+			}
+			spec.HandlerFn = c.addConstant(hFn)
+		}
+		specs = append(specs, spec)
 	}
-	idx := c.addConstant(thunk)
-	c.emit(Instruction{Op: OpConstant, IntArg: idx, Position: node.Token.Position})
-	c.emit(Instruction{Op: OpCall, IntArg: 0, CallPlan: []CallArgSpec{}, Position: node.Token.Position})
+	c.emit(Instruction{Op: OpSelect, Select: specs, Position: node.Token.Position})
 	return nil
+}
+
+func (c *compiler) compileSelectExprThunk(expr ast.Expression, pos int) (*VMFunction, error) {
+	child := &compiler{chunk: &Chunk{}}
+	if err := child.compileExpression(expr); err != nil {
+		return nil, err
+	}
+	child.emit(Instruction{Op: OpReturn, Position: pos})
+	return &VMFunction{
+		Params: []VMParam{},
+		Chunk:  child.chunk,
+	}, nil
+}
+
+func (c *compiler) compileSelectHandlerThunk(handler ast.Expression, pos int) (*VMFunction, error) {
+	valueIdent := &ast.Identifier{
+		Token: token.Token{Type: token.IDENT, Literal: "__select_value", Position: pos},
+		Value: "__select_value",
+	}
+	var bodyExpr ast.Expression
+	switch h := handler.(type) {
+	case *ast.MatchExpression:
+		if h.Value != nil {
+			return nil, fmt.Errorf("vm compile error at %d: select case match handler must be subjectless", pos)
+		}
+		bodyExpr = &ast.MatchExpression{
+			Token: h.Token,
+			Value: valueIdent,
+			Cases: h.Cases,
+		}
+	case *ast.CallExpression:
+		args := make([]ast.Expression, 0, len(h.Arguments)+1)
+		args = append(args, valueIdent)
+		args = append(args, h.Arguments...)
+		bodyExpr = &ast.CallExpression{
+			Token:     h.Token,
+			Function:  h.Function,
+			Arguments: args,
+		}
+	default:
+		bodyExpr = &ast.CallExpression{
+			Token:    token.Token{Type: token.LPAREN, Literal: "(", Position: pos},
+			Function: handler,
+			Arguments: []ast.Expression{
+				valueIdent,
+			},
+		}
+	}
+	child := &compiler{chunk: &Chunk{}}
+	if err := child.compileExpression(bodyExpr); err != nil {
+		return nil, err
+	}
+	child.emit(Instruction{Op: OpReturn, Position: pos})
+	return &VMFunction{
+		Params: []VMParam{
+			{Name: "__select_value"},
+		},
+		Chunk: child.chunk,
+	}, nil
 }
 
 func (c *compiler) compilePatternValue(pattern ast.MatchPattern) error {

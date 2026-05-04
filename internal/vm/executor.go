@@ -3,12 +3,14 @@ package vm
 import (
 	"fmt"
 	"math"
+	"reflect"
 	"slug/internal/ast"
 	"slug/internal/dec64"
 	"slug/internal/object"
 	"slug/internal/token"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type Executor struct {
@@ -34,6 +36,20 @@ type vmDeferEntry struct {
 type vmRecurSignal struct {
 	positional []object.Object
 	named      map[string]object.Object
+}
+
+type vmSelectEvalCase struct {
+	kind      int
+	tokenPos  int
+	channel   *object.Channel
+	sendValue object.Object
+	afterVal  object.Object
+	afterT    *time.Timer
+	awaitTask interface {
+		DoneChan() <-chan struct{}
+		AwaitResult() object.Object
+	}
+	handlerFn *VMFunction
 }
 
 func (r *vmRecurSignal) Type() object.ObjectType { return "VM_RECUR" }
@@ -838,6 +854,12 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 			if errObj := e.evalCall(ins.IntArg, ins.CallPlan, ins.Position); errObj != nil {
 				return errObj
 			}
+		case OpSelect:
+			out, errObj := e.evalSelect(ins, chunk)
+			if errObj != nil {
+				return errObj
+			}
+			e.push(out)
 		case OpRecur:
 			positional, named, errObj := e.popCallArguments(ins.IntArg, ins.CallPlan, ins.Position)
 			if errObj != nil {
@@ -1576,6 +1598,191 @@ func (e *Executor) evalCall(argCount int, plan []CallArgSpec, pos int) object.Ob
 	}
 	e.push(result)
 	return nil
+}
+
+func (e *Executor) evalSelect(ins Instruction, chunk *Chunk) (object.Object, *object.Error) {
+	if len(ins.Select) == 0 {
+		return nil, e.errorAt(ins.Position, "select requires at least one case")
+	}
+	cases := make([]reflect.SelectCase, 0, len(ins.Select))
+	evals := make([]vmSelectEvalCase, 0, len(ins.Select))
+	defaultSeen := false
+	readySignal := make(chan struct{})
+	close(readySignal)
+	defer func() {
+		for _, ev := range evals {
+			if ev.afterT != nil {
+				ev.afterT.Stop()
+			}
+		}
+	}()
+
+	for _, spec := range ins.Select {
+		ev := vmSelectEvalCase{
+			kind:     spec.Kind,
+			tokenPos: spec.TokenPos,
+		}
+		if spec.HandlerFn >= 0 {
+			fnObj, errObj := e.selectThunkByIndex(chunk, spec.HandlerFn, spec.TokenPos)
+			if errObj != nil {
+				return nil, errObj
+			}
+			ev.handlerFn = fnObj
+		}
+		switch ast.SelectCaseType(spec.Kind) {
+		case ast.SelectRecv:
+			fn, errObj := e.selectThunkByIndex(chunk, spec.ChannelFn, spec.TokenPos)
+			if errObj != nil {
+				return nil, errObj
+			}
+			chObj := e.invokeVMFunction(fn, nil, nil, spec.TokenPos)
+			if err, ok := chObj.(*object.Error); ok {
+				return nil, err
+			}
+			ch, ok := chObj.(*object.Channel)
+			if !ok {
+				return nil, e.errorAt(spec.TokenPos, "recv expects a channel, got %s", chObj.Type())
+			}
+			ev.channel = ch
+			cases = append(cases, reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(ch.GoChan())})
+		case ast.SelectSend:
+			chFn, errObj := e.selectThunkByIndex(chunk, spec.ChannelFn, spec.TokenPos)
+			if errObj != nil {
+				return nil, errObj
+			}
+			chObj := e.invokeVMFunction(chFn, nil, nil, spec.TokenPos)
+			if err, ok := chObj.(*object.Error); ok {
+				return nil, err
+			}
+			ch, ok := chObj.(*object.Channel)
+			if !ok {
+				return nil, e.errorAt(spec.TokenPos, "send expects a channel, got %s", chObj.Type())
+			}
+			valFn, errObj := e.selectThunkByIndex(chunk, spec.ValueFn, spec.TokenPos)
+			if errObj != nil {
+				return nil, errObj
+			}
+			val := e.invokeVMFunction(valFn, nil, nil, spec.TokenPos)
+			if err, ok := val.(*object.Error); ok {
+				return nil, err
+			}
+			ev.channel = ch
+			ev.sendValue = val
+			if ch.IsClosed() {
+				cases = append(cases, reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(readySignal)})
+			} else {
+				cases = append(cases, reflect.SelectCase{Dir: reflect.SelectSend, Chan: reflect.ValueOf(ch.GoChan()), Send: reflect.ValueOf(val)})
+			}
+		case ast.SelectAfter:
+			afterFn, errObj := e.selectThunkByIndex(chunk, spec.AfterFn, spec.TokenPos)
+			if errObj != nil {
+				return nil, errObj
+			}
+			afterVal := e.invokeVMFunction(afterFn, nil, nil, spec.TokenPos)
+			if err, ok := afterVal.(*object.Error); ok {
+				return nil, err
+			}
+			num, ok := afterVal.(*object.Number)
+			if !ok {
+				return nil, e.errorAt(spec.TokenPos, "after expects a number (ms)")
+			}
+			ms := num.Value.ToInt64()
+			if ms < 0 {
+				return nil, e.errorAt(spec.TokenPos, "after expects a non-negative duration")
+			}
+			ev.afterVal = afterVal
+			if ms > 0 {
+				t := time.NewTimer(time.Duration(ms) * time.Millisecond)
+				ev.afterT = t
+				cases = append(cases, reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(t.C)})
+			}
+		case ast.SelectAwait:
+			awaitFn, errObj := e.selectThunkByIndex(chunk, spec.AwaitFn, spec.TokenPos)
+			if errObj != nil {
+				return nil, errObj
+			}
+			taskObj := e.invokeVMFunction(awaitFn, nil, nil, spec.TokenPos)
+			if err, ok := taskObj.(*object.Error); ok {
+				return nil, err
+			}
+			switch t := taskObj.(type) {
+			case *VMTaskHandle:
+				ev.awaitTask = t
+			default:
+				return nil, e.errorAt(spec.TokenPos, "await expects a task handle, got %s", taskObj.Type())
+			}
+			cases = append(cases, reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(ev.awaitTask.DoneChan())})
+		case ast.SelectDefault:
+			if defaultSeen {
+				return nil, e.errorAt(spec.TokenPos, "select cannot have multiple default cases")
+			}
+			defaultSeen = true
+			cases = append(cases, reflect.SelectCase{Dir: reflect.SelectDefault})
+		default:
+			return nil, e.errorAt(spec.TokenPos, "invalid select case")
+		}
+		evals = append(evals, ev)
+	}
+
+	chosen, recv, ok := reflect.Select(cases)
+	selected := evals[chosen]
+	var selectedVal object.Object = object.NIL
+	switch ast.SelectCaseType(selected.kind) {
+	case ast.SelectRecv:
+		var recvObj object.Object = object.NIL
+		if ok {
+			if v, okCast := recv.Interface().(object.Object); okCast {
+				recvObj = v
+			}
+		}
+		selectedVal = e.recvResultForSelect(recvObj, ok)
+	case ast.SelectSend:
+		if selected.channel != nil && selected.channel.IsClosed() {
+			return nil, e.errorAt(selected.tokenPos, "send on closed channel")
+		}
+		selectedVal = selected.sendValue
+	case ast.SelectAfter:
+		selectedVal = selected.afterVal
+	case ast.SelectAwait:
+		selectedVal = selected.awaitTask.AwaitResult()
+	case ast.SelectDefault:
+		selectedVal = object.NIL
+	}
+	if selected.handlerFn == nil {
+		return selectedVal, nil
+	}
+	res := e.invokeVMFunction(selected.handlerFn, []object.Object{selectedVal}, nil, selected.tokenPos)
+	if err, ok := res.(*object.Error); ok {
+		return nil, err
+	}
+	return res, nil
+}
+
+func (e *Executor) recvResultForSelect(value object.Object, ok bool) object.Object {
+	fullSchema := &object.StructSchema{Name: "Full"}
+	emptySchema := &object.StructSchema{Name: "Empty"}
+	if ok {
+		return &object.StructValue{
+			Schema: fullSchema,
+			Fields: map[string]object.Object{"value": value},
+		}
+	}
+	return &object.StructValue{
+		Schema: emptySchema,
+		Fields: map[string]object.Object{},
+	}
+}
+
+func (e *Executor) selectThunkByIndex(chunk *Chunk, idx int, pos int) (*VMFunction, *object.Error) {
+	if idx < 0 || idx >= len(chunk.Constants) {
+		return nil, e.errorAt(pos, "invalid select thunk index")
+	}
+	obj := e.bindClosureIfNeeded(chunk.Constants[idx])
+	fn, ok := obj.(*VMFunction)
+	if !ok {
+		return nil, e.errorAt(pos, "select thunk must be a VM function, got %s", obj.Type())
+	}
+	return fn, nil
 }
 
 func (e *Executor) popCallArguments(argCount int, plan []CallArgSpec, pos int) ([]object.Object, map[string]object.Object, *object.Error) {

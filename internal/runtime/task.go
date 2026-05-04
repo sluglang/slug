@@ -1407,7 +1407,6 @@ func (e *Task) ApplyFunction(pos int, fnName string, fnObj object.Object, positi
 		}
 
 	case *object.Function:
-
 		// Track current function for `recur`
 		e.pushCallFrame(fnName, fn)
 		defer e.popCallFrame()
@@ -1436,14 +1435,11 @@ func (e *Task) ApplyFunction(pos int, fnName string, fnObj object.Object, positi
 			if nurseryScope.NurseryErr != nil {
 				_, ok := nurseryScope.NurseryErr.(*object.Error)
 				if ok {
-					// if the current nursery is erroring break out
 					result = nurseryScope.NurseryErr
-					//nurseryScope.NurseryErr = nil
 					break
 				}
 			}
 
-			// 1. Direct TailCall (e.g., from recur or tail-positioned call)
 			if tc, ok := result.(*object.TailCall); ok {
 				if tc.Function == fn {
 					blockEnv.ResetForTCO()
@@ -1453,12 +1449,10 @@ func (e *Task) ApplyFunction(pos int, fnName string, fnObj object.Object, positi
 					}
 					continue
 				}
-				// Call belongs to a different function. Resolve it now.
 				result = e.ApplyFunction(tc.Pos, tc.FnName, tc.Function, tc.Arguments, tc.NamedArguments)
 				break
 			}
 
-			// 2. ReturnValue (explicit return)
 			if rv, ok := result.(*object.ReturnValue); ok {
 				if tc, ok := rv.Value.(*object.TailCall); ok {
 					if tc.Function == fn {
@@ -1469,23 +1463,17 @@ func (e *Task) ApplyFunction(pos int, fnName string, fnObj object.Object, positi
 						}
 						continue
 					}
-					// Resolve TailCall for a different function
 					result = e.ApplyFunction(tc.Pos, tc.FnName, tc.Function, tc.Arguments, tc.NamedArguments)
 					break
 				}
-				// Unwrap the final value
 				result = rv.Value
 				break
 			}
 
-			// 3. Implicit return or Error
 			break
 		}
 
-		// pop the block environment
 		result = e.PopEnv(result)
-
-		// PopEnv runs defers and joins children for the finalized call frame
 		return e.PopEnv(result)
 
 	case *object.Foreign:
