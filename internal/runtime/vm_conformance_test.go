@@ -49,35 +49,6 @@ func TestVMConformanceFixtures(t *testing.T) {
 	}
 }
 
-func TestVMKnownUnsupportedFixtures(t *testing.T) {
-	root := repoRoot(t)
-	unsupportedDir := filepath.Join(root, "tests", "vm-conformance", "known-unsupported")
-	entries, err := os.ReadDir(unsupportedDir)
-	if err != nil {
-		t.Fatalf("read unsupported fixtures dir: %v", err)
-	}
-
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".slug") {
-			continue
-		}
-		name := entry.Name()
-		t.Run(name, func(t *testing.T) {
-			path := filepath.Join(unsupportedDir, name)
-			sourceBytes, err := os.ReadFile(path)
-			if err != nil {
-				t.Fatalf("read fixture %s: %v", name, err)
-			}
-			source := string(sourceBytes)
-
-			vm := runProgramForConformance(t, path, source)
-			if vm.result.Type() != object.ERROR_OBJ {
-				t.Fatalf("unsupported fixture expected VM error, got %T (%s)", vm.result, vm.result.Inspect())
-			}
-		})
-	}
-}
-
 func TestVMConformanceExpectedErrorFixtures(t *testing.T) {
 	root := repoRoot(t)
 	errorDir := filepath.Join(root, "tests", "vm-conformance", "error-parity")

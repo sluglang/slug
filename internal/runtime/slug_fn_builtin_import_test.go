@@ -59,7 +59,7 @@ func exportedFunctionModule(moduleName string, fnName string, sig ast.FSig) *obj
 	fn := &object.Foreign{
 		Name:      fnName,
 		Signature: sig,
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 			return object.NIL
 		},
 	}

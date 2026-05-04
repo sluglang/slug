@@ -7,7 +7,7 @@ import (
 func fnChannelChan() *object.Foreign {
 	return &object.Foreign{
 		Name: "chan",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 			if len(args) > 1 {
 				return ctx.NewError("wrong number of arguments. got=%d, want=0 or 1", len(args))
 			}
@@ -34,7 +34,7 @@ func fnChannelChan() *object.Foreign {
 func fnChannelClose() *object.Foreign {
 	return &object.Foreign{
 		Name: "close",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 			if len(args) != 1 {
 				return ctx.NewError("wrong number of arguments. got=%d, want=1", len(args))
 			}

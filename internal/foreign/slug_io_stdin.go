@@ -17,7 +17,7 @@ var (
 func fnIoStdinReadLines() *object.Foreign {
 	return &object.Foreign{
 		Name: "readLines",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 			if len(args) != 0 {
 				return ctx.NewError("wrong number of arguments to `readLines`, got=%d, want=0", len(args))
 			}

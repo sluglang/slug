@@ -8,7 +8,7 @@ import (
 func fnDebugIdent() *object.Foreign {
 	return &object.Foreign{
 		Name: "ident",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 			if len(args) != 1 {
 				return ctx.NewError("id() expects exactly 1 argument")
 			}

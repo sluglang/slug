@@ -22,7 +22,7 @@ var (
 func fnSysExit() *object.Foreign {
 	return &object.Foreign{
 		Name: "exit",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 			if len(args) != 1 {
 				return ctx.NewError("wrong number of arguments. got=%d, want=1",
 					len(args))
@@ -42,7 +42,7 @@ func fnSysExit() *object.Foreign {
 func fnSysEnv() *object.Foreign {
 	return &object.Foreign{
 		Name: "env",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 			if len(args) != 1 {
 				return ctx.NewError("wrong number of arguments. got=%d, want=1",
 					len(args))
@@ -68,7 +68,7 @@ func fnSysEnv() *object.Foreign {
 func fnSysSetEnv() *object.Foreign {
 	return &object.Foreign{
 		Name: "setEnv",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 			if len(args) != 2 {
 				return ctx.NewError("wrong number of arguments. got=%d, want=2",
 					len(args))
@@ -97,7 +97,7 @@ func fnSysSetEnv() *object.Foreign {
 func fnSysExec() *object.Foreign {
 	return &object.Foreign{
 		Name: "exec",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 			if len(args) < 1 || len(args) > 2 {
 				return ctx.NewError("wrong number of arguments. got=%d, want=1 or 2",
 					len(args))
@@ -170,7 +170,7 @@ func fnSysExec() *object.Foreign {
 func fnSysSpawnProc() *object.Foreign {
 	return &object.Foreign{
 		Name: "spawnProc",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 			if len(args) != 1 {
 				return ctx.NewError("wrong number of arguments. got=%d, want=1",
 					len(args))
@@ -216,7 +216,7 @@ func fnSysSpawnProc() *object.Foreign {
 func fnSysWaitProc() *object.Foreign {
 	return &object.Foreign{
 		Name: "waitProc",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 
 			id, err := unpackNumber(args[0], "")
 			if err != nil {
@@ -268,7 +268,7 @@ func fnSysWaitProc() *object.Foreign {
 func fnSysKillProc() *object.Foreign {
 	return &object.Foreign{
 		Name: "killProc",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 
 			id, err := unpackNumber(args[0], "")
 			if err != nil {

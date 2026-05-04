@@ -6,7 +6,7 @@ import (
 )
 
 func fnStdType() *object.Foreign {
-	return &object.Foreign{Name: "type", Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+	return &object.Foreign{Name: "type", Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 		if len(args) != 1 {
 			return ctx.NewError("wrong number of arguments. got=%d, want=1",
 				len(args))
@@ -68,7 +68,7 @@ func typeTagForObject(obj object.Object) (string, bool) {
 }
 
 func fnStdIsDefined() *object.Foreign {
-	return &object.Foreign{Name: "isDefined", Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+	return &object.Foreign{Name: "isDefined", Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 		if len(args) != 1 {
 			return ctx.NewError("wrong number of arguments. got=%d, want=1",
 				len(args))
@@ -89,7 +89,7 @@ func fnStdIsDefined() *object.Foreign {
 func fnStdModuleName() *object.Foreign {
 	return &object.Foreign{
 		Name: "moduleName",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 			if len(args) != 0 {
 				return ctx.NewError("moduleName expects no arguments, got=%d", len(args))
 			}
@@ -101,7 +101,7 @@ func fnStdModuleName() *object.Foreign {
 func fnStdFmt() *object.Foreign {
 	return &object.Foreign{
 		Name: "fmt",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 			if len(args) < 1 {
 				return ctx.NewError("wrong number of arguments. got=%d, want>=1", len(args))
 			}
@@ -125,7 +125,7 @@ func fnStdFmt() *object.Foreign {
 func fnStdKeys() *object.Foreign {
 	return &object.Foreign{
 		Name: "keys",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 			// Check the number of arguments
 			if len(args) != 1 {
 				return ctx.NewError("wrong number of arguments. got=%d, want=1", len(args))
@@ -163,7 +163,7 @@ func fnStdKeys() *object.Foreign {
 func fnStdSym() *object.Foreign {
 	return &object.Foreign{
 		Name: "sym",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 			if len(args) != 1 {
 				return ctx.NewError("wrong number of arguments. got=%d, want=1", len(args))
 			}
@@ -179,7 +179,7 @@ func fnStdSym() *object.Foreign {
 func fnStdLabel() *object.Foreign {
 	return &object.Foreign{
 		Name: "label",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 			if len(args) != 1 {
 				return ctx.NewError("wrong number of arguments. got=%d, want=1", len(args))
 			}
@@ -198,7 +198,7 @@ func fnStdLabel() *object.Foreign {
 func fnStdGet() *object.Foreign {
 	return &object.Foreign{
 		Name: "get",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 			if len(args) != 2 {
 				return ctx.NewError("wrong number of arguments. got=%d, want=2", len(args))
 			}
@@ -226,7 +226,7 @@ func fnStdGet() *object.Foreign {
 func fnStdPut() *object.Foreign {
 	return &object.Foreign{
 		Name: "put",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 			if len(args) != 3 {
 				return ctx.NewError("wrong number of arguments. got=%d, want=3", len(args))
 			}
@@ -257,7 +257,7 @@ func fnStdPut() *object.Foreign {
 func fnStdRemove() *object.Foreign {
 	return &object.Foreign{
 		Name: "remove",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 			if len(args) != 2 {
 				return ctx.NewError("wrong number of arguments. got=%d, want=2", len(args))
 			}
@@ -288,7 +288,7 @@ func fnStdRemove() *object.Foreign {
 func fnStdUpdate() *object.Foreign {
 	return &object.Foreign{
 		Name: "update",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 			if len(args) != 3 {
 				return ctx.NewError("wrong number of arguments. got=%d, want=3", len(args))
 			}
@@ -321,7 +321,7 @@ func fnStdUpdate() *object.Foreign {
 func fnStdSwap() *object.Foreign {
 	return &object.Foreign{
 		Name: "swap",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 			if len(args) != 3 {
 				return ctx.NewError("wrong number of arguments. got=%d, want=3", len(args))
 			}
@@ -357,7 +357,7 @@ func fnStdSwap() *object.Foreign {
 func fnStdParseNumber() *object.Foreign {
 	return &object.Foreign{
 		Name: "parseNumber",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 			if len(args) != 1 {
 				return ctx.NewError("wrong number of arguments. got=%d, want=1", len(args))
 			}

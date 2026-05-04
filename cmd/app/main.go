@@ -35,7 +35,7 @@ func init() {
 	flag.BoolVar(&help, "h", false, "Display help information and exit")
 	flag.BoolVar(&version, "version", false, "Display version information and exit")
 	flag.BoolVar(&version, "v", false, "Display version information and exit")
-	// evaluator config
+	// runtime config
 	flag.StringVar(&rootPath, "root", "", "Set the root context for the program (used for imports)")
 	// parser config
 	flag.BoolVar(&debugJsonAST, "debug-json-ast", false, "Render the AST as a JSON file")

@@ -8,7 +8,7 @@ import (
 func fnPathJoin() *object.Foreign {
 	return &object.Foreign{
 		Name: "join",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 			if len(args) < 1 {
 				return ctx.NewError("join expects at least 1 argument")
 			}
@@ -30,7 +30,7 @@ func fnPathJoin() *object.Foreign {
 func fnPathAbs() *object.Foreign {
 	return &object.Foreign{
 		Name: "abs",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 			if len(args) != 1 {
 				return ctx.NewError("abs expects exactly 1 argument, got=%d", len(args))
 			}
@@ -53,7 +53,7 @@ func fnPathAbs() *object.Foreign {
 func fnPathModuleDir() *object.Foreign {
 	return &object.Foreign{
 		Name: "moduleDir",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 			if len(args) != 0 {
 				return ctx.NewError("moduleDir expects no arguments, got=%d", len(args))
 			}
@@ -66,7 +66,7 @@ func fnPathModuleDir() *object.Foreign {
 func fnPathCwd() *object.Foreign {
 	return &object.Foreign{
 		Name: "cwd",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 			if len(args) != 0 {
 				return ctx.NewError("cwd expects no arguments, got=%d", len(args))
 			}
@@ -78,7 +78,7 @@ func fnPathCwd() *object.Foreign {
 func fnPathProjectRoot() *object.Foreign {
 	return &object.Foreign{
 		Name: "projectRoot",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 			if len(args) != 0 {
 				return ctx.NewError("projectRoot expects no arguments, got=%d", len(args))
 			}
@@ -90,7 +90,7 @@ func fnPathProjectRoot() *object.Foreign {
 func fnPathLibRoot() *object.Foreign {
 	return &object.Foreign{
 		Name: "libRoot",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 			if len(args) != 0 {
 				return ctx.NewError("libRoot expects no arguments, got=%d", len(args))
 			}

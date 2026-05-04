@@ -20,7 +20,7 @@ func pow10i64(n int8) int64 {
 func fnMathFloor() *object.Foreign {
 	return &object.Foreign{
 		Name: "floor",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 			if len(args) != 1 {
 				return ctx.NewError("wrong number of arguments. got=%d, want=1", len(args))
 			}
@@ -61,7 +61,7 @@ func fnMathFloor() *object.Foreign {
 func fnMathCeil() *object.Foreign {
 	return &object.Foreign{
 		Name: "ceil",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 			if len(args) != 1 {
 				return ctx.NewError("wrong number of arguments. got=%d, want=1", len(args))
 			}
@@ -102,7 +102,7 @@ func fnMathCeil() *object.Foreign {
 func fnMathSqrt() *object.Foreign {
 	return &object.Foreign{
 		Name: "sqrt",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 			if len(args) != 1 {
 				return ctx.NewError("wrong number of arguments. got=%d, want=1", len(args))
 			}
@@ -136,7 +136,7 @@ func fnMathSqrt() *object.Foreign {
 func fnMathRndRange() *object.Foreign {
 	return &object.Foreign{
 		Name: "rndRange",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 			if len(args) != 2 {
 				return ctx.NewError("wrong number of arguments. got=%d, want=2", len(args))
 			}

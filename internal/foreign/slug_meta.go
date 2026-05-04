@@ -13,7 +13,7 @@ import (
 func fnMetaHasTag() *object.Foreign {
 	return &object.Foreign{
 		Name: "hasTag",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 
 			if len(args) != 2 {
 				return ctx.NewError("hasTag expects exactly 2 arguments: object and tagName name")
@@ -36,7 +36,7 @@ func fnMetaHasTag() *object.Foreign {
 func fnMetaGetTag() *object.Foreign {
 	return &object.Foreign{
 		Name: "getTag",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 			if len(args) != 2 {
 				return ctx.NewError("getTag expects exactly 2 arguments: object and tagName name")
 			}
@@ -60,7 +60,7 @@ func fnMetaGetTag() *object.Foreign {
 func fnMetaSearchModuleTags() *object.Foreign {
 	return &object.Foreign{
 		Name: "searchModuleTags",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 
 			if len(args) < 1 || len(args) > 3 {
 				return ctx.NewError("searchModuleTags expects 1-3 arguments: module name, tag name, and optional includePrivate flag")
@@ -128,7 +128,7 @@ func fnMetaSearchModuleTags() *object.Foreign {
 func fnMetaSearchScopeTags() *object.Foreign {
 	return &object.Foreign{
 		Name: "searchScopeTags",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 			if len(args) != 1 {
 				return ctx.NewError("searchScopeTags expects 1 argument: tag name")
 			}
@@ -173,7 +173,7 @@ func fnMetaSearchScopeTags() *object.Foreign {
 func fnMetaModuleDocs() *object.Foreign {
 	return &object.Foreign{
 		Name: "moduleDocs",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 			if len(args) != 1 {
 				return ctx.NewError("moduleDocs expects exactly 1 argument: module name")
 			}
@@ -199,7 +199,7 @@ func fnMetaModuleDocs() *object.Foreign {
 func fnMetaDescribe() *object.Foreign {
 	return &object.Foreign{
 		Name: "describe",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 			if len(args) != 1 {
 				return ctx.NewError("describe expects exactly 1 argument: value")
 			}
@@ -267,7 +267,7 @@ func describeType(value object.Object) string {
 	}
 }
 
-func describeDocs(ctx object.EvaluatorContext, value object.Object) string {
+func describeDocs(ctx object.RuntimeContext, value object.Object) string {
 	if value == nil {
 		return ""
 	}
@@ -618,7 +618,7 @@ func hasTag(binding *object.Binding, tagName string) bool {
 	return ok && fg.HasTag(tagName)
 }
 
-func findDocForValue(ctx object.EvaluatorContext, value object.Object) (string, bool) {
+func findDocForValue(ctx object.RuntimeContext, value object.Object) (string, bool) {
 	if fg, ok := value.(*object.FunctionGroup); ok && fg.HasDoc {
 		return fg.Doc, true
 	}

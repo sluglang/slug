@@ -22,7 +22,7 @@ var (
 func fnIoDbConnect() *object.Foreign {
 	return &object.Foreign{
 		Name: "connect",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 			if len(args) != 2 {
 				return ctx.NewError("connect expects 2 arguments: connectionString, driver")
 			}
@@ -48,7 +48,7 @@ func fnIoDbConnect() *object.Foreign {
 func fnIoDbQuery() *object.Foreign {
 	return &object.Foreign{
 		Name: "query",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 			if len(args) < 2 {
 				return ctx.NewError("query expects at least 2 arguments: connection, sql")
 			}
@@ -88,7 +88,7 @@ func fnIoDbQuery() *object.Foreign {
 func fnIoDbExec() *object.Foreign {
 	return &object.Foreign{
 		Name: "exec",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 			id, _ := unpackNumber(args[0], "")
 			query, _ := unpackString(args[1], "")
 
@@ -130,7 +130,7 @@ func fnIoDbExec() *object.Foreign {
 func fnIoDbClose() *object.Foreign {
 	return &object.Foreign{
 		Name: "close",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 			id, _ := unpackNumber(args[0], "")
 			if tx, ok := dbTransactions[id]; ok {
 				tx.Rollback()
@@ -149,7 +149,7 @@ func fnIoDbClose() *object.Foreign {
 func fnIoDbBegin() *object.Foreign {
 	return &object.Foreign{
 		Name: "begin",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 			if len(args) != 1 {
 				return ctx.NewError("begin expects 1 argument: connection")
 			}
@@ -174,7 +174,7 @@ func fnIoDbBegin() *object.Foreign {
 func fnIoDbCommit() *object.Foreign {
 	return &object.Foreign{
 		Name: "commit",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 			if len(args) != 1 {
 				return ctx.NewError("commit expects 1 argument: connection")
 			}
@@ -199,7 +199,7 @@ func fnIoDbCommit() *object.Foreign {
 func fnIoDbRollback() *object.Foreign {
 	return &object.Foreign{
 		Name: "rollback",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 			if len(args) != 1 {
 				return ctx.NewError("rollback expects 1 argument: connection")
 			}
@@ -221,7 +221,7 @@ func fnIoDbRollback() *object.Foreign {
 	}
 }
 
-func renderRows(ctx object.EvaluatorContext, rows *sql.Rows) object.Object {
+func renderRows(ctx object.RuntimeContext, rows *sql.Rows) object.Object {
 	columns, _ := rows.Columns()
 	types, _ := rows.ColumnTypes()
 	var resultRows []object.Object
@@ -248,7 +248,7 @@ func renderRows(ctx object.EvaluatorContext, rows *sql.Rows) object.Object {
 	return &object.List{Elements: resultRows}
 }
 
-func mapValue(ctx object.EvaluatorContext, v interface{}, dbType string) object.Object {
+func mapValue(ctx object.RuntimeContext, v interface{}, dbType string) object.Object {
 	if v == nil {
 		return &object.Nil{}
 	}

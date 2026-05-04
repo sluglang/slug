@@ -70,10 +70,10 @@ var (
 	FALSE = &Boolean{Value: false}
 )
 
-// EvaluatorContext provides the bridge between native Go code and the interpreter,
+// RuntimeContext provides the bridge between native Go code and the interpreter,
 // allowing Foreign Function Interface (FFI) implementations to access the current
 // execution context and helper methods.
-type EvaluatorContext interface {
+type RuntimeContext interface {
 	CurrentEnv() *Environment
 	ApplyFunction(pos int, fnName string, fnObj Object, positional []Object, named map[string]Object) Object
 	NewError(message string, a ...interface{}) *Error
@@ -84,7 +84,7 @@ type EvaluatorContext interface {
 	NextHandleID() int64
 }
 
-type ForeignFunction func(ctx EvaluatorContext, args ...Object) Object
+type ForeignFunction func(ctx RuntimeContext, args ...Object) Object
 
 type ObjectType string
 
@@ -247,7 +247,7 @@ func (u *Uninitialized) Inspect() string  { return "<uninitialized>" }
 var BINDING_UNINITIALIZED = &Uninitialized{}
 
 // BindingRef is an internal indirection used to model live bindings across module imports.
-// It is intentionally invisible at the language level; the evaluator should transparently
+// It is intentionally invisible at the language level; the runtime should transparently
 // dereference it to the current value of the referenced binding.
 type BindingRef struct {
 	Env  *Environment

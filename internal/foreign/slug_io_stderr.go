@@ -8,7 +8,7 @@ import (
 func fnIoStderrPrint() *object.Foreign {
 	return &object.Foreign{
 		Name: "print",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 			var out bytes.Buffer
 			for i, arg := range args {
 				out.WriteString(arg.Inspect())
@@ -28,7 +28,7 @@ func fnIoStderrPrint() *object.Foreign {
 func fnIoStderrPrintLn() *object.Foreign {
 	return &object.Foreign{
 		Name: "println",
-		Fn: func(ctx object.EvaluatorContext, args ...object.Object) object.Object {
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
 			var out bytes.Buffer
 			for i, arg := range args {
 				out.WriteString(arg.Inspect())
