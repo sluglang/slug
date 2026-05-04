@@ -11,8 +11,7 @@ func ExecuteProgram(rt *Runtime, env *object.Environment, program *ast.Program) 
 	installBuiltinsIntoEnv(rt, env)
 	vmProgram, prepErr := prepareProgramForVM(rt, env, program)
 	if prepErr != nil {
-		task := &Task{Runtime: rt}
-		return task.NewError("%s", prepErr.Error())
+		return &object.Error{Message: prepErr.Error()}
 	}
 	exec := vm.NewExecutorWithBridgeFactory(env, func(callEnv *object.Environment) func(pos int, callee object.Object, positional []object.Object, named map[string]object.Object) object.Object {
 		return makeVMCallBridge(rt, callEnv)
@@ -21,8 +20,7 @@ func ExecuteProgram(rt *Runtime, env *object.Environment, program *ast.Program) 
 	if result == nil || result.Type() != object.ERROR_OBJ {
 		entrypoint, err := FindMainEntrypoint(env)
 		if err != nil {
-			task := &Task{Runtime: rt}
-			return task.NewError("%s", err.Error())
+			return &object.Error{Message: err.Error()}
 		}
 		if entrypoint != nil {
 			result = invokeEntrypoint(rt, env, entrypoint)
