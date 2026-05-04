@@ -265,7 +265,7 @@ func (e *Task) ApplyFunction(pos int, fnName string, fnObj object.Object, positi
 		}
 		return e.ApplyFunction(pos, fnName, f, positional, named)
 	case *object.Function:
-		return e.NewError("treewalking evaluator removed: cannot call AST function value %q", fnName)
+		return e.NewError("runtime does not support direct AST function invocation: %q", fnName)
 	case *object.Foreign:
 		var result object.Object
 		bound, errObj := e.bindArguments(pos, fn, fn.Parameters, positional, named)
