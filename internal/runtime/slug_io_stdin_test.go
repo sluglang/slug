@@ -34,7 +34,7 @@ func TestStdinReadLinesSingletonAndClose(t *testing.T) {
 		DefaultLimit: 4,
 	}
 	rt := NewRuntime(cfg)
-	task := &Task{Runtime: rt}
+	task := &VMCallContext{Runtime: rt}
 	task.PushNurseryScope(&NurseryScope{Limit: make(chan struct{}, cfg.DefaultLimit)})
 	task.PushEnv(object.NewRootEnvironment(cfg.DefaultLimit))
 

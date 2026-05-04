@@ -7,21 +7,21 @@ import (
 
 type NurseryScope struct {
 	// Concurrency tracking
-	Children   []*Task       // Tasks owned by this scope
-	Limit      chan struct{} // Semaphore for 'nursery limit N'
-	NurseryErr object.Object // fail-fast state (first failure wins)
+	Children   []*VMCallContext // Tasks owned by this scope
+	Limit      chan struct{}    // Semaphore for 'nursery limit N'
+	NurseryErr object.Object    // fail-fast state (first failure wins)
 	mu         sync.RWMutex
 }
 
 // AddChild registers a task handle with this environment
-func (n *NurseryScope) AddChild(th *Task) {
+func (n *NurseryScope) AddChild(th *VMCallContext) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	n.Children = append(n.Children, th)
 	th.OwnerNursery = n
 }
 
-func (n *NurseryScope) RemoveChild(th *Task) {
+func (n *NurseryScope) RemoveChild(th *VMCallContext) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	for i, child := range n.Children {
@@ -33,9 +33,9 @@ func (n *NurseryScope) RemoveChild(th *Task) {
 }
 
 // CancelChildren cancels all children except `except` (if non-nil).
-func (n *NurseryScope) CancelChildren(except *Task, cause *object.RuntimeError, reason string) {
+func (n *NurseryScope) CancelChildren(except *VMCallContext, cause *object.RuntimeError, reason string) {
 	n.mu.Lock()
-	children := make([]*Task, len(n.Children))
+	children := make([]*VMCallContext, len(n.Children))
 	copy(children, n.Children)
 	n.mu.Unlock()
 
@@ -48,7 +48,7 @@ func (n *NurseryScope) CancelChildren(except *Task, cause *object.RuntimeError, 
 }
 
 // NoteChildFailure records the first failure and cancels siblings (fail-fast).
-func (n *NurseryScope) NoteChildFailure(failed *Task, err object.Object) {
+func (n *NurseryScope) NoteChildFailure(failed *VMCallContext, err object.Object) {
 	n.mu.Lock()
 	alreadyFailed := n.NurseryErr != nil
 	if !alreadyFailed {
@@ -71,7 +71,7 @@ func (n *NurseryScope) NoteChildFailure(failed *Task, err object.Object) {
 // WaitChildren blocks until all direct children of this scope have settled
 func (n *NurseryScope) WaitChildren() {
 	n.mu.RLock()
-	children := make([]*Task, len(n.Children))
+	children := make([]*VMCallContext, len(n.Children))
 	copy(children, n.Children)
 	n.mu.RUnlock()
 

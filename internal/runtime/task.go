@@ -10,8 +10,6 @@ import (
 	"sync"
 )
 
-type Task = VMCallContext
-
 type VMCallContext struct {
 	ID           int64
 	Runtime      *Runtime
