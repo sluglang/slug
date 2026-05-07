@@ -1,87 +1,59 @@
-# AGENTS.md
-
-This file is the operating guide for agents (human or AI) working in this repository.
-
-## Purpose
-
 Slug is a small, opinionated programming language implemented in Go with its standard library and tests stored in this repo.
 
-Primary goals when making changes:
-
-- Preserve language behaviour and runtime stability.
-- Keep parser/runtime changes covered by tests.
-- Prefer small, focused diffs over broad refactors.
-
-## Environment
-
+### Project Preferences
 - Required Go version: `1.25` (see `go.mod`).
 - Set `SLUG_HOME` to the repository root when running CLI commands directly:
-  - `export SLUG_HOME=$(pwd)`
+    - `export SLUG_HOME=$(pwd)`
 - Main entrypoint: `./cmd/app/main.go`
 
-## Key reference docs
+### Interaction Rules
+* Ask clarifying questions if input is unclear.
+* Explain why and suggest alternatives if task is not feasible.
+* Use structured, readable formatting (headings, lists, code blocks).
+* Follow instructions closely and explain clearly what you have done.
+* Don't modify code unrelated to the current task.
+* Try always to match the style of the code you are touching.
 
-- `SLUG.md`: AI-friendly language-level reference for Slug syntax and behaviour.
-- `lib/MANIFEST.md`: AI-friendly reference for standard library modules and functions.
-- In this repository, these are currently stored as `SLUG.ai` and `lib/MANIFEST.ai`; treat them as canonical when the `.md` variants are not present.
+### Coding Standards
+* Write meaningful tests with assertions for all code.
+* Avoid duplicated test assertions.
+* Maintain evolving test coverage.
+* Apply Four Rules of Simple Design:
+    1. Code works (passes tests).
+    2. Reveals intent.
+    3. No duplication.
+    4. Minimal elements.
+* Prefer functional style:
+* Use explicit parameters.
+* Prefer immutability.
+* Prefer declarative over imperative.
+* Minimize state.
 
-## Repository map
+### Architecture
+* Modularize by concern, not by technical layer.
+* One responsibility per module.
+* Low inter-module coupling.
+* Short functions, no overengineering.
 
-- `cmd/app/`: CLI entrypoint.
-- `internal/`: language implementation (lexer, parser, runtime, objects, ast, token, util).
-- `lib/`: Slug standard library modules.
-- `tests/`: positive `.slug` execution tests.
-- `tests-negative/`: negative tests expected to fail.
-- `test-suites/`: built-in test runner suites (including DB-related suites).
-- `docs/`: user/developer docs and generated library docs.
-- `extras/`: editor tooling and examples.
+### Workflow
+* Read `spec.md` before coding.
+* Update `spec.md` after task (log changes).
+* Write and pass tests before finalizing.
+* Keep a `README.md` with setup/run info.
+* Store all docs/specs in Markdown.
 
-## Canonical commands
+### Commit Strategy
+* One prompt = one commit.
+* Each commit:
+* Self-contained.
+* Includes tests.
+* Uses 50/70 commit message format.
 
-Use `make` targets where possible.
+### Safe Practices
+* Do not change test assertions during refactoring.
+* Do not skip failing tests.
+* Do not invent unknown APIs; ask if you are unsure.
 
-- Build: `make build`
-- Run tests (Go + Slug integration suites): `make test`
-- Run locally: `make run ARGS='--root ./tests ./tests/boolean-logic.slug'`
-- Regenerate docs/manifests: `make generate-docs`
-- Stress run with race detector: `make stress`
-
-Notes:
-
-- CI runs `make test` on pushes affecting `VERSION`, `*.go`, or `*.slug`.
-- macOS build may codesign the local binary in `make build`/`make release`.
-
-## Change guidelines
-
-- Keep changes scoped to the task; avoid unrelated cleanup.
-- For language semantics changes, update/add:
-  - relevant files in `internal/`
-  - `.slug` tests in `tests/` or `tests-negative/`
-  - docs when user-facing behaviour changes
-- Do not commit generated artifacts unless they are intentionally updated (e.g. docs output requested).
-- Preserve existing style and naming; run `gofmt` on modified Go files.
-
-## Testing expectations
-
-Before finishing large changes:
-
-1. Run targeted checks for touched areas when practical.
-2. Run `make test` for full validation.
-3. If full validation is skipped, clearly state what was not run and why.
-
-For parser/runtime behaviour changes, include at least one regression test in Slug test suites.
-
-## Safety and review checklist
-
-- Verify imports and module roots still resolve with `--root` semantics.
-- Confirm negative tests still fail for the expected reason.
-- Avoid breaking existing CLI flags or command behaviour unless explicitly requested.
-- Prefer deterministic tests; avoid introducing time/network dependencies into suites.
-
-## PR/commit guidance
-
-- Use concise commit messages with intent and scope.
-- In PR descriptions, include:
-  - behaviour changed
-  - test coverage added/updated
-  - any follow-up work or known limitations
+### Goal
+Produce consistent, safe, testable, and maintainable code.
+Stick to the rules---no shortcuts.

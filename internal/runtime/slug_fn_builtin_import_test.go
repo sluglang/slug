@@ -81,19 +81,19 @@ func exportedFunctionModule(moduleName string, fnName string, sig ast.FSig) *obj
 	}
 }
 
-func withCapturedStdout(t *testing.T, fn func()) string {
+func withCapturedStderr(t *testing.T, fn func()) string {
 	t.Helper()
 
-	origStdout := os.Stdout
+	origStderr := os.Stderr
 	r, w, err := os.Pipe()
 	if err != nil {
 		t.Fatalf("pipe creation failed: %v", err)
 	}
 	defer func() {
-		os.Stdout = origStdout
+		os.Stderr = origStderr
 	}()
 
-	os.Stdout = w
+	os.Stderr = w
 	fn()
 	_ = w.Close()
 
@@ -126,7 +126,7 @@ func TestImportIgnoresDuplicateModuleArgsWithoutWarning(t *testing.T) {
 	}
 
 	var result object.Object
-	out := withCapturedStdout(t, func() {
+	out := withCapturedStderr(t, func() {
 		result = importFn.Fn(
 			ctx,
 			&object.String{Value: "slug.list"},
@@ -173,7 +173,7 @@ func TestImportWarnsOnRealDuplicateSignature(t *testing.T) {
 		},
 	}
 
-	out := withCapturedStdout(t, func() {
+	out := withCapturedStderr(t, func() {
 		_ = importFn.Fn(
 			ctx,
 			&object.String{Value: "slug.string"},

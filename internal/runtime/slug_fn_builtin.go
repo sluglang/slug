@@ -3,6 +3,7 @@ package runtime
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"slug/internal/ast"
 	"slug/internal/dec64"
 	"slug/internal/foreign"
@@ -55,7 +56,7 @@ func fnBuiltinImport() *object.Foreign {
 							existingFg, ok := existing.(*object.FunctionGroup)
 							if !ok {
 								// Short-term: warn and keep the first value.
-								fmt.Printf("WARNING: import name collision for '%s' (non-function vs function) while importing '%s' (keeping first)\n", name, strArg.Value)
+								fmt.Fprintf(os.Stderr, "WARNING: import name collision for '%s' (non-function vs function) while importing '%s' (keeping first)\n", name, strArg.Value)
 								continue
 							}
 
@@ -81,7 +82,7 @@ func fnBuiltinImport() *object.Foreign {
 									}
 									//return ctx.NewError("import collision for function '%s' with duplicate signature %v while importing '%s'", name, sig, strArg.Value)
 									fqn := ctx.CurrentEnv().ModuleFqn
-									fmt.Printf("WARNING: import collision in %s for function '%s.%s%v' with duplicate signature\n", fqn, strArg.Value, name, sig.String())
+									fmt.Fprintf(os.Stderr, "WARNING: import collision in %s for function '%s.%s%v' with duplicate signature\n", fqn, strArg.Value, name, sig.String())
 								}
 							}
 
@@ -112,7 +113,7 @@ func fnBuiltinImport() *object.Foreign {
 
 					// Non-function exports: warn on collisions and keep the first value.
 					if _, exists := tempMap[name]; exists {
-						fmt.Printf("WARNING: import name collision for '%s' while importing '%s' (keeping first)\n", name, strArg.Value)
+						fmt.Fprintf(os.Stderr, "WARNING: import name collision for '%s' while importing '%s' (keeping first)\n", name, strArg.Value)
 						continue
 					}
 
