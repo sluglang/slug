@@ -118,3 +118,19 @@
   - struct schema placement rejection outside binding RHS
 - Validation performed:
   - `go test ./internal/semantic ./internal/parser ./internal/runtime ./internal/vm ./cmd/app -count=1`
+
+### Parser/Semantic split Phase 3 parser-test boundary cleanup
+
+- Moved `@main` semantic behavior assertions out of parser tests and into semantic tests.
+- Removed semantic-focused tests from `internal/parser/parser_test.go`:
+  - `TestMainTagAllowsDefaultedParameters`
+  - `TestMainTagRejectsNonFunctionTarget`
+  - `TestMainTagRejectsNonZeroArity`
+  - `TestMainTagRejectsMultipleDeclarations`
+- Added/expanded equivalent semantic coverage in `internal/semantic/analyzer_test.go`:
+  - `TestSemanticAllowsMainWithDefaultedParameters`
+  - `TestSemanticRejectsMainOnNonFunction`
+  - `TestSemanticRejectsMainNonZeroArity`
+  - `TestSemanticRejectsMultipleMainDeclarations`
+- Validation performed:
+  - `go test ./internal/semantic ./internal/parser ./internal/runtime ./internal/vm ./cmd/app -count=1`
