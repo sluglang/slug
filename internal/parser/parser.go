@@ -575,8 +575,6 @@ func tokenIsSymbolName(t token.TokenType) bool {
 		token.RECUR,
 		token.THROW,
 		token.DEFER,
-		token.ONSUCCESS,
-		token.ONERROR,
 		token.STRUCT,
 		token.COPY,
 		token.NURSERY,
@@ -2199,10 +2197,10 @@ func (p *Parser) parseDeferStatement() *ast.DeferStatement {
 	stmt := &ast.DeferStatement{Token: p.curToken, Mode: ast.DeferAlways} // Current token is 'defer'
 	p.nextToken()
 
-	if p.curTokenIs(token.ONSUCCESS) {
+	if p.curTokenIsIdentLiteral("onsuccess") {
 		stmt.Mode = ast.DeferOnSuccess
 		p.nextToken()
-	} else if p.curTokenIs(token.ONERROR) {
+	} else if p.curTokenIsIdentLiteral("onerror") {
 		stmt.Mode = ast.DeferOnError
 		p.nextToken()
 
@@ -2251,6 +2249,10 @@ func (p *Parser) parseDeferStatement() *ast.DeferStatement {
 	}
 
 	return stmt
+}
+
+func (p *Parser) curTokenIsIdentLiteral(lit string) bool {
+	return p.curTokenIs(token.IDENT) && p.curToken.Literal == lit
 }
 
 func (p *Parser) parseTag() *ast.Tag {

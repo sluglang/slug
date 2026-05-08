@@ -131,6 +131,60 @@ val f = fn(x) {
 	}
 }
 
+func TestDeferParsesContextualOnSuccessAndOnError(t *testing.T) {
+	input := `
+defer onsuccess println("ok")
+defer onerror(err) {
+  println(err)
+}
+`
+
+	l := lexer.New(input)
+	p := New(l, "", input)
+	program := p.ParseProgram()
+	checkParserErrors(t, p)
+
+	if len(program.Statements) != 2 {
+		t.Fatalf("expected 2 statements, got %d", len(program.Statements))
+	}
+
+	first, ok := program.Statements[0].(*ast.DeferStatement)
+	if !ok {
+		t.Fatalf("expected first statement to be defer, got %T", program.Statements[0])
+	}
+	if first.Mode != ast.DeferOnSuccess {
+		t.Fatalf("expected first defer mode DeferOnSuccess, got %v", first.Mode)
+	}
+
+	second, ok := program.Statements[1].(*ast.DeferStatement)
+	if !ok {
+		t.Fatalf("expected second statement to be defer, got %T", program.Statements[1])
+	}
+	if second.Mode != ast.DeferOnError {
+		t.Fatalf("expected second defer mode DeferOnError, got %v", second.Mode)
+	}
+	if second.ErrorName == nil || second.ErrorName.Value != "err" {
+		t.Fatalf("expected onerror identifier err, got %#v", second.ErrorName)
+	}
+}
+
+func TestOnSuccessAndOnErrorAreRegularIdentifiersOutsideDefer(t *testing.T) {
+	input := `
+val onsuccess = 1
+val onerror = 2
+onsuccess + onerror
+`
+
+	l := lexer.New(input)
+	p := New(l, "", input)
+	program := p.ParseProgram()
+	checkParserErrors(t, p)
+
+	if len(program.Statements) != 3 {
+		t.Fatalf("expected 3 statements, got %d", len(program.Statements))
+	}
+}
+
 func TestIdentifierExpression(t *testing.T) {
 	input := "foobar;"
 

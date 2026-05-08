@@ -183,3 +183,16 @@
   - Fails if any fixture is unassigned or assigned to both suites.
 - Validation performed:
   - `go test ./internal/runtime ./internal/parser ./internal/semantic ./internal/vm ./cmd/app -count=1`
+
+### Parser context keyword cleanup for defer modes
+
+- Removed `onsuccess` and `onerror` from global keyword tokenization in `internal/token/token.go`.
+- Updated parser to treat defer modes contextually after `defer`:
+  - `internal/parser/parser.go`
+  - `parseDeferStatement` now recognizes `onsuccess` and `onerror` via identifier literals (`IDENT`), similar to contextual handling patterns used elsewhere.
+- Removed `ONSUCCESS`/`ONERROR` token-type usage from parser symbol-name handling.
+- Added parser coverage in `internal/parser/parser_test.go`:
+  - `TestDeferParsesContextualOnSuccessAndOnError`
+  - `TestOnSuccessAndOnErrorAreRegularIdentifiersOutsideDefer`
+- Validation performed:
+  - `go test ./internal/parser ./internal/runtime ./internal/vm ./internal/semantic ./cmd/app -count=1`

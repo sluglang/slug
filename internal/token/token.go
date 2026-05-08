@@ -72,27 +72,25 @@ const (
 	RBRACKET = "]"
 
 	// Keywords
-	FOREIGN   = "FOREIGN"
-	FUNCTION  = "FUNCTION"
-	VAL       = "VAL"
-	VAR       = "VAR"
-	TRUE      = "TRUE"
-	FALSE     = "FALSE"
-	NIL       = "NIL"
-	IF        = "IF"
-	ELSE      = "ELSE"
-	MATCH     = "MATCH"
-	RETURN    = "RETURN"
-	RECUR     = "RECUR"
-	THROW     = "THROW"
-	DEFER     = "DEFER"
-	ONSUCCESS = "ONSUCCESS"
-	ONERROR   = "ONERROR"
-	STRUCT    = "STRUCT"
-	COPY      = "COPY"
-	NURSERY   = "NURSERY"
-	SPAWN     = "SPAWN"
-	SELECT    = "SELECT"
+	FOREIGN  = "FOREIGN"
+	FUNCTION = "FUNCTION"
+	VAL      = "VAL"
+	VAR      = "VAR"
+	TRUE     = "TRUE"
+	FALSE    = "FALSE"
+	NIL      = "NIL"
+	IF       = "IF"
+	ELSE     = "ELSE"
+	MATCH    = "MATCH"
+	RETURN   = "RETURN"
+	RECUR    = "RECUR"
+	THROW    = "THROW"
+	DEFER    = "DEFER"
+	STRUCT   = "STRUCT"
+	COPY     = "COPY"
+	NURSERY  = "NURSERY"
+	SPAWN    = "SPAWN"
+	SELECT   = "SELECT"
 )
 
 type Token struct {
@@ -123,10 +121,8 @@ var keywords = map[string]TokenType{
 	"recur":  RECUR,
 
 	// error handling
-	"throw":     THROW,
-	"defer":     DEFER,
-	"onsuccess": ONSUCCESS,
-	"onerror":   ONERROR,
+	"throw": THROW,
+	"defer": DEFER,
 
 	// concurrency
 	"nursery": NURSERY,
