@@ -9,7 +9,7 @@ import (
 // ExecuteProgram runs a parsed Slug program on the VM runtime backend.
 func ExecuteProgram(rt *Runtime, env *object.Environment, program *ast.Program) object.Object {
 	installBuiltinsIntoEnv(rt, env)
-	vmProgram, prepErr := prepareProgramForVM(rt, env, program)
+	vmProgram, prepErr := vm.PrepareProgram(env, program, rt.LookupForeign, hasExportTag, buildParamIndexForVMBridge)
 	if prepErr != nil {
 		return &object.Error{Message: prepErr.Error()}
 	}
@@ -38,7 +38,7 @@ func invokeEntrypoint(rt *Runtime, moduleEnv *object.Environment, entrypoint obj
 			return makeVMCallBridge(rt, callEnv)
 		},
 	})
-	task.PushNurseryScope(&NurseryScope{
+	task.PushNurseryScope(&vm.NurseryScope{
 		Limit: make(chan struct{}, rt.Config.DefaultLimit),
 	})
 	task.PushEnv(object.NewEnclosedEnvironment(moduleEnv, nil))
@@ -73,7 +73,7 @@ func makeVMCallBridge(rt *Runtime, env *object.Environment) func(pos int, callee
 				return makeVMCallBridge(rt, callEnv)
 			},
 		})
-		task.PushNurseryScope(&NurseryScope{
+		task.PushNurseryScope(&vm.NurseryScope{
 			Limit: make(chan struct{}, rt.Config.DefaultLimit),
 		})
 		// Use an isolated call environment for bridge calls so we inherit bindings
@@ -127,7 +127,7 @@ func adaptVMObjectForForeignBridge(obj object.Object, env *object.Environment) o
 			Signature:  v.Signature,
 			Tags:       v.Tags,
 			Parameters: v.Parameters,
-			ParamIndex: buildParamIndex(v.Parameters),
+			ParamIndex: buildParamIndexForVMBridge(v.Parameters),
 			Env:        env,
 			Body:       &ast.BlockStatement{},
 		}
@@ -154,4 +154,12 @@ func adaptVMObjectForForeignBridge(obj object.Object, env *object.Environment) o
 	default:
 		return obj
 	}
+}
+
+func buildParamIndexForVMBridge(params []*ast.FunctionParameter) map[string]int {
+	index := make(map[string]int, len(params))
+	for i, param := range params {
+		index[param.Name.Value] = i
+	}
+	return index
 }

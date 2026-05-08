@@ -43,7 +43,7 @@ func TestStdinReadLinesSingletonAndClose(t *testing.T) {
 			return makeVMCallBridge(rt, callEnv)
 		},
 	})
-	task.PushNurseryScope(&NurseryScope{Limit: make(chan struct{}, cfg.DefaultLimit)})
+	task.PushNurseryScope(&vm.NurseryScope{Limit: make(chan struct{}, cfg.DefaultLimit)})
 	task.PushEnv(object.NewRootEnvironment(cfg.DefaultLimit))
 
 	fn, ok := rt.LookupForeign("slug.io.stdin.readLines")

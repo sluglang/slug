@@ -193,7 +193,7 @@ func (r *Runtime) LoadModule(modName string) (*object.Module, error) {
 
 func (r *Runtime) evalModuleWithVM(modName string, module *object.Module, moduleEnv *object.Environment, program *ast.Program) (*object.Module, error) {
 	moduleEnv.Outer = moduleBuiltinsEnvironment(r, moduleEnv)
-	vmProgram, prepErr := prepareProgramForVM(r, moduleEnv, program)
+	vmProgram, prepErr := vm.PrepareProgram(moduleEnv, program, r.LookupForeign, hasExportTag, buildParamIndexForVMBridge)
 	if prepErr != nil {
 		return nil, fmt.Errorf("runtime error while loading module %s: %s", modName, prepErr.Error())
 	}
@@ -204,7 +204,9 @@ func (r *Runtime) evalModuleWithVM(modName string, module *object.Module, module
 	if out != nil && out.Type() == object.ERROR_OBJ {
 		return nil, fmt.Errorf("runtime error while loading module %s: %s", modName, out.Inspect())
 	}
-	if err := applyForeignTagsForVM(r, moduleEnv, program); err != nil {
+	if err := vm.ApplyForeignTags(moduleEnv, program, r.LookupForeign, func(callEnv *object.Environment) func(pos int, callee object.Object, positional []object.Object, named map[string]object.Object) object.Object {
+		return makeVMCallBridge(r, callEnv)
+	}); err != nil {
 		return nil, fmt.Errorf("runtime error while loading module %s: %s", modName, err.Error())
 	}
 	if err := applyTopLevelTagsForVM(r, program, moduleEnv); err != nil {
@@ -370,7 +372,9 @@ func applyTopLevelTagsForVM(rt *Runtime, program *ast.Program, env *object.Envir
 		if len(tags) == 0 {
 			continue
 		}
-		evaluated, err := evalTagArgsWithVM(rt, env, tags)
+		evaluated, err := vm.EvalTagArgs(env, tags, func(callEnv *object.Environment) func(pos int, callee object.Object, positional []object.Object, named map[string]object.Object) object.Object {
+			return makeVMCallBridge(rt, callEnv)
+		})
 		if err != nil {
 			return err
 		}

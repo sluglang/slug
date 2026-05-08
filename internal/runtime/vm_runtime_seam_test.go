@@ -6,6 +6,7 @@ import (
 	"slug/internal/object"
 	"slug/internal/token"
 	"slug/internal/util"
+	"slug/internal/vm"
 	"testing"
 )
 
@@ -28,7 +29,7 @@ func TestPrepareProgramForVMBindsForeignAndStripsDeclaration(t *testing.T) {
 		&ast.ExpressionStatement{Expression: &ast.NumberLiteral{Token: token.Token{Literal: "1"}, Value: dec64.FromInt(1)}},
 	}}
 
-	prepared, err := prepareProgramForVM(rt, env, prog)
+	prepared, err := vm.PrepareProgram(env, prog, rt.LookupForeign, hasExportTag, buildParamIndexForVMBridge)
 	if err != nil {
 		t.Fatalf("prepareProgramForVM returned error: %v", err)
 	}
@@ -93,7 +94,9 @@ func TestApplyForeignTagsForVMEvaluatesTagArgs(t *testing.T) {
 	}
 	prog := &ast.Program{Statements: []ast.Statement{foreignDecl}}
 
-	if err := applyForeignTagsForVM(rt, env, prog); err != nil {
+	if err := vm.ApplyForeignTags(env, prog, rt.LookupForeign, func(callEnv *object.Environment) func(pos int, callee object.Object, positional []object.Object, named map[string]object.Object) object.Object {
+		return makeVMCallBridge(rt, callEnv)
+	}); err != nil {
 		t.Fatalf("applyForeignTagsForVM returned error: %v", err)
 	}
 	tag, ok := foreignFn.Tags["doc"]
