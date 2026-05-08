@@ -100,6 +100,12 @@ make build
 - `vm.NewExecutorWithBridgeFactory`
 - `vm.NewVMCallContext`
 
+### Frontend pipeline
+
+- Parse phase (`internal/parser`): token/grammar to AST.
+- Semantic phase (`internal/semantic`): AST validation and semantic annotations (for example recur tail-position checks and tailcall tagging).
+- Runtime/VM phase: module prep, evaluation, and execution.
+
 ### Dependency direction rules
 
 - Keep dependency direction one-way: `runtime -> vm`.

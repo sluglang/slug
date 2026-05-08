@@ -8,6 +8,7 @@ import (
 	"slug/internal/ast"
 	"slug/internal/dec64"
 	"slug/internal/lexer"
+	"slug/internal/semantic"
 	"slug/internal/token"
 	"slug/internal/util"
 	"strings"
@@ -252,8 +253,7 @@ func (p *Parser) ParseProgram() *ast.Program {
 	program.ModuleDoc = p.moduleDoc
 	program.HasModuleDoc = p.hasModuleDoc
 
-	p.validateStructSchemaUsage(program)
-	p.validateMainTagUsage(program)
+	p.errors = append(p.errors, semantic.Analyze(p.Path, p.src, program)...)
 
 	return program
 }
@@ -1458,12 +1458,6 @@ func (p *Parser) parseFunctionLiteral() ast.Expression {
 		}
 		lit.Body = p.parseBlockStatement()
 	}
-
-	// Analyze function body for tail calls
-	p.setTailCallFlags(lit)
-
-	// Validate that all `recur` occurrences are in tail position
-	p.validateRecurUsage(lit)
 
 	return lit
 }

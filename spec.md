@@ -86,3 +86,19 @@
 - Removed `internal/vm/README.md`.
 - Validation performed:
   - `go test ./internal/runtime ./internal/vm ./cmd/app -count=1`
+
+### Parser/Semantic split Phase 1 extraction
+
+- Added a new semantic analysis package:
+  - `internal/semantic/analyzer.go`
+- Moved semantic responsibilities out of parse-time function construction into semantic analysis:
+  - recur tail-position validation
+  - tailcall flag annotation (`CallExpression.IsTailCall`, `FunctionLiteral.HasTailCall`)
+  - `@main` usage validation
+  - struct schema placement validation
+- Updated parser orchestration in `internal/parser/parser.go`:
+  - `ParseProgram` now delegates semantic checks via `semantic.Analyze(...)`
+  - Removed parser-local tailcall/recur analysis call from `parseFunctionLiteral`
+- Added project pipeline note in `README.md` documenting Parse -> Semantic -> Runtime/VM phases.
+- Validation performed:
+  - `go test ./internal/parser ./internal/runtime ./internal/vm ./cmd/app -count=1`
