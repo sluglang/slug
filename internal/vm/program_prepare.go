@@ -98,7 +98,7 @@ func EvalTagArgs(
 	for _, tag := range tags {
 		args := make([]object.Object, 0, len(tag.Args))
 		for _, arg := range tag.Args {
-			val, err := EvalExpr(env, arg, bridgeFactory)
+			val, err := evalExpr(env, arg, bridgeFactory)
 			if err != nil {
 				return nil, fmt.Errorf("failed to evaluate tag %s argument: %w", tag.Name, err)
 			}
@@ -109,7 +109,7 @@ func EvalTagArgs(
 	return result, nil
 }
 
-func EvalExpr(
+func evalExpr(
 	env *object.Environment,
 	expr ast.Expression,
 	bridgeFactory func(*object.Environment) func(pos int, callee object.Object, positional []object.Object, named map[string]object.Object) object.Object,

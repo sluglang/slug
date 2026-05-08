@@ -265,7 +265,7 @@ func (c *VMCallContext) evalDefaultParam(fnObj object.Object, expr ast.Expressio
 	for defEnv != nil && defEnv.Outer != nil {
 		defEnv = defEnv.Outer
 	}
-	val, err := EvalExpr(defEnv, expr, c.deps.BridgeFactory)
+	val, err := evalExpr(defEnv, expr, c.deps.BridgeFactory)
 	if err != nil {
 		return &object.Error{Message: err.Error()}
 	}

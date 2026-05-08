@@ -75,6 +75,38 @@ cd slug-lang
 make build
 ```
 
+## Technical Notes
+
+### VM and runtime ownership
+
+- `internal/vm` owns execution behavior:
+  - bytecode compiler and instruction model (`compiler.go`, `bytecode.go`)
+  - bytecode executor and runtime semantics (`executor.go`)
+  - VM task handles (`task.go`)
+  - VM call bridge context and nursery lifecycle (`call_context.go`, `nursery_scope.go`)
+  - VM-side module prep and tag evaluation helpers (`program_prepare.go`)
+- `internal/runtime` owns orchestration and environment setup:
+  - module discovery/loading and parse lifecycle
+  - builtin and foreign registry construction
+  - top-level module metadata/export wiring
+
+### Runtime to VM API boundary
+
+`internal/runtime` calls into VM through:
+
+- `vm.PrepareProgram`
+- `vm.ApplyForeignTags`
+- `vm.EvalTagArgs`
+- `vm.NewExecutorWithBridgeFactory`
+- `vm.NewVMCallContext`
+
+### Dependency direction rules
+
+- Keep dependency direction one-way: `runtime -> vm`.
+- Avoid introducing `vm -> runtime` imports.
+- Keep bridge dependencies injected via `VMCallContextDeps` instead of concrete runtime types.
+- Add VM behavior tests in `internal/vm` unless behavior is explicitly runtime orchestration.
+
 ## License
 
 See `LICENSE.md`.

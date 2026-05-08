@@ -76,3 +76,13 @@
 - Updated seam tests to target VM APIs while preserving behavior assertions.
 - Validation performed:
   - `go test ./internal/runtime ./internal/vm ./cmd/app -count=1`
+
+### Runtime/VM refactor Phase 4 boundary cleanup
+
+- Tightened VM API surface by making expression-evaluation helper private inside VM prep code:
+  - `internal/vm/program_prepare.go`: `EvalExpr` -> `evalExpr`
+  - Updated VM-internal call sites accordingly (`internal/vm/call_context.go`).
+- Moved VM ownership/boundary notes into a project-level technical section in `README.md` instead of a package-local README.
+- Removed `internal/vm/README.md`.
+- Validation performed:
+  - `go test ./internal/runtime ./internal/vm ./cmd/app -count=1`
