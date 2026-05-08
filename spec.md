@@ -102,3 +102,19 @@
 - Added project pipeline note in `README.md` documenting Parse -> Semantic -> Runtime/VM phases.
 - Validation performed:
   - `go test ./internal/parser ./internal/runtime ./internal/vm ./cmd/app -count=1`
+
+### Parser/Semantic split Phase 2 cleanup and semantic tests
+
+- Removed duplicated semantic implementation from `internal/parser/parser.go`:
+  - tailcall annotation helpers
+  - recur tail-position validation helpers
+  - struct schema placement validation helpers
+  - `@main` validation helpers
+- Kept parser focused on syntax/AST construction and semantic delegation.
+- Added focused semantic tests in `internal/semantic/analyzer_test.go`:
+  - tailcall flag tagging
+  - non-tail `recur` rejection
+  - `@main` non-function rejection
+  - struct schema placement rejection outside binding RHS
+- Validation performed:
+  - `go test ./internal/semantic ./internal/parser ./internal/runtime ./internal/vm ./cmd/app -count=1`
