@@ -812,8 +812,9 @@ type MapPair struct {
 }
 
 type Map struct {
-	Tags  map[string]List
-	Pairs map[MapKey]MapPair
+	Tags    map[string]List
+	Pairs   map[MapKey]MapPair // legacy native storage (kept for compatibility)
+	storage mapStorage
 }
 
 func (m *Map) Type() ObjectType { return MAP_OBJ }
@@ -827,7 +828,7 @@ func (m *Map) Inspect() string {
 	}
 
 	pairs := []string{}
-	for _, pair := range m.Pairs {
+	for _, pair := range m.Entries() {
 		pairs = append(pairs, fmt.Sprintf("%s: %s",
 			pair.Key.Inspect(), pair.Value.Inspect()))
 	}
@@ -842,25 +843,74 @@ func (m *Map) Inspect() string {
 
 // Put simplify adding objects to a map
 func (m *Map) Put(k Hashable, v Object) *Map {
-	if m.Pairs == nil {
-		m.Pairs = map[MapKey]MapPair{}
-	}
-	m.Pairs[k.MapKey()] = MapPair{
+	st := m.ensureStorage()
+	st = st.put(k.MapKey(), MapPair{
 		Key:   k,
 		Value: v,
+	})
+	m.storage = st
+	if defaultMapBackend == mapBackendNative {
+		if native, ok := st.(nativeMapStorage); ok {
+			m.Pairs = native.pairs
+		}
+	} else {
+		m.Pairs = nil
 	}
 	return m
 }
 func (m *Map) PutPair(k MapKey, v MapPair) *Map {
-	if m.Pairs == nil {
-		m.Pairs = map[MapKey]MapPair{}
+	st := m.ensureStorage()
+	st = st.put(k, v)
+	m.storage = st
+	if defaultMapBackend == mapBackendNative {
+		if native, ok := st.(nativeMapStorage); ok {
+			m.Pairs = native.pairs
+		}
+	} else {
+		m.Pairs = nil
 	}
-	m.Pairs[k] = v
 	return m
 }
 func (m *Map) Get(k Hashable) (Object, bool) {
-	pair, ok := m.Pairs[k.MapKey()]
+	pair, ok := m.GetPair(k.MapKey())
 	return pair.Value, ok
+}
+
+func (m *Map) GetPair(k MapKey) (MapPair, bool) {
+	st := m.ensureStorage()
+	return st.get(k)
+}
+
+func (m *Map) Len() int {
+	return m.ensureStorage().len()
+}
+
+func (m *Map) Entries() []MapPair {
+	return stableMapPairs(m.ensureStorage())
+}
+
+func (m *Map) ForEach(fn func(MapKey, MapPair) bool) {
+	m.ensureStorage().forEach(fn)
+}
+
+func (m *Map) ensureStorage() mapStorage {
+	if m.storage != nil {
+		return m.storage
+	}
+	if defaultMapBackend == mapBackendHAMT {
+		st := mapStorage(hamtMapStorage{})
+		for k, v := range m.Pairs {
+			st = st.put(k, v)
+		}
+		m.storage = st
+		m.Pairs = nil
+		return m.storage
+	}
+	if m.Pairs == nil {
+		m.Pairs = map[MapKey]MapPair{}
+	}
+	m.storage = nativeMapStorage{pairs: m.Pairs}
+	return m.storage
 }
 func (m *Map) HasTag(tag string) bool {
 	return hasTag(tag, m.Tags)

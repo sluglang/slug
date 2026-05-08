@@ -154,11 +154,15 @@ func adaptVMObjectForForeignBridge(obj object.Object, env *object.Environment) o
 		}
 		return &object.List{Elements: els}
 	case *object.Map:
-		pairs := make(map[object.MapKey]object.MapPair, len(v.Pairs))
-		for k, p := range v.Pairs {
-			pairs[k] = object.MapPair{Key: p.Key, Value: adaptVMObjectForForeignBridge(p.Value, env)}
-		}
-		return &object.Map{Pairs: pairs}
+		out := &object.Map{}
+		v.ForEach(func(k object.MapKey, p object.MapPair) bool {
+			out.PutPair(k, object.MapPair{
+				Key:   p.Key,
+				Value: adaptVMObjectForForeignBridge(p.Value, env),
+			})
+			return true
+		})
+		return out
 	default:
 		return obj
 	}

@@ -148,7 +148,7 @@ func fnBuiltinLen() *object.Foreign {
 			case *object.List:
 				return &object.Number{Value: dec64.FromInt(len(arg.Elements))}
 			case *object.Map:
-				return &object.Number{Value: dec64.FromInt(len(arg.Pairs))}
+				return &object.Number{Value: dec64.FromInt(arg.Len())}
 			case *object.String:
 				return &object.Number{Value: dec64.FromInt(utf8.RuneCountInString(arg.Value))}
 			case *object.Bytes:

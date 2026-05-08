@@ -194,10 +194,11 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 			if m.Tags != nil {
 				_, isImport = m.Tags[object.IMPORT_TAG]
 			}
-			for _, pair := range m.Pairs {
+			var bindErr *object.Error
+			m.ForEach(func(_ object.MapKey, pair object.MapPair) bool {
 				name, ok := mapBindingName(pair.Key)
 				if !ok || name == "" {
-					continue
+					return true
 				}
 				var err error
 				if ins.Op == OpBindMapAllConst {
@@ -206,8 +207,13 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 					_, err = e.env.Define(name, pair.Value, false, isImport)
 				}
 				if err != nil {
-					return e.errorAt(ins.Position, "%s", err.Error())
+					bindErr = e.errorAt(ins.Position, "%s", err.Error())
+					return false
 				}
+				return true
+			})
+			if bindErr != nil {
+				return bindErr
 			}
 			e.push(mObj)
 		case OpAssignGlobal:
@@ -625,9 +631,9 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 				continue
 			}
 			if ins.Op == OpMatchMapLenEq {
-				e.push(e.nativeBool(len(m.Pairs) == ins.IntArg))
+				e.push(e.nativeBool(m.Len() == ins.IntArg))
 			} else {
-				e.push(e.nativeBool(len(m.Pairs) >= ins.IntArg))
+				e.push(e.nativeBool(m.Len() >= ins.IntArg))
 			}
 		case OpMatchMapBindRemainder:
 			val, ok := e.pop()
@@ -646,16 +652,17 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 					}
 				}
 			}
-			rest := &object.Map{Pairs: map[object.MapKey]object.MapPair{}}
-			for mk, pair := range m.Pairs {
+			rest := &object.Map{}
+			m.ForEach(func(mk object.MapKey, pair object.MapPair) bool {
 				name, ok := mapBindingName(pair.Key)
 				if ok {
 					if _, skip := excluded[name]; skip {
-						continue
+						return true
 					}
 				}
-				rest.Pairs[mk] = pair
-			}
+				rest.PutPair(mk, pair)
+				return true
+			})
 			if _, err := e.env.DefineConstant(ins.StrArg, rest, false, false); err != nil {
 				return e.errorAt(ins.Position, "%s", err.Error())
 			}
@@ -2151,16 +2158,19 @@ func objectsEqual(a, b object.Object) bool {
 		return true
 	case *object.Map:
 		bv := b.(*object.Map)
-		if len(av.Pairs) != len(bv.Pairs) {
+		if av.Len() != bv.Len() {
 			return false
 		}
-		for k, pairA := range av.Pairs {
-			pairB, ok := bv.Pairs[k]
+		equal := true
+		av.ForEach(func(k object.MapKey, pairA object.MapPair) bool {
+			pairB, ok := bv.GetPair(k)
 			if !ok || !objectsEqual(pairA.Value, pairB.Value) {
+				equal = false
 				return false
 			}
-		}
-		return true
+			return true
+		})
+		return equal
 	default:
 		// Fallback for object kinds not yet fully modeled by VM.
 		return a == b
@@ -2242,12 +2252,12 @@ func (e *Executor) evalIndex(left, index object.Object, pos int, isDotLookup boo
 		if !ok {
 			return nil, e.errorAt(pos, "unusable as map key: %s", index.Type())
 		}
-		pair, ok := l.Pairs[key.MapKey()]
+		pair, ok := l.GetPair(key.MapKey())
 		if !ok {
 			if isDotLookup {
 				if symbol, ok := index.(*object.Symbol); ok {
 					strKey := (&object.String{Value: symbol.Name}).MapKey()
-					if strPair, ok := l.Pairs[strKey]; ok {
+					if strPair, ok := l.GetPair(strKey); ok {
 						return strPair.Value, nil
 					}
 				}
@@ -2275,19 +2285,27 @@ func (e *Executor) evalIndex(left, index object.Object, pos int, isDotLookup boo
 }
 
 func (e *Executor) structValuesFromMap(pos int, schema *object.StructSchema, m *object.Map) (map[string]object.Object, *object.Error) {
-	out := make(map[string]object.Object, len(m.Pairs))
-	for _, pair := range m.Pairs {
+	out := make(map[string]object.Object, m.Len())
+	var errObj *object.Error
+	m.ForEach(func(_ object.MapKey, pair object.MapPair) bool {
 		name, ok := structFieldNameFromKey(pair.Key)
 		if !ok {
-			return nil, e.errorAt(pos, "struct field access expects symbol, got %s", pair.Key.Type())
+			errObj = e.errorAt(pos, "struct field access expects symbol, got %s", pair.Key.Type())
+			return false
 		}
 		if _, exists := schema.FieldIndex[name]; !exists {
-			return nil, e.errorAt(pos, "unknown field '%s' for struct %s", name, structSchemaName(schema))
+			errObj = e.errorAt(pos, "unknown field '%s' for struct %s", name, structSchemaName(schema))
+			return false
 		}
 		if _, dup := out[name]; dup {
-			return nil, e.errorAt(pos, "duplicate field '%s' in struct data", name)
+			errObj = e.errorAt(pos, "duplicate field '%s' in struct data", name)
+			return false
 		}
 		out[name] = pair.Value
+		return true
+	})
+	if errObj != nil {
+		return nil, errObj
 	}
 	return out, nil
 }

@@ -45,7 +45,7 @@ func (h *VMTaskHandle) Complete(result object.Object) {
 }
 
 func (h *VMTaskHandle) Cancel(reason string) {
-	payload := &object.Map{Pairs: map[object.MapKey]object.MapPair{}}
+	payload := &object.Map{}
 	payload.Put(&object.String{Value: "type"}, &object.String{Value: "cancelled"})
 	payload.Put(&object.String{Value: "reason"}, &object.String{Value: reason})
 	h.Complete(&object.RuntimeError{

@@ -101,3 +101,59 @@ func TestDispatchErrorIncludesCandidates(t *testing.T) {
 		t.Fatalf("expected arity in candidates, got %q", msg)
 	}
 }
+
+func TestMapSupportsNativeAndHAMTBackends(t *testing.T) {
+	prev := defaultMapBackend
+	t.Cleanup(func() { defaultMapBackend = prev })
+
+	backends := []string{"native", "hamt"}
+	for _, backend := range backends {
+		t.Run(backend, func(t *testing.T) {
+			SetDefaultMapBackend(backend)
+			m := &Map{}
+
+			m.Put(&String{Value: "a"}, &Number{Value: dec64.FromInt(1)})
+			m.Put(&String{Value: "b"}, &Number{Value: dec64.FromInt(2)})
+			m.Put(InternSymbol("c"), &Number{Value: dec64.FromInt(3)})
+
+			if got := m.Len(); got != 3 {
+				t.Fatalf("map length mismatch: got=%d want=3", got)
+			}
+
+			pair, ok := m.GetPair((&String{Value: "b"}).MapKey())
+			if !ok {
+				t.Fatal("expected key 'b' to exist")
+			}
+			val, ok := pair.Value.(*Number)
+			if !ok || !val.Value.Eq(dec64.FromInt(2)) {
+				t.Fatalf("unexpected value for 'b': %#v", pair.Value)
+			}
+		})
+	}
+}
+
+func TestMapMigratesLegacyPairsWhenHAMTEnabled(t *testing.T) {
+	prev := defaultMapBackend
+	t.Cleanup(func() { defaultMapBackend = prev })
+
+	SetDefaultMapBackend("hamt")
+
+	legacy := map[MapKey]MapPair{}
+	k := (&String{Value: "legacy"}).MapKey()
+	legacy[k] = MapPair{
+		Key:   &String{Value: "legacy"},
+		Value: &Number{Value: dec64.FromInt(99)},
+	}
+
+	m := &Map{Pairs: legacy}
+
+	if m.Len() != 1 {
+		t.Fatalf("expected migrated map length=1, got=%d", m.Len())
+	}
+	if m.Pairs != nil {
+		t.Fatal("expected legacy pairs to be cleared after HAMT migration")
+	}
+	if pair, ok := m.GetPair(k); !ok || !pair.Value.(*Number).Value.Eq(dec64.FromInt(99)) {
+		t.Fatalf("expected migrated value to be preserved, got pair=%#v ok=%v", pair, ok)
+	}
+}

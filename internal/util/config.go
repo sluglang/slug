@@ -14,6 +14,7 @@ type Configuration struct {
 	ProjectRoot  string
 	Cwd          string
 	SlugHome     string
+	MapBackend   string
 	Argv         []string
 	DebugJsonAST bool
 	DebugTxtAST  bool

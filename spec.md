@@ -230,3 +230,30 @@
   - `call_dispatch`: ~23% faster
   - `named_args`: ~17% faster
 - Note: allocation counts in the call-heavy paths are largely unchanged in this batch; gains are primarily dispatch/binding latency improvements.
+
+### Immutable map storage backend abstraction and HAMT prototype
+
+- Added pluggable map storage backend support in `internal/object`:
+  - new `mapStorage` interface with `put/get/len/forEach`.
+  - native backend (`nativeMapStorage`) and persistent HAMT backend (`hamtMapStorage`).
+  - backend switcher: `object.SetDefaultMapBackend("native"|"hamt")`.
+- Added HAMT prototype implementation:
+  - `internal/object/hamt.go` with persistent trie insert/get/iteration.
+  - deterministic entry traversal reused by `Map.Inspect()` and `Entries()`.
+- Refactored `object.Map` to route operations through backend-safe methods:
+  - `Put`, `PutPair`, `Get`, `GetPair`, `Len`, `Entries`, `ForEach`.
+  - lazy migration path preserves legacy `Pairs` map compatibility.
+- Removed direct runtime/VM dependency on `Map.Pairs` for object maps:
+  - `internal/runtime/execute.go`
+  - `internal/runtime/slug_fn_builtin.go`
+  - `internal/vm/executor.go`
+  - `internal/vm/task.go`
+- Added runtime config plumbing for backend selection:
+  - `util.Configuration.MapBackend`
+  - CLI flag `-map-backend` in `cmd/app/main.go`
+  - backend initialization in `runtime.NewRuntime`.
+- Added object tests to validate backend parity and legacy migration:
+  - `TestMapSupportsNativeAndHAMTBackends`
+  - `TestMapMigratesLegacyPairsWhenHAMTEnabled`
+- Validation performed:
+  - `go test ./internal/object ./internal/vm ./internal/runtime ./internal/parser ./internal/semantic ./cmd/app -count=1`
