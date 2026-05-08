@@ -150,3 +150,36 @@
   - Asserts semantic-only invalid programs do not produce parser errors.
 - Validation performed:
   - `go test ./internal/parser ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
+
+### Runtime conformance retargeting to integration ownership
+
+- Renamed runtime conformance test file from `internal/runtime/vm_conformance_test.go` to `internal/runtime/runtime_conformance_test.go`.
+- Reframed suite purpose from VM parity to runtime integration behavior.
+- Renamed tests:
+  - `TestVMConformanceFixtures` -> `TestRuntimeIntegrationSupportedFixtures`
+  - `TestVMConformanceExpectedErrorFixtures` -> `TestRuntimeIntegrationExpectedErrorFixtures`
+- Scoped fixture execution to runtime-owned concerns via allowlists:
+  - Supported fixtures: `import-bridge`, `stdout-output`, `stderr-output`, `await-expression`, `select-expression`, `spawn-expression`
+  - Error fixtures: `import-missing-module`, `import-parse-error`
+- Updated helper naming to reflect integration scope:
+  - `conformanceRun` -> `runtimeIntegrationRun`
+  - `runProgramForConformance` -> `runProgramForRuntimeIntegration`
+- Validation performed:
+  - `go test ./internal/runtime ./internal/vm ./internal/semantic ./internal/parser ./cmd/app -count=1`
+
+### Runtime fixture suite split and partition guard
+
+- Renamed runtime integration subset suite to explicit boundary naming:
+  - `TestRuntimeBoundarySupportedFixtures`
+  - `TestRuntimeBoundaryExpectedErrorFixtures`
+  - Fixture ownership maps renamed to `runtimeBoundary*`.
+- Added second runtime fixture suite for the remaining execution-focused fixtures:
+  - `internal/runtime/runtime_execution_fixtures_test.go`
+  - `TestRuntimeExecutionSupportedFixtures`
+  - `TestRuntimeExecutionExpectedErrorFixtures`
+  - Fixture ownership maps `runtimeExecution*`.
+- Added fixture partition guard:
+  - `TestRuntimeFixturePartitionIsCompleteAndDisjoint`
+  - Fails if any fixture is unassigned or assigned to both suites.
+- Validation performed:
+  - `go test ./internal/runtime ./internal/parser ./internal/semantic ./internal/vm ./cmd/app -count=1`

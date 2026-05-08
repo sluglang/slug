@@ -14,13 +14,27 @@ import (
 	"testing"
 )
 
-type conformanceRun struct {
+type runtimeIntegrationRun struct {
 	result object.Object
 	stdout string
 	stderr string
 }
 
-func TestVMConformanceFixtures(t *testing.T) {
+var runtimeBoundarySupportedFixtures = map[string]struct{}{
+	"import-bridge.slug":     {},
+	"stdout-output.slug":     {},
+	"stderr-output.slug":     {},
+	"await-expression.slug":  {},
+	"select-expression.slug": {},
+	"spawn-expression.slug":  {},
+}
+
+var runtimeBoundaryErrorFixtures = map[string]struct{}{
+	"import-missing-module.slug": {},
+	"import-parse-error.slug":    {},
+}
+
+func TestRuntimeBoundarySupportedFixtures(t *testing.T) {
 	root := repoRoot(t)
 	supportedDir := filepath.Join(root, "tests", "vm-conformance", "supported")
 	entries, err := os.ReadDir(supportedDir)
@@ -33,6 +47,9 @@ func TestVMConformanceFixtures(t *testing.T) {
 			continue
 		}
 		name := entry.Name()
+		if _, keep := runtimeBoundarySupportedFixtures[name]; !keep {
+			continue
+		}
 		t.Run(name, func(t *testing.T) {
 			path := filepath.Join(supportedDir, name)
 			sourceBytes, err := os.ReadFile(path)
@@ -41,15 +58,15 @@ func TestVMConformanceFixtures(t *testing.T) {
 			}
 			source := string(sourceBytes)
 
-			vm := runProgramForConformance(t, path, source)
-			if vm.result.Type() == object.ERROR_OBJ {
-				t.Fatalf("supported fixture must succeed on vm, got error:\n%s", vm.result.Inspect())
+			run := runProgramForRuntimeIntegration(t, path, source)
+			if run.result.Type() == object.ERROR_OBJ {
+				t.Fatalf("supported runtime fixture must succeed, got error:\n%s", run.result.Inspect())
 			}
 		})
 	}
 }
 
-func TestVMConformanceExpectedErrorFixtures(t *testing.T) {
+func TestRuntimeBoundaryExpectedErrorFixtures(t *testing.T) {
 	root := repoRoot(t)
 	errorDir := filepath.Join(root, "tests", "vm-conformance", "error-parity")
 	entries, err := os.ReadDir(errorDir)
@@ -62,6 +79,9 @@ func TestVMConformanceExpectedErrorFixtures(t *testing.T) {
 			continue
 		}
 		name := entry.Name()
+		if _, keep := runtimeBoundaryErrorFixtures[name]; !keep {
+			continue
+		}
 		t.Run(name, func(t *testing.T) {
 			path := filepath.Join(errorDir, name)
 			sourceBytes, err := os.ReadFile(path)
@@ -70,15 +90,15 @@ func TestVMConformanceExpectedErrorFixtures(t *testing.T) {
 			}
 			source := string(sourceBytes)
 
-			vm := runProgramForConformance(t, path, source)
-			if vm.result.Type() != object.ERROR_OBJ {
-				t.Fatalf("error-parity fixture must fail on vm, got %T (%s)", vm.result, vm.result.Inspect())
+			run := runProgramForRuntimeIntegration(t, path, source)
+			if run.result.Type() != object.ERROR_OBJ {
+				t.Fatalf("runtime error fixture must fail, got %T (%s)", run.result, run.result.Inspect())
 			}
 		})
 	}
 }
 
-func runProgramForConformance(t *testing.T, scriptPath, source string) conformanceRun {
+func runProgramForRuntimeIntegration(t *testing.T, scriptPath, source string) runtimeIntegrationRun {
 	t.Helper()
 
 	l := lexer.New(source)
@@ -124,7 +144,7 @@ func runProgramForConformance(t *testing.T, scriptPath, source string) conforman
 		return ExecuteProgram(rt, env, program)
 	})
 
-	return conformanceRun{
+	return runtimeIntegrationRun{
 		result: result,
 		stdout: normalizeOutput(stdout),
 		stderr: normalizeOutput(stderr),
