@@ -196,3 +196,37 @@
   - `TestOnSuccessAndOnErrorAreRegularIdentifiersOutsideDefer`
 - Validation performed:
   - `go test ./internal/parser ./internal/runtime ./internal/vm ./internal/semantic ./cmd/app -count=1`
+
+### VM performance optimization batch 1 (latency-first)
+
+- Added VM call-path and select hot-path optimizations:
+  - `internal/vm/function.go`: added `VMFunction.ParamIndex` cache for named-parameter lookup.
+  - `internal/vm/compiler.go`: populate `ParamIndex` during function compilation.
+  - `internal/vm/executor.go`:
+    - preserve cached `ParamIndex` in closure binding.
+    - `popCallArguments` fast-path for positional-only calls (avoids intermediate argument reshaping overhead).
+    - reuse cached `ParamIndex` in `bindVMArgumentsInto` to avoid rebuilding name-to-index maps on named calls.
+    - reduce select receive-result allocation churn by reusing package-level `Full`/`Empty` schema singletons.
+- Expanded benchmark workloads in `internal/vm/benchmark_test.go` to capture additional hot paths:
+  - `call_dispatch`
+  - `named_args`
+  - `select_await`
+  - `spawn_storm`
+- Validation performed:
+  - `go test ./internal/vm -run '^$' -bench BenchmarkVMExecuteOnly -benchtime=1x`
+  - `go test ./internal/parser ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
+
+#### Benchmark summary (post-change sample)
+
+- Ran: `go test ./internal/vm -run '^$' -bench 'BenchmarkVMExecuteOnly/(struct_copy|call_dispatch|named_args|select_await|spawn_storm)$' -benchmem -count=8 -benchtime=300ms`
+- Approximate median `ns/op` from post-change runs:
+  - `struct_copy`: ~0.66ms
+  - `call_dispatch`: ~0.93ms
+  - `named_args`: ~0.83ms
+  - `select_await`: ~3.8µs
+  - `spawn_storm`: ~0.45ms (new benchmark)
+- Compared with earlier pre-change smoke readings, observed latency gains:
+  - `struct_copy`: ~37% faster
+  - `call_dispatch`: ~23% faster
+  - `named_args`: ~17% faster
+- Note: allocation counts in the call-heavy paths are largely unchanged in this batch; gains are primarily dispatch/binding latency improvements.

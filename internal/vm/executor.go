@@ -52,6 +52,11 @@ type vmSelectEvalCase struct {
 	handlerFn *VMFunction
 }
 
+var (
+	selectFullSchema  = &object.StructSchema{Name: "Full"}
+	selectEmptySchema = &object.StructSchema{Name: "Empty"}
+)
+
 func (r *vmRecurSignal) Type() object.ObjectType { return "VM_RECUR" }
 func (r *vmRecurSignal) Inspect() string         { return "<vm recur>" }
 
@@ -1529,6 +1534,7 @@ func (e *Executor) bindClosureIfNeeded(obj object.Object) object.Object {
 			Name:       fn.Name,
 			Tags:       fn.Tags,
 			Params:     append([]VMParam(nil), fn.Params...),
+			ParamIndex: fn.ParamIndex,
 			Chunk:      fn.Chunk,
 			Closure:    e.env,
 			Signature:  fn.Signature,
@@ -1759,16 +1765,14 @@ func (e *Executor) evalSelect(ins Instruction, chunk *Chunk) (object.Object, *ob
 }
 
 func (e *Executor) recvResultForSelect(value object.Object, ok bool) object.Object {
-	fullSchema := &object.StructSchema{Name: "Full"}
-	emptySchema := &object.StructSchema{Name: "Empty"}
 	if ok {
 		return &object.StructValue{
-			Schema: fullSchema,
+			Schema: selectFullSchema,
 			Fields: map[string]object.Object{"value": value},
 		}
 	}
 	return &object.StructValue{
-		Schema: emptySchema,
+		Schema: selectEmptySchema,
 		Fields: map[string]object.Object{},
 	}
 }
@@ -1792,6 +1796,25 @@ func (e *Executor) popCallArguments(argCount int, plan []CallArgSpec, pos int) (
 	if len(plan) != argCount {
 		return nil, nil, e.errorAt(pos, "invalid call metadata: expected %d args in plan, got %d", argCount, len(plan))
 	}
+	allPositional := true
+	for i := 0; i < len(plan); i++ {
+		if plan[i].Kind != CallArgPositional {
+			allPositional = false
+			break
+		}
+	}
+	if allPositional {
+		positional := make([]object.Object, argCount)
+		for i := argCount - 1; i >= 0; i-- {
+			arg, ok := e.pop()
+			if !ok {
+				return nil, nil, e.errorAt(pos, "stack underflow for call arguments")
+			}
+			positional[i] = arg
+		}
+		return positional, nil, nil
+	}
+
 	args := make([]object.Object, argCount)
 	for i := argCount - 1; i >= 0; i-- {
 		arg, ok := e.pop()
@@ -1909,9 +1932,13 @@ func bindVMArgumentsInto(
 	variadicIndex := paramCount - 1
 
 	if len(named) > 0 {
-		index := make(map[string]int, paramCount)
-		for i, p := range fn.Params {
-			index[p.Name] = i
+		index := fn.ParamIndex
+		if len(index) == 0 && paramCount > 0 {
+			index = make(map[string]int, paramCount)
+			for i, p := range fn.Params {
+				index[p.Name] = i
+			}
+			fn.ParamIndex = index
 		}
 		for name, val := range named {
 			idx, ok := index[name]

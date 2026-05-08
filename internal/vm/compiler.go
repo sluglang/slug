@@ -881,6 +881,7 @@ func (c *compiler) compileShortCircuit(node *ast.InfixExpression) error {
 
 func (c *compiler) compileFunctionLiteral(node *ast.FunctionLiteral) (*VMFunction, error) {
 	params := make([]VMParam, 0, len(node.Parameters))
+	paramIndex := make(map[string]int, len(node.Parameters))
 	for _, p := range node.Parameters {
 		var defaultChunk *Chunk
 		if p.Default != nil {
@@ -897,6 +898,7 @@ func (c *compiler) compileFunctionLiteral(node *ast.FunctionLiteral) (*VMFunctio
 			Default:    defaultChunk,
 			Tags:       p.Tags,
 		})
+		paramIndex[p.Name.Value] = len(params) - 1
 	}
 
 	child := &compiler{chunk: &Chunk{}}
@@ -913,6 +915,7 @@ func (c *compiler) compileFunctionLiteral(node *ast.FunctionLiteral) (*VMFunctio
 
 	return &VMFunction{
 		Params:     params,
+		ParamIndex: paramIndex,
 		Chunk:      child.chunk,
 		Signature:  node.Signature,
 		Parameters: node.Parameters,

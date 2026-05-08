@@ -40,6 +40,38 @@ val mk = fn(n, age = 1, acc = User { name: "u0", age: 0 }) {
 }
 mk(400)
 `,
+	"call_dispatch": `
+val add = fn(a, b) { a + b }
+val run = fn(n, acc = 0) {
+  if (n == 0) { acc } else { recur(n - 1, add(acc, 1)) }
+}
+run(800)
+`,
+	"named_args": `
+val mix = fn(a, b = 1, c = 2) { a + b + c }
+val run = fn(n, acc = 0) {
+  if (n == 0) { acc } else { recur(n - 1, mix(a = acc, c = 3, b = 2)) }
+}
+run(500)
+`,
+	"select_await": `
+val t = spawn { 42 }
+select {
+  await t /> fn(v) { v }
+  _ /> fn(_) { 0 }
+}
+`,
+	"spawn_storm": `
+val run = fn(n) {
+  if (n == 0) {
+    0
+  } else {
+    spawn { n + 1 }
+    recur(n - 1)
+  }
+}
+run(200)
+`,
 }
 
 func parseProgramForBench(b *testing.B, name, src string) *ast.Program {
