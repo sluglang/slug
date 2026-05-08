@@ -39,3 +39,23 @@
 - Validation performed:
   - `go test ./internal/runtime ./internal/vm -count=1`
   - `go test ./cmd/app ./internal/runtime ./internal/vm -count=1`
+
+### Runtime/VM refactor Phase 2 call-context/nursery move
+
+- Moved VM call-bridge execution context and nursery implementation from `internal/runtime` into VM-owned files:
+  - `internal/vm/call_context.go`
+  - `internal/vm/nursery_scope.go`
+- Introduced dependency injection for VM call context via `vm.VMCallContextDeps`:
+  - runtime configuration
+  - module loader
+  - handle ID generator
+  - bridge factory for nested calls
+- Updated runtime execution wiring to construct contexts with `vm.NewVMCallContext(...)` in:
+  - `internal/runtime/execute.go`
+  - `internal/runtime/slug_io_stdin_test.go`
+- Kept compatibility aliases in `internal/runtime/task.go`:
+  - `type VMCallContext = vm.VMCallContext`
+  - `type NurseryScope = vm.NurseryScope`
+- Validation performed:
+  - `go test ./internal/runtime ./internal/vm -count=1`
+  - `go test ./cmd/app ./internal/runtime ./internal/vm -count=1`

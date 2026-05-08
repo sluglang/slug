@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"slug/internal/object"
 	"slug/internal/util"
+	"slug/internal/vm"
 	"testing"
 	"time"
 )
@@ -34,7 +35,14 @@ func TestStdinReadLinesSingletonAndClose(t *testing.T) {
 		DefaultLimit: 4,
 	}
 	rt := NewRuntime(cfg)
-	task := &VMCallContext{Runtime: rt}
+	task := vm.NewVMCallContext(vm.VMCallContextDeps{
+		Config:       rt.Config,
+		LoadModule:   rt.LoadModule,
+		NextHandleID: rt.NextHandleID,
+		BridgeFactory: func(callEnv *object.Environment) func(pos int, callee object.Object, positional []object.Object, named map[string]object.Object) object.Object {
+			return makeVMCallBridge(rt, callEnv)
+		},
+	})
 	task.PushNurseryScope(&NurseryScope{Limit: make(chan struct{}, cfg.DefaultLimit)})
 	task.PushEnv(object.NewRootEnvironment(cfg.DefaultLimit))
 

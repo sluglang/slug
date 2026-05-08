@@ -30,7 +30,14 @@ func ExecuteProgram(rt *Runtime, env *object.Environment, program *ast.Program) 
 }
 
 func invokeEntrypoint(rt *Runtime, moduleEnv *object.Environment, entrypoint object.Object) object.Object {
-	task := &VMCallContext{Runtime: rt}
+	task := vm.NewVMCallContext(vm.VMCallContextDeps{
+		Config:       rt.Config,
+		LoadModule:   rt.LoadModule,
+		NextHandleID: rt.NextHandleID,
+		BridgeFactory: func(callEnv *object.Environment) func(pos int, callee object.Object, positional []object.Object, named map[string]object.Object) object.Object {
+			return makeVMCallBridge(rt, callEnv)
+		},
+	})
 	task.PushNurseryScope(&NurseryScope{
 		Limit: make(chan struct{}, rt.Config.DefaultLimit),
 	})
@@ -58,9 +65,14 @@ func installBuiltinsIntoEnv(rt *Runtime, env *object.Environment) {
 
 func makeVMCallBridge(rt *Runtime, env *object.Environment) func(pos int, callee object.Object, positional []object.Object, named map[string]object.Object) object.Object {
 	return func(pos int, callee object.Object, positional []object.Object, named map[string]object.Object) object.Object {
-		task := &VMCallContext{
-			Runtime: rt,
-		}
+		task := vm.NewVMCallContext(vm.VMCallContextDeps{
+			Config:       rt.Config,
+			LoadModule:   rt.LoadModule,
+			NextHandleID: rt.NextHandleID,
+			BridgeFactory: func(callEnv *object.Environment) func(pos int, callee object.Object, positional []object.Object, named map[string]object.Object) object.Object {
+				return makeVMCallBridge(rt, callEnv)
+			},
+		})
 		task.PushNurseryScope(&NurseryScope{
 			Limit: make(chan struct{}, rt.Config.DefaultLimit),
 		})
