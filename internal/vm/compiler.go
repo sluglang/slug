@@ -535,20 +535,6 @@ func (c *compiler) patchJump(at int, target int) {
 	c.chunk.Instructions[at].IntArg = target
 }
 
-func patternName(pattern ast.MatchPattern) (string, error) {
-	switch p := pattern.(type) {
-	case *ast.IdentifierPattern:
-		return p.Value.Value, nil
-	case *ast.BindingPattern:
-		if p.Name == nil {
-			return "", fmt.Errorf("binding pattern missing binding name")
-		}
-		return p.Name.Value, nil
-	default:
-		return "", fmt.Errorf("unsupported binding pattern %T", pattern)
-	}
-}
-
 func (c *compiler) compileBindPattern(pattern ast.MatchPattern, isConst bool, pos int) error {
 	switch p := pattern.(type) {
 	case *ast.IdentifierPattern:

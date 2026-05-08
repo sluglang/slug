@@ -472,16 +472,6 @@ func (p *Parser) parseExpressionStatement() *ast.ExpressionStatement {
 	return stmt
 }
 
-func (p *Parser) peekIsExpressionTerminator(precedence int) bool {
-	if p.peekTokenIs(token.SEMICOLON) || p.peekTokenIs(token.EOF) || p.peekTokenIs(token.RBRACE) {
-		return true
-	}
-	if p.peekTokenIs(token.NEWLINE) && p.newlineTerminates() {
-		return true
-	}
-	return false
-}
-
 func (p *Parser) parseExpression(precedence int) ast.Expression {
 	p.skipLeadingNewlines()
 

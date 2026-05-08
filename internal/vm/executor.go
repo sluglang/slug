@@ -1888,21 +1888,6 @@ func setVMCallFrameParams(callEnv *object.Environment, params []VMParam, values 
 	}
 }
 
-func bindVMArguments(
-	fn *VMFunction,
-	positional []object.Object,
-	named map[string]object.Object,
-	pos int,
-	e *Executor,
-) ([]object.Object, *object.Error) {
-	values := make([]object.Object, len(fn.Params))
-	provided := make([]bool, len(fn.Params))
-	if errObj := bindVMArgumentsInto(fn, positional, named, pos, e, values, provided); errObj != nil {
-		return nil, errObj
-	}
-	return values, nil
-}
-
 func bindVMArgumentsInto(
 	fn *VMFunction,
 	positional []object.Object,

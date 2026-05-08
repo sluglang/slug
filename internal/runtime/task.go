@@ -25,51 +25,51 @@ type VMCallContext struct {
 	nurseryStack []*NurseryScope
 }
 
-func (e *VMCallContext) NextHandleID() int64                  { return e.Runtime.NextHandleID() }
-func (e *VMCallContext) GetConfiguration() util.Configuration { return e.Runtime.Config }
-func (e *VMCallContext) Nil() *object.Nil                     { return object.NIL }
-func (e *VMCallContext) CurrentEnvStackSize() int             { return len(e.envStack) }
+func (c *VMCallContext) NextHandleID() int64                  { return c.Runtime.NextHandleID() }
+func (c *VMCallContext) GetConfiguration() util.Configuration { return c.Runtime.Config }
+func (c *VMCallContext) Nil() *object.Nil                     { return object.NIL }
+func (c *VMCallContext) CurrentEnvStackSize() int             { return len(c.envStack) }
 
-func (e *VMCallContext) PushEnv(env *object.Environment) {
+func (c *VMCallContext) PushEnv(env *object.Environment) {
 	if env.IsThreadNurseryScope {
-		e.PushNurseryScope(&NurseryScope{Limit: make(chan struct{}, env.Limit)})
+		c.PushNurseryScope(&NurseryScope{Limit: make(chan struct{}, env.Limit)})
 	}
-	e.envStack = append(e.envStack, env)
+	c.envStack = append(c.envStack, env)
 }
 
-func (e *VMCallContext) CurrentEnv() *object.Environment {
-	if len(e.envStack) == 0 {
+func (c *VMCallContext) CurrentEnv() *object.Environment {
+	if len(c.envStack) == 0 {
 		panic("Environment stack is empty in the current frame")
 	}
-	return e.envStack[len(e.envStack)-1]
+	return c.envStack[len(c.envStack)-1]
 }
 
-func (e *VMCallContext) PopEnv(result object.Object) object.Object {
-	if len(e.envStack) == 0 {
+func (c *VMCallContext) PopEnv(result object.Object) object.Object {
+	if len(c.envStack) == 0 {
 		panic("Attempted to pop from an empty environment stack")
 	}
-	currentEnv := e.CurrentEnv()
+	currentEnv := c.CurrentEnv()
 	if currentEnv.IsThreadNurseryScope {
-		result, _ = e.popNurseryScope(result)
+		result, _ = c.popNurseryScope(result)
 	}
 	// VM runtime handles defer execution internally.
-	e.envStack = e.envStack[:len(e.envStack)-1]
+	c.envStack = c.envStack[:len(c.envStack)-1]
 	return result
 }
 
-func (e *VMCallContext) PushNurseryScope(scope *NurseryScope) {
-	e.nurseryStack = append(e.nurseryStack, scope)
+func (c *VMCallContext) PushNurseryScope(scope *NurseryScope) {
+	c.nurseryStack = append(c.nurseryStack, scope)
 }
 
-func (e *VMCallContext) currentNurseryScope() *NurseryScope {
-	if len(e.nurseryStack) == 0 {
+func (c *VMCallContext) currentNurseryScope() *NurseryScope {
+	if len(c.nurseryStack) == 0 {
 		panic("Nursery stack is empty in the current frame")
 	}
-	return e.nurseryStack[len(e.nurseryStack)-1]
+	return c.nurseryStack[len(c.nurseryStack)-1]
 }
 
-func (e *VMCallContext) popNurseryScope(result object.Object) (object.Object, bool) {
-	currentScope := e.currentNurseryScope()
+func (c *VMCallContext) popNurseryScope(result object.Object) (object.Object, bool) {
+	currentScope := c.currentNurseryScope()
 	nurseryInjected := false
 	switch result.(type) {
 	case *object.ReturnValue:
@@ -87,19 +87,19 @@ func (e *VMCallContext) popNurseryScope(result object.Object) (object.Object, bo
 			nurseryInjected = true
 		}
 	}
-	e.nurseryStack = e.nurseryStack[:len(e.nurseryStack)-1]
+	c.nurseryStack = c.nurseryStack[:len(c.nurseryStack)-1]
 	return result, nurseryInjected
 }
 
-func (e *VMCallContext) LoadModule(modName string) (*object.Module, error) {
-	return e.Runtime.LoadModule(modName)
+func (c *VMCallContext) LoadModule(modName string) (*object.Module, error) {
+	return c.Runtime.LoadModule(modName)
 }
 
-func (e *VMCallContext) NewError(format string, a ...interface{}) *object.Error {
+func (c *VMCallContext) NewError(format string, a ...interface{}) *object.Error {
 	return &object.Error{Message: fmt.Sprintf(format, a...)}
 }
 
-func (e *VMCallContext) NativeBoolToBooleanObject(input bool) *object.Boolean {
+func (c *VMCallContext) NativeBoolToBooleanObject(input bool) *object.Boolean {
 	if input {
 		return object.TRUE
 	}
@@ -119,7 +119,7 @@ type boundArguments struct {
 	Provided []bool
 }
 
-func (e *VMCallContext) bindArguments(
+func (c *VMCallContext) bindArguments(
 	pos int,
 	fnObj object.Object,
 	params []*ast.FunctionParameter,
@@ -128,7 +128,7 @@ func (e *VMCallContext) bindArguments(
 ) (*boundArguments, object.Object) {
 	if params == nil {
 		if len(named) > 0 {
-			return nil, e.NewError("named arguments are not supported for this function")
+			return nil, c.NewError("named arguments are not supported for this function")
 		}
 		provided := make([]bool, len(positional))
 		for i := range provided {
@@ -157,14 +157,14 @@ func (e *VMCallContext) bindArguments(
 		for name, val := range named {
 			idx, ok := paramIndex[name]
 			if !ok {
-				return nil, e.NewError("unknown named parameter: %s", name)
+				return nil, c.NewError("unknown named parameter: %s", name)
 			}
 			if provided[idx] {
-				return nil, e.NewError("duplicate assignment to parameter: %s", name)
+				return nil, c.NewError("duplicate assignment to parameter: %s", name)
 			}
 			if params[idx].IsVariadic {
 				if _, ok := val.(*object.List); !ok {
-					return nil, e.NewError("variadic parameter '%s' must be a list when passed by name", name)
+					return nil, c.NewError("variadic parameter '%s' must be a list when passed by name", name)
 				}
 			}
 			values[idx] = val
@@ -188,7 +188,7 @@ func (e *VMCallContext) bindArguments(
 		remaining := positional[posIndex:]
 		if provided[variadicIndex] {
 			if len(remaining) > 0 {
-				return nil, e.NewError("too many positional arguments")
+				return nil, c.NewError("too many positional arguments")
 			}
 		} else {
 			values[variadicIndex] = &object.List{Elements: remaining}
@@ -207,7 +207,7 @@ func (e *VMCallContext) bindArguments(
 			posIndex++
 		}
 		if posIndex < len(positional) {
-			return nil, e.NewError("too many positional arguments")
+			return nil, c.NewError("too many positional arguments")
 		}
 	}
 
@@ -220,39 +220,39 @@ func (e *VMCallContext) bindArguments(
 			continue
 		}
 		if param.Default != nil {
-			defaultValue := e.evalDefaultParam(fnObj, param.Default)
+			defaultValue := c.evalDefaultParam(fnObj, param.Default)
 			if isError(defaultValue) {
 				return nil, defaultValue
 			}
 			values[i] = defaultValue
 			continue
 		}
-		return nil, e.NewError("missing required parameter: %s", param.Name.Value)
+		return nil, c.NewError("missing required parameter: %s", param.Name.Value)
 	}
 
 	return &boundArguments{Values: values, Provided: provided}, nil
 }
 
-func (e *VMCallContext) evalDefaultParam(fnObj object.Object, expr ast.Expression) object.Object {
+func (c *VMCallContext) evalDefaultParam(fnObj object.Object, expr ast.Expression) object.Object {
 	if expr == nil {
 		return object.NIL
 	}
-	defEnv := e.CurrentEnv()
+	defEnv := c.CurrentEnv()
 	if f, ok := fnObj.(*object.Foreign); ok {
 		_ = f
 	}
 	for defEnv != nil && defEnv.Outer != nil {
 		defEnv = defEnv.Outer
 	}
-	val, err := evalExprWithVM(e.Runtime, defEnv, expr)
+	val, err := evalExprWithVM(c.Runtime, defEnv, expr)
 	if err != nil {
 		return &object.Error{Message: err.Error()}
 	}
 	return val
 }
 
-func (e *VMCallContext) ApplyFunction(pos int, fnName string, fnObj object.Object, positional []object.Object, named map[string]object.Object) object.Object {
-	callEnv := e.CurrentEnv()
+func (c *VMCallContext) ApplyFunction(pos int, fnName string, fnObj object.Object, positional []object.Object, named map[string]object.Object) object.Object {
+	callEnv := c.CurrentEnv()
 	fnObj = resolveValue(fnObj)
 	if isError(fnObj) {
 		return fnObj
@@ -261,14 +261,14 @@ func (e *VMCallContext) ApplyFunction(pos int, fnName string, fnObj object.Objec
 	case *object.FunctionGroup:
 		f, err := fn.DispatchToFunction(fnName, positional, named)
 		if err != nil {
-			return e.NewError("error calling function '%s': %s", fnName, err.Error())
+			return c.NewError("error calling function '%s': %s", fnName, err.Error())
 		}
-		return e.ApplyFunction(pos, fnName, f, positional, named)
+		return c.ApplyFunction(pos, fnName, f, positional, named)
 	case *object.Function:
-		return e.NewError("runtime does not support direct AST function invocation: %q", fnName)
+		return c.NewError("runtime does not support direct AST function invocation: %q", fnName)
 	case *object.Foreign:
 		var result object.Object
-		bound, errObj := e.bindArguments(pos, fn, fn.Parameters, positional, named)
+		bound, errObj := c.bindArguments(pos, fn, fn.Parameters, positional, named)
 		if errObj != nil {
 			return errObj
 		}
@@ -285,17 +285,17 @@ func (e *VMCallContext) ApplyFunction(pos int, fnName string, fnObj object.Objec
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
-					result = e.NewError("error calling foreign function '%s'", fn.Name)
+					result = c.NewError("error calling foreign function '%s'", fn.Name)
 				}
 			}()
-			result = fn.Fn(e, callArgs...)
+			result = fn.Fn(c, callArgs...)
 		}()
 		if errObj, ok := result.(*object.Error); ok {
 			payload := &object.Map{Pairs: map[object.MapKey]object.MapPair{}}
 			foreign.PutString(payload, "type", "error")
 			foreign.PutString(payload, "foreign", fn.Name)
 			foreign.PutString(payload, "msg", errObj.Message)
-			return e.runtimeError(pos, "error", payload)
+			return c.runtimeError(pos, "error", payload)
 		}
 		return result
 	case *vm.VMFunction:
@@ -304,14 +304,14 @@ func (e *VMCallContext) ApplyFunction(pos int, fnName string, fnObj object.Objec
 			execEnv = fn.Closure
 		}
 		vmExec := vm.NewExecutorWithBridgeFactory(execEnv, func(callEnv *object.Environment) func(pos int, callee object.Object, positional []object.Object, named map[string]object.Object) object.Object {
-			return makeVMCallBridge(e.Runtime, callEnv)
+			return makeVMCallBridge(c.Runtime, callEnv)
 		})
 		return vmExec.EvalFunction(fn, positional, named, pos)
 	default:
 		if fn == nil {
-			return e.NewError("no function found")
+			return c.NewError("no function found")
 		}
-		return e.NewError("not a function: %s", fn.Type())
+		return c.NewError("not a function: %s", fn.Type())
 	}
 }
 
@@ -339,57 +339,57 @@ func isError(obj object.Object) bool {
 	return obj.Type() == object.ERROR_OBJ
 }
 
-func (e *VMCallContext) runtimeError(pos int, typ string, payload object.Object) *object.RuntimeError {
+func (c *VMCallContext) runtimeError(pos int, typ string, payload object.Object) *object.RuntimeError {
 	return &object.RuntimeError{
 		Payload:    payload,
-		StackTrace: e.GatherStackTrace(nil),
+		StackTrace: c.GatherStackTrace(nil),
 	}
 }
 
-func (e *VMCallContext) GatherStackTrace(frame *object.StackFrame) []*object.StackFrame {
+func (c *VMCallContext) GatherStackTrace(frame *object.StackFrame) []*object.StackFrame {
 	if frame != nil {
 		return []*object.StackFrame{frame}
 	}
-	if env := e.CurrentEnv(); env != nil && env.StackInfo != nil {
+	if env := c.CurrentEnv(); env != nil && env.StackInfo != nil {
 		return []*object.StackFrame{env.StackInfo}
 	}
 	return nil
 }
 
-func (th *VMCallContext) Type() object.ObjectType   { return object.TASK_HANDLE_OBJ }
-func (th *VMCallContext) Inspect() string           { return fmt.Sprintf("<task %d>", th.ID) }
-func (th *VMCallContext) DoneChan() <-chan struct{} { return th.Done }
-func (th *VMCallContext) AwaitResult() object.Object {
-	if th.Err != nil {
-		return th.Err
+func (c *VMCallContext) Type() object.ObjectType   { return object.TASK_HANDLE_OBJ }
+func (c *VMCallContext) Inspect() string           { return fmt.Sprintf("<task %d>", c.ID) }
+func (c *VMCallContext) DoneChan() <-chan struct{} { return c.Done }
+func (c *VMCallContext) AwaitResult() object.Object {
+	if c.Err != nil {
+		return c.Err
 	}
-	if th.Result == nil {
+	if c.Result == nil {
 		return object.NIL
 	}
-	return th.Result
+	return c.Result
 }
 
-func (th *VMCallContext) Complete(res object.Object) {
-	th.mu.Lock()
-	defer th.mu.Unlock()
-	if th.IsFinished {
+func (c *VMCallContext) Complete(res object.Object) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.IsFinished {
 		return
 	}
 	if rtErr, ok := res.(*object.RuntimeError); ok {
-		th.Err = rtErr
-		th.Result = rtErr
+		c.Err = rtErr
+		c.Result = rtErr
 	} else {
-		th.Result = res
+		c.Result = res
 	}
-	th.IsFinished = true
-	if th.Done != nil {
-		close(th.Done)
+	c.IsFinished = true
+	if c.Done != nil {
+		close(c.Done)
 	}
 }
 
-func (th *VMCallContext) Cancel(cause *object.RuntimeError, reason string) {
+func (c *VMCallContext) Cancel(cause *object.RuntimeError, reason string) {
 	payload := &object.Map{Pairs: map[object.MapKey]object.MapPair{}}
 	foreign.PutString(payload, "type", "cancelled")
 	foreign.PutString(payload, "reason", reason)
-	th.Complete(&object.RuntimeError{Payload: payload, Cause: cause})
+	c.Complete(&object.RuntimeError{Payload: payload, Cause: cause})
 }
