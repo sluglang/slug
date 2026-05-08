@@ -20,8 +20,16 @@ func SetDefaultMapBackend(name string) {
 	}
 }
 
+func DefaultMapBackendName() string {
+	if defaultMapBackend == mapBackendHAMT {
+		return "hamt"
+	}
+	return "native"
+}
+
 type mapStorage interface {
 	put(k MapKey, v MapPair) mapStorage
+	del(k MapKey, removed *bool) mapStorage
 	get(k MapKey) (MapPair, bool)
 	len() int
 	forEach(fn func(MapKey, MapPair) bool)
@@ -45,6 +53,17 @@ func (s nativeMapStorage) get(k MapKey) (MapPair, bool) {
 	}
 	p, ok := s.pairs[k]
 	return p, ok
+}
+
+func (s nativeMapStorage) del(k MapKey, removed *bool) mapStorage {
+	if s.pairs == nil {
+		return s
+	}
+	if _, ok := s.pairs[k]; ok {
+		delete(s.pairs, k)
+		*removed = true
+	}
+	return s
 }
 
 func (s nativeMapStorage) len() int {
@@ -76,6 +95,15 @@ func (s hamtMapStorage) put(k MapKey, v MapPair) mapStorage {
 
 func (s hamtMapStorage) get(k MapKey) (MapPair, bool) {
 	return hamtGet(s.root, mapKeyHash(k), 0, k)
+}
+
+func (s hamtMapStorage) del(k MapKey, removed *bool) mapStorage {
+	root := hamtDelete(s.root, mapKeyHash(k), 0, k, removed)
+	size := s.size
+	if *removed {
+		size--
+	}
+	return hamtMapStorage{root: root, size: size}
 }
 
 func (s hamtMapStorage) len() int {

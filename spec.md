@@ -257,3 +257,34 @@
   - `TestMapMigratesLegacyPairsWhenHAMTEnabled`
 - Validation performed:
   - `go test ./internal/object ./internal/vm ./internal/runtime ./internal/parser ./internal/semantic ./cmd/app -count=1`
+
+### Immutable map allocation-churn follow-up (persistent delete + std map ops)
+
+- Refactored stdlib map primitives to backend-aware persistent operations:
+  - `internal/foreign/slug_std.go`
+  - `put` now uses `Map.Clone()` + `PutPair(...)`
+  - `remove` now uses `Map.Clone()` + `DeleteKey(...)`
+- Added persistent delete support to map storage:
+  - `mapStorage.del(...)` in `internal/object/map_storage.go`
+  - `hamtDelete(...)` persistent path-copy delete in `internal/object/hamt.go`
+  - `Map.DeleteKey(...)` and backend-safe `Map.Clone()` in `internal/object/object.go`
+- Updated foreign map helper utilities to avoid direct `Pairs` mutation/iteration:
+  - `internal/foreign/util.go`
+  - `internal/foreign/slug_io_http.go`
+- Added tests:
+  - `TestMapCloneIsIndependentAcrossBackends`
+  - `TestMapDeleteKeyAcrossBackends`
+  - in `internal/object/object_test.go`
+- Added focused benchmark for std persistent map ops:
+  - `BenchmarkStdMapPersistentOps` in `internal/foreign/slug_std_benchmark_test.go`
+  - workload: 220 `put` + 220 `remove` immutable chain.
+
+#### Benchmark comparison (before vs after persistent delete)
+
+- Ran: `go test ./internal/foreign -run '^$' -bench 'BenchmarkStdMapPersistentOps' -benchmem -count=5`
+- HAMT before (pre-delete implementation): ~9.22ms/op, ~17.97MB/op, ~223,889 allocs/op
+- HAMT after: ~0.158ms/op, ~322KB/op, ~4,508 allocs/op
+- Approximate HAMT improvement:
+  - latency: ~58x faster
+  - bytes/op: ~56x lower
+  - allocs/op: ~49.7x lower

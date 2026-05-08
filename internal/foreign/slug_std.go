@@ -133,10 +133,11 @@ func fnStdKeys() *object.Foreign {
 
 			switch obj := args[0].(type) {
 			case *object.Map:
-				keys := make([]object.Object, 0, len(obj.Pairs))
-				for _, pair := range obj.Pairs {
+				keys := make([]object.Object, 0, obj.Len())
+				obj.ForEach(func(_ object.MapKey, pair object.MapPair) bool {
 					keys = append(keys, pair.Key)
-				}
+					return true
+				})
 				return &object.List{Elements: keys}
 			case *object.StructValue:
 				if obj.Schema == nil {
@@ -214,7 +215,7 @@ func fnStdGet() *object.Foreign {
 			}
 
 			mapKey := key.MapKey()
-			if pair, ok := mapObj.Pairs[mapKey]; ok {
+			if pair, ok := mapObj.GetPair(mapKey); ok {
 				return pair.Value
 			}
 
@@ -241,15 +242,9 @@ func fnStdPut() *object.Foreign {
 				return ctx.NewError("unusable as map key: %s", args[1].Type())
 			}
 
-			newPairs := make(map[object.MapKey]object.MapPair)
-			for k, v := range mapObj.Pairs {
-				newPairs[k] = v
-			}
-
-			mapKey := key.MapKey()
-			newPairs[mapKey] = object.MapPair{Key: args[1], Value: args[2]}
-
-			return &object.Map{Pairs: newPairs}
+			next := mapObj.Clone()
+			next.PutPair(key.MapKey(), object.MapPair{Key: args[1], Value: args[2]})
+			return next
 		},
 	}
 }
@@ -272,15 +267,9 @@ func fnStdRemove() *object.Foreign {
 				return ctx.NewError("unusable as map key: %s", args[1].Type())
 			}
 
-			newPairs := make(map[object.MapKey]object.MapPair)
-			for k, v := range mapObj.Pairs {
-				newPairs[k] = v
-			}
-
-			mapKey := key.MapKey()
-			delete(newPairs, mapKey)
-
-			return &object.Map{Pairs: newPairs}
+			next := mapObj.Clone()
+			next.DeleteKey(key.MapKey())
+			return next
 		},
 	}
 }

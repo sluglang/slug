@@ -1,7 +1,5 @@
 package object
 
-import "math/bits"
-
 const (
 	hamtBitsPerLevel = 5
 	hamtMask         = (1 << hamtBitsPerLevel) - 1
@@ -15,7 +13,7 @@ type hamtLeaf struct {
 
 type hamtNode struct {
 	bitmap   uint32
-	children []*hamtNode
+	children [32]*hamtNode
 	leaves   []hamtLeaf
 	isBucket bool
 }
@@ -60,24 +58,17 @@ func hamtInsert(node *hamtNode, hash uint64, depth int, key MapKey, pair MapPair
 
 	seg := int((hash >> (depth * hamtBitsPerLevel)) & hamtMask)
 	bit := uint32(1 << seg)
-	idx := hamtIndex(node.bitmap, bit)
-	out := &hamtNode{
-		bitmap:   node.bitmap,
-		children: append([]*hamtNode(nil), node.children...),
-	}
+	out := *node
 	if node.bitmap&bit == 0 {
 		out.bitmap |= bit
-		child := &hamtNode{
+		out.children[seg] = &hamtNode{
 			isBucket: true,
 			leaves:   []hamtLeaf{{key: key, pair: pair}},
 		}
-		out.children = append(out.children, nil)
-		copy(out.children[idx+1:], out.children[idx:])
-		out.children[idx] = child
-		return out
+		return &out
 	}
-	out.children[idx] = hamtInsert(node.children[idx], hash, depth+1, key, pair, replaced)
-	return out
+	out.children[seg] = hamtInsert(node.children[seg], hash, depth+1, key, pair, replaced)
+	return &out
 }
 
 func hamtGet(node *hamtNode, hash uint64, depth int, key MapKey) (MapPair, bool) {
@@ -97,8 +88,66 @@ func hamtGet(node *hamtNode, hash uint64, depth int, key MapKey) (MapPair, bool)
 	if node.bitmap&bit == 0 {
 		return MapPair{}, false
 	}
-	idx := hamtIndex(node.bitmap, bit)
-	return hamtGet(node.children[idx], hash, depth+1, key)
+	return hamtGet(node.children[seg], hash, depth+1, key)
+}
+
+func hamtDelete(node *hamtNode, hash uint64, depth int, key MapKey, removed *bool) *hamtNode {
+	if node == nil {
+		return nil
+	}
+	if node.isBucket {
+		idx := -1
+		for i := range node.leaves {
+			if node.leaves[i].key == key {
+				idx = i
+				break
+			}
+		}
+		if idx < 0 {
+			return node
+		}
+		*removed = true
+		if len(node.leaves) == 1 {
+			return nil
+		}
+		out := &hamtNode{
+			isBucket: true,
+			leaves:   make([]hamtLeaf, 0, len(node.leaves)-1),
+		}
+		out.leaves = append(out.leaves, node.leaves[:idx]...)
+		out.leaves = append(out.leaves, node.leaves[idx+1:]...)
+		return out
+	}
+
+	seg := int((hash >> (depth * hamtBitsPerLevel)) & hamtMask)
+	bit := uint32(1 << seg)
+	if node.bitmap&bit == 0 {
+		return node
+	}
+	child := node.children[seg]
+	nextChild := hamtDelete(child, hash, depth+1, key, removed)
+	if !*removed {
+		return node
+	}
+
+	out := *node
+	if nextChild == nil {
+		out.bitmap &^= bit
+		out.children[seg] = nil
+		if out.bitmap == 0 {
+			return nil
+		}
+		if out.bitmap&(out.bitmap-1) == 0 {
+			onlySeg := trailingSegment(out.bitmap)
+			only := out.children[onlySeg]
+			if only != nil && only.isBucket {
+				return only
+			}
+		}
+		return &out
+	}
+	out.children[seg] = nextChild
+	return &out
 }
 
 func hamtForEach(node *hamtNode, fn func(MapKey, MapPair) bool) bool {
@@ -114,14 +163,22 @@ func hamtForEach(node *hamtNode, fn func(MapKey, MapPair) bool) bool {
 		}
 		return true
 	}
-	for i := range node.children {
-		if !hamtForEach(node.children[i], fn) {
+	bm := node.bitmap
+	for bm != 0 {
+		seg := trailingSegment(bm)
+		if !hamtForEach(node.children[seg], fn) {
 			return false
 		}
+		bm &= bm - 1
 	}
 	return true
 }
 
-func hamtIndex(bitmap uint32, bit uint32) int {
-	return bits.OnesCount32(bitmap & (bit - 1))
+func trailingSegment(bitmap uint32) int {
+	i := 0
+	for (bitmap & 1) == 0 {
+		bitmap >>= 1
+		i++
+	}
+	return i
 }

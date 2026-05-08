@@ -57,9 +57,10 @@ func fnIoHttpRequest() *object.Foreign {
 			}
 
 			req.Header.Set("user-agent", "Slug/"+ctx.GetConfiguration().Version)
-			for _, v := range mapObj.Pairs {
+			mapObj.ForEach(func(_ object.MapKey, v object.MapPair) bool {
 				req.Header.Set(v.Key.Inspect(), v.Value.Inspect())
-			}
+				return true
+			})
 
 			resp, err := client.Do(req)
 			if err != nil {

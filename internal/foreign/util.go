@@ -51,14 +51,14 @@ func unpackNumber(arg object.Object, argName string) (int64, error) {
 
 func putObj(resultMap *object.Map, key string, val object.Object) {
 	keyStr := object.InternSymbol(key)
-	resultMap.Pairs[(keyStr).MapKey()] = object.MapPair{
+	resultMap.PutPair((keyStr).MapKey(), object.MapPair{
 		Key:   keyStr,
 		Value: val,
-	}
+	})
 }
 
 func GetObj(m *object.Map, key object.MapKey) (object.Object, bool) {
-	pair, ok := m.Pairs[key]
+	pair, ok := m.GetPair(key)
 	if !ok {
 		return nil, false
 	}
@@ -157,9 +157,10 @@ func ToNative(obj object.Object) interface{} {
 		return res
 	case *object.Map:
 		res := make(map[interface{}]interface{})
-		for _, pair := range o.Pairs {
+		o.ForEach(func(_ object.MapKey, pair object.MapPair) bool {
 			res[ToNative(pair.Key)] = ToNative(pair.Value)
-		}
+			return true
+		})
 		return res
 	case *object.Nil:
 		return nil

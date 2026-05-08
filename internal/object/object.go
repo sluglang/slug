@@ -871,6 +871,20 @@ func (m *Map) PutPair(k MapKey, v MapPair) *Map {
 	}
 	return m
 }
+func (m *Map) DeleteKey(k MapKey) *Map {
+	st := m.ensureStorage()
+	var removed bool
+	st = st.del(k, &removed)
+	m.storage = st
+	if defaultMapBackend == mapBackendNative {
+		if native, ok := st.(nativeMapStorage); ok {
+			m.Pairs = native.pairs
+		}
+	} else {
+		m.Pairs = nil
+	}
+	return m
+}
 func (m *Map) Get(k Hashable) (Object, bool) {
 	pair, ok := m.GetPair(k.MapKey())
 	return pair.Value, ok
@@ -891,6 +905,27 @@ func (m *Map) Entries() []MapPair {
 
 func (m *Map) ForEach(fn func(MapKey, MapPair) bool) {
 	m.ensureStorage().forEach(fn)
+}
+
+func (m *Map) Clone() *Map {
+	if m == nil {
+		return &Map{}
+	}
+	st := m.ensureStorage()
+	if native, ok := st.(nativeMapStorage); ok {
+		pairs := make(map[MapKey]MapPair, len(native.pairs))
+		for k, v := range native.pairs {
+			pairs[k] = v
+		}
+		return &Map{
+			Tags:  m.Tags,
+			Pairs: pairs,
+		}
+	}
+	return &Map{
+		Tags:    m.Tags,
+		storage: st,
+	}
 }
 
 func (m *Map) ensureStorage() mapStorage {

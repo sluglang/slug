@@ -157,3 +157,48 @@ func TestMapMigratesLegacyPairsWhenHAMTEnabled(t *testing.T) {
 		t.Fatalf("expected migrated value to be preserved, got pair=%#v ok=%v", pair, ok)
 	}
 }
+
+func TestMapCloneIsIndependentAcrossBackends(t *testing.T) {
+	prev := defaultMapBackend
+	t.Cleanup(func() { defaultMapBackend = prev })
+
+	for _, backend := range []string{"native", "hamt"} {
+		t.Run(backend, func(t *testing.T) {
+			SetDefaultMapBackend(backend)
+			orig := (&Map{}).Put(&String{Value: "a"}, &Number{Value: dec64.FromInt(1)})
+			clone := orig.Clone()
+			clone.Put(&String{Value: "b"}, &Number{Value: dec64.FromInt(2)})
+
+			if orig.Len() != 1 {
+				t.Fatalf("original mutated after clone write: len=%d", orig.Len())
+			}
+			if clone.Len() != 2 {
+				t.Fatalf("clone missing mutation: len=%d", clone.Len())
+			}
+		})
+	}
+}
+
+func TestMapDeleteKeyAcrossBackends(t *testing.T) {
+	prev := defaultMapBackend
+	t.Cleanup(func() { defaultMapBackend = prev })
+
+	for _, backend := range []string{"native", "hamt"} {
+		t.Run(backend, func(t *testing.T) {
+			SetDefaultMapBackend(backend)
+			m := (&Map{}).
+				Put(&String{Value: "a"}, &Number{Value: dec64.FromInt(1)}).
+				Put(&String{Value: "b"}, &Number{Value: dec64.FromInt(2)})
+
+			keyA := (&String{Value: "a"}).MapKey()
+			m.DeleteKey(keyA)
+
+			if m.Len() != 1 {
+				t.Fatalf("unexpected map size after delete: got=%d want=1", m.Len())
+			}
+			if _, ok := m.GetPair(keyA); ok {
+				t.Fatal("deleted key still present")
+			}
+		})
+	}
+}
