@@ -112,6 +112,25 @@ val x = 1`
 	}
 }
 
+func TestParserReportsSyntaxOnlyForSemanticInputs(t *testing.T) {
+	input := `
+@main
+val start = 1
+
+val f = fn(x) {
+  recur(x) + 1
+}
+`
+
+	l := lexer.New(input)
+	p := New(l, "", input)
+	_ = p.ParseProgram()
+
+	if len(p.Errors()) != 0 {
+		t.Fatalf("expected no parser errors for syntactically valid semantic-only failures, got: %v", p.Errors())
+	}
+}
+
 func TestIdentifierExpression(t *testing.T) {
 	input := "foobar;"
 

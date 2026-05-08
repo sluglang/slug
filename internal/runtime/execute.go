@@ -3,12 +3,20 @@ package runtime
 import (
 	"slug/internal/ast"
 	"slug/internal/object"
+	"slug/internal/semantic"
 	"slug/internal/vm"
 )
 
 // ExecuteProgram runs a parsed Slug program on the VM runtime backend.
 func ExecuteProgram(rt *Runtime, env *object.Environment, program *ast.Program) object.Object {
 	installBuiltinsIntoEnv(rt, env)
+	path := env.Path
+	if path == "" {
+		path = rt.Config.MainModule
+	}
+	if semErrs := semantic.Analyze(path, env.Src, program); len(semErrs) > 0 {
+		return &object.Error{Message: semErrs[0]}
+	}
 	vmProgram, prepErr := vm.PrepareProgram(env, program, rt.LookupForeign, hasExportTag, buildParamIndexForVMBridge)
 	if prepErr != nil {
 		return &object.Error{Message: prepErr.Error()}

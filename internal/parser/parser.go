@@ -8,7 +8,6 @@ import (
 	"slug/internal/ast"
 	"slug/internal/dec64"
 	"slug/internal/lexer"
-	"slug/internal/semantic"
 	"slug/internal/token"
 	"slug/internal/util"
 	"strings"
@@ -252,8 +251,6 @@ func (p *Parser) ParseProgram() *ast.Program {
 
 	program.ModuleDoc = p.moduleDoc
 	program.HasModuleDoc = p.hasModuleDoc
-
-	p.errors = append(p.errors, semantic.Analyze(p.Path, p.src, program)...)
 
 	return program
 }

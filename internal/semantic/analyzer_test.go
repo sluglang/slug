@@ -4,6 +4,7 @@ import (
 	"slug/internal/ast"
 	"slug/internal/lexer"
 	"slug/internal/parser"
+	"slug/internal/semantic"
 	"strings"
 	"testing"
 )
@@ -13,7 +14,9 @@ func parseProgram(t *testing.T, input string) (*ast.Program, []string) {
 	l := lexer.New(input)
 	p := parser.New(l, "semantic-test.slug", input)
 	program := p.ParseProgram()
-	return program, p.Errors()
+	errs := p.Errors()
+	errs = append(errs, semantic.Analyze("semantic-test.slug", input, program)...)
+	return program, errs
 }
 
 func TestSemanticMarksTailCallFlags(t *testing.T) {

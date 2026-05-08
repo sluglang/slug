@@ -11,6 +11,7 @@ import (
 	"slug/internal/lexer"
 	"slug/internal/object"
 	"slug/internal/parser"
+	"slug/internal/semantic"
 	"slug/internal/util"
 	"slug/internal/vm"
 	"strings"
@@ -128,6 +129,14 @@ func (r *Runtime) LoadModule(modName string) (*object.Module, error) {
 			slog.String("errors", strings.Join(p.Errors(), "\n")),
 		)
 		return nil, fmt.Errorf("parse errors in module %s:\n%s", modName, strings.Join(p.Errors(), "\n"))
+	}
+	if semErrs := semantic.Analyze(fullPath, string(source), program); len(semErrs) > 0 {
+		slog.Warn("Semantic error loading module",
+			slog.String("name", modName),
+			slog.String("fullPath", fullPath),
+			slog.String("errors", strings.Join(semErrs, "\n")),
+		)
+		return nil, fmt.Errorf("semantic errors in module %s:\n%s", modName, strings.Join(semErrs, "\n"))
 	}
 
 	if r.Config.DebugJsonAST {

@@ -134,3 +134,19 @@
   - `TestSemanticRejectsMultipleMainDeclarations`
 - Validation performed:
   - `go test ./internal/semantic ./internal/parser ./internal/runtime ./internal/vm ./cmd/app -count=1`
+
+### Parser/Semantic split Phase 4 parser-only error boundary
+
+- Completed parser/semantic boundary separation:
+  - `internal/parser.ParseProgram` no longer runs semantic analysis.
+  - Parser now reports syntax/lexing errors only.
+- Semantic phase is now invoked explicitly at execution/analysis entry points:
+  - `internal/runtime/runtime.go` module load path
+  - `internal/runtime/execute.go` program execution path
+  - VM direct test/benchmark parse helpers (`internal/vm/executor_test.go`, `internal/vm/benchmark_test.go`)
+  - Semantic package tests explicitly invoke `semantic.Analyze(...)`.
+- Added parser guard test:
+  - `TestParserReportsSyntaxOnlyForSemanticInputs` in `internal/parser/parser_test.go`
+  - Asserts semantic-only invalid programs do not produce parser errors.
+- Validation performed:
+  - `go test ./internal/parser ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`

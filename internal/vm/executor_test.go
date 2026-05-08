@@ -4,6 +4,7 @@ import (
 	"slug/internal/lexer"
 	"slug/internal/object"
 	"slug/internal/parser"
+	"slug/internal/semantic"
 	"testing"
 )
 
@@ -15,6 +16,9 @@ func runVM(t *testing.T, input string) object.Object {
 	program := p.ParseProgram()
 	if len(p.Errors()) > 0 {
 		t.Fatalf("parse errors: %v", p.Errors())
+	}
+	if errs := semantic.Analyze("test.slug", input, program); len(errs) > 0 {
+		t.Fatalf("semantic errors: %v", errs)
 	}
 
 	exec := NewExecutor(object.NewRootEnvironment(4), nil)

@@ -6,6 +6,7 @@ import (
 	"slug/internal/lexer"
 	"slug/internal/object"
 	"slug/internal/parser"
+	"slug/internal/semantic"
 	"testing"
 )
 
@@ -48,6 +49,9 @@ func parseProgramForBench(b *testing.B, name, src string) *ast.Program {
 	program := p.ParseProgram()
 	if errs := p.Errors(); len(errs) > 0 {
 		b.Fatalf("%s parse errors: %v", name, errs)
+	}
+	if errs := semantic.Analyze(fmt.Sprintf("bench_%s.slug", name), src, program); len(errs) > 0 {
+		b.Fatalf("%s semantic errors: %v", name, errs)
 	}
 	return program
 }
