@@ -305,3 +305,17 @@
   - `internal/foreign/slug_std_benchmark_test.go`
 - Validation performed:
   - `go test ./internal/object ./internal/foreign ./internal/runtime ./internal/vm ./internal/parser ./internal/semantic ./cmd/app -count=1`
+
+## 2026-05-09
+
+### Import collision warnings include importing module context
+
+- Updated import collision warnings in `internal/runtime/slug_fn_builtin.go` to include the current importing module (`ctx.CurrentEnv().ModuleFqn`) in warning text.
+- Applies to both warning forms:
+    - name collision warnings (`WARNING: import name collision ...`)
+    - duplicate function signature collision warnings (`WARNING: import collision in ...`)
+- Rationale: helps users identify which module triggered the warning when diagnosing import collisions.
+- Updated `internal/runtime/slug_fn_builtin_import_test.go` to assert warnings include importing module context.
+- Validation performed:
+    - `go test ./internal/runtime -run Import -count=1`
+

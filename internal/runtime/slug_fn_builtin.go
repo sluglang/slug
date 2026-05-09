@@ -25,6 +25,7 @@ func fnBuiltinImport() *object.Foreign {
 
 			tempMap := make(map[string]object.Object)
 			importedModules := make(map[string]struct{})
+			importerModuleFQN := ctx.CurrentEnv().ModuleFqn
 
 			for i, arg := range args {
 				strArg, ok := arg.(*object.String)
@@ -56,7 +57,7 @@ func fnBuiltinImport() *object.Foreign {
 							existingFg, ok := existing.(*object.FunctionGroup)
 							if !ok {
 								// Short-term: warn and keep the first value.
-								fmt.Fprintf(os.Stderr, "WARNING: import name collision for '%s' (non-function vs function) while importing '%s' (keeping first)\n", name, strArg.Value)
+								fmt.Fprintf(os.Stderr, "WARNING: import name collision in module '%s' for '%s' (non-function vs function) while importing '%s' (keeping first)\n", importerModuleFQN, name, strArg.Value)
 								continue
 							}
 
@@ -81,8 +82,7 @@ func fnBuiltinImport() *object.Foreign {
 										continue
 									}
 									//return ctx.NewError("import collision for function '%s' with duplicate signature %v while importing '%s'", name, sig, strArg.Value)
-									fqn := ctx.CurrentEnv().ModuleFqn
-									fmt.Fprintf(os.Stderr, "WARNING: import collision in %s for function '%s.%s%v' with duplicate signature\n", fqn, strArg.Value, name, sig.String())
+									fmt.Fprintf(os.Stderr, "WARNING: import collision in module '%s' for function '%s.%s%v' with duplicate signature\n", importerModuleFQN, strArg.Value, name, sig.String())
 								}
 							}
 
@@ -113,7 +113,7 @@ func fnBuiltinImport() *object.Foreign {
 
 					// Non-function exports: warn on collisions and keep the first value.
 					if _, exists := tempMap[name]; exists {
-						fmt.Fprintf(os.Stderr, "WARNING: import name collision for '%s' while importing '%s' (keeping first)\n", name, strArg.Value)
+						fmt.Fprintf(os.Stderr, "WARNING: import name collision in module '%s' for '%s' while importing '%s' (keeping first)\n", importerModuleFQN, name, strArg.Value)
 						continue
 					}
 

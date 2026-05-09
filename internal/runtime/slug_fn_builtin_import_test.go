@@ -184,4 +184,47 @@ func TestImportWarnsOnRealDuplicateSignature(t *testing.T) {
 	if !strings.Contains(out, "duplicate signature") {
 		t.Fatalf("expected duplicate signature warning for real collision, got %q", out)
 	}
+	if !strings.Contains(out, "module 'doc'") {
+		t.Fatalf("expected warning to include importing module, got %q", out)
+	}
+}
+
+func TestImportWarnsOnNameCollisionIncludesImportingModule(t *testing.T) {
+	importFn := fnBuiltinImport()
+	envA := object.NewEnvironment()
+	envA.Bindings["x"] = &object.Binding{
+		Value: &object.Number{},
+		Meta: object.Meta{
+			IsExport: true,
+		},
+	}
+	envB := object.NewEnvironment()
+	envB.Bindings["x"] = &object.Binding{
+		Value: &object.Boolean{},
+		Meta: object.Meta{
+			IsExport: true,
+		},
+	}
+	ctx := &importTestContext{
+		env: &object.Environment{ModuleFqn: "doc"},
+		modules: map[string]*object.Module{
+			"slug.a": {Name: "slug.a", Env: envA},
+			"slug.b": {Name: "slug.b", Env: envB},
+		},
+	}
+
+	out := withCapturedStderr(t, func() {
+		_ = importFn.Fn(
+			ctx,
+			&object.String{Value: "slug.a"},
+			&object.String{Value: "slug.b"},
+		)
+	})
+
+	if !strings.Contains(out, "WARNING: import name collision") {
+		t.Fatalf("expected name collision warning, got %q", out)
+	}
+	if !strings.Contains(out, "module 'doc'") {
+		t.Fatalf("expected warning to include importing module, got %q", out)
+	}
 }
