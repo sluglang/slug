@@ -85,6 +85,45 @@ val run = fn(i = 0) {
 }
 run()
 `,
+	"list_append_chain": `
+val run = fn(n, acc = []) {
+  if (n == 0) {
+    acc
+  } else {
+    recur(n - 1, acc :+ n)
+  }
+}
+run(250)
+`,
+	"list_prepend_chain": `
+val run = fn(n, acc = []) {
+  if (n == 0) {
+    acc
+  } else {
+    recur(n - 1, n +: acc)
+  }
+}
+run(250)
+`,
+	"list_concat_chain": `
+val run = fn(n, acc = []) {
+  if (n == 0) {
+    acc
+  } else {
+    recur(n - 1, acc + [n])
+  }
+}
+run(250)
+`,
+	"list_match_tail": `
+val sum = fn(xs, acc = 0) {
+  match xs {
+    [h, ...t] => sum(t, acc + h)
+    [] => acc
+  }
+}
+sum([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25])
+`,
 }
 
 func parseProgramForBench(b *testing.B, name, src string) *ast.Program {

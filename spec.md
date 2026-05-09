@@ -334,3 +334,47 @@
     - `go test ./internal/object ./internal/runtime ./internal/vm ./cmd/app -count=1`
     - `go test ./internal/vm -run '^$' -bench BenchmarkVMExecuteOnly/string_index_scan -benchmem -count=1`
     - `SLUG_HOME=$(pwd) make run ARGS="playground.slug"` (before/after timing)
+
+## 2026-05-09
+
+### VM immutable-list allocation reduction pass (hot paths)
+
+- Optimized list-heavy VM executor paths in `internal/vm/executor.go` to reduce allocation overhead while preserving immutable semantics:
+  - `OpListPrepend` (`+:`) now uses fixed-size allocation and `copy`.
+  - `OpListAppend` (`:+`) now uses fixed-size allocation and `copy`.
+  - `OpAdd` list concatenation now uses a single fixed-size destination with two `copy` operations.
+  - `OpMatchListHeadTail` tail binding now uses fixed-size copy rather than append-based cloning.
+  - `OpMatchSeqTail` list branch now uses fixed-size copy for extracted tails.
+  - List slicing in `evalIndex` now preallocates capacity based on computed slice cardinality via new helper `sequenceSliceLen`.
+- Added list-focused VM execute benchmarks in `internal/vm/benchmark_test.go`:
+  - `list_append_chain`
+  - `list_prepend_chain`
+  - `list_concat_chain`
+  - `list_match_tail`
+- Validation performed:
+  - `go test ./internal/vm -count=1`
+  - `go test ./internal/vm -run '^$' -bench 'BenchmarkVMExecuteOnly/(match_nested|list_append_chain|list_prepend_chain|list_concat_chain|list_match_tail)$' -benchmem`
+
+### VM immutable-list structural sharing (tail/slice)
+
+- Added structural-sharing behavior for immutable list tail/slice paths in `internal/vm/executor.go`:
+  - `OpMatchListHeadTail` now binds `...tail` via shared backing slice (`lst.Elements[1:]`) instead of copying.
+  - `OpMatchSeqTail` list branch now returns shared tail slice (`s.Elements[start:]`) instead of copying.
+  - `evalIndex` list slicing now returns shared contiguous sub-slices when `step == 1`.
+- Rationale: immutable list semantics permit backing-slice sharing; this removes repeated tail-copy allocations in match-heavy recursion.
+- Validation performed:
+  - `go test ./internal/vm ./internal/runtime ./cmd/app -count=1`
+  - `go test ./internal/vm -run '^$' -bench 'BenchmarkVMExecuteOnly/(match_nested|list_append_chain|list_prepend_chain|list_concat_chain|list_match_tail)$' -benchmem`
+
+### VM list concat peephole and structural-sharing follow-up
+
+- Added VM compiler peephole in `internal/vm/compiler.go`:
+  - Rewrites `list + [x]` to `list :+ x`.
+  - Rewrites `[x] + list` to `x +: list`.
+  - Skips spread-element list literals to preserve semantics.
+- This removes temporary single-element list allocations from common concat patterns and makes concat chains use append/prepend fast paths.
+- Combined with prior tail/slice structural sharing in executor, this improves both concat-heavy and match-tail workloads.
+- Validation performed:
+  - `go test ./internal/vm -count=1`
+  - `go test ./internal/runtime ./internal/vm ./cmd/app -count=1`
+  - `go test ./internal/vm -run '^$' -bench 'BenchmarkVMExecuteOnly/(match_nested|list_append_chain|list_prepend_chain|list_concat_chain|list_match_tail)$' -benchmem`

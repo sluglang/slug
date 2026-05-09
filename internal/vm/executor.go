@@ -494,9 +494,9 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 				return e.errorAt(ins.Position, "stack underflow for list prepend")
 			}
 			if rList, ok := right.(*object.List); ok {
-				newElements := make([]object.Object, 0, len(rList.Elements)+1)
-				newElements = append(newElements, left)
-				newElements = append(newElements, rList.Elements...)
+				newElements := make([]object.Object, len(rList.Elements)+1)
+				newElements[0] = left
+				copy(newElements[1:], rList.Elements)
 				e.push(&object.List{Elements: newElements})
 				continue
 			}
@@ -526,9 +526,9 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 				return e.errorAt(ins.Position, "stack underflow for list append")
 			}
 			if lList, ok := left.(*object.List); ok {
-				newElements := make([]object.Object, 0, len(lList.Elements)+1)
-				newElements = append(newElements, lList.Elements...)
-				newElements = append(newElements, right)
+				newElements := make([]object.Object, len(lList.Elements)+1)
+				copy(newElements, lList.Elements)
+				newElements[len(lList.Elements)] = right
 				e.push(&object.List{Elements: newElements})
 				continue
 			}
@@ -566,7 +566,8 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 				continue
 			}
 			head := lst.Elements[0]
-			tail := &object.List{Elements: append([]object.Object(nil), lst.Elements[1:]...)}
+			// Structural sharing for immutable lists: tail reuses backing storage.
+			tail := &object.List{Elements: lst.Elements[1:]}
 			if _, err := e.env.DefineConstant(ins.StrArg, head, false, false); err != nil {
 				return e.errorAt(ins.Position, "%s", err.Error())
 			}
@@ -609,7 +610,8 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 				if start > len(s.Elements) {
 					start = len(s.Elements)
 				}
-				tail := append([]object.Object(nil), s.Elements[start:]...)
+				// Structural sharing for immutable lists: tail reuses backing storage.
+				tail := s.Elements[start:]
 				e.push(&object.List{Elements: tail})
 			case *object.Bytes:
 				if start > len(s.Value) {
@@ -1085,9 +1087,9 @@ func (e *Executor) evalBinary(op Opcode, pos int) object.Object {
 		}
 		if l, ok := left.(*object.List); ok {
 			if r, ok := right.(*object.List); ok {
-				combined := make([]object.Object, 0, len(l.Elements)+len(r.Elements))
-				combined = append(combined, l.Elements...)
-				combined = append(combined, r.Elements...)
+				combined := make([]object.Object, len(l.Elements)+len(r.Elements))
+				copy(combined, l.Elements)
+				copy(combined[len(l.Elements):], r.Elements)
 				e.push(&object.List{Elements: combined})
 				return nil
 			}
@@ -2095,6 +2097,13 @@ func computeSliceIndices(length int, slice *object.Slice) (int, int, int) {
 	return start, end, step
 }
 
+func sequenceSliceLen(start, end, step int) int {
+	if step <= 0 || start >= end {
+		return 0
+	}
+	return (end - start + step - 1) / step
+}
+
 func (e *Executor) resolveValue(pos int, obj object.Object) (object.Object, *object.Error) {
 	for {
 		ref, ok := obj.(*object.BindingRef)
@@ -2182,7 +2191,11 @@ func (e *Executor) evalIndex(left, index object.Object, pos int, isDotLookup boo
 	case *object.List:
 		if slice, ok := index.(*object.Slice); ok {
 			start, end, step := computeSliceIndices(len(l.Elements), slice)
-			result := make([]object.Object, 0)
+			if step == 1 {
+				// Structural sharing for immutable lists: contiguous slice reuses backing storage.
+				return &object.List{Elements: l.Elements[start:end]}, nil
+			}
+			result := make([]object.Object, 0, sequenceSliceLen(start, end, step))
 			for i := start; i < end; i += step {
 				result = append(result, l.Elements[i])
 			}

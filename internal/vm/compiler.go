@@ -151,6 +151,30 @@ func (c *compiler) compileExpression(expr ast.Expression) error {
 		if node.Operator == "&&" || node.Operator == "||" {
 			return c.compileShortCircuit(node)
 		}
+		if node.Operator == "+" {
+			// Peephole: rewrite list concatenation with single-element list literal
+			// into append/prepend opcodes to avoid allocating temporary [x] lists.
+			if elem, ok := singleElementListLiteral(node.Right); ok {
+				if err := c.compileExpression(node.Left); err != nil {
+					return err
+				}
+				if err := c.compileExpression(elem); err != nil {
+					return err
+				}
+				c.emit(Instruction{Op: OpListAppend, Position: node.Token.Position})
+				return nil
+			}
+			if elem, ok := singleElementListLiteral(node.Left); ok {
+				if err := c.compileExpression(elem); err != nil {
+					return err
+				}
+				if err := c.compileExpression(node.Right); err != nil {
+					return err
+				}
+				c.emit(Instruction{Op: OpListPrepend, Position: node.Token.Position})
+				return nil
+			}
+		}
 		if err := c.compileExpression(node.Left); err != nil {
 			return err
 		}
@@ -413,6 +437,17 @@ func (c *compiler) compileExpression(expr ast.Expression) error {
 	default:
 		return unsupportedNodeErr("expression", expr)
 	}
+}
+
+func singleElementListLiteral(expr ast.Expression) (ast.Expression, bool) {
+	lst, ok := expr.(*ast.ListLiteral)
+	if !ok || len(lst.Elements) != 1 {
+		return nil, false
+	}
+	if _, spread := lst.Elements[0].(*ast.SpreadExpression); spread {
+		return nil, false
+	}
+	return lst.Elements[0], true
 }
 
 func (c *compiler) compileMaybeExpression(expr ast.Expression) error {
