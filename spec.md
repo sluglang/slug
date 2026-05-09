@@ -483,3 +483,27 @@
 - Validation performed:
   - `go test ./internal/parser ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
   - `make test`
+
+## 2026-05-09
+
+### Documentation and syntax grammar alignment pass (post ADR-036/037/038)
+
+- Updated editor syntax grammars to align with current language behavior:
+  - `extras/Slug.sublime-package/Slug.sublime-syntax`
+    - `onsuccess`/`onerror` are now highlighted contextually after `defer` instead of as global keywords.
+  - `extras/Slug.tmbundle/Syntaxes/Slug.tmLanguage.json`
+    - `onsuccess`/`onerror` are now contextual defer-mode keywords via defer lookbehind.
+    - annotation token set expanded to include current `@chan` and `@sym` forms.
+- Updated Sublime syntax assertions in `extras/Slug.sublime-package/syntax_test_slug.slug`:
+  - added checks for `@sym` and `@chan` annotations.
+  - added contextual keyword test for `defer onsuccess(...)`.
+  - added out-of-context identifier test for `onsuccess`.
+- Updated docs site lexer parity in `docs/_plugins/slug_lexer.rb`:
+  - removed global keyword classification for `onsuccess`/`onerror`.
+  - added contextual defer lookbehind highlighting for both.
+- Added historical supersession notes to older accepted ADRs whose examples predate current channel semantics:
+  - `docs/_adr/ADR-025.md` now notes supersession by ADR-037 for receive shape.
+  - `docs/_adr/ADR-031.md` now notes supersession by ADR-037 for stdin stream value shape.
+- Validation performed:
+  - `go test ./internal/parser ./internal/runtime ./internal/vm ./cmd/app -count=1`
+  - `make test`

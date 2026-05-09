@@ -39,6 +39,10 @@ var esc = "a\\n\"b\"\{c\123"
 struct { @str name = "x" }
 //^^^^^^ keyword.control.slug
 
+val annot = fn(@sym s, @chan c) { s }
+//             ^^^^ storage.type.annotation.slug
+//                     ^^^^^ storage.type.annotation.slug
+
 var person = Person{ name: "a" }
 //^^^ storage.type.slug
 //                ^ punctuation.section.braces.begin.slug
@@ -66,7 +70,13 @@ var f = nursery limit 10 fn(x, y = 2) {
   spawn { recur(x, y) }
 //^^^^^ keyword.control.concurrent.slug
 //        ^^^^^ keyword.control.flow.slug
+  defer onsuccess(err) { println(err) }
+//^^^^^ keyword.control.flow.defer.slug
+//    ^^^^^^^^^ keyword.control.flow.defer.slug
 }
+
+var onsuccess = 1
+//  ^^^^^^^^^ variable.other.slug
 
 select {
 //^^^^^ keyword.control.concurrent.slug

@@ -106,7 +106,9 @@ contexts:
       scope: keyword.control.flow.return.slug
     - match: \b(throw)\b
       scope: keyword.control.flow.throw.slug
-    - match: \b(defer|onsuccess|onerror)\b
+    - match: \b(defer)\b
+      scope: keyword.control.flow.defer.slug
+    - match: (?<=\bdefer\s)(onsuccess|onerror)\b
       scope: keyword.control.flow.defer.slug
 
     - match: \b(nursery)\b

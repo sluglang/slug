@@ -34,7 +34,8 @@ module Rouge
         rule %r/\b(var|val)\b/, Keyword::Declaration
         rule %r/\b(fn|foreign|match|struct|copy)\b/, Keyword
         rule %r/\b(if|else)\b/, Keyword
-        rule %r/\b(return|recur|throw|defer|onsuccess|onerror)\b/, Keyword
+        rule %r/\b(return|recur|throw|defer)\b/, Keyword
+        rule %r/(?<=\bdefer\s)(onsuccess|onerror)\b/, Keyword
         rule %r/\b(nursery|limit|spawn|await|within)\b/, Keyword
 
         rule %r{/>|=>|\.\.\.|\?\?\?|:\+|\+:}, Operator

@@ -28,7 +28,7 @@
       "patterns": [
         {"name": "storage.modifier.slug", "match": "@export\\b"},
         {"name": "meta.annotation.test.slug", "match": "@testWith\\b"},
-        {"name": "storage.type.annotation.slug", "match": "@(?:bool|bytes|fn|list|map|num|str|symbol|task)\\b"},
+        {"name": "storage.type.annotation.slug", "match": "@(?:bool|bytes|fn|list|map|num|str|chan|sym|task|symbol)\\b"},
         {"name": "entity.name.tag.slug", "match": "@[A-Za-z_][A-Za-z0-9_]*"}
       ]
     },
@@ -61,7 +61,8 @@
         {"name": "storage.type.slug", "match": "\\b(var|val)\\b"},
         {"name": "keyword.control.slug", "match": "\\b(fn|foreign|match|struct|copy)\\b"},
         {"name": "keyword.control.conditional.slug", "match": "\\b(if|else)\\b"},
-        {"name": "keyword.control.flow.slug", "match": "\\b(return|recur|throw|defer|onsuccess|onerror)\\b"},
+        {"name": "keyword.control.flow.slug", "match": "\\b(return|recur|throw|defer)\\b"},
+        {"name": "keyword.control.flow.defer.slug", "match": "(?<=\\bdefer\\s)(onsuccess|onerror)\\b"},
         {
           "name": "meta.nursery-limit.slug",
           "match": "\\b(nursery)\\s+(limit)\\b",
