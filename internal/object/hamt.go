@@ -1,5 +1,7 @@
 package object
 
+import "math/bits"
+
 const (
 	hamtBitsPerLevel = 5
 	hamtMask         = (1 << hamtBitsPerLevel) - 1
@@ -175,10 +177,5 @@ func hamtForEach(node *hamtNode, fn func(MapKey, MapPair) bool) bool {
 }
 
 func trailingSegment(bitmap uint32) int {
-	i := 0
-	for (bitmap & 1) == 0 {
-		bitmap >>= 1
-		i++
-	}
-	return i
+	return bits.TrailingZeros32(bitmap)
 }
