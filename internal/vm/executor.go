@@ -2192,6 +2192,9 @@ func (e *Executor) evalIndex(left, index object.Object, pos int, isDotLookup boo
 		if slice, ok := index.(*object.Slice); ok {
 			start, end, step := computeSliceIndices(len(l.Elements), slice)
 			if step == 1 {
+				if start >= end {
+					return &object.List{Elements: []object.Object{}}, nil
+				}
 				// Structural sharing for immutable lists: contiguous slice reuses backing storage.
 				return &object.List{Elements: l.Elements[start:end]}, nil
 			}

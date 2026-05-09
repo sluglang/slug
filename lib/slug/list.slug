@@ -79,7 +79,7 @@ val flatten = fn(@list lsts) {
 @export
 @returns('@num')
 val indexOf = fn(@list list, value, @num idx = 0) {
-	if (idx > len(list)) {
+	if (idx >= len(list)) {
 		-1
 	} else if (list[idx] == value) {
 		idx

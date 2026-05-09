@@ -297,6 +297,9 @@ func fnStdUpdate() *object.Foreign {
 			if i < 0 || i >= len(list.Elements) {
 				return ctx.NewError("index out of range: %v", index.Value)
 			}
+			if list.Elements[i] == args[2] {
+				return list
+			}
 
 			newElements := make([]object.Object, len(list.Elements))
 			copy(newElements, list.Elements)
@@ -332,6 +335,9 @@ func fnStdSwap() *object.Foreign {
 			if i1 < 0 || i1 >= len(list.Elements) ||
 				i2 < 0 || i2 >= len(list.Elements) {
 				return ctx.NewError("index out of range")
+			}
+			if i1 == i2 {
+				return list
 			}
 
 			newElements := make([]object.Object, len(list.Elements))

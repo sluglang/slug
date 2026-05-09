@@ -29,20 +29,18 @@ func fnListSortWithComparator() *object.Foreign {
 				return ctx.NewError("second argument to `sortWithComparator` must be callable, got=%s", comparator.Type())
 			}
 
-			call := func(args []object.Object) object.Object {
-				return ctx.ApplyFunction(0, "", comparator, args, nil)
-			}
-
 			// Sorting logic using the custom comparator.
 			elements := listObj.Elements
 			sortedElements := make([]object.Object, len(elements))
 			copy(sortedElements, elements)
+			var compareArgs [2]object.Object
 
 			// Use Go's sort.Slice with a custom comparison using the provided comparator.
 			sort.Slice(sortedElements, func(i, j int) bool {
-				// Apply the comparator function to the pair of elements.
-				args := []object.Object{sortedElements[i], sortedElements[j]}
-				callResult := call(args)
+				// Reuse a fixed-size argument buffer to avoid per-compare slice allocations.
+				compareArgs[0] = sortedElements[i]
+				compareArgs[1] = sortedElements[j]
+				callResult := ctx.ApplyFunction(0, "", comparator, compareArgs[:], nil)
 
 				// Ensure the comparator result is a NUMBER_OBJ.
 				resultObj, ok := callResult.(*object.Number)

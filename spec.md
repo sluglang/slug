@@ -378,3 +378,40 @@
   - `go test ./internal/vm -count=1`
   - `go test ./internal/runtime ./internal/vm ./cmd/app -count=1`
   - `go test ./internal/vm -run '^$' -bench 'BenchmarkVMExecuteOnly/(match_nested|list_append_chain|list_prepend_chain|list_concat_chain|list_match_tail)$' -benchmem`
+
+### Standard library list transform optimization pass
+
+- Fixed a boundary condition in `lib/slug/list.slug`:
+  - `indexOf` now stops at `idx >= len(list)` (previously `idx > len(list)`).
+
+### Foreign list-manipulation optimization pass
+
+- Optimized list-manipulation foreign functions in Go (not `.slug` stdlib code):
+  - `internal/foreign/slug_list.go` (`sortWithComparator`): removed per-compare argument-slice allocation by reusing a fixed two-slot argument buffer.
+  - `internal/foreign/slug_std.go`:
+    - `update`: early-return original list when replacement value is identical to existing element.
+    - `swap`: early-return original list when swapping the same index (`i1 == i2`).
+- Added targeted foreign benchmarks in `internal/foreign/slug_std_benchmark_test.go`:
+  - `BenchmarkStdUpdatePersistentOps`
+  - `BenchmarkStdSwapPersistentOps`
+  - `BenchmarkListSortWithComparator`
+- Validation performed:
+  - `go test ./internal/foreign -count=1`
+  - `go test ./internal/foreign -run '^$' -bench 'BenchmarkStd(UpdatePersistentOps|SwapPersistentOps)|BenchmarkListSortWithComparator' -benchmem`
+  - `go test ./internal/foreign ./internal/runtime ./internal/vm ./cmd/app -count=1`
+
+#### Benchmark snapshot
+
+- `BenchmarkStdUpdatePersistentOps`: `165540 ns/op`, `925766 B/op`, `1100 allocs/op`
+- `BenchmarkStdSwapPersistentOps`: `124083 ns/op`, `925763 B/op`, `1100 allocs/op`
+- `BenchmarkListSortWithComparator`: `19528 ns/op`, `15624 B/op`, `460 allocs/op`
+
+### Regression fix: list slice fast-path bounds guard
+
+- Fixed a VM regression introduced by list slice structural sharing in `internal/vm/executor.go`.
+- Root cause: step-1 fast path sliced `l.Elements[start:end]` without guarding `start >= end`, which can occur after slice index normalization and caused `slice bounds out of range` panics.
+- Fix: return an empty list when `start >= end` before taking the shared sub-slice.
+- Validation performed:
+  - `go test ./internal/vm ./internal/runtime ./cmd/app -count=1`
+  - `SLUG_HOME=$(pwd) go run ./cmd/app/main.go -log-level error --root ./tests tests/lists-slicing.slug`
+  - `make test`
