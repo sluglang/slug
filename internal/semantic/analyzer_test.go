@@ -208,3 +208,61 @@ val x = "hello" - 1
 		t.Fatalf("expected inferred type mismatch error, got: %v", errs)
 	}
 }
+
+func TestSemanticTypeCheckStrictChecksStructFieldTagsInInit(t *testing.T) {
+	input := `
+val User = struct {
+  @num age,
+}
+
+val u = User { age: "bad" }
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+		StrictTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+	}
+	if len(errs) == 0 {
+		t.Fatal("expected struct field type mismatch error, got none")
+	}
+	if !containsError(errs, "struct field User.age") {
+		t.Fatalf("expected struct field mismatch error, got: %v", errs)
+	}
+}
+
+func TestSemanticTypeCheckStrictChecksMatchPatternNarrowing(t *testing.T) {
+	input := `
+val xs = [1, 2]
+val out = match xs {
+  [h, ...t] => h + "bad"
+  _ => 0
+}
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+		StrictTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+	}
+	if len(errs) == 0 {
+		t.Fatal("expected narrowed-pattern type mismatch error, got none")
+	}
+	if !containsError(errs, "inferred type mismatch") {
+		t.Fatalf("expected inferred type mismatch error, got: %v", errs)
+	}
+}

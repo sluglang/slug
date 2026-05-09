@@ -56,6 +56,7 @@ type typeChecker struct {
 	constraints []tconstraint
 	diags       []tdiag
 	scopes      []map[string]*tnode
+	schemas     map[string]map[string]*tnode
 }
 
 func (a *analyzer) runInferredTypeChecks(program *ast.Program, strict bool) {
@@ -71,7 +72,7 @@ func (a *analyzer) runInferredTypeChecks(program *ast.Program, strict bool) {
 }
 
 func newTypeChecker(a *analyzer) *typeChecker {
-	c := &typeChecker{a: a}
+	c := &typeChecker{a: a, schemas: map[string]map[string]*tnode{}}
 	c.pushScope()
 	return c
 }
@@ -211,6 +212,13 @@ func (c *typeChecker) inferBlock(block *ast.BlockStatement) *tnode {
 	}
 	c.pushScope()
 	defer c.popScope()
+	return c.inferBlockInCurrentScope(block)
+}
+
+func (c *typeChecker) inferBlockInCurrentScope(block *ast.BlockStatement) *tnode {
+	if block == nil {
+		return c.scalar(typeNil)
+	}
 	last := c.scalar(typeNil)
 	for _, stmt := range block.Statements {
 		last = c.inferStatement(stmt)
@@ -305,11 +313,23 @@ func (c *typeChecker) inferExpr(expr ast.Expression) *tnode {
 	case *ast.StructSchemaExpression:
 		return &tnode{kind: typeStruct, name: "schema"}
 	case *ast.StructInitExpression:
-		_ = c.inferExpr(e.Schema)
-		for _, f := range e.Fields {
-			c.inferExpr(f.Value)
+		schemaType := c.inferExpr(e.Schema)
+		c.addConstraint(schemaType, &tnode{kind: typeStruct}, e.Token.Position, "struct init schema type")
+		var schemaName string
+		if id, ok := e.Schema.(*ast.Identifier); ok {
+			schemaName = id.Value
 		}
-		return &tnode{kind: typeStruct}
+		for _, f := range e.Fields {
+			fv := c.inferExpr(f.Value)
+			if schemaName != "" {
+				if fields, ok := c.schemas[schemaName]; ok {
+					if expected, ok := fields[f.Name]; ok {
+						c.addConstraint(fv, expected, f.Token.Position, fmt.Sprintf("struct field %s.%s", schemaName, f.Name))
+					}
+				}
+			}
+		}
+		return &tnode{kind: typeStruct, name: schemaName}
 	case *ast.StructCopyExpression:
 		s := c.inferExpr(e.Source)
 		_ = c.inferExpr(e.Fields)
@@ -318,26 +338,34 @@ func (c *typeChecker) inferExpr(expr ast.Expression) *tnode {
 		rhs := c.inferExpr(e.Value)
 		c.enforceTags(rhs, e.Tags, e.Token.Position)
 		c.bindPattern(e.Pattern, rhs)
+		c.registerStructSchema(e.Pattern, e.Value)
 		return rhs
 	case *ast.ValExpression:
 		rhs := c.inferExpr(e.Value)
 		c.enforceTags(rhs, e.Tags, e.Token.Position)
 		c.bindPattern(e.Pattern, rhs)
+		c.registerStructSchema(e.Pattern, e.Value)
 		return rhs
 	case *ast.MatchExpression:
+		var scrutinee *tnode
 		if e.Value != nil {
-			c.inferExpr(e.Value)
+			scrutinee = c.inferExpr(e.Value)
 		}
 		out := c.freshUnknown()
 		for _, cs := range e.Cases {
 			if cs == nil {
 				continue
 			}
+			c.pushScope()
+			if scrutinee != nil {
+				c.narrowPattern(cs.Pattern, scrutinee, cs.Token.Position)
+			}
 			if cs.Guard != nil {
 				guardType := c.inferExpr(cs.Guard)
 				c.addConstraint(guardType, c.scalar(typeBool), cs.Token.Position, "match guard must be boolean")
 			}
-			bodyType := c.inferBlock(cs.Body)
+			bodyType := c.inferBlockInCurrentScope(cs.Body)
+			c.popScope()
 			c.addConstraint(out, bodyType, cs.Token.Position, "match case result")
 		}
 		return out
@@ -530,6 +558,89 @@ func (c *typeChecker) bindPattern(pattern ast.MatchPattern, valueType *tnode) {
 			c.bind(p.Value.Value, c.freshUnknown())
 		}
 	}
+}
+
+func (c *typeChecker) narrowPattern(pattern ast.MatchPattern, valueType *tnode, pos int) {
+	if pattern == nil {
+		return
+	}
+	switch p := pattern.(type) {
+	case *ast.WildcardPattern:
+		return
+	case *ast.IdentifierPattern, *ast.BindingPattern, *ast.SpreadPattern:
+		c.bindPattern(pattern, valueType)
+	case *ast.LiteralPattern:
+		lit := c.inferExpr(p.Value)
+		c.addConstraint(valueType, lit, pos, "match literal pattern")
+	case *ast.ListPattern:
+		elem := c.freshUnknown()
+		c.addConstraint(valueType, c.listType(elem), pos, "match list pattern")
+		for _, item := range p.Elements {
+			c.narrowPattern(item, elem, pos)
+		}
+	case *ast.MapPattern:
+		mv := c.freshUnknown()
+		c.addConstraint(valueType, c.mapType(c.freshUnknown(), mv), pos, "match map pattern")
+		for _, entry := range p.Pairs {
+			c.narrowPattern(entry.Pattern, mv, pos)
+		}
+		if p.Spread != nil {
+			c.narrowPattern(p.Spread, c.mapType(c.freshUnknown(), mv), pos)
+		}
+	case *ast.StructPattern:
+		c.addConstraint(valueType, &tnode{kind: typeStruct, name: p.Schema.Value}, pos, "match struct pattern")
+		if fields, ok := c.schemas[p.Schema.Value]; ok {
+			for _, f := range p.Fields {
+				expected, found := fields[f.Name]
+				if found {
+					c.narrowPattern(f.Pattern, expected, pos)
+				} else {
+					c.narrowPattern(f.Pattern, c.freshUnknown(), pos)
+				}
+			}
+			return
+		}
+		for _, f := range p.Fields {
+			c.narrowPattern(f.Pattern, c.freshUnknown(), pos)
+		}
+	case *ast.MultiPattern:
+		for _, alt := range p.Patterns {
+			c.narrowPattern(alt, valueType, pos)
+		}
+	}
+}
+
+func (c *typeChecker) registerStructSchema(pattern ast.MatchPattern, value ast.Expression) {
+	if value == nil || pattern == nil {
+		return
+	}
+	schemaExpr, ok := value.(*ast.StructSchemaExpression)
+	if !ok {
+		return
+	}
+	idPattern, ok := pattern.(*ast.IdentifierPattern)
+	if !ok || idPattern.Value == nil {
+		return
+	}
+	name := idPattern.Value.Value
+	fieldTypes := map[string]*tnode{}
+	for _, field := range schemaExpr.Fields {
+		ft := c.freshUnknown()
+		for _, tag := range field.Tags {
+			if tag == nil {
+				continue
+			}
+			if tt := c.cloneScalarTagType(tag.Name); tt != nil {
+				c.addConstraint(ft, tt, field.Token.Position, fmt.Sprintf("struct schema tag %s.%s", name, field.Name))
+			}
+		}
+		if field.Default != nil {
+			dt := c.inferExpr(field.Default)
+			c.addConstraint(ft, dt, field.Token.Position, fmt.Sprintf("struct schema default %s.%s", name, field.Name))
+		}
+		fieldTypes[field.Name] = ft
+	}
+	c.schemas[name] = fieldTypes
 }
 
 func (c *typeChecker) enforceTags(t *tnode, tags []*ast.Tag, pos int) {

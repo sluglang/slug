@@ -584,3 +584,17 @@
   - `TestSemanticTypeCheckStrictPromotesMismatchToError`
 - Validation performed:
   - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
+
+### Semantic inferred type checking expansion: match narrowing + struct-aware checks
+
+- Extended semantic type inference with case-local match narrowing:
+  - match scrutinee constraints are now applied to each case pattern in a scoped context,
+  - pattern-bound names are inferred and available in case body type checks.
+- Added struct-schema-aware field checking for struct initialization:
+  - schema declarations captured from `val/var Name = struct { ... }`,
+  - struct init expressions `Name { field: value }` now enforce field tag/default-derived type constraints.
+- Added semantic strict-mode tests:
+  - `TestSemanticTypeCheckStrictChecksStructFieldTagsInInit`
+  - `TestSemanticTypeCheckStrictChecksMatchPatternNarrowing`
+- Validation performed:
+  - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
