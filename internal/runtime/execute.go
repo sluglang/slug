@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"log/slog"
 	"slug/internal/ast"
 	"slug/internal/object"
 	"slug/internal/semantic"
@@ -14,7 +15,17 @@ func ExecuteProgram(rt *Runtime, env *object.Environment, program *ast.Program) 
 	if path == "" {
 		path = rt.Config.MainModule
 	}
-	if semErrs := semantic.Analyze(path, env.Src, program); len(semErrs) > 0 {
+	semErrs, semWarns := semantic.AnalyzeWithOptions(path, env.Src, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: rt.Config.EnableTypeCheck,
+		StrictTypeCheck: rt.Config.StrictTypeCheck,
+	})
+	if len(semWarns) > 0 {
+		slog.Warn("Semantic type warnings executing program",
+			slog.String("path", path),
+			slog.String("warnings", semWarns[0]),
+		)
+	}
+	if len(semErrs) > 0 {
 		return &object.Error{Message: semErrs[0]}
 	}
 	vmProgram, prepErr := vm.PrepareProgram(env, program, rt.LookupForeign, hasExportTag, buildParamIndexForVMBridge)

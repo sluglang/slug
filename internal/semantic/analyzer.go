@@ -7,23 +7,38 @@ import (
 	"slug/internal/util"
 )
 
+type AnalyzeOptions struct {
+	EnableTypeCheck bool
+	StrictTypeCheck bool
+}
+
 // Analyze performs semantic validation and annotations on a parsed AST.
 // It returns formatted diagnostics compatible with parser error formatting.
 func Analyze(path, src string, program *ast.Program) []string {
+	errs, _ := AnalyzeWithOptions(path, src, program, AnalyzeOptions{})
+	return errs
+}
+
+// AnalyzeWithOptions performs semantic checks and returns both errors and warnings.
+func AnalyzeWithOptions(path, src string, program *ast.Program, opts AnalyzeOptions) ([]string, []string) {
 	if program == nil {
-		return nil
+		return nil, nil
 	}
 	a := &analyzer{path: path, src: src}
 	a.annotateAndValidateFunctions(program)
 	a.validateStructSchemaUsage(program)
 	a.validateMainTagUsage(program)
-	return a.errors
+	if opts.EnableTypeCheck {
+		a.runInferredTypeChecks(program, opts.StrictTypeCheck)
+	}
+	return a.errors, a.warnings
 }
 
 type analyzer struct {
-	path   string
-	src    string
-	errors []string
+	path     string
+	src      string
+	errors   []string
+	warnings []string
 }
 
 func (a *analyzer) addErrorAt(pos int, message string, args ...interface{}) {
@@ -36,6 +51,18 @@ func (a *analyzer) addErrorAt(pos int, message string, args ...interface{}) {
 	errorMsg.WriteString(util.GetContextLines(a.src, line, col))
 
 	a.errors = append(a.errors, errorMsg.String())
+}
+
+func (a *analyzer) addWarningAt(pos int, message string, args ...interface{}) {
+	line, col := util.GetLineAndColumn(a.src, pos)
+	m := fmt.Sprintf(message, args...)
+
+	var warningMsg bytes.Buffer
+	warningMsg.WriteString(fmt.Sprintf("\nTypeWarning: %s\n", m))
+	warningMsg.WriteString(fmt.Sprintf("    --> %s:%d:%d\n", a.path, line, col))
+	warningMsg.WriteString(util.GetContextLines(a.src, line, col))
+
+	a.warnings = append(a.warnings, warningMsg.String())
 }
 
 func (a *analyzer) annotateAndValidateFunctions(program *ast.Program) {

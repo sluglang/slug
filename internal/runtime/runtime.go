@@ -118,7 +118,18 @@ func (r *Runtime) LoadModule(modName string) (*object.Module, error) {
 		)
 		return nil, fmt.Errorf("parse errors in module %s:\n%s", modName, strings.Join(p.Errors(), "\n"))
 	}
-	if semErrs := semantic.Analyze(fullPath, string(source), program); len(semErrs) > 0 {
+	semErrs, semWarns := semantic.AnalyzeWithOptions(fullPath, string(source), program, semantic.AnalyzeOptions{
+		EnableTypeCheck: r.Config.EnableTypeCheck,
+		StrictTypeCheck: r.Config.StrictTypeCheck,
+	})
+	if len(semWarns) > 0 {
+		slog.Warn("Semantic type warnings loading module",
+			slog.String("name", modName),
+			slog.String("fullPath", fullPath),
+			slog.String("warnings", strings.Join(semWarns, "\n")),
+		)
+	}
+	if len(semErrs) > 0 {
 		slog.Warn("Semantic error loading module",
 			slog.String("name", modName),
 			slog.String("fullPath", fullPath),

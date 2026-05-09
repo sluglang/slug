@@ -25,9 +25,11 @@ var (
 	logFile   string
 	logSource bool
 	// config vars
-	rootPath     string
-	debugJsonAST bool
-	debugTxtAST  bool
+	rootPath        string
+	debugJsonAST    bool
+	debugTxtAST     bool
+	typeCheck       bool
+	typeCheckStrict bool
 )
 
 func init() {
@@ -40,6 +42,8 @@ func init() {
 	// parser config
 	flag.BoolVar(&debugJsonAST, "debug-json-ast", false, "Render the AST as a JSON file")
 	flag.BoolVar(&debugTxtAST, "debug-txt-ast", false, "Render the AST as a TXT file")
+	flag.BoolVar(&typeCheck, "type-check", true, "Enable inferred type checking during semantic analysis")
+	flag.BoolVar(&typeCheckStrict, "type-check-strict", false, "Treat inferred type diagnostics as semantic errors")
 	// log config
 	flag.StringVar(&logLevel, "log-level", "NONE", "Log level: trace, debug, info, warn, error, none")
 	flag.StringVar(&logFile, "log-file", "", "Log file path (if not set, logs to stderr)")
@@ -94,16 +98,18 @@ func main() {
 	}
 
 	config := util.Configuration{
-		Version:      Version,
-		RootPath:     resolvedRootPath,
-		ProjectRoot:  filepath.Clean(projectRoot),
-		Cwd:          filepath.Clean(processCwd),
-		SlugHome:     os.Getenv("SLUG_HOME"),
-		DebugJsonAST: debugJsonAST,
-		DebugTxtAST:  debugTxtAST,
-		DefaultLimit: max(stdrt.NumCPU()*2, 4),
-		Argv:         flag.Args()[1:],
-		MainModule:   mainModule,
+		Version:         Version,
+		RootPath:        resolvedRootPath,
+		ProjectRoot:     filepath.Clean(projectRoot),
+		Cwd:             filepath.Clean(processCwd),
+		SlugHome:        os.Getenv("SLUG_HOME"),
+		DebugJsonAST:    debugJsonAST,
+		DebugTxtAST:     debugTxtAST,
+		DefaultLimit:    max(stdrt.NumCPU()*2, 4),
+		Argv:            flag.Args()[1:],
+		MainModule:      mainModule,
+		EnableTypeCheck: typeCheck,
+		StrictTypeCheck: typeCheckStrict,
 	}
 
 	// 3. Tokenize & Parse
@@ -254,5 +260,7 @@ Options:
   -log-file <path>   Specify a log file to write logs. Default is stderr.
   -debug-json-ast    Render the AST as a JSON file.
   -debug-txt-ast     Render the AST as a TXT file.
+  -type-check        Enable inferred type checking during semantic analysis.
+  -type-check-strict Treat inferred type diagnostics as semantic errors.
 `)
 }

@@ -158,3 +158,53 @@ func containsError(errs []string, want string) bool {
 	}
 	return false
 }
+
+func TestSemanticTypeCheckWarnsByDefaultForTypeMismatch(t *testing.T) {
+	input := `
+val x = "hello" - 1
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+		StrictTypeCheck: false,
+	})
+	if len(errs) > 0 {
+		t.Fatalf("expected no semantic errors in warn mode, got: %v", errs)
+	}
+	if len(warns) == 0 {
+		t.Fatal("expected type warnings, got none")
+	}
+	if !containsError(warns, "inferred type mismatch") {
+		t.Fatalf("expected inferred type mismatch warning, got: %v", warns)
+	}
+}
+
+func TestSemanticTypeCheckStrictPromotesMismatchToError(t *testing.T) {
+	input := `
+val x = "hello" - 1
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+		StrictTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+	}
+	if len(errs) == 0 {
+		t.Fatal("expected semantic errors in strict mode, got none")
+	}
+	if !containsError(errs, "inferred type mismatch") {
+		t.Fatalf("expected inferred type mismatch error, got: %v", errs)
+	}
+}

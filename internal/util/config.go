@@ -9,17 +9,19 @@ import (
 )
 
 type Configuration struct {
-	Version      string
-	RootPath     string
-	ProjectRoot  string
-	Cwd          string
-	SlugHome     string
-	Argv         []string
-	DebugJsonAST bool
-	DebugTxtAST  bool
-	DefaultLimit int
-	MainModule   string // The entry point module name (e.g., "slug.server")
-	Store        *ConfigStore
+	Version         string
+	RootPath        string
+	ProjectRoot     string
+	Cwd             string
+	SlugHome        string
+	Argv            []string
+	DebugJsonAST    bool
+	DebugTxtAST     bool
+	DefaultLimit    int
+	MainModule      string // The entry point module name (e.g., "slug.server")
+	EnableTypeCheck bool
+	StrictTypeCheck bool
+	Store           *ConfigStore
 }
 
 type ConfigStore struct {
