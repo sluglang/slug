@@ -462,3 +462,24 @@
 - Validation performed:
   - `go test ./internal/vm ./internal/runtime ./cmd/app -count=1`
   - `make test`
+
+## 2026-05-09
+
+### ADR-038: structural brace disambiguation for maps and blocks
+
+- Updated parser brace handling in `internal/parser/parser.go` to structurally disambiguate `{...}` in expression positions:
+  - `{}` parses as empty map.
+  - map-shaped entries (e.g. `{k: v}`, `{"k": v}`, `{:k: v}`, `{[expr]: v}`) parse as map literals.
+  - non-map brace bodies parse as block expressions.
+- Updated match arm parsing in `parseMatchCase` to allow direct map-return bodies (`=> {k: v}`) while preserving multiline statement block behavior for non-map brace bodies.
+- Kept legacy `{{...}}` behavior working (block containing map), while migrating canonical fixture usage to single-brace map return style.
+- Added parser coverage in `internal/parser/parser_test.go`:
+  - `TestMatchCaseBraceBodyParsesMapLiteral`
+  - `TestMatchCaseDoubleBraceStillParses`
+  - `TestParsingBlockExpressionLiteral`
+- Updated integration fixtures:
+  - `test-suites/match.slug` uses direct map-return braces and includes a legacy double-brace compatibility test.
+  - `test-suites/parsing.slug` uses direct map-return braces and includes a legacy double-brace compatibility test.
+- Validation performed:
+  - `go test ./internal/parser ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
+  - `make test`

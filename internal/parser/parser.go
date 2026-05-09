@@ -117,7 +117,7 @@ func New(l lexer.Tokenizer, path, source string) *Parser {
 	p.registerPrefix(token.IF, p.parseIfExpression)
 	p.registerPrefix(token.FUNCTION, p.parseFunctionLiteral)
 	p.registerPrefix(token.LBRACKET, p.parseListLiteral)
-	p.registerPrefix(token.LBRACE, p.parseMapLiteral)
+	p.registerPrefix(token.LBRACE, p.parseBraceExpression)
 	p.registerPrefix(token.MATCH, p.parseMatchExpression)
 	p.registerPrefix(token.SELECT, p.parseSelectExpression)
 	p.registerPrefix(token.VAR, p.parseVarStatement)
@@ -872,33 +872,55 @@ func (p *Parser) parseMatchCase() *ast.MatchCase {
 		return nil
 	}
 
-	// Parse block statement or expression
+	// Parse single-statement body (expression statement OR throw/return/etc).
+	// If body starts with '{', distinguish map expression vs block directly so
+	// brace blocks don't continue into the next match case via indexing/calls.
 	if p.peekTokenIs(token.LBRACE) {
+		p.nextToken() // move to '{'
+		parseAsMap := p.peekTokenIs(token.RBRACE) || p.braceStartsMapLiteral()
+		if p.peekTokenIs(token.NEWLINE) {
+			switch p.peek2Token.Type {
+			case token.STRING, token.COLON, token.LBRACKET:
+				parseAsMap = true
+			default:
+				parseAsMap = false
+			}
+		}
+		if parseAsMap {
+			stmt := &ast.ExpressionStatement{
+				Token:      p.curToken,
+				Expression: p.parseExpression(LOWEST),
+			}
+			matchCase.Body = &ast.BlockStatement{
+				Token:      matchCase.Token,
+				Statements: []ast.Statement{stmt},
+			}
+		} else {
+			matchCase.Body = p.parseBlockStatement()
+		}
+		return matchCase
+	}
+
+	p.nextToken() // move to first token of body (may be NEWLINE)
+	p.skipLeadingNewlines()
+
+	stmt := p.parseStatement()
+	if stmt == nil {
+		// If the body line is empty, it's a real syntax error (match arms require a body)
+		p.addErrorAt(p.curToken.Position, "match case body expected after '=>', got %s", p.curToken.Type)
+		return nil
+	}
+
+	matchCase.Body = &ast.BlockStatement{
+		Token: matchCase.Token,
+		Statements: []ast.Statement{
+			stmt,
+		},
+	}
+
+	// case terminator: ; OR NEWLINE OR } (outer loop handles })
+	if p.peekTokenIs(token.SEMICOLON) || p.peekTokenIs(token.NEWLINE) {
 		p.nextToken()
-		matchCase.Body = p.parseBlockStatement()
-	} else {
-		// For single-statement cases (expression statement OR throw/return/etc)
-		p.nextToken() // move to first token of body (may be NEWLINE)
-		p.skipLeadingNewlines()
-
-		stmt := p.parseStatement()
-		if stmt == nil {
-			// If the body line is empty, it's a real syntax error (match arms require a body)
-			p.addErrorAt(p.curToken.Position, "match case body expected after '=>', got %s", p.curToken.Type)
-			return nil
-		}
-
-		matchCase.Body = &ast.BlockStatement{
-			Token: matchCase.Token,
-			Statements: []ast.Statement{
-				stmt,
-			},
-		}
-
-		// case terminator: ; OR NEWLINE OR } (outer loop handles })
-		if p.peekTokenIs(token.SEMICOLON) || p.peekTokenIs(token.NEWLINE) {
-			p.nextToken()
-		}
 	}
 
 	return matchCase
@@ -1950,6 +1972,69 @@ func (p *Parser) parseMapLiteral() ast.Expression {
 	}
 
 	return mapLit
+}
+
+func (p *Parser) parseBraceExpression() ast.Expression {
+	if p.peekTokenIs(token.RBRACE) {
+		return p.parseMapLiteral()
+	}
+	if p.braceStartsMapLiteral() {
+		return p.parseMapLiteral()
+	}
+	return p.parseBlockStatement()
+}
+
+func (p *Parser) braceStartsMapLiteral() bool {
+	first := p.peekToken.Type
+	second := p.peek2Token.Type
+
+	// If the first token after '{' is a newline, classify based on the first
+	// token on the next line when possible.
+	if first == token.NEWLINE {
+		first = second
+		switch first {
+		case token.VAL,
+			token.VAR,
+			token.RETURN,
+			token.THROW,
+			token.DEFER,
+			token.IF,
+			token.MATCH,
+			token.SELECT,
+			token.NURSERY,
+			token.SPAWN:
+			return false
+		default:
+			return true
+		}
+	}
+
+	switch first {
+	case token.VAL,
+		token.VAR,
+		token.RETURN,
+		token.THROW,
+		token.DEFER,
+		token.IF,
+		token.MATCH,
+		token.SELECT,
+		token.NURSERY,
+		token.SPAWN:
+		return false
+	}
+
+	// Detect the common map entry forms: key: value and [expr]: value.
+	if second == token.COLON {
+		return true
+	}
+	if first == token.COLON {
+		return true
+	}
+	if first == token.LBRACKET {
+		return true
+	}
+
+	return false
 }
 
 func (p *Parser) parseStructSchemaExpression() ast.Expression {

@@ -410,6 +410,70 @@ match -1 {
 	}
 }
 
+func TestMatchCaseBraceBodyParsesMapLiteral(t *testing.T) {
+	input := `
+match true {
+  _ => {result: true}
+}
+`
+
+	l := lexer.New(input)
+	p := New(l, "", input)
+	program := p.ParseProgram()
+	checkParserErrors(t, p)
+
+	stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
+	if !ok {
+		t.Fatalf("stmt not *ast.ExpressionStatement. got=%T", program.Statements[0])
+	}
+	matchExpr, ok := stmt.Expression.(*ast.MatchExpression)
+	if !ok {
+		t.Fatalf("expression not *ast.MatchExpression. got=%T", stmt.Expression)
+	}
+	if len(matchExpr.Cases) != 1 {
+		t.Fatalf("expected 1 case. got=%d", len(matchExpr.Cases))
+	}
+	if len(matchExpr.Cases[0].Body.Statements) != 1 {
+		t.Fatalf("expected 1 body statement. got=%d", len(matchExpr.Cases[0].Body.Statements))
+	}
+	bodyStmt, ok := matchExpr.Cases[0].Body.Statements[0].(*ast.ExpressionStatement)
+	if !ok {
+		t.Fatalf("body statement not *ast.ExpressionStatement. got=%T", matchExpr.Cases[0].Body.Statements[0])
+	}
+	if _, ok := bodyStmt.Expression.(*ast.MapLiteral); !ok {
+		t.Fatalf("body expression not *ast.MapLiteral. got=%T", bodyStmt.Expression)
+	}
+}
+
+func TestMatchCaseDoubleBraceStillParses(t *testing.T) {
+	input := `
+match true {
+  _ => {{result: true}}
+}
+`
+
+	l := lexer.New(input)
+	p := New(l, "", input)
+	program := p.ParseProgram()
+	checkParserErrors(t, p)
+
+	stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
+	if !ok {
+		t.Fatalf("stmt not *ast.ExpressionStatement. got=%T", program.Statements[0])
+	}
+	matchExpr, ok := stmt.Expression.(*ast.MatchExpression)
+	if !ok {
+		t.Fatalf("expression not *ast.MatchExpression. got=%T", stmt.Expression)
+	}
+	bodyStmt, ok := matchExpr.Cases[0].Body.Statements[0].(*ast.ExpressionStatement)
+	if !ok {
+		t.Fatalf("body statement not *ast.ExpressionStatement. got=%T", matchExpr.Cases[0].Body.Statements[0])
+	}
+	if _, ok := bodyStmt.Expression.(*ast.MapLiteral); !ok {
+		t.Fatalf("body expression not *ast.MapLiteral. got=%T", bodyStmt.Expression)
+	}
+}
+
 func TestIntegerLiteralExpression(t *testing.T) {
 	input := "5;"
 
@@ -1102,6 +1166,24 @@ func TestParsingEmptyMapLiteral(t *testing.T) {
 
 	if len(mapLiteral.Pairs) != 0 {
 		t.Errorf("mapLiteral.Pairs has wrong length. got=%d", len(mapLiteral.Pairs))
+	}
+}
+
+func TestParsingBlockExpressionLiteral(t *testing.T) {
+	input := "{\nval x = 1\nx + 2\n}"
+
+	l := lexer.New(input)
+	p := New(l, "", input)
+	program := p.ParseProgram()
+	checkParserErrors(t, p)
+
+	stmt := program.Statements[0].(*ast.ExpressionStatement)
+	block, ok := stmt.Expression.(*ast.BlockStatement)
+	if !ok {
+		t.Fatalf("exp is not ast.BlockStatement. got=%T", stmt.Expression)
+	}
+	if len(block.Statements) != 2 {
+		t.Fatalf("expected 2 statements in block. got=%d", len(block.Statements))
 	}
 }
 

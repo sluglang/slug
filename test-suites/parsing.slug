@@ -9,10 +9,20 @@ var {*} = import(
 var map_defined_in_a_block_parses_correctly = fn() {
 	val addTotals = fn(i) {
 		match true {
-			_ => {{c: i, d: i}}
+			_ => {c: i, d: i}
 		}
 	}
 	addTotals(1) /> assertEqual({c: 1, d: 1})
+}
+
+@test
+var legacy_double_brace_map_return_still_parses = fn() {
+	val addTotals = fn(i) {
+		match true {
+			_ => {{c: i, d: i}}
+		}
+	}
+	addTotals(2) /> assertEqual({c: 2, d: 2})
 }
 
 @test
