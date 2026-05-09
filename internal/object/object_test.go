@@ -26,6 +26,21 @@ func TestStringMapKey(t *testing.T) {
 	}
 }
 
+func TestStringRuneAccess(t *testing.T) {
+	s := &String{Value: "a€文"}
+
+	if got := s.RuneCount(); got != 3 {
+		t.Fatalf("unexpected rune count: got=%d want=3", got)
+	}
+	r, ok := s.RuneAt(1)
+	if !ok || r != '€' {
+		t.Fatalf("unexpected rune at index 1: got=%q ok=%v", r, ok)
+	}
+	if _, ok := s.RuneAt(3); ok {
+		t.Fatal("expected out-of-bounds rune lookup to fail")
+	}
+}
+
 func TestBooleanMapKey(t *testing.T) {
 	true1 := &Boolean{Value: true}
 	true2 := &Boolean{Value: true}

@@ -11,7 +11,6 @@ import (
 	"slug/internal/util"
 	"strconv"
 	"strings"
-	"unicode/utf8"
 )
 
 func fnBuiltinImport() *object.Foreign {
@@ -150,7 +149,7 @@ func fnBuiltinLen() *object.Foreign {
 			case *object.Map:
 				return &object.Number{Value: dec64.FromInt(arg.Len())}
 			case *object.String:
-				return &object.Number{Value: dec64.FromInt(utf8.RuneCountInString(arg.Value))}
+				return &object.Number{Value: dec64.FromInt(arg.RuneCount())}
 			case *object.Bytes:
 				return &object.Number{Value: dec64.FromInt(len(arg.Value))}
 			default:

@@ -13,6 +13,7 @@ import (
 	"slug/internal/util"
 	"sort"
 	"strings"
+	"sync"
 	"unicode/utf8"
 )
 
@@ -161,8 +162,10 @@ func (b *Boolean) SetTag(tag string, params List) {
 }
 
 type String struct {
-	Tags  map[string]List
-	Value string
+	Tags      map[string]List
+	Value     string
+	runesOnce sync.Once
+	runes     []rune
 }
 
 func (s *String) Type() ObjectType { return STRING_OBJ }
@@ -187,6 +190,22 @@ func (s *String) GetTags() map[string]List {
 }
 func (s *String) SetTag(tag string, params List) {
 	setTag(&s.Tags, tag, params)
+}
+func (s *String) Runes() []rune {
+	s.runesOnce.Do(func() {
+		s.runes = []rune(s.Value)
+	})
+	return s.runes
+}
+func (s *String) RuneCount() int {
+	return len(s.Runes())
+}
+func (s *String) RuneAt(index int) (rune, bool) {
+	runes := s.Runes()
+	if index < 0 || index >= len(runes) {
+		return 0, false
+	}
+	return runes[index], true
 }
 
 type Bytes struct {

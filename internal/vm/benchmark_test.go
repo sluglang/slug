@@ -72,6 +72,19 @@ val run = fn(n) {
 }
 run(200)
 `,
+	"string_index_scan": `
+val s = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+val n = 124
+val run = fn(i = 0) {
+  if (i >= n) {
+    i
+  } else {
+    val c = s[i]
+    recur(i + 1)
+  }
+}
+run()
+`,
 }
 
 func parseProgramForBench(b *testing.B, name, src string) *ast.Program {

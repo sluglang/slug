@@ -2203,7 +2203,7 @@ func (e *Executor) evalIndex(left, index object.Object, pos int, isDotLookup boo
 		return l.Elements[idx], nil
 	case *object.String:
 		if slice, ok := index.(*object.Slice); ok {
-			runes := []rune(l.Value)
+			runes := l.Runes()
 			start, end, step := computeSliceIndices(len(runes), slice)
 			var b strings.Builder
 			for i := start; i < end; i += step {
@@ -2216,7 +2216,7 @@ func (e *Executor) evalIndex(left, index object.Object, pos int, isDotLookup boo
 			return nil, e.errorAt(pos, "index operator not supported: %s", index.Type())
 		}
 		idx := num.Value.ToInt64()
-		runes := []rune(l.Value)
+		runes := l.Runes()
 		max := int64(len(runes) - 1)
 		if idx < 0 {
 			idx = max + idx + 1

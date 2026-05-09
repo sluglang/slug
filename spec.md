@@ -319,3 +319,18 @@
 - Validation performed:
     - `go test ./internal/runtime -run Import -count=1`
 
+### VM string indexing cache for CSV-heavy workloads
+
+- Added lazy rune caching on `object.String` in `internal/object/object.go`:
+    - `Runes()`
+    - `RuneCount()`
+    - `RuneAt(...)`
+- Updated VM string index/slice execution in `internal/vm/executor.go` to reuse cached runes instead of rebuilding `[]rune` per index operation.
+- Updated `len(@str)` builtin in `internal/runtime/slug_fn_builtin.go` to use `(*object.String).RuneCount()`.
+- Added coverage for rune helper behavior in `internal/object/object_test.go`.
+- Added `string_index_scan` execution benchmark case in `internal/vm/benchmark_test.go`.
+- Rationale: `playground.slug` CSV parsing performs heavy repeated string indexing (`s[i]`, `s[i+1]`), and full rune conversion per access was the dominant cost.
+- Validation performed:
+    - `go test ./internal/object ./internal/runtime ./internal/vm ./cmd/app -count=1`
+    - `go test ./internal/vm -run '^$' -bench BenchmarkVMExecuteOnly/string_index_scan -benchmem -count=1`
+    - `SLUG_HOME=$(pwd) make run ARGS="playground.slug"` (before/after timing)
