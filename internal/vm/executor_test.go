@@ -220,6 +220,43 @@ func TestExecutorMapDotLookupTolerance(t *testing.T) {
 	}
 }
 
+func TestExecutorMapCopyShallowMerge(t *testing.T) {
+	tests := []struct {
+		code string
+		want string
+	}{
+		{
+			code: "val m = {:a: 1, \"b\": 2}\nval n = m copy {a: 3, \"c\": 4}\n[n[:a], n[\"b\"], n[\"c\"], m[:a], m[\"c\"]]",
+			want: "[3, 2, 4, 1, nil]",
+		},
+		{
+			code: "val m = {:name: \"sym\"}\nval n = m copy {\"name\": \"str\"}\n[n.name, n[:name], n[\"name\"]]",
+			want: "[sym, sym, str]",
+		},
+	}
+
+	for _, tt := range tests {
+		got := runVM(t, tt.code)
+		if got.Inspect() != tt.want {
+			t.Fatalf("for %q expected %q got %q", tt.code, tt.want, got.Inspect())
+		}
+	}
+}
+
+func TestExecutorCopyRejectsUnsupportedSource(t *testing.T) {
+	got := runVM(t, "42 copy {value: 1}")
+	if got.Type() != object.ERROR_OBJ {
+		t.Fatalf("expected error object, got %T (%s)", got, got.Inspect())
+	}
+}
+
+func TestExecutorCopyRejectsNonMapPayload(t *testing.T) {
+	got := runVM(t, "val m = {:a: 1}\nm copy 2")
+	if got.Type() != object.ERROR_OBJ {
+		t.Fatalf("expected error object, got %T (%s)", got, got.Inspect())
+	}
+}
+
 func TestExecutorFunctionDefaultParameter(t *testing.T) {
 	got := runVM(t, "val add1 = fn(a = 41) { a + 1 }\nadd1()")
 	num, ok := got.(*object.Number)

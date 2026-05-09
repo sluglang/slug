@@ -91,3 +91,15 @@ var m5 = {:name: "Sym", "name": "Str"}
 m5.name /> assertEqual("Sym")
 m5[:name] /> assertEqual("Sym")
 m5["name"] /> assertEqual("Str")
+
+// copy map updates
+// ----------------
+var opts = {:timeout: 1000, retries: 2}
+var nextCfg = opts copy {timeout: 5000, retries: 3, mode: "fast"}
+
+nextCfg[:timeout] /> assertEqual(5000)
+nextCfg.retries /> assertEqual(3)
+nextCfg.mode /> assertEqual("fast")
+
+opts[:timeout] /> assertEqual(1000)
+opts.mode /> assertEqual(nil)

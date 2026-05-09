@@ -415,3 +415,24 @@
   - `go test ./internal/vm ./internal/runtime ./cmd/app -count=1`
   - `SLUG_HOME=$(pwd) go run ./cmd/app/main.go -log-level error --root ./tests tests/lists-slicing.slug`
   - `make test`
+
+## 2026-05-09
+
+### ADR-036: unified `copy` semantics for structs and maps
+
+- Extended VM `copy` execution to support both struct and map sources in `internal/vm/executor.go`.
+  - Struct behavior remains unchanged: schema-preserving updates with unknown-field rejection and hint validation.
+  - Map behavior now performs immutable shallow merge by cloning the source map and applying RHS map entries.
+  - Runtime errors now report unsupported sources as `copy expects a struct or map value, got <type>`.
+- Added VM unit coverage in `internal/vm/executor_test.go`:
+  - `TestExecutorMapCopyShallowMerge`
+  - `TestExecutorCopyRejectsUnsupportedSource`
+  - `TestExecutorCopyRejectsNonMapPayload`
+- Added language-level map-copy assertions in `tests/maps.slug` to verify:
+  - copied map gets updated keys
+  - original map remains unchanged
+- Aligned ADR examples with implemented syntax in `docs/_adr/ADR-036.md`:
+  - examples now use infix `value copy { ... }` form.
+- Validation performed:
+  - `go test ./internal/vm ./internal/runtime ./cmd/app -count=1`
+  - `make test`

@@ -328,29 +328,37 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 			if !ok {
 				return e.errorAt(ins.Position, "stack underflow for struct copy source")
 			}
-			src, ok := srcObj.(*object.StructValue)
-			if !ok {
-				return e.errorAt(ins.Position, "copy expects a struct value, got %s", srcObj.Type())
-			}
 			fieldsMap, ok := fieldsObj.(*object.Map)
 			if !ok {
 				return e.errorAt(ins.Position, "copy expects a map for data, got %s", fieldsObj.Type())
 			}
-			values := make(map[string]object.Object, len(src.Fields))
-			for k, v := range src.Fields {
-				values[k] = v
+			switch src := srcObj.(type) {
+			case *object.StructValue:
+				values := make(map[string]object.Object, len(src.Fields))
+				for k, v := range src.Fields {
+					values[k] = v
+				}
+				updates, errObj := e.structValuesFromMap(ins.Position, src.Schema, fieldsMap)
+				if errObj != nil {
+					return errObj
+				}
+				for k, v := range updates {
+					values[k] = v
+				}
+				if errObj := e.validateStructHints(ins.Position, src.Schema, values); errObj != nil {
+					return errObj
+				}
+				e.push(&object.StructValue{Schema: src.Schema, Fields: values})
+			case *object.Map:
+				next := src.Clone()
+				fieldsMap.ForEach(func(k object.MapKey, pair object.MapPair) bool {
+					next.PutPair(k, pair)
+					return true
+				})
+				e.push(next)
+			default:
+				return e.errorAt(ins.Position, "copy expects a struct or map value, got %s", srcObj.Type())
 			}
-			updates, errObj := e.structValuesFromMap(ins.Position, src.Schema, fieldsMap)
-			if errObj != nil {
-				return errObj
-			}
-			for k, v := range updates {
-				values[k] = v
-			}
-			if errObj := e.validateStructHints(ins.Position, src.Schema, values); errObj != nil {
-				return errObj
-			}
-			e.push(&object.StructValue{Schema: src.Schema, Fields: values})
 		case OpSlice:
 			step, ok := e.pop()
 			if !ok {
