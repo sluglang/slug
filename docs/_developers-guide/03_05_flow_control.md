@@ -1,86 +1,98 @@
 # Module 5: Flow Control
 
-Now you can build logic: conditions, loops via tail recursion, and error handling.
+This module covers branching, loops via recursion, and robust error handling.
 
 ## Lesson 5.1: Conditionals
 
+### Mental model
+
+`if` is an expression, so both branches should produce a value.
+
 ```slug
 val max = fn(a, b) {
-    if (a > b) {
-        a
-    } else {
-        b
-    }
+  if (a > b) { a } else { b }
 }
 
-max(3, 5) /> println()
+println(max(3, 5))
 ```
 
-## Lesson 5.2: Tail-recursive looping with `recur`
+Expected output:
 
-`recur` restarts the current function in tail position without growing the call stack.
-
-```slug
-// Sum 1..n using tail recursion in an anonymous function
-fn(n, acc) {
-    if (n == 0) {
-        acc
-    } else {
-        recur(n - 1, acc + n)
-    }
-}(5, 0) /> println()
+```text
+5
 ```
 
-## Lesson 5.3: Error handling with `throw` and `defer onerror`
+## Lesson 5.2: Looping with tail recursion and `recur`
+
+`recur` must be in tail position.
 
 ```slug
-val process = fn(value) {
-    defer onerror(err) { println("Caught error:", err.msg) }
-
-    if (value < 0) {
-        throw Error { type: "ValidationError", msg: "Negative value not allowed" }
-    }
-
-    value * 2
+val sumTo = fn(n, acc = 0) {
+  if (n == 0) {
+    acc
+  } else {
+    recur(n - 1, acc + n)
+  }
 }
 
-process(-1) /> println()
+println(sumTo(5))
 ```
 
-### Standard `Error` payloads (slug.std)
+Expected output:
 
-Slug treats errors as values. The standard library defines a conventional `Error` struct for consistency:
+```text
+15
+```
+
+Common mistakes:
+- Calling `recur(...)` and then doing more work after it.
+
+## Lesson 5.3: Throwing errors
 
 ```slug
 val Error = struct {
-    @str type = "Error",
-    @str msg,
-    code = nil,
-    data = nil,
-    cause = nil,
+  @str type = "Error",
+  @str msg,
+  code = nil,
+  data = nil,
+  cause = nil,
+}
+
+val divide = fn(a, b) {
+  if (b == 0) {
+    throw Error { type: "ValidationError", msg: "divisor cannot be zero" }
+  }
+  a / b
 }
 ```
 
-Use struct literals at the throw site to keep stacktraces accurate:
+## Lesson 5.4: `defer`, `defer onsuccess`, `defer onerror(err)`
+
+### Mental model
+
+- `defer`: always runs when scope exits.
+- `defer onsuccess`: only on success path.
+- `defer onerror(err)`: only on thrown error path.
 
 ```slug
-throw Error { type: "IOError", msg: "failed to read config", data: { path: path } }
-```
+val run = fn(x) {
+  defer { println("always") }
+  defer onsuccess { println("success") }
+  defer onerror(err) { println("failed:", err.msg) }
 
-## Lesson 5.4: `defer`, `defer onsuccess`, and `defer onerror`
+  if (x < 0) {
+    throw Error { type: "ValidationError", msg: "x must be >= 0" }
+  }
 
-Use `defer` to run cleanup or logging when a scope exits.
-
-```slug
-val writeFile = fn(path, text) {
-    defer { println("closing file") }
-    defer onsuccess { println("write ok") }
-    defer onerror(err) { println("write failed:", err) }
-
-    // ... write logic here ...
+  x * 2
 }
+
+println(run(2))
 ```
+
+Common mistakes:
+- Treating `onsuccess` or `onerror` as global keywords outside `defer`.
 
 ### Try it
 
-Write a function that divides two numbers and throws an error when the divisor is zero.
+Write `parsePositive(n)` that throws on `n <= 0` and logs failures with `defer onerror(err)`.

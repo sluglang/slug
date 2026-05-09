@@ -1,133 +1,128 @@
 # Module 2: Core Building Blocks
 
-In this module, you will learn the essential pieces of the language: types, variables, functions, and the builtins you
-will use all the time.
+This module introduces the syntax you will use constantly.
 
-## Lesson 2.1: Types at a glance
+## Lesson 2.1: Core values and types
 
-Slug has a small, focused set of core types:
+### Mental model
 
-- `nil`: absence of a value.
-- `true` / `false`: booleans.
-- `number`: DEC64-inspired floating decimal values.
-- `string`.
-- `list`: ordered collection, e.g. `[1, 2, 3]`.
-- `map`: key-value collection, e.g. `{k: v}`.
-- `bytes`: byte sequence, e.g. `0x"ff00"`.
-- `function`: a `fn(){}` value.
-- `task`: a task handle, returned by `spawn`.
+Slug is expression-oriented: most constructs produce values.
+
+Common value shapes:
+
+- `nil`, `true`, `false`
+- numbers (DEC64-inspired)
+- strings and bytes (`0x"ff00"`)
+- lists (`[1, 2, 3]`)
+- maps (`{name: "Slug"}`)
+- functions (`fn(...) { ... }`)
+- task handles (from `spawn`)
+- symbols (`:ok`, `:"Content-Type"`)
 
 ## Lesson 2.2: Comments
 
-Slug supports two comment styles:
+```slug
+# line comment
+// also a line comment
+/* block comment */
+/** doc comment */
+```
 
-- `//` C-style comments.
-- `#` for script-friendly shebang usage, like `#!/usr/bin/env slug`.
+Common mistakes:
+- Forgetting doc comments are a distinct form used for docs/metadata.
 
-## Lesson 2.3: Strings
+## Lesson 2.3: Strings and interpolation
 
-Slug supports regular strings, raw strings, and interpolation.
+Build up in steps:
 
 ```slug
 val name = "Slug"
-val greeting = "Hello {{name}}!"
-val path = 'C:\temp\file.txt' // raw string, no escapes
+val msg = "Hello {{name}}"
+val raw = 'C:\temp\file.txt'
+println(msg, raw)
 ```
 
-## Lesson 2.4: Numeric literals
+Expected output:
 
-Numbers can include underscores for readability:
+```text
+Hello Slug C:\temp\file.txt
+```
+
+## Lesson 2.4: Numeric and bytes literals
 
 ```slug
-val maxUsers = 1_000_000
+val users = 1_000_000
+val hex = 0x10_ff
+val bytes = 0x"414243"
+println(users, hex, bytes)
 ```
 
-## Lesson 2.5: Variables
+Expected output (shape):
 
-Use `var` for mutable values and `val` for constants:
+```text
+1000000 4351 <bytes value>
+```
+
+## Lesson 2.5: `var` vs `val`
+
+### Mental model
+
+- `val`: bind once.
+- `var`: reassignable binding.
 
 ```slug
 var counter = 0
-val greeting = "Hello"
-
+val label = "requests"
 counter = counter + 1
-counter /> println()
+println(counter, label)
 ```
 
-## Lesson 2.6: Semicolons are optional
+Common mistakes:
+- Reassigning a `val`.
 
-Statements end at newlines, not semicolons:
+## Lesson 2.6: Semicolons and newlines
 
 ```slug
-var a = 1
-var b = 2
-(a + b) /> println
+val a = 1
+val b = 2
+println(a + b)
 ```
 
-A line continues when it clearly should:
+Line continuation example:
 
 ```slug
-var sql =
+val sql =
     "select *"
     + " from users"
-    + " where active = true"
 ```
 
-A line ends when the next token would be confusing:
+Common mistakes:
+- Breaking lines where parser expects expression completion.
+
+## Lesson 2.7: Trailing commas
 
 ```slug
-f(x)     // valid
-f
-(x)      // invalid
-```
-
-## Lesson 2.7: Dangling commas
-
-Slug supports trailing commas in lists, maps, tags, and call arguments. It does not allow them in function definitions.
-
-```slug
-var {*} = import(
-    "slug.std",
-)
-
-val map = {
-    k: 50,
+val m = {
+  user: "slug",
 }
 
-var list = [
-    1,
-    [1, 2,],
-    11,
-]
-
-println(map, list,)
+println(
+  m,
+)
 ```
 
-## Lesson 2.8: Built-in functions you will use first
+Trailing commas are allowed in maps/lists/call args/tags.
 
-### `import`
+## Lesson 2.8: Everyday builtins
 
 ```slug
 val {*} = import("slug.std")
-```
-
-### `len`
-
-```slug
-val size = len([1, 2, 3])
-val textLength = len("hello")
-```
-
-### `print` and `println`
-
-```slug
-print("Hello", "Slug!")
-println("Welcome to Slug!")
+println(len([1, 2, 3]))
+print("hello")
+println(" world")
 ```
 
 ## Lesson 2.9: Modules and exports
-
-Use `@export` to expose values from a module. `import(...)` returns a map of exports.
 
 ```slug
 // math.slug
@@ -136,124 +131,58 @@ val add = fn(a, b) { a + b }
 
 // app.slug
 val math = import("math")
-math.add(2, 3) /> println()
+println(math.add(2, 3))
 ```
 
-Imports are live bindings. In cyclic imports, accessing a value before it is initialized raises a clear runtime error.
+Expected output:
 
-## Lesson 2.10: Command-line arguments
+```text
+5
+```
 
-Slug provides two tiny, explicit builtins for arguments:
-
-- `argv()` returns raw args as a list.
-- `argm()` returns a parsed map and positionals.
+## Lesson 2.10: Functions, defaults, and named args
 
 ```slug
-// slug playground.slug -abc --user john foo.txt
-
-argv()
-// => ["-abc", "--user", "john", "foo.txt"]
-
-argm()
-// => { options: { a: true, b: true, c: true, user: "john" }, positional: ["foo.txt"] }
+val greet = fn(name, title = "Mx") { "Hello {{title}} {{name}}" }
+println(greet("Slug"))
+println(greet(name: "Slug", title: "Dr"))
 ```
 
-Typical usage:
+## Lesson 2.11: Pipelines (`/>`)
+
+### Mental model
+
+`x /> f(y)` rewrites to `f(x, y)`.
 
 ```slug
-var cli = argm()
-
-match cli.options {
-  {help: true} => showHelp()
-  {user: u} => run(u, cli.positional[0])
-  _ => fail("missing --user")
-}
+val double = fn(n) { n * 2 }
+println(10 /> double)
 ```
 
-## Lesson 2.11: Unified configuration with `cfg()`
+Pipeline into `match`:
 
 ```slug
-val port = cfg("port", 8080)
-val dbUrl = cfg("db.url", "postgres://localhost:5432")
+10 /> match {
+  10 => "ten"
+  _ => "other"
+} /> println()
 ```
 
-Precedence is:
+Common mistakes:
+- Assuming `/>` is method dispatch only; it is general call piping.
 
-1. CLI args: `--key=value` or `-k=value`.
-2. Environment: `SLUG__db__port=5432`.
-3. Local `slug.toml` in the current directory.
-4. Global `slug.toml` in `$SLUG_HOME/lib/`.
-5. In-code default.
-
-Keys without dots are automatically namespaced to the current module.
-
-## Lesson 2.12: Functions and closures
-
-```slug
-val add = fn(a, b) { a + b }
-add(3, 4) /> println()
-```
-
-Closures capture their environment:
-
-```slug
-val multiplier = fn(factor) {
-    fn(num) { num * factor }
-}
-
-val double = multiplier(2)
-double(5) /> println()
-```
-
-## Lesson 2.13: Default parameters
-
-Defaults are evaluated at call time in the function's defining module.
-
-```slug
-val dbHost = cfg("db.host", "localhost")
-
-val connect = fn(host = dbHost, port = 5432) {
-    println(host, port)
-}
-
-connect()
-```
-
-## Lesson 2.14: Named parameters
-
-Named parameters are supported in function calls:
-
-```slug
-val greet = fn(name, title) { "Hello {{title}} {{name}}" }
-greet(title: "Mr", name: "Slug") /> println()
-```
-
-## Lesson 2.15: Pipelines with the trail operator
-
-The trail operator (`/>`) passes the value to the next function, left to right:
-
-```slug
-var double = fn(n) { n * 2 }
-var map = { double: double }
-var lst = [nil, double]
-
-10 /> map.double /> lst[1] /> println("is 40")
-
-// Equivalent to:
-println(lst[1](map.double(10)), "is 40")
-```
-
-## Lesson 2.16: Function dispatch and type tags
-
-Slug can dispatch by argument count and type tags:
+## Lesson 2.12: Tagged dispatch
 
 ```slug
 fn add(@num a, @num b) { a + b }
 fn add(@str a, @str b) { a + b }
+
+println(add(1, 2))
+println(add("a", "b"))
 ```
 
-Supported tags: `@num`, `@str`, `@bool`, `@list`, `@map`, `@bytes`, `@fn`, `@task`.
+Common tags: `@num`, `@str`, `@bool`, `@list`, `@map`, `@bytes`, `@fn`, `@task`, `@sym`, `@chan`.
 
 ### Try it
 
-Write an `add` overload for lists that concatenates two lists, then call it with `[1]` and `[2]`.
+Add a list overload for `add` that concatenates two lists, then print `add([1], [2])`.

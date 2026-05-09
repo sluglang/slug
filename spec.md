@@ -534,3 +534,31 @@
 - Updated `extras/Slug.sublime-package/Slug.sublime-syntax` with parity changes:
     - Unicode-aware tag/symbol/function-call/identifier regexes.
     - Tightened bytes-literal regex to disallow internal whitespace.
+
+### Developers guide full refresh (tutorial style + language alignment)
+
+- Rewrote all modules in `docs/_developers-guide` in a friendlier, concise tutorial voice.
+- Updated examples and explanations to align with current language behavior and recent ADR outcomes, including:
+  - structural brace disambiguation for map literals vs block expressions,
+  - contextual defer modes (`defer onsuccess`, `defer onerror(err)`),
+  - exact-map pattern usage (`{| ... |}`),
+  - current pipeline and pattern-matching idioms,
+  - canonical `await(handle)` and `await(handle, timeoutMs)` concurrency forms.
+- Replaced outdated reference content:
+  - removed stale conditional `?:` precedence entry,
+  - added current operator precedence ordering including `/>`, `:+`, and `+:`.
+- Normalized module pedagogy across the guide with runnable examples and `Try it` prompts.
+
+### Developers guide beginner-depth expansion pass
+
+- Expanded refreshed `docs/_developers-guide` modules for new learners with step-by-step pedagogy.
+- Added explicit `Mental model`, `Expected output`, and `Common mistake` sections across core lessons.
+- Reworked mini project/testing/concurrency modules into guided walkthroughs rather than compact snippets.
+- Kept language examples aligned with current parser/runtime behavior (including contextual `defer` modes and canonical `await(handle[, timeoutMs])` forms).
+
+### Developers guide voice-consistency polish pass
+
+- Normalized tutorial section labeling across `docs/_developers-guide` for smoother scanning:
+  - standardized `Common mistakes:` callouts,
+  - standardized `### Mental model` headings where previously inline.
+- Kept all technical content and syntax semantics unchanged; this pass was editorial consistency only.

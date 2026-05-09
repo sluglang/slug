@@ -1,10 +1,14 @@
 # Module 1: Getting Started
 
-In this module, you will run your first Slug program and learn how the runtime finds your files.
+In this module, you will run Slug code, understand module resolution, and inspect CLI inputs.
 
 ## Lesson 1.1: Your first program
 
-Create a file called `hello.slug`:
+### Mental model
+
+A Slug file is a sequence of statements. The CLI loads one entry module and executes it.
+
+Create `hello.slug`:
 
 ```slug
 println("Hello, Slug!")
@@ -18,60 +22,66 @@ slug hello.slug
 
 Expected output:
 
-```
+```text
 Hello, Slug!
 ```
 
+Common mistakes:
+- Running from a different folder than the file path you pass.
+
 ### Try it
 
-Change the string, run again, and make sure the new text shows up. You just completed your first Slug program.
+Print two values with `println("hello", 123)` and verify both appear.
 
 ## Lesson 1.2: How Slug resolves imports
 
-Slug resolves the entry module and all `import(...)` paths relative to the command-line target first, then falls back to
-the global library directory (`$SLUG_HOME/lib`).
+### Mental model
 
-### 1) When the CLI target is a file path
+`import("x")` is resolved relative to the entry module first, then library paths.
 
-Example:
+If you run:
 
-```sh
+```shell
 slug ./tests/bytes.slug
 ```
 
-Imports are searched relative to the directory of the entry file. For example:
-
-```slug
-import("slug.std")
-```
-
-is resolved as `./slug/std.slug` and searched in this order:
+then `import("slug.std")` is searched in:
 
 1. `./tests/slug/std.slug`
 2. `$SLUG_HOME/lib/slug/std.slug`
 
-### 2) When the CLI target is not a file path
+If the CLI target is not a local file, Slug treats it as a module name and searches local then library paths.
 
-If the command-line target is not found locally, Slug treats it as a library or module name.
-
-Example:
-
-```sh
-slug hello world
-```
-
-Slug attempts to load the entry module `hello` in this order:
-
-1. `./hello`
-2. `./hello.slug`
-3. `$SLUG_HOME/lib/hello.slug`
+Common mistakes:
+- Assuming imports are always resolved from current working directory only.
 
 ## Lesson 1.3: Program arguments
 
-In all cases, remaining command-line tokens after the entry target are available via `argv()` and `argm()`.
+### Mental model
 
-- `argv() == ["world"]` for `slug hello world`
+Everything after the entry target is user input.
+
+- `argv()` returns raw argument list.
+- `argm()` returns parsed options + positional args.
+
+```slug
+println(argv())
+println(argm())
+```
+
+Run:
+
+```shell
+slug script.slug --user knuckles input.txt
+```
+
+Typical shape:
+
+```text
+argv: ["--user", "knuckles", "input.txt"]
+argm: { options: {user: "knuckles"}, positional: ["input.txt"] }
+```
 
 ### Try it
 
-Run a program with two extra args and print `argv()` to confirm the list order.
+Print just `argm().options` and `argm().positional` separately.

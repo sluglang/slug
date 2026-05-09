@@ -1,53 +1,69 @@
 # Module 7: Testing
 
-Slug has built-in testing tags so you can keep tests next to the code they verify.
+This module walks through practical test-writing patterns.
 
-## Lesson 7.1: Parameterized tests with `@testWith`
-
-```slug
-@testWith(
-    [3, 5], 8,
-    [10, -5], 5,
-    [0, 0], 0
-)
-var parameterizedTest = fn(a, b) {
-    a + b
-}
-```
-
-- Each pair is inputs plus the expected output.
-- The test runner executes the function for each pair.
-
-## Lesson 7.2: Standard tests with `@test`
+## Lesson 7.1: A basic behaviour test
 
 ```slug
-var {*} = import("slug.test")
+val {*} = import("slug.test")
+
+val add = fn(a, b) { a + b }
 
 @test
-var simpleTest = fn() {
-    val result = 1 + 1
-    result /> assertEqual(2)
+val addWorks = fn() {
+  assertEqual(add(2, 3), 5)
 }
 ```
 
-## Lesson 7.3: Running tests
+### Why this matters
 
-Run tests for a module with:
+A tiny, focused behaviour test is easier to debug than one large test.
+
+## Lesson 7.2: Parameterized tests with `@testWith`
+
+```slug
+val {*} = import("slug.test")
+
+@testWith(
+  [3, 5], 8,
+  [10, -5], 5,
+  [0, 0], 0,
+)
+val addCases = fn(a, b) {
+  a + b
+}
+```
+
+### Mental model
+- each input tuple is executed,
+- return value is compared to expected value.
+
+## Lesson 7.3: Testing errors
+
+```slug
+val Error = struct { @str type = "Error", @str msg }
+
+val mustPositive = fn(n) {
+  if (n <= 0) { throw Error { type: "ValidationError", msg: "n must be positive" } }
+  n
+}
+
+@test
+val mustPositiveThrows = fn() {
+  fn() { mustPositive(0) } /> assertThrows()
+}
+```
+
+## Lesson 7.4: Running tests
 
 ```shell
 slug test path_to_source.slug
 ```
 
-Example output:
-
-```
-Results:
-
-Tests run: 33, Failures: 0, Errors: 0
-
-Total time 1ms
-```
+Common mistakes:
+- Asserting too many behaviours in one test.
+- Using unclear test names.
 
 ### Try it
 
-Add a new `@testWith` case that checks subtraction, then run the tests.
+Add one new `@testWith` case and one new error-path test.

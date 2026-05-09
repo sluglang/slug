@@ -1,24 +1,25 @@
-# Welcome to Slug: An Intro Course for Developers
+# Welcome to Slug: A Practical Developer Course
 
-Hi! In this course-style guide, I am going to walk you through Slug step by step, just like a hands-on bootcamp. You
-will start with a tiny program, then build confidence through short lessons, and finish with mini projects and tests.
+Welcome. This guide teaches Slug through short, runnable lessons with beginner-friendly build-ups.
 
 By the end, you will be able to:
 
 - Read and write idiomatic Slug.
-- Build small scripts and data pipelines.
-- Use functions, pattern matching, and collections effectively.
-- Test your code and reason about concurrency.
+- Build scripts, modules, and data pipelines.
+- Use pattern matching, structs, and tagged functions confidently.
+- Handle errors and concurrency with `defer`, `spawn`, and `await`.
 
-## How this guide works
+## How to use this guide
 
 Each module includes:
 
-- A quick concept intro.
-- Short examples you can run.
-- A tiny challenge to lock it in.
+- A quick mental model.
+- Small runnable examples.
+- Expected outputs for key snippets.
+- Common mistakes to avoid.
+- A `Try it` exercise.
 
-Keep a terminal open and run the samples as you go. You will learn fastest by typing the code yourself.
+Keep a terminal open while reading and run each snippet.
 
 ## Course map
 
@@ -32,4 +33,4 @@ Keep a terminal open and run the samples as you go. You will learn fastest by ty
 8. Concurrency
 9. Reference
 
-Ready? Let's build something with Slug.
+Let’s build with Slug.

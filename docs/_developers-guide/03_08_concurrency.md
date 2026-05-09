@@ -1,157 +1,82 @@
 # Module 8: Concurrency
 
-Slug uses structured concurrency. That means every task has a clear owner and a clear lifetime. It is explicit and
-predictable on purpose.
+Slug concurrency is structured: tasks belong to a logical scope and are awaited explicitly.
 
-## Lesson 8.1: Core principles
+## Lesson 8.1: Core ideas
 
-1. Concurrency is explicit: parallel work uses `spawn`, suspension uses `await`.
-2. Lifetime is lexical: a scope owns the work it spawns.
-3. Values are values: `await` produces concrete values, not futures.
-4. Errors and cancellation are structural: failures bubble up, cancellations flow down.
+- `spawn` starts child work.
+- `await(handle)` waits for result.
+- `nursery` defines ownership boundary.
+- errors/cancellation flow through the structure.
 
-## Lesson 8.2: `nursery`
-
-`nursery` marks a function or block as suspending.
+## Lesson 8.2: Start with one spawned task
 
 ```slug
-var fetchUser = nursery fn(id) {
-    ...
+val work = nursery fn() {
+  val t = spawn { 20 + 22 }
+  await(t)
+}
+
+println(work())
+```
+
+Expected output:
+
+```text
+42
+```
+
+## Lesson 8.3: Add timeout-aware await
+
+```slug
+val getSlow = nursery fn() {
+  val t = spawn { slowTask() }
+  await(t, 500)
 }
 ```
 
-Key rules:
+### Mental model
+- `await(handle)` blocks until completion.
+- `await(handle, timeoutMs)` throws on timeout.
 
-- Each task has a `currentNursery` pointer.
-- Entering a `nursery` scope pushes a new nursery.
-- Leaving a `nursery` scope joins or cancels its children.
-- Ordinary function calls do not create a nursery.
-- `spawn { ... }` registers with the nearest enclosing nursery, not the immediate call frame.
-
-Escaping task handles:
-
-- A task handle can be returned or stored in data.
-- If it escapes its nursery scope, it is guaranteed to be settled.
-- `await` on an escaped handle is always idempotent and returns immediately (or re-throws the stored error).
-
-## Lesson 8.3: `spawn`
-
-`spawn` creates a child task and returns a task handle.
+## Lesson 8.4: Fan-out and fan-in
 
 ```slug
-var t = spawn {
-    work()
+val fetchBoth = nursery fn(id) {
+  val userT = spawn { fetchUser(id) }
+  val postsT = spawn { fetchPosts(id) }
+
+  val user = await(userT, 500)
+  val posts = await(postsT, 1000)
+
+  { user: user, posts: posts }
 }
 ```
 
-Semantics:
-
-- Child tasks are owned by the current nursery scope.
-- Spawned tasks run on a managed worker pool.
-- A nursery cannot exit until its children settle.
-- `spawn` registers with the nearest enclosing nursery.
-
-## Lesson 8.4: `await`
-
-`await` suspends the current task until a handle completes.
+## Lesson 8.5: Limits with `nursery limit`
 
 ```slug
-var {*} = import("slug.channel")
-var value = await(taskHandle)
-```
-
-With a timeout:
-
-```slug
-var value = await(taskHandle, 500)
-```
-
-Notes:
-
-- Suspension happens only at `await`.
-- On timeout, a `Timeout` error is raised.
-- Errors propagate like normal runtime errors.
-
-## Lesson 8.5: Task type tags
-
-Task handles are first-class values. Use `@task` with tagged dispatch:
-
-```slug
-var awaitAll = fn(@list hs) {
-    hs /> map(fn(@task h) { await(h) })
+val handler = nursery limit 10 fn(ids) {
+  ids /> map(fn(id) { spawn { fetchUser(id) } })
 }
 ```
 
-`await` is idempotent: awaiting an already-settled handle returns immediately (or re-throws its error).
+Use limits when fan-out can grow large.
 
-## Lesson 8.6: Concurrency limits and timeouts
-
-### Limits
+## Lesson 8.6: Error handling around async flows
 
 ```slug
-var handler = nursery limit 10 fn() {
-    ...
+val run = nursery fn() {
+  defer onerror(err) { println("task flow failed:", err) }
+  val t = spawn { riskyWork() }
+  await(t)
 }
 ```
 
-- Default limit is 2 * CPU cores or 4.
-- Limits apply only to direct `spawn` calls in the current scope.
-- Excess spawns wait for capacity.
+Common mistakes:
+- Forgetting to await handles you care about.
+- Treating cancellation as immediate at every line (it is observed at suspension points).
 
-### Timeouts
+### Try it
 
-```slug
-var v = await task within 1
-```
-
-- Timeouts are in milliseconds.
-- A timeout raises `Timeout` and cancels the awaited task.
-- Handle errors via `defer onerror` or other constructs.
-
-## Lesson 8.7: Failure and cancellation
-
-- If a child task fails, siblings are cancelled and the error propagates.
-- If a parent scope exits early, all children are cancelled.
-- Cancellation is observed at `await`.
-- The runtime attempts to detect circular awaits and raises `Deadlock`.
-
-## Lesson 8.8: Fan-out and fan-in example
-
-```slug
-var fetchUser  = nursery fn(id) { ... }
-var fetchPosts = fn(id) { ... }
-var renderProfile = fn(user, posts) { ... }
-
-var showProfile = nursery limit 10 fn(id) {
-    var userT  = spawn { id /> fetchUser }
-    var postsT = spawn { id /> fetchPosts }
-
-    var user  = await(userT, 500)
-    var posts = await(postsT, 1000)
-
-    renderProfile(user, posts)
-}
-```
-
-## Lesson 8.9: Pipelines and `await`
-
-Because `await` is syntax, use a helper for pipelines:
-
-```slug
-var awaitWithin = fn(v, dur) {
-    await(v, dur)
-}
-
-var user = userT /> awaitWithin(500)
-```
-
-## Lesson 8.10: What Slug does not provide
-
-Slug intentionally avoids:
-
-- Actors or mailboxes.
-- Implicit futures.
-- Automatic parallelization.
-- Implicit blocking on variable reads.
-- Global cancellation tokens.
-- Detached background tasks without explicit APIs.
+Implement `awaitAll(handles)` that returns results in order and rethrows first failure.

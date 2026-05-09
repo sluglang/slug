@@ -1,85 +1,91 @@
 # Module 3: Functional Programming
 
-Slug shines when you lean into functional patterns. Let's practice the big three: map, filter, reduce, plus pattern
-matching.
+This module focuses on transforming data with small composable functions.
 
 ## Lesson 3.1: Map, filter, reduce
 
+### Mental model
+
+- `map`: transform each item
+- `filter`: keep some items
+- `reduce`: combine into one result
+
 ```slug
-var {*} = import("slug.std")
+val {*} = import("slug.std")
 
-val list = [1, 2, 3, 4, 5]
+val xs = [1, 2, 3, 4, 5]
+val squares = xs /> map(fn(v) { v * v })
+val evens = xs /> filter(fn(v) { v % 2 == 0 })
+val sum = xs /> reduce(0, fn(acc, v) { acc + v })
 
-val squares = list /> map(fn(v) { v * v })           // [1, 4, 9, 16, 25]
-val evens = list /> filter(fn(v) { v % 2 == 0 })     // [2, 4]
-val sum = list /> reduce(0, fn(acc, v) { acc + v })  // 15
-
-squares /> println()
-evens /> println()
-sum /> println()
+println(squares)
+println(evens)
+println(sum)
 ```
 
-## Lesson 3.2: Pattern matching
+Expected output:
 
-`match` lets you destructure values directly.
+```text
+[1, 4, 9, 16, 25]
+[2, 4]
+15
+```
+
+## Lesson 3.2: Match expressions
 
 ```slug
-val classify = fn(value) {
-    match value {
-        0 => "zero"
-        1 => "one"
-        _ => "other"
-    }
+val classify = fn(v) {
+  match v {
+    0 => "zero"
+    1 => "one"
+    _ => "other"
+  }
 }
 
-classify(1) /> println()
-classify(5) /> println()
+println(classify(1))
+println(classify(10))
 ```
 
-You can match lists too:
+Common mistakes:
+- Forgetting `_` fallback case.
+
+## Lesson 3.3: Destructuring patterns
 
 ```slug
-val sumList = fn(list) {
-    match list {
-        [h, ...t] => h + sumList(t)
-        [] => 0
-    }
+val headOrZero = fn(xs) {
+  match xs {
+    [h, ..._] => h
+    [] => 0
+  }
 }
 
-sumList([1, 2, 3]) /> println()
+println(headOrZero([10, 20]))
+println(headOrZero([]))
 ```
 
-### Pattern matching extras
+Pattern tools:
 
-Pin an existing value with `^name`:
+- `_` wildcard
+- `...rest` spread capture
+- `^name` pin
+- `{| ... |}` exact-map pattern
 
 ```slug
 val expected = 42
-
-match value {
-    ^expected => println("matched 42")
-    _ => println("nope")
+match 42 {
+  ^expected => println("matched")
+  _ => println("nope")
 }
 ```
 
-Use `...` to capture the rest of a list:
-
-```slug
-match list {
-    [head, ...tail] => println(head, tail)
-    [] => println("empty")
-}
-```
-
-## Lesson 3.3: Higher-order functions
+## Lesson 3.4: Higher-order functions
 
 ```slug
 val applyTwice = fn(f, v) { f(f(v)) }
-
-val increment = fn(x) { x + 1 }
-applyTwice(increment, 10) /> println()
+val inc = fn(x) { x + 1 }
+println(applyTwice(inc, 10))
 ```
 
 ### Try it
 
-Write a function `times` that takes `n` and a function `f`, then applies `f` to an input value `n` times.
+Write `times(n, f, x)` using `recur`.
