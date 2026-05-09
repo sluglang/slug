@@ -2,80 +2,12 @@ package object
 
 import "sort"
 
-type mapBackend int
-
-const (
-	mapBackendNative mapBackend = iota
-	mapBackendHAMT
-)
-
-var defaultMapBackend = mapBackendNative
-
-func SetDefaultMapBackend(name string) {
-	switch name {
-	case "hamt":
-		defaultMapBackend = mapBackendHAMT
-	default:
-		defaultMapBackend = mapBackendNative
-	}
-}
-
-func DefaultMapBackendName() string {
-	if defaultMapBackend == mapBackendHAMT {
-		return "hamt"
-	}
-	return "native"
-}
-
 type mapStorage interface {
 	put(k MapKey, v MapPair) mapStorage
 	del(k MapKey, removed *bool) mapStorage
 	get(k MapKey) (MapPair, bool)
 	len() int
 	forEach(fn func(MapKey, MapPair) bool)
-}
-
-type nativeMapStorage struct {
-	pairs map[MapKey]MapPair
-}
-
-func (s nativeMapStorage) put(k MapKey, v MapPair) mapStorage {
-	if s.pairs == nil {
-		s.pairs = make(map[MapKey]MapPair)
-	}
-	s.pairs[k] = v
-	return s
-}
-
-func (s nativeMapStorage) get(k MapKey) (MapPair, bool) {
-	if s.pairs == nil {
-		return MapPair{}, false
-	}
-	p, ok := s.pairs[k]
-	return p, ok
-}
-
-func (s nativeMapStorage) del(k MapKey, removed *bool) mapStorage {
-	if s.pairs == nil {
-		return s
-	}
-	if _, ok := s.pairs[k]; ok {
-		delete(s.pairs, k)
-		*removed = true
-	}
-	return s
-}
-
-func (s nativeMapStorage) len() int {
-	return len(s.pairs)
-}
-
-func (s nativeMapStorage) forEach(fn func(MapKey, MapPair) bool) {
-	for k, v := range s.pairs {
-		if !fn(k, v) {
-			return
-		}
-	}
 }
 
 type hamtMapStorage struct {

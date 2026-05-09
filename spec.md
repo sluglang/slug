@@ -288,3 +288,20 @@
   - latency: ~58x faster
   - bytes/op: ~56x lower
   - allocs/op: ~49.7x lower
+
+### HAMT-only map runtime (native backend removal)
+
+- Removed native map backend implementation and backend-switch plumbing.
+- `object.Map` is now backed by HAMT storage only:
+  - removed backend toggles from `internal/object/map_storage.go`
+  - `ensureStorage()` in `internal/object/object.go` always migrates legacy `Pairs` into HAMT storage.
+- Removed runtime/config/CLI backend selection:
+  - removed `Configuration.MapBackend` from `internal/util/config.go`
+  - removed `-map-backend` flag from `cmd/app/main.go`
+  - removed map-backend initialization in `internal/runtime/runtime.go`
+- Simplified map tests/benchmarks to a single HAMT path:
+  - `internal/object/object_test.go`
+  - `internal/object/map_benchmark_test.go`
+  - `internal/foreign/slug_std_benchmark_test.go`
+- Validation performed:
+  - `go test ./internal/object ./internal/foreign ./internal/runtime ./internal/vm ./internal/parser ./internal/semantic ./cmd/app -count=1`

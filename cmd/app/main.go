@@ -26,7 +26,6 @@ var (
 	logSource bool
 	// config vars
 	rootPath     string
-	mapBackend   string
 	debugJsonAST bool
 	debugTxtAST  bool
 )
@@ -38,7 +37,6 @@ func init() {
 	flag.BoolVar(&version, "v", false, "Display version information and exit")
 	// runtime config
 	flag.StringVar(&rootPath, "root", "", "Set the root context for the program (used for imports)")
-	flag.StringVar(&mapBackend, "map-backend", "native", "Map storage backend: native or hamt")
 	// parser config
 	flag.BoolVar(&debugJsonAST, "debug-json-ast", false, "Render the AST as a JSON file")
 	flag.BoolVar(&debugTxtAST, "debug-txt-ast", false, "Render the AST as a TXT file")
@@ -101,7 +99,6 @@ func main() {
 		ProjectRoot:  filepath.Clean(projectRoot),
 		Cwd:          filepath.Clean(processCwd),
 		SlugHome:     os.Getenv("SLUG_HOME"),
-		MapBackend:   mapBackend,
 		DebugJsonAST: debugJsonAST,
 		DebugTxtAST:  debugTxtAST,
 		DefaultLimit: max(stdrt.NumCPU()*2, 4),
@@ -250,7 +247,6 @@ Usage: slug [options] <filename> <args>
 
 Options:
   -root <path>       Set the root context
-  -map-backend <id>  Map storage backend (native, hamt)
   -version, -v       Show version
   -help, -h          Show this help
   -log-source        Include the source file name in log messages.

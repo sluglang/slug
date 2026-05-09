@@ -102,42 +102,28 @@ func TestDispatchErrorIncludesCandidates(t *testing.T) {
 	}
 }
 
-func TestMapSupportsNativeAndHAMTBackends(t *testing.T) {
-	prev := defaultMapBackend
-	t.Cleanup(func() { defaultMapBackend = prev })
+func TestMapBasicOperations(t *testing.T) {
+	m := &Map{}
 
-	backends := []string{"native", "hamt"}
-	for _, backend := range backends {
-		t.Run(backend, func(t *testing.T) {
-			SetDefaultMapBackend(backend)
-			m := &Map{}
+	m.Put(&String{Value: "a"}, &Number{Value: dec64.FromInt(1)})
+	m.Put(&String{Value: "b"}, &Number{Value: dec64.FromInt(2)})
+	m.Put(InternSymbol("c"), &Number{Value: dec64.FromInt(3)})
 
-			m.Put(&String{Value: "a"}, &Number{Value: dec64.FromInt(1)})
-			m.Put(&String{Value: "b"}, &Number{Value: dec64.FromInt(2)})
-			m.Put(InternSymbol("c"), &Number{Value: dec64.FromInt(3)})
+	if got := m.Len(); got != 3 {
+		t.Fatalf("map length mismatch: got=%d want=3", got)
+	}
 
-			if got := m.Len(); got != 3 {
-				t.Fatalf("map length mismatch: got=%d want=3", got)
-			}
-
-			pair, ok := m.GetPair((&String{Value: "b"}).MapKey())
-			if !ok {
-				t.Fatal("expected key 'b' to exist")
-			}
-			val, ok := pair.Value.(*Number)
-			if !ok || !val.Value.Eq(dec64.FromInt(2)) {
-				t.Fatalf("unexpected value for 'b': %#v", pair.Value)
-			}
-		})
+	pair, ok := m.GetPair((&String{Value: "b"}).MapKey())
+	if !ok {
+		t.Fatal("expected key 'b' to exist")
+	}
+	val, ok := pair.Value.(*Number)
+	if !ok || !val.Value.Eq(dec64.FromInt(2)) {
+		t.Fatalf("unexpected value for 'b': %#v", pair.Value)
 	}
 }
 
-func TestMapMigratesLegacyPairsWhenHAMTEnabled(t *testing.T) {
-	prev := defaultMapBackend
-	t.Cleanup(func() { defaultMapBackend = prev })
-
-	SetDefaultMapBackend("hamt")
-
+func TestMapMigratesLegacyPairs(t *testing.T) {
 	legacy := map[MapKey]MapPair{}
 	k := (&String{Value: "legacy"}).MapKey()
 	legacy[k] = MapPair{
@@ -158,47 +144,31 @@ func TestMapMigratesLegacyPairsWhenHAMTEnabled(t *testing.T) {
 	}
 }
 
-func TestMapCloneIsIndependentAcrossBackends(t *testing.T) {
-	prev := defaultMapBackend
-	t.Cleanup(func() { defaultMapBackend = prev })
+func TestMapCloneIsIndependent(t *testing.T) {
+	orig := (&Map{}).Put(&String{Value: "a"}, &Number{Value: dec64.FromInt(1)})
+	clone := orig.Clone()
+	clone.Put(&String{Value: "b"}, &Number{Value: dec64.FromInt(2)})
 
-	for _, backend := range []string{"native", "hamt"} {
-		t.Run(backend, func(t *testing.T) {
-			SetDefaultMapBackend(backend)
-			orig := (&Map{}).Put(&String{Value: "a"}, &Number{Value: dec64.FromInt(1)})
-			clone := orig.Clone()
-			clone.Put(&String{Value: "b"}, &Number{Value: dec64.FromInt(2)})
-
-			if orig.Len() != 1 {
-				t.Fatalf("original mutated after clone write: len=%d", orig.Len())
-			}
-			if clone.Len() != 2 {
-				t.Fatalf("clone missing mutation: len=%d", clone.Len())
-			}
-		})
+	if orig.Len() != 1 {
+		t.Fatalf("original mutated after clone write: len=%d", orig.Len())
+	}
+	if clone.Len() != 2 {
+		t.Fatalf("clone missing mutation: len=%d", clone.Len())
 	}
 }
 
-func TestMapDeleteKeyAcrossBackends(t *testing.T) {
-	prev := defaultMapBackend
-	t.Cleanup(func() { defaultMapBackend = prev })
+func TestMapDeleteKey(t *testing.T) {
+	m := (&Map{}).
+		Put(&String{Value: "a"}, &Number{Value: dec64.FromInt(1)}).
+		Put(&String{Value: "b"}, &Number{Value: dec64.FromInt(2)})
 
-	for _, backend := range []string{"native", "hamt"} {
-		t.Run(backend, func(t *testing.T) {
-			SetDefaultMapBackend(backend)
-			m := (&Map{}).
-				Put(&String{Value: "a"}, &Number{Value: dec64.FromInt(1)}).
-				Put(&String{Value: "b"}, &Number{Value: dec64.FromInt(2)})
+	keyA := (&String{Value: "a"}).MapKey()
+	m.DeleteKey(keyA)
 
-			keyA := (&String{Value: "a"}).MapKey()
-			m.DeleteKey(keyA)
-
-			if m.Len() != 1 {
-				t.Fatalf("unexpected map size after delete: got=%d want=1", m.Len())
-			}
-			if _, ok := m.GetPair(keyA); ok {
-				t.Fatal("deleted key still present")
-			}
-		})
+	if m.Len() != 1 {
+		t.Fatalf("unexpected map size after delete: got=%d want=1", m.Len())
+	}
+	if _, ok := m.GetPair(keyA); ok {
+		t.Fatal("deleted key still present")
 	}
 }
