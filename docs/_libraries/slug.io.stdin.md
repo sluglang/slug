@@ -42,16 +42,16 @@ fn slug.io.stdin#prompt(@str prompt) -> @str
 
 #### `readLines()`
 ```slug
-fn slug.io.stdin#readLines() -> @chan(@struct(Full)|@struct(Empty))
+fn slug.io.stdin#readLines() -> @chan(@str)
 ```
 
 
 Returns a shared singleton channel of stdin line events.
 
 Event stream:
-- each line is emitted as `Full{value: @str}` (without trailing newline)
+- each line is emitted as `@str` (without trailing newline)
 - empty lines are preserved as `""`
 - a final partial line (without trailing newline) is emitted
 - when input ends, the channel closes
 
-With `slug.channel#recv`, closure is observed as `Empty`.
+With `slug.channel#recv`, closure is observed as `nil`.

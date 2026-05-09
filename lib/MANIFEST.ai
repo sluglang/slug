@@ -96,10 +96,6 @@ fn slug.bytes#repeat(@bytes b, @num count, @bytes acc = 0x"") -> @bytes
 fn slug.bytes#strToBytes(@str s) -> @bytes
   desc: "converts a UTF-8 string to a byte buffer."
 
-struct slug.channel#Empty{}
-
-struct slug.channel#Full{value}
-
 fn slug.channel#await(@task handle, @num timeout = 0) -> ?
   desc: "waits for a spawned task to complete and returns its result."
   errors:
@@ -329,7 +325,7 @@ fn slug.io.stdin#confirm(@str message, @bool default = false) -> @bool
 
 fn slug.io.stdin#prompt(@str prompt) -> @str
 
-fn slug.io.stdin#readLines() -> @chan(@struct(Full)|@struct(Empty))
+fn slug.io.stdin#readLines() -> @chan(@str)
   desc: "Returns a shared singleton channel of stdin line events."
 
 fn slug.io.tcp#accept(@num listener) -> @num

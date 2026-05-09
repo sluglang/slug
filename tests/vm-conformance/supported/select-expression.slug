@@ -11,8 +11,8 @@ defer close(c)
 var worker = spawn {
 	select {
 		recv c /> match {
-			Full{value} => value * 2
-			Empty       => "closed"
+			nil   => "closed"
+			value => value * 2
 		}
 		after 100 /> fn(_) { "timeout" }
 	}

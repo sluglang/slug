@@ -12,8 +12,8 @@ var test_send_recv = fn() {
 
 	var x = spawn {
 		match recv(c) {
-			Full{value} => value
-			Empty => "closed"
+			nil => "closed"
+			value => value
 		}
 	}
 
@@ -28,8 +28,8 @@ var test_close_channel = fn() {
 
 	var x = spawn {
 		match recv(c) {
-			Full{value} => value
-			Empty => "closed"
+			nil => "closed"
+			value => value
 		}
 	}
 
@@ -48,8 +48,8 @@ var test_buffered_channel = fn() {
 
 	var x = spawn {
 		match recv(c) {
-			Full{value} => value
-			Empty => "closed"
+			nil => "closed"
+			value => value
 		}
 	}
 
@@ -64,8 +64,8 @@ var test_select = fn() {
 	var x = spawn {
 		select {
 			recv c /> match {
-				Full{value} => value * 2
-				Empty => "closed"
+				nil => "closed"
+				value => value * 2
 			}
 		}
 	}
@@ -83,8 +83,8 @@ var test_select_timeout = fn() {
 	var x = spawn {
 		select {
 			recv c /> match {
-				Full{value} => value * 2
-				Empty => "closed"
+				nil => "closed"
+				value => value * 2
 			}
 			after 50 /> fn(_) { "timeout" }
 		}
@@ -103,8 +103,8 @@ var test_select_default = fn() {
 	var x = spawn {
 		select {
 			recv c /> match {
-				Full{value} => value * 2
-				Empty => "closed"
+				nil => "closed"
+				value => value * 2
 			}
 			_ /> fn(_) { "default" }
 		}
@@ -121,8 +121,8 @@ var test_select_send = fn() {
 
 	var x = spawn {
 		match recv(c) {
-			Full{value} => value
-			Empty => "closed"
+			nil => "closed"
+			value => value
 		}
 	}
 

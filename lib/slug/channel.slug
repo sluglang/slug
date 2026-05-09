@@ -59,6 +59,8 @@ foreign close = fn(@chan channel)
 /**
  * sends a value to a channel, blocking until a receiver is ready.
  *
+ * `payload` must not be nil.
+ *
  * Returns the channel, allowing chains: `ch /> send("a") /> send("b")`
  */
 @export
@@ -70,6 +72,8 @@ val send = fn(@chan channel, payload) {
 
 /**
  * attempts to send a value to a channel without blocking.
+ *
+ * `payload` must not be nil.
  *
  * Returns the channel if the send succeeded, nil if the channel was full.
  */

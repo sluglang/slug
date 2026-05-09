@@ -52,11 +52,6 @@ type vmSelectEvalCase struct {
 	handlerFn *VMFunction
 }
 
-var (
-	selectFullSchema  = &object.StructSchema{Name: "Full"}
-	selectEmptySchema = &object.StructSchema{Name: "Empty"}
-)
-
 func (r *vmRecurSignal) Type() object.ObjectType { return "VM_RECUR" }
 func (r *vmRecurSignal) Inspect() string         { return "<vm recur>" }
 
@@ -1689,6 +1684,9 @@ func (e *Executor) evalSelect(ins Instruction, chunk *Chunk) (object.Object, *ob
 			if err, ok := val.(*object.Error); ok {
 				return nil, err
 			}
+			if val == nil || val.Type() == object.NIL_OBJ {
+				return nil, e.errorAt(spec.TokenPos, "send expects a non-nil payload")
+			}
 			ev.channel = ch
 			ev.sendValue = val
 			if ch.IsClosed() {
@@ -1752,13 +1750,15 @@ func (e *Executor) evalSelect(ins Instruction, chunk *Chunk) (object.Object, *ob
 	var selectedVal object.Object = object.NIL
 	switch ast.SelectCaseType(selected.kind) {
 	case ast.SelectRecv:
-		var recvObj object.Object = object.NIL
 		if ok {
 			if v, okCast := recv.Interface().(object.Object); okCast {
-				recvObj = v
+				selectedVal = v
+			} else {
+				selectedVal = object.NIL
 			}
+		} else {
+			selectedVal = object.NIL
 		}
-		selectedVal = e.recvResultForSelect(recvObj, ok)
 	case ast.SelectSend:
 		if selected.channel != nil && selected.channel.IsClosed() {
 			return nil, e.errorAt(selected.tokenPos, "send on closed channel")
@@ -1779,19 +1779,6 @@ func (e *Executor) evalSelect(ins Instruction, chunk *Chunk) (object.Object, *ob
 		return nil, err
 	}
 	return res, nil
-}
-
-func (e *Executor) recvResultForSelect(value object.Object, ok bool) object.Object {
-	if ok {
-		return &object.StructValue{
-			Schema: selectFullSchema,
-			Fields: map[string]object.Object{"value": value},
-		}
-	}
-	return &object.StructValue{
-		Schema: selectEmptySchema,
-		Fields: map[string]object.Object{},
-	}
 }
 
 func (e *Executor) selectThunkByIndex(chunk *Chunk, idx int, pos int) (*VMFunction, *object.Error) {

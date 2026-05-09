@@ -436,3 +436,29 @@
 - Validation performed:
   - `go test ./internal/vm ./internal/runtime ./cmd/app -count=1`
   - `make test`
+
+## 2026-05-09
+
+### ADR-037: channel receive returns payload-or-nil
+
+- Updated VM channel receive/select semantics in `internal/vm/executor.go`:
+  - `recv`/`select recv` now return payload values directly.
+  - closed-and-drained channel receive now returns `nil`.
+  - removed `Full`/`Empty` struct wrapping path from select receive.
+- Enforced ADR rule that channel sends must not send `nil`:
+  - select send path now returns runtime error `send expects a non-nil payload` for `nil` payloads.
+  - applies to both `send` and `trySend` since both lower to select send.
+- Removed `slug.channel` runtime prebinding of legacy receive schemas in `internal/runtime/runtime.go`:
+  - removed `FullSchema`/`EmptySchema` runtime state.
+  - removed module-load injection of `Full` and `Empty` constants.
+- Updated channel/receive consumers to new contract:
+  - `test-suites/channels.slug` switched `match recv(...)` and `select recv` handlers from `Full/Empty` patterns to value-or-`nil` patterns.
+  - `tests/vm-conformance/supported/select-expression.slug` migrated to value-or-`nil` match handling.
+- Updated stdlib/docs surface and generated manifest:
+  - `lib/slug/io/stdin.slug` now documents and returns `@chan(@str)` and `readLine` now returns direct `recv` result.
+  - `docs/_libraries/slug.channel.md` removed `Full`/`Empty` struct sections and documented payload-or-`nil` receives plus nil-send restriction.
+  - `docs/_libraries/slug.io.stdin.md` updated `readLines` signature/event semantics to payload-or-`nil` contract.
+  - `lib/MANIFEST.ai` removed `slug.channel#Full`/`slug.channel#Empty` struct entries and updated `slug.io.stdin#readLines()` signature.
+- Validation performed:
+  - `go test ./internal/vm ./internal/runtime ./cmd/app -count=1`
+  - `make test`

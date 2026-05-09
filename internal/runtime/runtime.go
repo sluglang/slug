@@ -23,8 +23,6 @@ type Runtime struct {
 	Modules          map[string]*object.Module
 	Builtins         map[string]*object.Foreign
 	ForeignFunctions map[string]*object.Foreign
-	FullSchema       *object.StructSchema
-	EmptySchema      *object.StructSchema
 	nextID           atomic.Int64
 }
 
@@ -52,16 +50,6 @@ func NewRuntime(config util.Configuration) *Runtime {
 		Modules:          nil,
 		Builtins:         builtinFunctions,
 		ForeignFunctions: functions,
-		FullSchema: &object.StructSchema{
-			Name:       "Full",
-			Fields:     []object.StructSchemaField{{Name: "value"}},
-			FieldIndex: map[string]int{"value": 0},
-		},
-		EmptySchema: &object.StructSchema{
-			Name:       "Empty",
-			Fields:     []object.StructSchemaField{},
-			FieldIndex: map[string]int{},
-		},
 	}
 }
 
@@ -167,15 +155,6 @@ func (r *Runtime) LoadModule(modName string) (*object.Module, error) {
 	moduleEnv.LibRoot = moduleLibRoot(loadRoot, modName)
 	moduleEnv.ModuleFqn = modName
 	moduleEnv.Src = string(source)
-	if modName == "slug.channel" {
-		if _, err := moduleEnv.DefineConstant("Full", r.FullSchema, true, false); err != nil {
-			return nil, fmt.Errorf("failed to install channel schema for module %s: %w", modName, err)
-		}
-		if _, err := moduleEnv.DefineConstant("Empty", r.EmptySchema, true, false); err != nil {
-			return nil, fmt.Errorf("failed to install channel schema for module %s: %w", modName, err)
-		}
-	}
-
 	module := &object.Module{
 		Name:    modName,
 		Path:    fullPath,
