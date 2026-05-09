@@ -41,9 +41,9 @@ contexts:
     # Symbols
     - match: :(?:nil|true|false)\b
       scope: constant.language.symbol.slug
-    - match: :(?:bool|number|string|list|map|bytes|function|task|struct|symbol|error)\b
+    - match: :(?:bool|num|str|list|map|bytes|fn|task|struct|sym)\b
       scope: support.type.symbol.slug
-    - match: :[a-zA-Z_][a-zA-Z0-9_]*
+    - match: :[_\p{L}\p{M}][_\p{L}\p{M}\p{Nd}]*
       scope: constant.other.symbol.slug
     - match: :"""
       scope: constant.other.symbol.slug
@@ -65,7 +65,7 @@ contexts:
       scope: meta.annotation.test.slug
     - match: (@(?:bool|bytes|fn|list|map|num|str|chan|sym|task))\b
       scope: storage.type.annotation.slug
-    - match: (@[a-zA-Z][a-zA-Z0-9_]*)
+    - match: (@[_\p{L}\p{M}][_\p{L}\p{M}\p{Nd}]*)
       scope: entity.name.tag.slug
       push: annotation_args
 
@@ -124,12 +124,12 @@ contexts:
       scope: support.function.stdlib.slug
 
     # Function calls
-    - match: \b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(
+    - match: \b([_\p{L}\p{M}][_\p{L}\p{M}\p{Nd}]*)\s*\(
       captures:
         1: variable.function.slug
 
     # Identifiers (variables, properties, etc.)
-    - match: \b[a-zA-Z_][a-zA-Z0-9_]*\b
+    - match: \b[_\p{L}\p{M}][_\p{L}\p{M}\p{Nd}]*\b
       scope: variable.other.slug
 
     # Operators
@@ -157,7 +157,7 @@ contexts:
       scope: constant.numeric.hex.slug
 
     # Byte array literals 0x"...." with even number of hex digits
-    - match: \b0x"\s*(?:[0-9a-fA-F]{2})*\s*"
+    - match: \b0x"(?:[0-9a-fA-F]{2})*"
       scope: constant.numeric.byte-array.hex.slug
 
     # Raw Strings (Single Quotes)

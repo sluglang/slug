@@ -425,7 +425,8 @@ func (p *Parser) parseValStatement() ast.Expression {
 		p.clearPendingDoc()
 	}
 
-	if !(p.peekTokenIs(token.IDENT) || p.peekTokenIs(token.LBRACKET) || p.peekTokenIs(token.LBRACE)) {
+	if !(p.peekTokenIs(token.IDENT) || p.peekTokenIs(token.LBRACKET) ||
+		p.peekTokenIs(token.LBRACE) || p.peekTokenIs(token.MATCH_KEYS_EXACT)) {
 		p.addErrorAt(p.curToken.Position, "expected identifier, list, or map literal after 'val'")
 		return nil
 	}

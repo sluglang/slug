@@ -10,6 +10,7 @@ statement_sep = ";" | NEWLINE ;
 
 (* Tags can prefix var/val/foreign declarations. Tags also appear in parameter lists. *)
 statement = tag_prefixed_decl
+          | doc_comment_stmt
           | foreign_decl
           | return_stmt
           | throw_stmt
@@ -24,6 +25,7 @@ tag_prefix = tag , { { statement_sep } , tag } , { statement_sep } ;
 return_stmt = "return" , expression ;
 throw_stmt = "throw" , expression ;
 not_implemented_stmt = "???" ;
+doc_comment_stmt = DOC_COMMENT ;
 
 (* Defer may wrap a block, match, or expression. onerror(...) optionally binds an error name. *)
 defer_stmt = "defer" , [ "onsuccess" | ( "onerror" , "(" , identifier , ")" ) ] ,
@@ -81,8 +83,10 @@ primary = literal
         | val_expr
         ;
 
-var_expr = "var" , match_pattern , "=" , expression ;
-val_expr = "val" , match_pattern , "=" , expression ;
+var_expr = "var" , var_pattern , "=" , expression ;
+val_expr = "val" , val_pattern , "=" , expression ;
+var_pattern = match_pattern ;
+val_pattern = match_pattern ;
 
 recur_expr = "recur" , "(" , [ call_args ] , ")" ;
 
@@ -187,9 +191,9 @@ nil = "nil" ;
 symbol = ":" , ( identifier | string ) ;
 
 (* Lexical forms (simplified): *)
-identifier = letter , { letter | digit } ;
-letter = "_" | LETTER ;
-digit = DIGIT ;
+identifier = ident_start , { ident_start | digit } ;
+ident_start = "_" | UNICODE_LETTER | UNICODE_MARK ;
+digit = UNICODE_DIGIT ;
 
 number = decimal | hex ;
 decimal = DIGIT , { DIGIT | "_" } ,
@@ -218,4 +222,6 @@ escape_seq = "\\" , ( "n" | "r" | "t" | "\\" | '"' | "{" | octal ) ;
 octal = oct_digit , [ oct_digit ] , [ oct_digit ] ;
 oct_digit = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" ;
 
-(* NEWLINE tokens are emitted outside ()/[]; comments start with # or // to end of line. *)
+(* NEWLINE tokens are emitted outside ()/[]; comments can be:
+   # line comment, // line comment, /* block comment */, or /** doc comment */.
+*)

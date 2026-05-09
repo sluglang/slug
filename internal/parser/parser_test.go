@@ -185,6 +185,33 @@ onsuccess + onerror
 	}
 }
 
+func TestValAcceptsExactMapPattern(t *testing.T) {
+	input := `
+val {| :a: x |} = m
+`
+
+	l := lexer.New(input)
+	p := New(l, "", input)
+	program := p.ParseProgram()
+	checkParserErrors(t, p)
+
+	if len(program.Statements) != 1 {
+		t.Fatalf("expected 1 statement, got %d", len(program.Statements))
+	}
+
+	stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
+	if !ok {
+		t.Fatalf("expected expression statement, got %T", program.Statements[0])
+	}
+	valExpr, ok := stmt.Expression.(*ast.ValExpression)
+	if !ok {
+		t.Fatalf("expected val expression, got %T", stmt.Expression)
+	}
+	if _, ok := valExpr.Pattern.(*ast.MapPattern); !ok {
+		t.Fatalf("expected map pattern, got %T", valExpr.Pattern)
+	}
+}
+
 func TestIdentifierExpression(t *testing.T) {
 	input := "foobar;"
 

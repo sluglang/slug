@@ -507,3 +507,30 @@
 - Validation performed:
   - `go test ./internal/parser ./internal/runtime ./internal/vm ./cmd/app -count=1`
   - `make test`
+
+
+### `slug.ebnf` alignment with parser behavior
+
+- Updated `extras/slug.ebnf` to match current parser semantics and lexical behavior:
+    - Added `doc_comment_stmt = DOC_COMMENT` to reflect parser support for top-level doc comment tokens.
+    - Clarified declaration pattern acceptance with shared behavior:
+        - `var` and `val` both use full `match_pattern`, including exact-map `{| ... |}` patterns.
+    - Updated lexical identifier production to Unicode-aware form (`UNICODE_LETTER`/`UNICODE_MARK` and `UNICODE_DIGIT`) to match lexer behavior.
+    - Expanded lexical comment note to include block comments (`/* ... */`) and doc comments (`/** ... */`) in addition to line comments.
+
+### `val`/`var` destructuring entry parity
+
+- Updated parser `val` entry-token validation to match `var` by allowing exact-map pattern starts (`{| ... |}`).
+- Added parser test coverage:
+    - `TestValAcceptsExactMapPattern` in `internal/parser/parser_test.go`.
+
+### TextMate/Sublime syntax parity and lexer-alignment pass
+
+- Updated `extras/Slug.tmbundle/Syntaxes/Slug.tmLanguage.json`:
+    - Added builtin function highlighting parity (`len`, `import`, `print`, `println`, `stacktrace`, `argv`, `argm`, `cfg`).
+    - Added explicit `{|` and `|}` exact-map delimiter punctuation scopes.
+    - Tightened bytes-literal regex to disallow internal whitespace in `0x"..."`.
+    - Upgraded tag/symbol/function-call/identifier patterns to Unicode-aware identifier classes.
+- Updated `extras/Slug.sublime-package/Slug.sublime-syntax` with parity changes:
+    - Unicode-aware tag/symbol/function-call/identifier regexes.
+    - Tightened bytes-literal regex to disallow internal whitespace.
