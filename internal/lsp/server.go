@@ -535,12 +535,12 @@ func (s *Server) handleHover(req rpcRequest) error {
 			Contents: lspMarkupContent{Kind: "markdown", Value: "`" + name + "`"},
 		})
 	}
-	if strings.TrimSpace(sym.Detail) == "" || sym.Kind == "variable" {
+	if strings.TrimSpace(sym.Detail) == "" || sym.Kind == "variable" || sym.Kind == "constant" {
 		if imported, ok := s.resolveCompletionImportedSymbol(normURI, doc.Text, name); ok {
 			if strings.TrimSpace(sym.Detail) == "" {
 				sym.Detail = imported.Detail
 			}
-			if sym.Kind == "variable" && strings.TrimSpace(imported.Kind) != "" {
+			if (sym.Kind == "variable" || sym.Kind == "constant") && strings.TrimSpace(imported.Kind) != "" {
 				sym.Kind = imported.Kind
 			}
 		}
@@ -1001,7 +1001,7 @@ func (s *Server) handleCompletionResolve(req rpcRequest) error {
 				if strings.TrimSpace(best.Detail) == "" {
 					best.Detail = imported.Detail
 				}
-				if strings.TrimSpace(best.Kind) == "" || best.Kind == "variable" {
+				if strings.TrimSpace(best.Kind) == "" || best.Kind == "variable" || best.Kind == "constant" {
 					best.Kind = imported.Kind
 				}
 			}
@@ -1104,6 +1104,8 @@ func toDocumentSymbolKind(kind string) int {
 		return 12
 	case "struct":
 		return 23
+	case "constant":
+		return 14
 	default:
 		return 13
 	}
@@ -1115,6 +1117,8 @@ func toCompletionItemKind(kind string) int {
 		return 3
 	case "parameter", "variable":
 		return 6
+	case "constant":
+		return 21
 	case "struct":
 		return 22
 	default:
@@ -1322,7 +1326,7 @@ func collectSymbols(src string) []symbolDef {
 			if _, ok := e.Value.(*ast.FunctionLiteral); ok {
 				for _, n := range topLevelPatternNames(e.Pattern) {
 					detail = buildFunctionDocMarkdown(n.Name, e.Doc, e.HasDoc, e.Tags)
-					addPattern(e.Pattern, "variable", detail)
+					addPattern(e.Pattern, "function", detail)
 					goto walkVarValue
 				}
 			}
@@ -1337,14 +1341,14 @@ func collectSymbols(src string) []symbolDef {
 			if _, ok := e.Value.(*ast.FunctionLiteral); ok {
 				for _, n := range topLevelPatternNames(e.Pattern) {
 					detail = buildFunctionDocMarkdown(n.Name, e.Doc, e.HasDoc, e.Tags)
-					addPattern(e.Pattern, "variable", detail)
+					addPattern(e.Pattern, "function", detail)
 					goto walkValValue
 				}
 			}
 			if e.HasDoc {
 				detail = strings.TrimSpace(e.Doc)
 			}
-			addPattern(e.Pattern, "variable", detail)
+			addPattern(e.Pattern, "constant", detail)
 		walkValValue:
 			walkExpr(e.Value)
 		case *ast.FunctionLiteral:
@@ -1460,7 +1464,7 @@ func collectTopLevelSymbols(src string) []symbolDef {
 		switch e := es.Expression.(type) {
 		case *ast.ValExpression:
 			detail := ""
-			kind := "variable"
+			kind := "constant"
 			switch e.Value.(type) {
 			case *ast.FunctionLiteral:
 				kind = "function"
@@ -1659,7 +1663,7 @@ func (s *Server) resolveModuleSymbolIdentity(originURI string, target symbolDef)
 	for _, b := range bindings {
 		if b.LocalName == target.Name {
 			kind := target.Kind
-			if kind == "variable" {
+			if kind == "variable" || kind == "constant" {
 				kind = s.inferExportKindFromOpenDocs(b.SourceModule, b.SourceName, kind)
 			}
 			return moduleSymbolIdentity{Module: b.SourceModule, Name: b.SourceName, Kind: kind}, true
@@ -1732,7 +1736,7 @@ func collectExportedTopLevelSymbols(src string) []symbolDef {
 			if !hasTag(e.Tags, "@export") {
 				continue
 			}
-			kind := "variable"
+			kind := "constant"
 			if _, ok := e.Value.(*ast.FunctionLiteral); ok {
 				kind = "function"
 			}
@@ -2544,11 +2548,11 @@ func (s *Server) resolveModuleMemberIdentityAtOffset(src string, off int) (modul
 		return moduleSymbolIdentity{}, lspRange{}, false, false
 	}
 	if len(hit.Candidates) == 1 {
-		return moduleSymbolIdentity{Module: hit.Candidates[0], Name: hit.Name, Kind: "variable"}, hit.Range, true, false
+		return moduleSymbolIdentity{Module: hit.Candidates[0], Name: hit.Name, Kind: ""}, hit.Range, true, false
 	}
 	modules := s.modulesExportingName(hit.Candidates, hit.Name)
 	if len(modules) == 1 {
-		return moduleSymbolIdentity{Module: modules[0], Name: hit.Name, Kind: "variable"}, hit.Range, true, false
+		return moduleSymbolIdentity{Module: modules[0], Name: hit.Name, Kind: ""}, hit.Range, true, false
 	}
 	return moduleSymbolIdentity{}, hit.Range, false, true
 }

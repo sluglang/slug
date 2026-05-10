@@ -455,6 +455,55 @@ func TestServerHoverReturnsSymbolInfo(t *testing.T) {
 	t.Fatal("hover response not found")
 }
 
+func TestServerHoverDistinguishesValConstantAndVarVariable(t *testing.T) {
+	src := "val c = 1\nvar v = 2\nc\nv\n"
+	srcJSON := strings.ReplaceAll(src, "\"", "\\\"")
+	srcJSON = strings.ReplaceAll(srcJSON, "\n", "\\n")
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///a.slug","version":1,"text":"`+srcJSON+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":54,"method":"textDocument/hover","params":{"textDocument":{"uri":"file:///a.slug"},"position":{"line":2,"character":0}}}`) +
+			frame(`{"jsonrpc":"2.0","id":55,"method":"textDocument/hover","params":{"textDocument":{"uri":"file:///a.slug"},"position":{"line":3,"character":0}}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	seen54 := false
+	seen55 := false
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok {
+			continue
+		}
+		switch int(id) {
+		case 54:
+			seen54 = true
+			res, _ := m["result"].(map[string]interface{})
+			contents, _ := res["contents"].(map[string]interface{})
+			v, _ := contents["value"].(string)
+			if !strings.Contains(v, "`c` (constant)") {
+				t.Fatalf("expected val hover to show constant, got %q", v)
+			}
+		case 55:
+			seen55 = true
+			res, _ := m["result"].(map[string]interface{})
+			contents, _ := res["contents"].(map[string]interface{})
+			v, _ := contents["value"].(string)
+			if !strings.Contains(v, "`v` (variable)") {
+				t.Fatalf("expected var hover to show variable, got %q", v)
+			}
+		}
+	}
+	if !seen54 || !seen55 {
+		t.Fatalf("missing hover responses: seen54=%v seen55=%v", seen54, seen55)
+	}
+}
+
 func TestServerHoverIncludesDocComment(t *testing.T) {
 	src := "/**\n * Answer docs.\n */\nval answer = 42\nval use = answer\n"
 	srcJSON := strings.ReplaceAll(src, "\"", "\\\"")

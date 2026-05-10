@@ -2060,3 +2060,36 @@ Tests added:
 Validation performed:
 - `go test ./internal/lsp -count=1`
 - `go test ./... -count=1`
+
+### LSP Phase 34: classify `val` as constant and `var` as variable
+
+- Updated LSP symbol classification to better match language semantics:
+  - `val` bindings now surface as `constant`.
+  - `var` bindings surface as `variable`.
+  - function bindings (`... = fn(...)`) surface as `function`.
+
+Implementation updates:
+- `internal/lsp/server.go`
+  - `collectSymbols`:
+    - `val` function bindings -> `function`.
+    - `val` non-function bindings -> `constant`.
+    - `var` function bindings -> `function`.
+  - `collectTopLevelSymbols`: top-level non-function `val` now `constant`.
+  - `collectExportedTopLevelSymbols`: exported non-function `val` now `constant`.
+  - LSP kind maps:
+    - `constant` -> `DocumentSymbolKind.Constant` (14)
+    - `constant` -> `CompletionItemKind.Constant` (21)
+
+Compatibility follow-up fixes:
+- import-aware enrichment now upgrades both `variable` and `constant` placeholders to imported kinds (e.g., function).
+- module symbol identity inference now treats `constant` similar to previous `variable` fallback behavior.
+- module-member identity kind filtering relaxed (`kind:""`) to avoid over-filtering during cross-module rename/reference resolution.
+
+Tests added/updated:
+- `internal/lsp/server_test.go`
+  - Added `TestServerHoverDistinguishesValConstantAndVarVariable`.
+- Existing hover/completion/rename tests continue to pass after resolver adjustments.
+
+Validation performed:
+- `go test ./internal/lsp -count=1`
+- `go test ./... -count=1`
