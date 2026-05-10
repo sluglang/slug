@@ -141,7 +141,10 @@ type codeActionParams struct {
 	TextDocument struct {
 		URI string `json:"uri"`
 	} `json:"textDocument"`
-	Range lspRange `json:"range"`
+	Range   lspRange `json:"range"`
+	Context struct {
+		Only []string `json:"only"`
+	} `json:"context"`
 }
 
 type referenceParams struct {
@@ -779,26 +782,34 @@ func (s *Server) handleCodeAction(req rpcRequest) error {
 	if _, found := resolveSymbolAt(name, offset, syms); found {
 		return s.writeResult(req.ID, []lspCodeAction{})
 	}
+	preferSource := prefersSourceActionsOnly(p.Context.Only)
+	quickFixAllowed := len(p.Context.Only) == 0 || containsCodeActionKind(p.Context.Only, "quickfix")
+	importKind := "quickfix"
+	if preferSource {
+		importKind = "source.organizeImports"
+	}
 	actions := make([]lspCodeAction, 0, 8)
 
 	// Prefer local qualification quick-fixes when a module-object import alias exists.
-	for _, b := range collectImportObjectBindings(doc.Text, "") {
-		if !s.moduleMayExportName(normURI, b.SourceModule, name) {
-			continue
-		}
-		actions = append(actions, lspCodeAction{
-			Title:     fmt.Sprintf("Qualify with '%s.%s'", b.LocalName, name),
-			Kind:      "quickfix",
-			RankGroup: "qualify",
-			Edit: &lspWorkspaceEdit{
-				Changes: map[string][]lspTextEdit{
-					normURI: {{
-						Range:   offsetRangeToLSP(doc.Text, start, end),
-						NewText: b.LocalName + "." + name,
-					}},
+	if quickFixAllowed {
+		for _, b := range collectImportObjectBindings(doc.Text, "") {
+			if !s.moduleMayExportName(normURI, b.SourceModule, name) {
+				continue
+			}
+			actions = append(actions, lspCodeAction{
+				Title:     fmt.Sprintf("Qualify with '%s.%s'", b.LocalName, name),
+				Kind:      "quickfix",
+				RankGroup: "qualify",
+				Edit: &lspWorkspaceEdit{
+					Changes: map[string][]lspTextEdit{
+						normURI: {{
+							Range:   offsetRangeToLSP(doc.Text, start, end),
+							NewText: b.LocalName + "." + name,
+						}},
+					},
 				},
-			},
-		})
+			})
+		}
 	}
 
 	modules := s.discoverExportingModules(normURI, name)
@@ -813,7 +824,7 @@ func (s *Server) handleCodeAction(req rpcRequest) error {
 		}
 		actions = append(actions, lspCodeAction{
 			Title:     title,
-			Kind:      "quickfix",
+			Kind:      importKind,
 			RankGroup: plan.Mode,
 			Edit: &lspWorkspaceEdit{
 				Changes: map[string][]lspTextEdit{
@@ -826,6 +837,32 @@ func (s *Server) handleCodeAction(req rpcRequest) error {
 		})
 	}
 	return s.writeResult(req.ID, rankAndDedupeCodeActions(actions))
+}
+
+func containsCodeActionKind(only []string, kind string) bool {
+	for _, k := range only {
+		if k == kind || strings.HasPrefix(kind, k+".") || strings.HasPrefix(k, kind+".") {
+			return true
+		}
+	}
+	return false
+}
+
+func prefersSourceActionsOnly(only []string) bool {
+	if len(only) == 0 {
+		return false
+	}
+	hasSource := false
+	for _, k := range only {
+		if k == "source" || strings.HasPrefix(k, "source.") {
+			hasSource = true
+			continue
+		}
+		if k == "quickfix" || strings.HasPrefix(k, "quickfix.") {
+			return false
+		}
+	}
+	return hasSource
 }
 
 func (s *Server) handleSignatureHelp(req rpcRequest) error {

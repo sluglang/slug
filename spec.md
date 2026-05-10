@@ -2034,3 +2034,29 @@ Tests updated:
 Validation performed:
 - `go test ./internal/lsp -count=1`
 - `go test ./... -count=1`
+
+### LSP Phase 33: honor `codeAction.context.only` for source-only requests
+
+- Fixed `textDocument/codeAction` behavior for clients requesting only source actions (e.g., Sublime sending `context.only: ["source"]`).
+- Previous behavior always emitted `kind: "quickfix"`, which source-only clients could ignore/filter.
+- New behavior:
+  - parses `context.only`,
+  - when source-only is requested, import actions are emitted as `kind: "source.organizeImports"`,
+  - quick-fix qualify actions are omitted unless quickfix kinds are allowed by `context.only`.
+
+Implementation updates:
+- `internal/lsp/server.go`
+  - Extended `codeActionParams` with `context.only`.
+  - Updated `handleCodeAction` kind selection/filtering.
+  - Added helpers:
+    - `containsCodeActionKind(only, kind)`
+    - `prefersSourceActionsOnly(only)`
+
+Tests added:
+- `internal/lsp/server_test.go`
+  - `TestServerCodeActionSourceOnlyReturnsSourceKindImportAction`
+  - Verifies `only:["source"]` returns import action kind `source.organizeImports`.
+
+Validation performed:
+- `go test ./internal/lsp -count=1`
+- `go test ./... -count=1`

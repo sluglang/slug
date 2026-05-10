@@ -773,6 +773,58 @@ func TestServerCodeActionSuggestsImportForUnresolvedSymbolFromSlugHome(t *testin
 	t.Fatal("codeAction response not found")
 }
 
+func TestServerCodeActionSourceOnlyReturnsSourceKindImportAction(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("SLUG_HOME", tmp)
+	libDir := filepath.Join(tmp, "lib", "slug")
+	if err := os.MkdirAll(libDir, 0o755); err != nil {
+		t.Fatalf("mkdir failed: %v", err)
+	}
+	timePath := filepath.Join(libDir, "time.slug")
+	timeSrc := "@export val sleep = fn(ms) { nil }\n"
+	if err := os.WriteFile(timePath, []byte(timeSrc), 0o644); err != nil {
+		t.Fatalf("write module failed: %v", err)
+	}
+	playPath := filepath.Join(tmp, "playground.slug")
+	playSrc := "val { now } = import(\"slug.time\")\nsleep(1)\n"
+	playSrcJSON := strings.ReplaceAll(playSrc, "\"", "\\\"")
+	playSrcJSON = strings.ReplaceAll(playSrcJSON, "\n", "\\n")
+	if err := os.WriteFile(playPath, []byte(playSrc), 0o644); err != nil {
+		t.Fatalf("write playground failed: %v", err)
+	}
+	playURI, _ := normalizeURI(playPath)
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"`+playURI+`","version":1,"text":"`+playSrcJSON+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":53,"method":"textDocument/codeAction","params":{"textDocument":{"uri":"`+playURI+`"},"range":{"start":{"line":1,"character":1},"end":{"line":1,"character":1}},"context":{"only":["source"]}}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok || int(id) != 53 {
+			continue
+		}
+		res, ok := m["result"].([]interface{})
+		if !ok || len(res) == 0 {
+			t.Fatalf("codeAction result missing: %#v", m)
+		}
+		act, _ := res[0].(map[string]interface{})
+		kind, _ := act["kind"].(string)
+		if kind != "source.organizeImports" {
+			t.Fatalf("expected source.organizeImports kind for source-only request, got %q (%#v)", kind, act)
+		}
+		return
+	}
+	t.Fatal("codeAction response not found")
+}
+
 func TestServerCodeActionExtendsExistingDestructuredImport(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("SLUG_HOME", tmp)
