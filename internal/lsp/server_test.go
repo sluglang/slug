@@ -5,6 +5,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -451,12 +453,11 @@ func TestServerDefinitionReturnsLocalDeclaration(t *testing.T) {
 		if !ok || int(id) != 9 {
 			continue
 		}
-		res, ok := m["result"].([]interface{})
-		if !ok || len(res) == 0 {
+		res, ok := m["result"].(map[string]interface{})
+		if !ok {
 			t.Fatalf("definition result missing: %#v", m)
 		}
-		loc, _ := res[0].(map[string]interface{})
-		uri, _ := loc["uri"].(string)
+		uri, _ := res["uri"].(string)
 		if !strings.HasPrefix(uri, "file://") {
 			t.Fatalf("unexpected definition uri: %q", uri)
 		}
@@ -515,6 +516,55 @@ func TestServerDefinitionReturnsNilInsideStringLiteral(t *testing.T) {
 		}
 		if m["result"] != nil {
 			t.Fatalf("expected nil definition result inside string literal, got %#v", m["result"])
+		}
+		return
+	}
+	t.Fatal("definition response not found")
+}
+
+func TestServerDefinitionResolvesWildcardImportedExportFromModuleFile(t *testing.T) {
+	tmp := t.TempDir()
+	libDir := filepath.Join(tmp, "lib", "slug")
+	if err := os.MkdirAll(libDir, 0o755); err != nil {
+		t.Fatalf("mkdir failed: %v", err)
+	}
+	stdPath := filepath.Join(libDir, "std.slug")
+	stdSrc := "@export val reduce = fn(a,b){ a }\\n"
+	if err := os.WriteFile(stdPath, []byte(stdSrc), 0o644); err != nil {
+		t.Fatalf("write std module failed: %v", err)
+	}
+	playPath := filepath.Join(tmp, "playground.slug")
+	playSrc := "var {*} = import(\\\"slug.std\\\")\\n[1,2] /> reduce(0, fn(a,b){a})\\n"
+	if err := os.WriteFile(playPath, []byte(strings.ReplaceAll(playSrc, "\\\\", "")), 0o644); err != nil {
+		t.Fatalf("write playground failed: %v", err)
+	}
+	playURI, _ := normalizeURI(playPath)
+
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"`+playURI+`","version":1,"text":"`+playSrc+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":30,"method":"textDocument/definition","params":{"textDocument":{"uri":"`+playURI+`"},"position":{"line":1,"character":10}}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok || int(id) != 30 {
+			continue
+		}
+		res, ok := m["result"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("definition result missing: %#v", m)
+		}
+		uri, _ := res["uri"].(string)
+		if !strings.HasSuffix(uri, "/lib/slug/std.slug") {
+			t.Fatalf("expected definition uri in std module, got %q", uri)
 		}
 		return
 	}

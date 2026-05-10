@@ -1527,3 +1527,48 @@ Tests added in `internal/lsp/server_test.go`:
 Validation performed:
 - `go test ./internal/lsp -count=1`
 - `go test ./... -count=1`
+
+### LSP compatibility fix: definition response payload shape
+
+- Adjusted `textDocument/definition` response shape in `internal/lsp/server.go` from `Location[]` to a single `Location` (or `null`).
+- Motivation: improve client compatibility for editors that are strict/fragile on union payload decoding for definition responses.
+- Updated `internal/lsp/server_test.go` definition test to assert object-shaped `Location` response.
+
+Validation performed:
+- `go test ./internal/lsp -count=1`
+- `go test ./... -count=1`
+
+### LSP protocol fix: always include `result` in success responses
+
+- Fixed JSON-RPC response encoding in `internal/lsp/server.go` for success replies that return `nil`.
+- Previous bug could emit payloads like `{"jsonrpc":"2.0","id":N}` (missing both `result` and `error`), which is invalid JSON-RPC and breaks strict clients.
+- Updated writer paths to use explicit response envelopes:
+  - success responses always include `result` (including `null`),
+  - error responses include `error` only.
+
+Validation performed:
+- `go test ./internal/lsp -count=1`
+- `go test ./... -count=1`
+
+### LSP definition enhancement: import-aware module jump (including wildcard imports)
+
+- Enhanced `textDocument/definition` in `internal/lsp/server.go` to resolve imported symbols to source module exports.
+
+New behavior:
+- If cursor is on module-member usage (`m.foo` / `import("mod").foo`) and identity resolves, definition jumps to exported symbol in source module.
+- If cursor is on a top-level local alias imported via destructuring (`val { foo } = import("mod")`), definition jumps to exported source symbol.
+- If local symbol is unresolved and module is imported via wildcard (`var {*} = import("mod")`), definition now resolves against module exports and jumps to source file.
+
+Implementation notes:
+- Added wildcard import module extraction: `collectWildcardImportModules`.
+- Added module export location resolver with open-doc preference and filesystem fallback:
+  - `resolveModuleExportLocation`
+  - `modulePathFromURI`
+  - `findOpenDocURIByModule`
+
+Tests added in `internal/lsp/server_test.go`:
+- `TestServerDefinitionResolvesWildcardImportedExportFromModuleFile`
+
+Validation performed:
+- `go test ./internal/lsp -count=1`
+- `go test ./... -count=1`

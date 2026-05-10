@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net/url"
+	"os"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -60,6 +61,18 @@ type rpcResponse struct {
 	ID      interface{} `json:"id,omitempty"`
 	Result  interface{} `json:"result,omitempty"`
 	Error   *rpcError   `json:"error,omitempty"`
+}
+
+type rpcSuccessResponse struct {
+	JSONRPC string      `json:"jsonrpc"`
+	ID      interface{} `json:"id,omitempty"`
+	Result  interface{} `json:"result"`
+}
+
+type rpcErrorResponse struct {
+	JSONRPC string      `json:"jsonrpc"`
+	ID      interface{} `json:"id,omitempty"`
+	Error   *rpcError   `json:"error"`
 }
 
 type rpcError struct {
@@ -484,21 +497,42 @@ func (s *Server) handleDefinition(req rpcRequest) error {
 		return s.writeResult(req.ID, nil)
 	}
 	offset := offsetFromPosition(doc.Text, p.Position.Line, p.Position.Character)
+	if identity, _, ok, _ := s.resolveModuleMemberIdentityAtOffset(doc.Text, offset); ok {
+		if loc, ok := s.resolveModuleExportLocation(normURI, identity.Module, identity.Name); ok {
+			return s.writeResult(req.ID, loc)
+		}
+	}
 	name, _, _ := identifierAtOffset(doc.Text, offset)
 	if name == "" {
 		return s.writeResult(req.ID, nil)
 	}
 	syms := collectSymbols(doc.Text)
 	sym, found := resolveSymbolAt(name, offset, syms)
-	if !found {
-		return s.writeResult(req.ID, nil)
+	if found {
+		if sym.ScopeDepth == 0 {
+			allBindings := collectImportBindingsForModule(doc.Text, "")
+			for _, b := range allBindings {
+				if b.LocalName != name {
+					continue
+				}
+				if loc, ok := s.resolveModuleExportLocation(normURI, b.SourceModule, b.SourceName); ok {
+					return s.writeResult(req.ID, loc)
+				}
+			}
+		}
+		defRange := offsetRangeToLSP(doc.Text, sym.Start, sym.End)
+		loc := lspLocation{
+			URI:   normURI,
+			Range: defRange,
+		}
+		return s.writeResult(req.ID, loc)
 	}
-	defRange := offsetRangeToLSP(doc.Text, sym.Start, sym.End)
-	loc := lspLocation{
-		URI:   normURI,
-		Range: defRange,
+	for _, module := range collectWildcardImportModules(doc.Text) {
+		if loc, ok := s.resolveModuleExportLocation(normURI, module, name); ok {
+			return s.writeResult(req.ID, loc)
+		}
 	}
-	return s.writeResult(req.ID, []lspLocation{loc})
+	return s.writeResult(req.ID, nil)
 }
 
 func (s *Server) handleDocumentSymbol(req rpcRequest) error {
@@ -1474,6 +1508,50 @@ func collectImportObjectBindings(src string, onlyModule string) []moduleObjectBi
 	return out
 }
 
+func collectWildcardImportModules(src string) []string {
+	l := lexer.New(src)
+	p := parser.New(l, "<lsp>", src)
+	program := p.ParseProgram()
+	out := []string{}
+	seen := map[string]bool{}
+	for _, st := range program.Statements {
+		es, ok := st.(*ast.ExpressionStatement)
+		if !ok || es.Expression == nil {
+			continue
+		}
+		var pattern ast.MatchPattern
+		var value ast.Expression
+		switch e := es.Expression.(type) {
+		case *ast.ValExpression:
+			pattern, value = e.Pattern, e.Value
+		case *ast.VarExpression:
+			pattern, value = e.Pattern, e.Value
+		default:
+			continue
+		}
+		mp, ok := pattern.(*ast.MapPattern)
+		if !ok || mp == nil || !mp.SelectAll {
+			continue
+		}
+		call, ok := value.(*ast.CallExpression)
+		if !ok {
+			continue
+		}
+		fn, ok := call.Function.(*ast.Identifier)
+		if !ok || fn.Value != "import" {
+			continue
+		}
+		mods := importModuleArgs(call.Arguments)
+		for _, m := range mods {
+			if !seen[m] {
+				seen[m] = true
+				out = append(out, m)
+			}
+		}
+	}
+	return out
+}
+
 func importModuleArgs(args []ast.Expression) []string {
 	out := make([]string, 0, len(args))
 	for _, a := range args {
@@ -1588,6 +1666,63 @@ func moduleNameFromURI(uri string) string {
 		return ""
 	}
 	return strings.ReplaceAll(p, "/", ".")
+}
+
+func modulePathFromURI(originURI string, module string) string {
+	if module == "" {
+		return ""
+	}
+	_, local := normalizeURI(originURI)
+	if local == "" {
+		return ""
+	}
+	root := filepath.Dir(local)
+	slash := filepath.ToSlash(local)
+	if idx := strings.LastIndex(slash, "/lib/"); idx >= 0 {
+		root = filepath.FromSlash(slash[:idx])
+	}
+	rel := filepath.FromSlash(strings.ReplaceAll(module, ".", "/") + ".slug")
+	return filepath.Join(root, "lib", rel)
+}
+
+func (s *Server) resolveModuleExportLocation(originURI string, module string, name string) (lspLocation, bool) {
+	path := modulePathFromURI(originURI, module)
+	if path == "" {
+		return lspLocation{}, false
+	}
+	var src string
+	var uri string
+	if docURI, ok := s.findOpenDocURIByModule(module); ok {
+		doc := s.docs[docURI]
+		src = doc.Text
+		uri = doc.URI
+	} else {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return lspLocation{}, false
+		}
+		src = string(b)
+		uri, _ = normalizeURI(path)
+	}
+	for _, exp := range collectExportedTopLevelSymbols(src) {
+		if exp.Name != name {
+			continue
+		}
+		return lspLocation{
+			URI:   uri,
+			Range: offsetRangeToLSP(src, exp.Start, exp.End),
+		}, true
+	}
+	return lspLocation{}, false
+}
+
+func (s *Server) findOpenDocURIByModule(module string) (string, bool) {
+	for uri := range s.docs {
+		if moduleNameFromURI(uri) == module {
+			return uri, true
+		}
+	}
+	return "", false
 }
 
 func (s *Server) resolveModuleMemberIdentityAtOffset(src string, off int) (moduleSymbolIdentity, lspRange, bool, bool) {
@@ -2153,11 +2288,11 @@ func idOrNil(id json.RawMessage) interface{} {
 }
 
 func (s *Server) writeResult(id json.RawMessage, result interface{}) error {
-	return writeFramedMessage(s.out, rpcResponse{JSONRPC: "2.0", ID: idOrNil(id), Result: result})
+	return writeFramedMessage(s.out, rpcSuccessResponse{JSONRPC: "2.0", ID: idOrNil(id), Result: result})
 }
 
 func (s *Server) writeError(id interface{}, code int, message string, data interface{}) error {
-	return writeFramedMessage(s.out, rpcResponse{JSONRPC: "2.0", ID: id, Error: &rpcError{Code: code, Message: message, Data: data}})
+	return writeFramedMessage(s.out, rpcErrorResponse{JSONRPC: "2.0", ID: id, Error: &rpcError{Code: code, Message: message, Data: data}})
 }
 
 func maxInt(a, b int) int {
