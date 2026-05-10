@@ -878,3 +878,21 @@
   - `TestSemanticTypeCheckStrictTracksMatchCaseUnionForCalls`
 - Validation performed:
   - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
+
+### Semantic typing enhancement: guard-based flow narrowing in `if` and `match`
+
+- Added branch-local flow refinements driven by boolean guards, applied during semantic inference.
+- New guard narrowing support:
+  - `x == nil` / `x != nil` (including negated/else polarity handling),
+  - `type(x) == <TYPE_CONST>` / `!=` for common type constants (`NIL_TYPE`, `BOOLEAN_TYPE`, `NUMBER_TYPE`, `STRING_TYPE`, etc.),
+  - conservative composition over `&&`, `||`, and `!`.
+- Refinements are applied only within branch/case scopes:
+  - `if` true/false branches receive separate narrowed bindings,
+  - `match` guard-true path narrows case-local bindings before body inference.
+- Added strict concrete-type include/exclude helpers for refinement set operations, avoiding nil-compatibility overreach in union subtraction.
+- Added regression tests:
+  - `TestSemanticTypeCheckStrictNarrowsIfTypeGuardTrueBranch`
+  - `TestSemanticTypeCheckStrictNarrowsIfNilGuardElseBranch`
+  - `TestSemanticTypeCheckStrictNarrowsMatchGuardTypePredicate`
+- Validation performed:
+  - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`

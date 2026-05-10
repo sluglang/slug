@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slug/internal/ast"
 	"slug/internal/object"
+	"strings"
 )
 
 type typeKind string
@@ -370,6 +371,18 @@ func (c *typeChecker) inferBlock(block *ast.BlockStatement) *tnode {
 	return c.inferBlockInCurrentScope(block)
 }
 
+func (c *typeChecker) inferBlockWithRefinements(block *ast.BlockStatement, refs map[string]*tnode) *tnode {
+	if block == nil {
+		return c.scalar(typeNil)
+	}
+	c.pushScope()
+	defer c.popScope()
+	for name, t := range refs {
+		c.bind(name, t)
+	}
+	return c.inferBlockInCurrentScope(block)
+}
+
 func (c *typeChecker) inferBlockInCurrentScope(block *ast.BlockStatement) *tnode {
 	if block == nil {
 		return c.scalar(typeNil)
@@ -450,10 +463,12 @@ func (c *typeChecker) inferExpr(expr ast.Expression) *tnode {
 	case *ast.IfExpression:
 		cond := c.inferExpr(e.Condition)
 		c.addConstraint(cond, c.scalar(typeBool), e.Token.Position, "if condition must be boolean")
-		thenType := c.inferBlock(e.ThenBranch)
+		thenRefs := c.collectGuardRefinements(e.Condition, true)
+		elseRefs := c.collectGuardRefinements(e.Condition, false)
+		thenType := c.inferBlockWithRefinements(e.ThenBranch, thenRefs)
 		elseType := c.scalar(typeNil)
 		if e.ElseBranch != nil {
-			elseType = c.inferBlock(e.ElseBranch)
+			elseType = c.inferBlockWithRefinements(e.ElseBranch, elseRefs)
 		}
 		return c.unionType(thenType, elseType)
 	case *ast.FunctionLiteral:
@@ -532,6 +547,10 @@ func (c *typeChecker) inferExpr(expr ast.Expression) *tnode {
 			if cs.Guard != nil {
 				guardType := c.inferExpr(cs.Guard)
 				c.addConstraint(guardType, c.scalar(typeBool), cs.Token.Position, "match guard must be boolean")
+				guardRefs := c.collectGuardRefinements(cs.Guard, true)
+				for name, t := range guardRefs {
+					c.bind(name, t)
+				}
 			}
 			bodyType := c.inferBlockInCurrentScope(cs.Body)
 			c.popScope()
@@ -952,6 +971,312 @@ func isNilExpr(expr ast.Expression) bool {
 	}
 	_, ok := expr.(*ast.Nil)
 	return ok
+}
+
+func (c *typeChecker) collectGuardRefinements(expr ast.Expression, whenTrue bool) map[string]*tnode {
+	out := map[string]*tnode{}
+	c.collectGuardRefinementsInto(expr, whenTrue, out)
+	return out
+}
+
+func (c *typeChecker) collectGuardRefinementsInto(expr ast.Expression, whenTrue bool, out map[string]*tnode) {
+	if expr == nil {
+		return
+	}
+	switch e := expr.(type) {
+	case *ast.PrefixExpression:
+		if e.Operator == "!" {
+			c.collectGuardRefinementsInto(e.Right, !whenTrue, out)
+		}
+	case *ast.InfixExpression:
+		switch e.Operator {
+		case "&&":
+			if whenTrue {
+				c.collectGuardRefinementsInto(e.Left, true, out)
+				c.collectGuardRefinementsInto(e.Right, true, out)
+				return
+			}
+			leftFalse := c.collectGuardRefinements(e.Left, false)
+			rightFalse := c.collectGuardRefinements(e.Right, false)
+			for k, v := range c.intersectRefinements(leftFalse, rightFalse) {
+				out[k] = v
+			}
+		case "||":
+			if !whenTrue {
+				c.collectGuardRefinementsInto(e.Left, false, out)
+				c.collectGuardRefinementsInto(e.Right, false, out)
+				return
+			}
+			leftTrue := c.collectGuardRefinements(e.Left, true)
+			rightTrue := c.collectGuardRefinements(e.Right, true)
+			for k, v := range c.intersectRefinements(leftTrue, rightTrue) {
+				out[k] = v
+			}
+		case "==", "!=":
+			c.collectComparisonRefinement(e.Left, e.Right, e.Operator, whenTrue, out)
+		}
+	}
+}
+
+func (c *typeChecker) intersectRefinements(a, b map[string]*tnode) map[string]*tnode {
+	out := map[string]*tnode{}
+	for k, av := range a {
+		bv, ok := b[k]
+		if !ok {
+			continue
+		}
+		merged := c.unionType(av, bv)
+		out[k] = merged
+	}
+	return out
+}
+
+func (c *typeChecker) collectComparisonRefinement(left, right ast.Expression, op string, whenTrue bool, out map[string]*tnode) {
+	eq := (op == "==" && whenTrue) || (op == "!=" && !whenTrue)
+	neq := (op == "!=" && whenTrue) || (op == "==" && !whenTrue)
+
+	if name, ok := identifierName(left); ok && isNilExpr(right) {
+		c.refineBinding(name, c.scalar(typeNil), eq, out)
+		if neq {
+			c.refineBindingExclude(name, c.scalar(typeNil), out)
+		}
+		return
+	}
+	if name, ok := identifierName(right); ok && isNilExpr(left) {
+		c.refineBinding(name, c.scalar(typeNil), eq, out)
+		if neq {
+			c.refineBindingExclude(name, c.scalar(typeNil), out)
+		}
+		return
+	}
+
+	if name, tk, ok := c.parseTypePredicate(left, right); ok {
+		target := c.scalar(tk)
+		if eq {
+			c.refineBinding(name, target, true, out)
+			return
+		}
+		if neq {
+			c.refineBindingExclude(name, target, out)
+			return
+		}
+	}
+	if name, tk, ok := c.parseTypePredicate(right, left); ok {
+		target := c.scalar(tk)
+		if eq {
+			c.refineBinding(name, target, true, out)
+			return
+		}
+		if neq {
+			c.refineBindingExclude(name, target, out)
+			return
+		}
+	}
+}
+
+func identifierName(expr ast.Expression) (string, bool) {
+	id, ok := expr.(*ast.Identifier)
+	if !ok || id == nil {
+		return "", false
+	}
+	return id.Value, true
+}
+
+func (c *typeChecker) parseTypePredicate(typeExpr, typeConst ast.Expression) (string, typeKind, bool) {
+	call, ok := typeExpr.(*ast.CallExpression)
+	if !ok || call == nil {
+		return "", "", false
+	}
+	fn, ok := call.Function.(*ast.Identifier)
+	if !ok || fn == nil || fn.Value != "type" || len(call.Arguments) != 1 {
+		return "", "", false
+	}
+	argName, ok := identifierName(call.Arguments[0])
+	if !ok {
+		return "", "", false
+	}
+	if k, ok := typeConstToKind(typeConst); ok {
+		return argName, k, true
+	}
+	return "", "", false
+}
+
+func typeConstToKind(expr ast.Expression) (typeKind, bool) {
+	switch e := expr.(type) {
+	case *ast.Identifier:
+		switch strings.ToUpper(e.Value) {
+		case "NIL_TYPE":
+			return typeNil, true
+		case "BOOLEAN_TYPE":
+			return typeBool, true
+		case "NUMBER_TYPE":
+			return typeNum, true
+		case "STRING_TYPE":
+			return typeStr, true
+		case "LIST_TYPE":
+			return typeList, true
+		case "MAP_TYPE":
+			return typeMap, true
+		case "FUNCTION_TYPE":
+			return typeFn, true
+		case "TASK_TYPE":
+			return typeTask, true
+		case "CHAN_TYPE", "CHANNEL_TYPE":
+			return typeChan, true
+		case "STRUCT_TYPE":
+			return typeStruct, true
+		case "BYTES_TYPE":
+			return typeBytes, true
+		case "SYMBOL_TYPE":
+			return typeSym, true
+		}
+	case *ast.SymbolLiteral:
+		switch strings.ToLower(e.Value) {
+		case "nil":
+			return typeNil, true
+		case "bool", "boolean":
+			return typeBool, true
+		case "number", "num":
+			return typeNum, true
+		case "string", "str":
+			return typeStr, true
+		case "list":
+			return typeList, true
+		case "map":
+			return typeMap, true
+		case "function", "fn":
+			return typeFn, true
+		case "task":
+			return typeTask, true
+		case "chan", "channel":
+			return typeChan, true
+		case "struct":
+			return typeStruct, true
+		case "bytes":
+			return typeBytes, true
+		case "symbol", "sym":
+			return typeSym, true
+		}
+	}
+	return "", false
+}
+
+func (c *typeChecker) refineBinding(name string, target *tnode, _ bool, out map[string]*tnode) {
+	base := c.lookup(name)
+	if base == nil {
+		return
+	}
+	narrowed := c.intersectType(base, target)
+	if narrowed == nil {
+		return
+	}
+	out[name] = narrowed
+}
+
+func (c *typeChecker) refineBindingExclude(name string, target *tnode, out map[string]*tnode) {
+	base := c.lookup(name)
+	if base == nil {
+		return
+	}
+	narrowed := c.excludeType(base, target)
+	if narrowed == nil {
+		return
+	}
+	out[name] = narrowed
+}
+
+func (c *typeChecker) intersectType(base, target *tnode) *tnode {
+	b := c.find(base)
+	t := c.find(target)
+	if b == nil || t == nil {
+		return base
+	}
+	if b.kind == typeAny || b.kind == typeUnknown {
+		return t
+	}
+	if t.kind == typeAny || t.kind == typeUnknown {
+		return b
+	}
+	if b.kind == typeUnion {
+		opts := make([]*tnode, 0, len(b.options))
+		for _, opt := range b.options {
+			if c.sameConcreteType(opt, t) {
+				opts = append(opts, opt)
+			}
+		}
+		if len(opts) == 0 {
+			return nil
+		}
+		return c.unionType(opts...)
+	}
+	if c.sameConcreteType(b, t) {
+		return b
+	}
+	return nil
+}
+
+func (c *typeChecker) excludeType(base, target *tnode) *tnode {
+	b := c.find(base)
+	t := c.find(target)
+	if b == nil || t == nil {
+		return base
+	}
+	if b.kind == typeAny || b.kind == typeUnknown {
+		return b
+	}
+	if b.kind == typeUnion {
+		opts := make([]*tnode, 0, len(b.options))
+		for _, opt := range b.options {
+			if c.sameConcreteType(opt, t) {
+				continue
+			}
+			opts = append(opts, opt)
+		}
+		if len(opts) == 0 {
+			return nil
+		}
+		return c.unionType(opts...)
+	}
+	if c.sameConcreteType(b, t) {
+		return nil
+	}
+	return b
+}
+
+func (c *typeChecker) sameConcreteType(a, b *tnode) bool {
+	af := c.find(a)
+	bf := c.find(b)
+	if af == nil || bf == nil {
+		return false
+	}
+	if af.kind != bf.kind {
+		return false
+	}
+	switch af.kind {
+	case typeStruct:
+		if af.name != "" && bf.name != "" {
+			return af.name == bf.name
+		}
+		return true
+	case typeList:
+		return c.sameConcreteType(af.elem, bf.elem)
+	case typeMap:
+		return c.sameConcreteType(af.key, bf.key) && c.sameConcreteType(af.val, bf.val)
+	case typeFn:
+		return true
+	case typeUnion:
+		if len(af.options) != len(bf.options) {
+			return false
+		}
+		for i := range af.options {
+			if !c.sameConcreteType(af.options[i], bf.options[i]) {
+				return false
+			}
+		}
+		return true
+	default:
+		return true
+	}
 }
 
 func (c *typeChecker) enforceTags(t *tnode, tags []*ast.Tag, pos int) {

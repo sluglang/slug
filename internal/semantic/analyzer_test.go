@@ -859,6 +859,90 @@ val out = useNum(x)
 	}
 }
 
+func TestSemanticTypeCheckStrictNarrowsIfTypeGuardTrueBranch(t *testing.T) {
+	input := `
+val f = fn(x) {
+	if (type(x) == STRING_TYPE) {
+		x + "!"
+	} else {
+		"ok"
+	}
+}
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+		StrictTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+	}
+	if len(errs) > 0 {
+		t.Fatalf("expected no strict type-check errors, got: %v", errs)
+	}
+}
+
+func TestSemanticTypeCheckStrictNarrowsIfNilGuardElseBranch(t *testing.T) {
+	input := `
+val x = if (true) { nil } else { 1 }
+val f = fn() {
+	if (x == nil) {
+		0
+	} else {
+		x + 1
+	}
+}
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+		StrictTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+	}
+	if len(errs) > 0 {
+		t.Fatalf("expected no strict type-check errors, got: %v", errs)
+	}
+}
+
+func TestSemanticTypeCheckStrictNarrowsMatchGuardTypePredicate(t *testing.T) {
+	input := `
+val f = fn(x) {
+	match x {
+		v if type(v) == NUMBER_TYPE => v + 1
+		_ => 0
+	}
+}
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+		StrictTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+	}
+	if len(errs) > 0 {
+		t.Fatalf("expected no strict type-check errors, got: %v", errs)
+	}
+}
+
 func TestSemanticTypeCheckStrictAllowsStringInterpolationWithNumbers(t *testing.T) {
 	input := `
 val count = 10
