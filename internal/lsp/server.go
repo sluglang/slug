@@ -1261,6 +1261,8 @@ func (s *Server) collectReferencesForIdentityAcrossOpenDocs(originURI string, id
 		objBindings := collectImportObjectBindings(doc.Text, identity.Module)
 		memberRefs := collectMemberReferencesForAliases(doc.Text, uri, objBindings, identity.Name)
 		out = append(out, memberRefs...)
+		inlineRefs := collectInlineImportMemberReferences(doc.Text, uri, identity.Module, identity.Name)
+		out = append(out, inlineRefs...)
 	}
 	return dedupeLocations(out)
 }
@@ -1583,9 +1585,6 @@ func resolveModuleMemberIdentityAtOffset(src string, off int) (moduleSymbolIdent
 	p := parser.New(l, "<lsp>", src)
 	program := p.ParseProgram()
 	objBindings := collectImportObjectBindings(src, "")
-	if len(objBindings) == 0 {
-		return moduleSymbolIdentity{}, lspRange{}, false
-	}
 	aliasToModule := map[string]string{}
 	for _, b := range objBindings {
 		aliasToModule[b.LocalName] = b.SourceModule
@@ -1615,9 +1614,8 @@ func resolveModuleMemberIdentityAtOffset(src string, off int) (moduleSymbolIdent
 	walkExpr = func(ex ast.Expression) (moduleSymbolIdentity, lspRange, bool) {
 		switch e := ex.(type) {
 		case *ast.IndexExpression:
-			if left, ok := e.Left.(*ast.Identifier); ok && e.IsDotLookup {
-				module, ok := aliasToModule[left.Value]
-				if ok {
+			if e.IsDotLookup {
+				if module, ok := moduleForDotLookupLeft(e.Left, aliasToModule); ok {
 					switch k := e.Index.(type) {
 					case *ast.SymbolLiteral:
 						start := k.Token.Position
@@ -1675,6 +1673,26 @@ func resolveModuleMemberIdentityAtOffset(src string, off int) (moduleSymbolIdent
 		}
 	}
 	return moduleSymbolIdentity{}, lspRange{}, false
+}
+
+func moduleForDotLookupLeft(left ast.Expression, aliasToModule map[string]string) (string, bool) {
+	if ident, ok := left.(*ast.Identifier); ok {
+		module, ok := aliasToModule[ident.Value]
+		return module, ok
+	}
+	call, ok := left.(*ast.CallExpression)
+	if !ok {
+		return "", false
+	}
+	fn, ok := call.Function.(*ast.Identifier)
+	if !ok || fn.Value != "import" {
+		return "", false
+	}
+	modules := importModuleArgs(call.Arguments)
+	if len(modules) != 1 {
+		return "", false
+	}
+	return modules[0], true
 }
 
 func collectMemberReferencesForAliases(src string, uri string, aliases []moduleObjectBinding, member string) []lspLocation {
@@ -1758,6 +1776,92 @@ func collectMemberReferencesForAliases(src string, uri string, aliases []moduleO
 			}
 		}
 	}
+	for _, st := range program.Statements {
+		walkStmt(st)
+	}
+	return out
+}
+
+func collectInlineImportMemberReferences(src string, uri string, module string, member string) []lspLocation {
+	if module == "" || member == "" {
+		return nil
+	}
+	l := lexer.New(src)
+	p := parser.New(l, "<lsp>", src)
+	program := p.ParseProgram()
+	out := []lspLocation{}
+	seen := map[string]bool{}
+
+	var walkStmt func(ast.Statement)
+	var walkExpr func(ast.Expression)
+
+	walkStmt = func(st ast.Statement) {
+		switch s := st.(type) {
+		case *ast.ExpressionStatement:
+			walkExpr(s.Expression)
+		case *ast.ReturnStatement:
+			walkExpr(s.ReturnValue)
+		case *ast.ThrowStatement:
+			walkExpr(s.Value)
+		case *ast.BlockStatement:
+			for _, c := range s.Statements {
+				walkStmt(c)
+			}
+		}
+	}
+	walkExpr = func(ex ast.Expression) {
+		switch e := ex.(type) {
+		case *ast.IndexExpression:
+			if e.IsDotLookup {
+				if mod, ok := moduleForDotLookupLeft(e.Left, nil); ok && mod == module {
+					switch k := e.Index.(type) {
+					case *ast.SymbolLiteral:
+						if k.Value == member {
+							start := k.Token.Position
+							end := start + len(k.Token.Literal)
+							rng := offsetRangeToLSP(src, start, end)
+							key := fmt.Sprintf("%d:%d:%d:%d", rng.Start.Line, rng.Start.Character, rng.End.Line, rng.End.Character)
+							if !seen[key] {
+								seen[key] = true
+								out = append(out, lspLocation{URI: uri, Range: rng})
+							}
+						}
+					case *ast.Identifier:
+						if k.Value == member {
+							start := k.Token.Position
+							end := start + len(k.Token.Literal)
+							rng := offsetRangeToLSP(src, start, end)
+							key := fmt.Sprintf("%d:%d:%d:%d", rng.Start.Line, rng.Start.Character, rng.End.Line, rng.End.Character)
+							if !seen[key] {
+								seen[key] = true
+								out = append(out, lspLocation{URI: uri, Range: rng})
+							}
+						}
+					}
+				}
+			}
+			walkExpr(e.Left)
+			walkExpr(e.Index)
+		case *ast.CallExpression:
+			walkExpr(e.Function)
+			for _, a := range e.Arguments {
+				walkExpr(a)
+			}
+		case *ast.ValExpression:
+			walkExpr(e.Value)
+		case *ast.VarExpression:
+			walkExpr(e.Value)
+		case *ast.IfExpression:
+			walkExpr(e.Condition)
+			if e.ThenBranch != nil {
+				walkStmt(e.ThenBranch)
+			}
+			if e.ElseBranch != nil {
+				walkStmt(e.ElseBranch)
+			}
+		}
+	}
+
 	for _, st := range program.Statements {
 		walkStmt(st)
 	}

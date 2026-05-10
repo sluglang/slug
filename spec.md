@@ -1464,3 +1464,34 @@ Tests added in `internal/lsp/server_test.go`:
 Validation performed:
 - `go test ./internal/lsp -count=1`
 - `go test ./... -count=1`
+
+### LSP Phase 13: inline/chained import-member indexing (`import("mod").name`)
+
+- Extended module-aware indexing to support inline/chained import-member expressions in `internal/lsp/server.go`.
+
+Added support for patterns like:
+- `import("slug.log").logger(...)`
+- `import("mod").answer`
+
+Implementation details:
+- Added module resolution for dot-lookup left operand when left side is:
+  - module-object alias identifier (`m.name`) or
+  - inline import call (`import("mod").name`).
+- Added inline member reference collector across open docs:
+  - `collectInlineImportMemberReferences`.
+- Updated cross-doc identity collection pipeline to include:
+  - destructured imports,
+  - module-object alias member uses,
+  - inline/chained import-member uses.
+- Updated cursor identity resolution for rename/references/prepareRename to detect inline import-member tokens.
+
+Bugfix during phase:
+- Removed premature early-return in member identity resolver when no module-object aliases exist, which incorrectly blocked inline `import("mod").name` cases.
+
+Tests added in `internal/lsp/server_test.go`:
+- `TestServerReferencesIncludeInlineImportMemberUsages`
+- `TestServerRenameFromInlineImportMemberEditsExporterAndUsage`
+
+Validation performed:
+- `go test ./internal/lsp -count=1`
+- `go test ./... -count=1`
