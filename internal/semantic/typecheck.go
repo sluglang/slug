@@ -576,10 +576,17 @@ func (c *typeChecker) inferInfix(e *ast.InfixExpression) *tnode {
 	case "&", "|", "^":
 		lf := c.find(left)
 		rf := c.find(right)
-		// runtime supports num<op>num and bytes<op>bytes
+		// runtime supports:
+		// - num<op>num -> num
+		// - bytes<op>bytes -> bytes
+		// - bytes<op>num / num<op>bytes -> bytes (num converted to one byte at runtime)
 		if lf.kind == typeBytes || rf.kind == typeBytes {
-			c.addConstraint(left, c.scalar(typeBytes), e.Token.Position, "bytes bitwise operator")
-			c.addConstraint(right, c.scalar(typeBytes), e.Token.Position, "bytes bitwise operator")
+			if lf.kind != typeBytes {
+				c.addConstraint(left, c.scalar(typeNum), e.Token.Position, "bytes bitwise mixed operator")
+			}
+			if rf.kind != typeBytes {
+				c.addConstraint(right, c.scalar(typeNum), e.Token.Position, "bytes bitwise mixed operator")
+			}
 			c.addConstraint(out, c.scalar(typeBytes), e.Token.Position, "bytes bitwise result")
 			return out
 		}

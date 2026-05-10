@@ -556,6 +556,8 @@ func TestSemanticTypeCheckStrictAllowsBytesBitwiseOperators(t *testing.T) {
 val a = 0x"ff00" & 0x"0ff0"
 val b = 0x"ff00" | 0x"0ff0"
 val c = 0x"ff00" ^ 0x"0ff0"
+val d = 255 & 0x"0ff0"
+val e = 0x"0ff0" ^ 255
 `
 	l := lexer.New(input)
 	p := parser.New(l, "semantic-test.slug", input)

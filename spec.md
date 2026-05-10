@@ -727,3 +727,14 @@
   - `TestSemanticTypeCheckStrictAllowsBytesBitNotPrefixOperator`.
 - Validation performed:
   - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
+
+### Semantic typing alignment for mixed bytes/number bitwise operators
+
+- Fixed false-positive diagnostics for mixed notation bitwise expressions involving bytes and numbers.
+- Updated inferred rules for `&`, `|`, `^` to match runtime mixed-mode behavior:
+  - `bytes <op> num` -> `bytes`
+  - `num <op> bytes` -> `bytes`
+  - `num` side constrained as numeric (runtime handles byte-range conversion).
+- Expanded regression coverage in bytes bitwise test to include mixed forms.
+- Validation performed:
+  - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
