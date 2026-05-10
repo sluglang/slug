@@ -85,6 +85,7 @@ type typeChecker struct {
 	nextID      int
 	constraints []tconstraint
 	diags       []tdiag
+	diagSeen    map[string]bool
 	callChecks  []callCheck
 	plusChecks  []plusCheck
 	mulChecks   []mulCheck
@@ -107,7 +108,7 @@ func (a *analyzer) runInferredTypeChecks(program *ast.Program, strict bool) {
 }
 
 func newTypeChecker(a *analyzer) *typeChecker {
-	c := &typeChecker{a: a, schemas: map[string]map[string]*tnode{}}
+	c := &typeChecker{a: a, schemas: map[string]map[string]*tnode{}, diagSeen: map[string]bool{}}
 	c.pushScope()
 	c.pushOverride()
 	return c
@@ -385,7 +386,13 @@ func (c *typeChecker) addConstraint(lhs, rhs *tnode, pos int, reason string) {
 }
 
 func (c *typeChecker) addDiag(pos int, format string, args ...interface{}) {
-	c.diags = append(c.diags, tdiag{pos: pos, msg: fmt.Sprintf(format, args...)})
+	msg := fmt.Sprintf(format, args...)
+	key := fmt.Sprintf("%d:%s", pos, msg)
+	if c.diagSeen[key] {
+		return
+	}
+	c.diagSeen[key] = true
+	c.diags = append(c.diags, tdiag{pos: pos, msg: msg})
 }
 
 func (c *typeChecker) inferStatement(stmt ast.Statement) *tnode {
@@ -721,7 +728,9 @@ func (c *typeChecker) inferExpr(expr ast.Expression) *tnode {
 
 func (c *typeChecker) inferFunctionLiteral(fn *ast.FunctionLiteral) *tnode {
 	params := make([]*tnode, 0, len(fn.Parameters))
+	paramNames := make([]string, 0, len(fn.Parameters))
 	c.pushScope()
+	c.pushOverride()
 	for _, p := range fn.Parameters {
 		pt := c.freshUnknown()
 		for _, tag := range p.Tags {
@@ -738,11 +747,23 @@ func (c *typeChecker) inferFunctionLiteral(fn *ast.FunctionLiteral) *tnode {
 		}
 		params = append(params, pt)
 		c.bind(p.Name.Value, pt)
+		paramNames = append(paramNames, p.Name.Value)
 	}
 	ret := c.scalar(typeNil)
 	if fn.Body != nil {
-		ret = c.inferBlock(fn.Body)
+		iterations := 1
+		if containsRecurInBlock(fn.Body) {
+			iterations = 4
+		}
+		for i := 0; i < iterations; i++ {
+			iterRet, changed := c.inferFunctionIteration(fn.Body, paramNames, params)
+			ret = c.unionType(ret, iterRet)
+			if !changed {
+				break
+			}
+		}
 	}
+	c.popOverride()
 	c.popScope()
 	minArgs := fn.Signature.Min
 	maxArgs := fn.Signature.Max
@@ -750,6 +771,149 @@ func (c *typeChecker) inferFunctionLiteral(fn *ast.FunctionLiteral) *tnode {
 		maxArgs = -1
 	}
 	return c.fnType(params, ret, len(fn.Parameters) > 0 && fn.Parameters[len(fn.Parameters)-1].IsVariadic, minArgs, maxArgs)
+}
+
+func (c *typeChecker) inferFunctionIteration(body *ast.BlockStatement, paramNames []string, params []*tnode) (*tnode, bool) {
+	c.pushScope()
+	c.pushOverride()
+	for i, name := range paramNames {
+		pt := params[i]
+		c.bind(name, pt)
+	}
+	iterRet := c.inferBlockInCurrentScope(body)
+	iterOv := c.snapshotCurrentOverride()
+	c.popOverride()
+	c.popScope()
+	changed := false
+	for i, name := range paramNames {
+		cur := params[i]
+		next := cur
+		if ov, ok := iterOv[name]; ok {
+			next = c.unionType(cur, ov)
+		}
+		if c.typeSig(next) != c.typeSig(cur) {
+			changed = true
+			params[i] = next
+		}
+	}
+	for i, name := range paramNames {
+		if len(c.scopes) > 0 {
+			c.scopes[len(c.scopes)-1][name] = params[i]
+		}
+		c.setOverride(name, params[i])
+	}
+	return iterRet, changed
+}
+
+func containsRecurInBlock(block *ast.BlockStatement) bool {
+	if block == nil {
+		return false
+	}
+	for _, s := range block.Statements {
+		if containsRecurInStmt(s) {
+			return true
+		}
+	}
+	return false
+}
+
+func containsRecurInStmt(stmt ast.Statement) bool {
+	switch s := stmt.(type) {
+	case *ast.ExpressionStatement:
+		return containsRecurInExpr(s.Expression)
+	case *ast.ReturnStatement:
+		return containsRecurInExpr(s.ReturnValue)
+	case *ast.ThrowStatement:
+		return containsRecurInExpr(s.Value)
+	case *ast.BlockStatement:
+		return containsRecurInBlock(s)
+	case *ast.DeferStatement:
+		if s.Call == nil {
+			return false
+		}
+		return containsRecurInStmt(s.Call)
+	default:
+		return false
+	}
+}
+
+func containsRecurInExpr(expr ast.Expression) bool {
+	switch e := expr.(type) {
+	case *ast.RecurExpression:
+		return true
+	case *ast.IfExpression:
+		if containsRecurInExpr(e.Condition) {
+			return true
+		}
+		return containsRecurInBlock(e.ThenBranch) || containsRecurInBlock(e.ElseBranch)
+	case *ast.InfixExpression:
+		return containsRecurInExpr(e.Left) || containsRecurInExpr(e.Right)
+	case *ast.PrefixExpression:
+		return containsRecurInExpr(e.Right)
+	case *ast.CallExpression:
+		if containsRecurInExpr(e.Function) {
+			return true
+		}
+		for _, a := range e.Arguments {
+			if containsRecurInExpr(a) {
+				return true
+			}
+		}
+		return false
+	case *ast.FunctionLiteral:
+		return containsRecurInBlock(e.Body)
+	case *ast.MatchExpression:
+		if containsRecurInExpr(e.Value) {
+			return true
+		}
+		for _, cs := range e.Cases {
+			if cs == nil {
+				continue
+			}
+			if containsRecurInExpr(cs.Guard) || containsRecurInBlock(cs.Body) {
+				return true
+			}
+		}
+		return false
+	case *ast.ListLiteral:
+		for _, it := range e.Elements {
+			if containsRecurInExpr(it) {
+				return true
+			}
+		}
+		return false
+	case *ast.MapLiteral:
+		for k, v := range e.Pairs {
+			if containsRecurInExpr(k) || containsRecurInExpr(v) {
+				return true
+			}
+		}
+		return false
+	case *ast.IndexExpression:
+		return containsRecurInExpr(e.Left) || containsRecurInExpr(e.Index)
+	case *ast.StructInitExpression:
+		if containsRecurInExpr(e.Schema) {
+			return true
+		}
+		for _, f := range e.Fields {
+			if containsRecurInExpr(f.Value) {
+				return true
+			}
+		}
+		return false
+	case *ast.StructCopyExpression:
+		return containsRecurInExpr(e.Source) || containsRecurInExpr(e.Fields)
+	case *ast.VarExpression:
+		return containsRecurInExpr(e.Value)
+	case *ast.ValExpression:
+		return containsRecurInExpr(e.Value)
+	case *ast.SpawnExpression:
+		return containsRecurInExpr(e.Body)
+	case *ast.BlockStatement:
+		return containsRecurInBlock(e)
+	default:
+		return false
+	}
 }
 
 func (c *typeChecker) inferCall(call *ast.CallExpression) *tnode {

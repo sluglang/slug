@@ -971,3 +971,19 @@ Regression coverage added/updated:
 Validation performed:
 - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
 - `go run ./cmd/app/main.go -log-level error --root ./lib lib/slug/web/response.slug`
+
+### Semantic typing enhancement: bounded recur fixed-point stabilization
+
+- Added bounded fixed-point inference for functions that contain `recur`.
+- Function-body inference now runs iterative stabilization passes (bounded) for recursive flows:
+  - each pass infers body with current parameter assumptions,
+  - pass results feed back into parameter types via union widening,
+  - inference stops when parameter type signatures stabilize or the iteration cap is reached.
+- Added diagnostic deduplication in semantic checker to prevent repeated messages across iterative passes.
+- This improves type precision and reduces false positives in loop-like recursive functions without requiring full CFG/SSA.
+
+Regression coverage added:
+- `TestSemanticTypeCheckStrictStabilizesRecurParameterTypes`
+
+Validation performed:
+- `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
