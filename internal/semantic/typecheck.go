@@ -331,7 +331,17 @@ func (c *typeChecker) inferExpr(expr ast.Expression) *tnode {
 	case *ast.PrefixExpression:
 		r := c.inferExpr(e.Right)
 		switch e.Operator {
-		case "-", "~":
+		case "-":
+			c.addConstraint(r, c.scalar(typeNum), e.Token.Position, "prefix numeric operator")
+			return c.scalar(typeNum)
+		case "~":
+			rt := c.find(r)
+			if rt.kind == typeBytes {
+				return c.scalar(typeBytes)
+			}
+			if rt.kind == typeUnknown || rt.kind == typeAny {
+				return c.freshUnknown()
+			}
 			c.addConstraint(r, c.scalar(typeNum), e.Token.Position, "prefix numeric operator")
 			return c.scalar(typeNum)
 		case "!":
@@ -558,7 +568,21 @@ func (c *typeChecker) inferInfix(e *ast.InfixExpression) *tnode {
 		c.addConstraint(left, right, e.Token.Position, "+ operand compatibility")
 		// supports num+num, list+list, bytes+bytes; unknown resolved by constraints.
 		return out
-	case "-", "/", "%", "<<", ">>", "&", "|", "^":
+	case "-", "/", "%", "<<", ">>":
+		c.addConstraint(left, c.scalar(typeNum), e.Token.Position, "numeric operator")
+		c.addConstraint(right, c.scalar(typeNum), e.Token.Position, "numeric operator")
+		c.addConstraint(out, c.scalar(typeNum), e.Token.Position, "numeric result")
+		return out
+	case "&", "|", "^":
+		lf := c.find(left)
+		rf := c.find(right)
+		// runtime supports num<op>num and bytes<op>bytes
+		if lf.kind == typeBytes || rf.kind == typeBytes {
+			c.addConstraint(left, c.scalar(typeBytes), e.Token.Position, "bytes bitwise operator")
+			c.addConstraint(right, c.scalar(typeBytes), e.Token.Position, "bytes bitwise operator")
+			c.addConstraint(out, c.scalar(typeBytes), e.Token.Position, "bytes bitwise result")
+			return out
+		}
 		c.addConstraint(left, c.scalar(typeNum), e.Token.Position, "numeric operator")
 		c.addConstraint(right, c.scalar(typeNum), e.Token.Position, "numeric operator")
 		c.addConstraint(out, c.scalar(typeNum), e.Token.Position, "numeric result")

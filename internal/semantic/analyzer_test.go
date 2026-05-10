@@ -550,3 +550,49 @@ val b = 0 +: 0x"0102"
 		t.Fatalf("expected no semantic errors for bytes append/prepend operators, got: %v", errs)
 	}
 }
+
+func TestSemanticTypeCheckStrictAllowsBytesBitwiseOperators(t *testing.T) {
+	input := `
+val a = 0x"ff00" & 0x"0ff0"
+val b = 0x"ff00" | 0x"0ff0"
+val c = 0x"ff00" ^ 0x"0ff0"
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+		StrictTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+	}
+	if len(errs) > 0 {
+		t.Fatalf("expected no semantic errors for bytes bitwise operators, got: %v", errs)
+	}
+}
+
+func TestSemanticTypeCheckStrictAllowsBytesBitNotPrefixOperator(t *testing.T) {
+	input := `
+val a = ~0x"00ff"
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+		StrictTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+	}
+	if len(errs) > 0 {
+		t.Fatalf("expected no semantic errors for bytes bit-not operator, got: %v", errs)
+	}
+}

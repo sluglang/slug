@@ -705,3 +705,25 @@
   - `TestSemanticTypeCheckStrictAllowsBytesAppendAndPrependOperators`.
 - Validation performed:
   - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
+
+### Semantic typing alignment for bytes bitwise operators
+
+- Fixed false-positive numeric-only diagnostics for bytes bitwise expressions.
+- Updated inferred operator rules for `&`, `|`, `^` to support runtime-compatible modes:
+  - `num <op> num` -> `num`
+  - `bytes <op> bytes` -> `bytes`
+- Added regression test:
+  - `TestSemanticTypeCheckStrictAllowsBytesBitwiseOperators`.
+- Validation performed:
+  - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
+
+### Semantic typing alignment for bytes bitwise-not prefix (`~`)
+
+- Fixed false-positive prefix numeric diagnostics for bytes bitwise complement expressions.
+- Updated inferred prefix operator rules so `~` supports runtime-compatible modes:
+  - `~num` -> `num`
+  - `~bytes` -> `bytes`
+- Added regression test:
+  - `TestSemanticTypeCheckStrictAllowsBytesBitNotPrefixOperator`.
+- Validation performed:
+  - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
