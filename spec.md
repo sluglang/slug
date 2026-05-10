@@ -1053,3 +1053,17 @@ Validation performed:
 Validation performed:
 - `UPDATE_SEMANTIC_GOLDEN=1 go test ./internal/semantic -run TestSemanticConformanceSnapshots -count=1`
 - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
+
+### Type-check flag simplification: single strict `-type-check`
+
+- Simplified semantic type-check control to a single flag:
+  - `-type-check` now enables strict semantic inferred type checking (errors) by default.
+  - `-type-check=false` disables semantic inferred type checking.
+- Removed legacy non-strict/warn-mode path and removed `-type-check-strict` flag.
+- API/config cleanup:
+  - removed `StrictTypeCheck` from semantic `AnalyzeOptions`, runtime config, and runtime/analyzer call sites.
+- Updated tests to reflect new behavior:
+  - added/updated coverage for disabled mode (`EnableTypeCheck: false`) and default error behavior when enabled.
+
+Validation performed:
+- `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`

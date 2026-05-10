@@ -10,7 +10,6 @@ import (
 
 type AnalyzeOptions struct {
 	EnableTypeCheck bool
-	StrictTypeCheck bool
 	TypeCheckTrace  bool
 	TraceWriter     io.Writer
 }
@@ -32,7 +31,7 @@ func AnalyzeWithOptions(path, src string, program *ast.Program, opts AnalyzeOpti
 	a.validateStructSchemaUsage(program)
 	a.validateMainTagUsage(program)
 	if opts.EnableTypeCheck {
-		a.runInferredTypeChecks(program, opts.StrictTypeCheck, opts.TypeCheckTrace, opts.TraceWriter)
+		a.runInferredTypeChecks(program, opts.TypeCheckTrace, opts.TraceWriter)
 	}
 	return a.errors, a.warnings
 }

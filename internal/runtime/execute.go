@@ -18,7 +18,6 @@ func ExecuteProgram(rt *Runtime, env *object.Environment, program *ast.Program) 
 	}
 	semErrs, semWarns := semantic.AnalyzeWithOptions(path, env.Src, program, semantic.AnalyzeOptions{
 		EnableTypeCheck: rt.Config.EnableTypeCheck,
-		StrictTypeCheck: rt.Config.StrictTypeCheck,
 		TypeCheckTrace:  rt.Config.TypeCheckTrace,
 		TraceWriter:     os.Stderr,
 	})

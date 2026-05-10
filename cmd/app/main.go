@@ -25,12 +25,11 @@ var (
 	logFile   string
 	logSource bool
 	// config vars
-	rootPath        string
-	debugJsonAST    bool
-	debugTxtAST     bool
-	typeCheck       bool
-	typeCheckStrict bool
-	typeCheckTrace  bool
+	rootPath       string
+	debugJsonAST   bool
+	debugTxtAST    bool
+	typeCheck      bool
+	typeCheckTrace bool
 )
 
 func init() {
@@ -43,8 +42,7 @@ func init() {
 	// parser config
 	flag.BoolVar(&debugJsonAST, "debug-json-ast", false, "Render the AST as a JSON file")
 	flag.BoolVar(&debugTxtAST, "debug-txt-ast", false, "Render the AST as a TXT file")
-	flag.BoolVar(&typeCheck, "type-check", true, "Enable inferred type checking during semantic analysis")
-	flag.BoolVar(&typeCheckStrict, "type-check-strict", false, "Treat inferred type diagnostics as semantic errors")
+	flag.BoolVar(&typeCheck, "type-check", true, "Enable semantic inferred type checking (strict errors) during semantic analysis")
 	flag.BoolVar(&typeCheckTrace, "type-check-trace", false, "Emit semantic type-check trace events to stderr (debug)")
 	// log config
 	flag.StringVar(&logLevel, "log-level", "NONE", "Log level: trace, debug, info, warn, error, none")
@@ -111,7 +109,6 @@ func main() {
 		Argv:            flag.Args()[1:],
 		MainModule:      mainModule,
 		EnableTypeCheck: typeCheck,
-		StrictTypeCheck: typeCheckStrict,
 		TypeCheckTrace:  typeCheckTrace,
 	}
 
@@ -263,8 +260,7 @@ Options:
   -log-file <path>   Specify a log file to write logs. Default is stderr.
   -debug-json-ast    Render the AST as a JSON file.
   -debug-txt-ast     Render the AST as a TXT file.
-  -type-check        Enable inferred type checking during semantic analysis.
-  -type-check-strict Treat inferred type diagnostics as semantic errors.
+  -type-check        Enable semantic inferred type checking (strict errors).
   -type-check-trace  Emit semantic type-check trace events to stderr (debug).
 `)
 }

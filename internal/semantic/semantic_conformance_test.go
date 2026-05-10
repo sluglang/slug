@@ -45,7 +45,6 @@ func TestSemanticConformanceSnapshots(t *testing.T) {
 		var trace bytes.Buffer
 		errs, warns := semantic.AnalyzeWithOptions(abs, string(src), program, semantic.AnalyzeOptions{
 			EnableTypeCheck: true,
-			StrictTypeCheck: true,
 			TypeCheckTrace:  true,
 			TraceWriter:     &trace,
 		})

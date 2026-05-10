@@ -102,15 +102,11 @@ type typeChecker struct {
 	schemas     map[string]map[string]*tnode
 }
 
-func (a *analyzer) runInferredTypeChecks(program *ast.Program, strict bool, trace bool, traceWriter io.Writer) {
+func (a *analyzer) runInferredTypeChecks(program *ast.Program, trace bool, traceWriter io.Writer) {
 	c := newTypeChecker(a, trace, traceWriter)
 	c.checkProgram(program)
 	for _, d := range c.diags {
-		if strict {
-			a.addErrorAt(d.pos, "%s", d.msg)
-		} else {
-			a.addWarningAt(d.pos, "%s", d.msg)
-		}
+		a.addErrorAt(d.pos, "%s", d.msg)
 	}
 }
 

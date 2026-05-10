@@ -59,7 +59,7 @@ match list {
 }
 
 match list {
-    ["--not h1--", h2, ...] => fail()
+    [100, h2, ...] => fail()
     _ => true
 }
 

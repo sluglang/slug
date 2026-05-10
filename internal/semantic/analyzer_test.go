@@ -160,7 +160,7 @@ func containsError(errs []string, want string) bool {
 	return false
 }
 
-func TestSemanticTypeCheckWarnsByDefaultForTypeMismatch(t *testing.T) {
+func TestSemanticTypeCheckCanBeDisabled(t *testing.T) {
 	input := `
 val x = "hello" - 1
 `
@@ -171,21 +171,17 @@ val x = "hello" - 1
 		t.Fatalf("unexpected parser errors: %v", p.Errors())
 	}
 	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
-		EnableTypeCheck: true,
-		StrictTypeCheck: false,
+		EnableTypeCheck: false,
 	})
 	if len(errs) > 0 {
-		t.Fatalf("expected no semantic errors in warn mode, got: %v", errs)
+		t.Fatalf("expected no semantic errors when type check disabled, got: %v", errs)
 	}
-	if len(warns) == 0 {
-		t.Fatal("expected type warnings, got none")
-	}
-	if !containsError(warns, "numeric operator type mismatch") {
-		t.Fatalf("expected numeric operator type mismatch warning, got: %v", warns)
+	if len(warns) > 0 {
+		t.Fatalf("expected no type warnings when type check disabled, got: %v", warns)
 	}
 }
 
-func TestSemanticTypeCheckStrictPromotesMismatchToError(t *testing.T) {
+func TestSemanticTypeCheckReportsMismatchAsErrorByDefault(t *testing.T) {
 	input := `
 val x = "hello" - 1
 `
@@ -197,13 +193,12 @@ val x = "hello" - 1
 	}
 	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
 		EnableTypeCheck: true,
-		StrictTypeCheck: true,
 	})
 	if len(warns) != 0 {
 		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
 	}
 	if len(errs) == 0 {
-		t.Fatal("expected semantic errors in strict mode, got none")
+		t.Fatal("expected semantic errors when type check enabled, got none")
 	}
 	if !containsError(errs, "numeric operator type mismatch") {
 		t.Fatalf("expected numeric operator type mismatch error, got: %v", errs)
@@ -226,7 +221,6 @@ val u = User { age: "bad" }
 	}
 	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
 		EnableTypeCheck: true,
-		StrictTypeCheck: true,
 	})
 	if len(warns) != 0 {
 		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
@@ -260,7 +254,6 @@ val f = fn(flag, x) {
 	var buf bytes.Buffer
 	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
 		EnableTypeCheck: true,
-		StrictTypeCheck: true,
 		TypeCheckTrace:  true,
 		TraceWriter:     &buf,
 	})
@@ -294,7 +287,6 @@ val out = match xs {
 	}
 	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
 		EnableTypeCheck: true,
-		StrictTypeCheck: true,
 	})
 	if len(warns) != 0 {
 		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
@@ -320,7 +312,6 @@ val out = f("bad")
 	}
 	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
 		EnableTypeCheck: true,
-		StrictTypeCheck: true,
 	})
 	if len(warns) != 0 {
 		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
@@ -347,7 +338,6 @@ val assertThrows = fn(@fn f, expected, @str msg = nil) {
 	}
 	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
 		EnableTypeCheck: true,
-		StrictTypeCheck: true,
 	})
 	if len(warns) != 0 {
 		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
@@ -380,7 +370,6 @@ val assert = fn(a, msg = nil) {
 	}
 	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
 		EnableTypeCheck: true,
-		StrictTypeCheck: true,
 	})
 	if len(warns) != 0 {
 		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
@@ -405,7 +394,6 @@ val ok3 = g(1, 4, 5)
 	}
 	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
 		EnableTypeCheck: true,
-		StrictTypeCheck: true,
 	})
 	if len(warns) != 0 {
 		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
@@ -430,7 +418,6 @@ val mapLike = fn(@list vs, @fn f, acc = []) match {
 	}
 	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
 		EnableTypeCheck: true,
-		StrictTypeCheck: true,
 	})
 	if len(warns) != 0 {
 		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
@@ -457,7 +444,6 @@ val useMapLike = fn(@list xs, @fn f) {
 	}
 	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
 		EnableTypeCheck: true,
-		StrictTypeCheck: true,
 	})
 	if len(warns) != 0 {
 		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
@@ -484,7 +470,6 @@ val parseBoolLike = fn(v) {
 	}
 	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
 		EnableTypeCheck: true,
-		StrictTypeCheck: true,
 	})
 	if len(warns) != 0 {
 		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
@@ -530,7 +515,6 @@ val toBoolean = fn(v) {
 	}
 	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
 		EnableTypeCheck: true,
-		StrictTypeCheck: true,
 	})
 	if len(warns) != 0 {
 		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
@@ -558,7 +542,6 @@ val out = match list {
 	}
 	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
 		EnableTypeCheck: true,
-		StrictTypeCheck: true,
 	})
 	if len(warns) != 0 {
 		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
@@ -594,7 +577,6 @@ val out = {"k":"v"} /> f
 	}
 	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
 		EnableTypeCheck: true,
-		StrictTypeCheck: true,
 	})
 	if len(warns) != 0 {
 		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
@@ -631,7 +613,6 @@ val b = {"k":1} /> f
 	}
 	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
 		EnableTypeCheck: true,
-		StrictTypeCheck: true,
 	})
 	if len(warns) != 0 {
 		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
@@ -667,7 +648,6 @@ val g = fn() { 12 } /> add
 	}
 	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
 		EnableTypeCheck: true,
-		StrictTypeCheck: true,
 	})
 	if len(warns) != 0 {
 		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
@@ -690,7 +670,6 @@ val b = {"mix": {"a": [1, {"b": "c"}]}}
 	}
 	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
 		EnableTypeCheck: true,
-		StrictTypeCheck: true,
 	})
 	if len(warns) != 0 {
 		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
@@ -719,7 +698,6 @@ val c = ParseResult { value: 123, nextIdx: 3 }
 	}
 	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
 		EnableTypeCheck: true,
-		StrictTypeCheck: true,
 	})
 	if len(warns) != 0 {
 		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
@@ -750,7 +728,6 @@ val f = fn(c) {
 	}
 	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
 		EnableTypeCheck: true,
-		StrictTypeCheck: true,
 	})
 	if len(warns) != 0 {
 		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
@@ -783,7 +760,6 @@ val node = match frame["kind"] {
 	}
 	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
 		EnableTypeCheck: true,
-		StrictTypeCheck: true,
 	})
 	if len(warns) != 0 {
 		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
@@ -807,7 +783,6 @@ val out = rgbStyle(...vals)
 	}
 	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
 		EnableTypeCheck: true,
-		StrictTypeCheck: true,
 	})
 	if len(warns) != 0 {
 		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
@@ -832,7 +807,6 @@ val inner = (paddedKey ^ ipad) + message
 	}
 	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
 		EnableTypeCheck: true,
-		StrictTypeCheck: true,
 	})
 	if len(warns) != 0 {
 		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
@@ -856,7 +830,6 @@ val out = useNum(x)
 	}
 	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
 		EnableTypeCheck: true,
-		StrictTypeCheck: true,
 	})
 	if len(warns) != 0 {
 		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
@@ -886,7 +859,6 @@ val out = useNum(x)
 	}
 	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
 		EnableTypeCheck: true,
-		StrictTypeCheck: true,
 	})
 	if len(warns) != 0 {
 		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
@@ -917,7 +889,6 @@ val f = fn(x) {
 	}
 	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
 		EnableTypeCheck: true,
-		StrictTypeCheck: true,
 	})
 	if len(warns) != 0 {
 		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
@@ -946,7 +917,6 @@ val f = fn() {
 	}
 	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
 		EnableTypeCheck: true,
-		StrictTypeCheck: true,
 	})
 	if len(warns) != 0 {
 		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
@@ -973,7 +943,6 @@ val f = fn(x) {
 	}
 	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
 		EnableTypeCheck: true,
-		StrictTypeCheck: true,
 	})
 	if len(warns) != 0 {
 		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
@@ -1002,7 +971,6 @@ val f = fn() {
 	}
 	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
 		EnableTypeCheck: true,
-		StrictTypeCheck: true,
 	})
 	if len(warns) != 0 {
 		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
@@ -1031,7 +999,6 @@ val f = fn() {
 	}
 	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
 		EnableTypeCheck: true,
-		StrictTypeCheck: true,
 	})
 	if len(warns) != 0 {
 		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
@@ -1058,7 +1025,6 @@ val f = fn(x) {
 	}
 	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
 		EnableTypeCheck: true,
-		StrictTypeCheck: true,
 	})
 	if len(warns) != 0 {
 		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
@@ -1087,7 +1053,6 @@ val f = fn() {
 	}
 	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
 		EnableTypeCheck: true,
-		StrictTypeCheck: true,
 	})
 	if len(warns) != 0 {
 		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
@@ -1110,7 +1075,6 @@ val y = if (isList(x) && isMap(x)) { 1 } else { 2 }
 	}
 	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
 		EnableTypeCheck: true,
-		StrictTypeCheck: true,
 	})
 	if len(warns) != 0 {
 		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
@@ -1140,7 +1104,6 @@ val f = fn(x) {
 	}
 	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
 		EnableTypeCheck: true,
-		StrictTypeCheck: true,
 	})
 	if len(warns) != 0 {
 		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
@@ -1170,7 +1133,6 @@ val f = fn() {
 	}
 	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
 		EnableTypeCheck: true,
-		StrictTypeCheck: true,
 	})
 	if len(warns) != 0 {
 		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
@@ -1200,7 +1162,6 @@ val f = fn(flag) {
 	}
 	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
 		EnableTypeCheck: true,
-		StrictTypeCheck: true,
 	})
 	if len(warns) != 0 {
 		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
@@ -1228,7 +1189,6 @@ val f = fn(x, i = 0) {
 	}
 	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
 		EnableTypeCheck: true,
-		StrictTypeCheck: true,
 	})
 	if len(warns) != 0 {
 		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
@@ -1251,7 +1211,6 @@ val y = x :+ 2
 	}
 	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
 		EnableTypeCheck: true,
-		StrictTypeCheck: true,
 	})
 	if len(warns) != 0 {
 		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
@@ -1275,7 +1234,6 @@ println("Test executed: {{count}} / failed {{failed}}")
 	}
 	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
 		EnableTypeCheck: true,
-		StrictTypeCheck: true,
 	})
 	if len(warns) != 0 {
 		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
@@ -1299,7 +1257,6 @@ val makeIndent = fn(@num spaces, @num depth) {
 	}
 	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
 		EnableTypeCheck: true,
-		StrictTypeCheck: true,
 	})
 	if len(warns) != 0 {
 		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
@@ -1322,7 +1279,6 @@ val b = 0 +: 0x"0102"
 	}
 	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
 		EnableTypeCheck: true,
-		StrictTypeCheck: true,
 	})
 	if len(warns) != 0 {
 		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
@@ -1348,7 +1304,6 @@ val e = 0x"0ff0" ^ 255
 	}
 	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
 		EnableTypeCheck: true,
-		StrictTypeCheck: true,
 	})
 	if len(warns) != 0 {
 		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
@@ -1370,7 +1325,6 @@ val a = ~0x"00ff"
 	}
 	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
 		EnableTypeCheck: true,
-		StrictTypeCheck: true,
 	})
 	if len(warns) != 0 {
 		t.Fatalf("expected no warnings in strict mode, got: %v", warns)

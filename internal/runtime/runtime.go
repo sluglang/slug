@@ -120,7 +120,6 @@ func (r *Runtime) LoadModule(modName string) (*object.Module, error) {
 	}
 	semErrs, semWarns := semantic.AnalyzeWithOptions(fullPath, string(source), program, semantic.AnalyzeOptions{
 		EnableTypeCheck: r.Config.EnableTypeCheck,
-		StrictTypeCheck: r.Config.StrictTypeCheck,
 		TypeCheckTrace:  r.Config.TypeCheckTrace,
 		TraceWriter:     os.Stderr,
 	})
