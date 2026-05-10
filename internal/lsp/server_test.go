@@ -1116,6 +1116,14 @@ func TestServerSignatureHelpStableAcrossTriggerSequence(t *testing.T) {
 		if !ok {
 			t.Fatalf("signatureHelp result missing for id=%d: %#v", i, m)
 		}
+		as, ok := res["activeSignature"].(float64)
+		if !ok || int(as) != 0 {
+			t.Fatalf("id=%d expected activeSignature=0, got %#v", i, res["activeSignature"])
+		}
+		sigs, ok := res["signatures"].([]interface{})
+		if !ok || len(sigs) == 0 {
+			t.Fatalf("id=%d expected non-empty signatures, got %#v", i, res["signatures"])
+		}
 		ap, _ := res["activeParameter"].(float64)
 		if int(ap) != expected {
 			t.Fatalf("id=%d expected activeParameter=%d, got %#v", i, expected, res["activeParameter"])
@@ -1124,6 +1132,35 @@ func TestServerSignatureHelpStableAcrossTriggerSequence(t *testing.T) {
 	for id := range want {
 		if !seen[id] {
 			t.Fatalf("signatureHelp response id=%d not found", id)
+		}
+	}
+}
+
+func TestServerSignatureHelpCanceledRequestSuppressesResponse(t *testing.T) {
+	src := "val sum = fn(a, b, c) { a }\nsum(1, 2, 3)\n"
+	srcJSON := strings.ReplaceAll(src, "\"", "\\\"")
+	srcJSON = strings.ReplaceAll(srcJSON, "\n", "\\n")
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///a.slug","version":1,"text":"`+srcJSON+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","method":"$/cancelRequest","params":{"id":46}}`) +
+			frame(`{"jsonrpc":"2.0","id":46,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":"file:///a.slug"},"position":{"line":1,"character":7}}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok {
+			continue
+		}
+		if int(id) == 46 {
+			t.Fatalf("expected canceled signatureHelp id=46 to be suppressed, got %#v", m)
 		}
 	}
 }

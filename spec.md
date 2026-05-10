@@ -1831,3 +1831,40 @@ Tests added:
 Validation performed:
 - `go test ./internal/lsp -count=1`
 - `go test ./... -count=1`
+
+### LSP Phase 23: signatureHelp protocol-shape regression (activeSignature)
+
+- Strengthened signature-help regression coverage to lock response shape for future multi-signature support.
+- Existing trigger-sequence test now also asserts:
+  - `activeSignature` is present and equals `0`,
+  - `signatures` payload is present and non-empty.
+
+Tests updated:
+- `internal/lsp/server_test.go`
+  - `TestServerSignatureHelpStableAcrossTriggerSequence`
+
+Validation performed:
+- `go test ./internal/lsp -count=1`
+- `go test ./... -count=1`
+
+### LSP Phase 24: canceled-request response suppression
+
+- Enforced `$/cancelRequest` behavior for request responses by suppressing outbound success payloads for canceled request IDs.
+- Added cancel-id normalization helper and one-shot consume semantics so cancellation entries are cleared when applied.
+- This prevents stale `signatureHelp` responses from being emitted for requests canceled by the client.
+
+Implementation updates:
+- `internal/lsp/server.go`
+  - `writeResult` now checks cancellation state before sending.
+  - Added:
+    - `isCanceledID(id json.RawMessage) bool`
+    - `cancelIDKey(id json.RawMessage) string`
+
+Tests added:
+- `internal/lsp/server_test.go`
+  - `TestServerSignatureHelpCanceledRequestSuppressesResponse`
+  - Verifies a canceled `textDocument/signatureHelp` request ID yields no response with that ID.
+
+Validation performed:
+- `go test ./internal/lsp -count=1`
+- `go test ./... -count=1`

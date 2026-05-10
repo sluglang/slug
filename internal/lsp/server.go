@@ -3106,11 +3106,33 @@ func idOrNil(id json.RawMessage) interface{} {
 }
 
 func (s *Server) writeResult(id json.RawMessage, result interface{}) error {
+	if s.isCanceledID(id) {
+		return nil
+	}
 	return writeFramedMessage(s.out, rpcSuccessResponse{JSONRPC: "2.0", ID: idOrNil(id), Result: result})
 }
 
 func (s *Server) writeError(id interface{}, code int, message string, data interface{}) error {
 	return writeFramedMessage(s.out, rpcErrorResponse{JSONRPC: "2.0", ID: id, Error: &rpcError{Code: code, Message: message, Data: data}})
+}
+
+func (s *Server) isCanceledID(id json.RawMessage) bool {
+	key := cancelIDKey(id)
+	if key == "" {
+		return false
+	}
+	if !s.canceledReqs[key] {
+		return false
+	}
+	delete(s.canceledReqs, key)
+	return true
+}
+
+func cancelIDKey(id json.RawMessage) string {
+	if len(id) == 0 {
+		return ""
+	}
+	return string(bytes.TrimSpace(id))
 }
 
 func maxInt(a, b int) int {
