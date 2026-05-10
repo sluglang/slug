@@ -92,6 +92,9 @@ func TestServerInitializeShutdownExit(t *testing.T) {
 		if dh, ok := caps["documentHighlightProvider"].(bool); !ok || !dh {
 			t.Fatalf("expected documentHighlightProvider=true, got %#v", caps["documentHighlightProvider"])
 		}
+		if rp, ok := caps["referencesProvider"].(bool); !ok || !rp {
+			t.Fatalf("expected referencesProvider=true, got %#v", caps["referencesProvider"])
+		}
 		cp, _ := caps["completionProvider"].(map[string]interface{})
 		if rp, _ := cp["resolveProvider"].(bool); !rp {
 			t.Fatalf("expected resolveProvider=true, got %#v", cp["resolveProvider"])
@@ -700,6 +703,70 @@ func TestServerDocumentHighlightReturnsEmptyOutsideIdentifier(t *testing.T) {
 		return
 	}
 	t.Fatal("documentHighlight response not found")
+}
+
+func TestServerReferencesIncludeDeclaration(t *testing.T) {
+	src := "val answer = 42\\nval use = answer\\nanswer\\n"
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///a.slug","version":1,"text":"`+src+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":17,"method":"textDocument/references","params":{"textDocument":{"uri":"file:///a.slug"},"position":{"line":1,"character":11},"context":{"includeDeclaration":true}}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok || int(id) != 17 {
+			continue
+		}
+		res, ok := m["result"].([]interface{})
+		if !ok {
+			t.Fatalf("references result missing: %#v", m)
+		}
+		if len(res) != 3 {
+			t.Fatalf("expected 3 references including declaration, got %d (%#v)", len(res), res)
+		}
+		return
+	}
+	t.Fatal("references response not found")
+}
+
+func TestServerReferencesExcludeDeclaration(t *testing.T) {
+	src := "val answer = 42\\nval use = answer\\nanswer\\n"
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///a.slug","version":1,"text":"`+src+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":18,"method":"textDocument/references","params":{"textDocument":{"uri":"file:///a.slug"},"position":{"line":1,"character":11},"context":{"includeDeclaration":false}}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok || int(id) != 18 {
+			continue
+		}
+		res, ok := m["result"].([]interface{})
+		if !ok {
+			t.Fatalf("references result missing: %#v", m)
+		}
+		if len(res) != 2 {
+			t.Fatalf("expected 2 references excluding declaration, got %d (%#v)", len(res), res)
+		}
+		return
+	}
+	t.Fatal("references response not found")
 }
 
 func TestNormalizeURIFileScheme(t *testing.T) {

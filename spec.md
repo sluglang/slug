@@ -1322,3 +1322,23 @@ Tests added/updated in `internal/lsp/server_test.go`:
 Validation performed:
 - `go test ./internal/lsp -count=1`
 - `go test ./... -count=1`
+
+### LSP Phase 8: textDocument/references (in-document, scope-aware)
+
+- Added `textDocument/references` handler in `internal/lsp/server.go`.
+- Advertised `referencesProvider: true` in initialize capabilities.
+- Implemented in-document references with scope-aware filtering:
+  - resolve the symbol under cursor using existing symbol resolution,
+  - scan identifier tokens with matching label,
+  - keep only occurrences that resolve to the same declaration symbol,
+  - respect `context.includeDeclaration` to include/exclude declaration location.
+- References are returned as LSP `Location[]` with normalized document URI and precise ranges.
+
+Tests added/updated in `internal/lsp/server_test.go`:
+- `TestServerInitializeShutdownExit` now asserts `referencesProvider == true`.
+- `TestServerReferencesIncludeDeclaration` validates declaration-inclusive results.
+- `TestServerReferencesExcludeDeclaration` validates declaration-excluded results.
+
+Validation performed:
+- `go test ./internal/lsp -count=1`
+- `go test ./... -count=1`

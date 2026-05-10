@@ -77,6 +77,7 @@ type serverCapabilities struct {
 	DefinitionProvider        bool                    `json:"definitionProvider,omitempty"`
 	DocumentSymbolProvider    bool                    `json:"documentSymbolProvider,omitempty"`
 	DocumentHighlightProvider bool                    `json:"documentHighlightProvider,omitempty"`
+	ReferencesProvider        bool                    `json:"referencesProvider,omitempty"`
 	CompletionProvider        *completionProvider     `json:"completionProvider,omitempty"`
 }
 
@@ -115,6 +116,16 @@ type textDocumentPositionParams struct {
 		URI string `json:"uri"`
 	} `json:"textDocument"`
 	Position lspPosition `json:"position"`
+}
+
+type referenceParams struct {
+	TextDocument struct {
+		URI string `json:"uri"`
+	} `json:"textDocument"`
+	Position lspPosition `json:"position"`
+	Context  struct {
+		IncludeDeclaration bool `json:"includeDeclaration"`
+	} `json:"context"`
 }
 
 type completionProvider struct {
@@ -217,6 +228,7 @@ func NewServer(in io.Reader, out io.Writer, analyze Analyzer) *Server {
 		"textDocument/definition":        s.handleDefinition,
 		"textDocument/documentSymbol":    s.handleDocumentSymbol,
 		"textDocument/documentHighlight": s.handleDocumentHighlight,
+		"textDocument/references":        s.handleReferences,
 		"textDocument/completion":        s.handleCompletion,
 		"completionItem/resolve":         s.handleCompletionResolve,
 	}
@@ -293,6 +305,7 @@ func (s *Server) handleInitialize(req rpcRequest) error {
 		DefinitionProvider:        true,
 		DocumentSymbolProvider:    true,
 		DocumentHighlightProvider: true,
+		ReferencesProvider:        true,
 		CompletionProvider:        &completionProvider{ResolveProvider: true},
 	}})
 }
@@ -480,6 +493,31 @@ func (s *Server) handleDocumentHighlight(req rpcRequest) error {
 	}
 	highlights := collectIdentifierHighlights(doc.Text, name)
 	return s.writeResult(req.ID, highlights)
+}
+
+func (s *Server) handleReferences(req rpcRequest) error {
+	var p referenceParams
+	if err := json.Unmarshal(req.Params, &p); err != nil {
+		return s.writeError(idOrNil(req.ID), -32602, "Invalid params", err.Error())
+	}
+	normURI, _ := normalizeURI(p.TextDocument.URI)
+	doc, ok := s.docs[normURI]
+	if !ok {
+		return s.writeResult(req.ID, []lspLocation{})
+	}
+	offset := offsetFromPosition(doc.Text, p.Position.Line, p.Position.Character)
+	name, _, _ := identifierAtOffset(doc.Text, offset)
+	if name == "" {
+		return s.writeResult(req.ID, []lspLocation{})
+	}
+	syms := collectSymbols(doc.Text)
+	target, found := resolveSymbolAt(name, offset, syms)
+	if !found {
+		return s.writeResult(req.ID, []lspLocation{})
+	}
+	includeDecl := p.Context.IncludeDeclaration
+	refs := collectScopedReferenceLocations(doc.Text, normURI, name, target, syms, includeDecl)
+	return s.writeResult(req.ID, refs)
 }
 
 func (s *Server) handleCompletion(req rpcRequest) error {
@@ -1010,6 +1048,42 @@ func collectIdentifierHighlights(src string, name string) []lspDocumentHighlight
 		out = append(out, lspDocumentHighlight{
 			Range: offsetRangeToLSP(src, start, end),
 			Kind:  1,
+		})
+	}
+	return out
+}
+
+func collectScopedReferenceLocations(src string, uri string, name string, target symbolDef, syms []symbolDef, includeDeclaration bool) []lspLocation {
+	if name == "" {
+		return []lspLocation{}
+	}
+	l := lexer.New(src)
+	out := make([]lspLocation, 0, 16)
+	seen := map[string]bool{}
+	for {
+		tok := l.NextToken()
+		if tok.Type == token.EOF || tok.Type == token.ILLEGAL {
+			break
+		}
+		if tok.Type != token.IDENT || tok.Literal != name {
+			continue
+		}
+		resolved, ok := resolveSymbolAt(name, tok.Position, syms)
+		if !ok || resolved.Start != target.Start || resolved.End != target.End {
+			continue
+		}
+		if !includeDeclaration && tok.Position == target.Start {
+			continue
+		}
+		rng := offsetRangeToLSP(src, tok.Position, tok.Position+len(tok.Literal))
+		key := fmt.Sprintf("%d:%d:%d:%d", rng.Start.Line, rng.Start.Character, rng.End.Line, rng.End.Character)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, lspLocation{
+			URI:   uri,
+			Range: rng,
 		})
 	}
 	return out
