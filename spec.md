@@ -1784,3 +1784,50 @@ Tests added/updated:
 Validation performed:
 - `go test ./internal/lsp -count=1`
 - `go test ./... -count=1`
+
+### LSP Phase 20: multiline signatureHelp position-mapping regression
+
+- Added an end-to-end `textDocument/signatureHelp` regression for multiline call expressions with nested map/list literals.
+- Verifies that LSP line/character position mapping and call-context argument counting remain aligned when commas appear inside nested literals across lines.
+
+Tests added:
+- `internal/lsp/server_test.go`
+  - `TestServerSignatureHelpMultilineNestedLiteralCall`
+  - Asserts `activeParameter=2` for a multiline `sum(...)` call where previous args are nested literals.
+
+Validation performed:
+- `go test ./internal/lsp -count=1`
+- `go test ./... -count=1`
+
+### LSP Phase 21: signatureHelp nil-response regression outside call context
+
+- Added end-to-end regression coverage for `textDocument/signatureHelp` when cursor is outside a callable argument context.
+- Ensures server returns `null` result (not an invalid payload or empty structure), matching expected LSP response behavior.
+
+Tests added:
+- `internal/lsp/server_test.go`
+  - `TestServerSignatureHelpReturnsNilOutsideCallContext`
+  - Verifies `result == nil` for:
+    - cursor at start of a non-call line,
+    - cursor after a completed call expression.
+
+Validation performed:
+- `go test ./internal/lsp -count=1`
+- `go test ./... -count=1`
+
+### LSP Phase 22: signatureHelp trigger-sequence stability regression
+
+- Added end-to-end regression coverage to ensure repeated `textDocument/signatureHelp` requests remain stable as cursor advances through a call expression.
+- Covers expected `activeParameter` progression across canonical trigger points around `(` and `,`.
+
+Tests added:
+- `internal/lsp/server_test.go`
+  - `TestServerSignatureHelpStableAcrossTriggerSequence`
+  - Verifies active parameter transitions for `sum(1, 2, 3)`:
+    - at first argument: `0`
+    - at second argument: `1`
+    - at third argument: `2`
+
+Validation performed:
+- `go test ./internal/lsp -count=1`
+- `go test ./... -count=1`

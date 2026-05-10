@@ -995,6 +995,139 @@ func TestServerSignatureHelpIgnoresCommasInsideMapAndListLiterals(t *testing.T) 
 	t.Fatal("signatureHelp response not found")
 }
 
+func TestServerSignatureHelpMultilineNestedLiteralCall(t *testing.T) {
+	src := "val sum = fn(a, b, c) { a }\nsum(\n  {\"k\": [1, 2]},\n  [3, {\"x\": 4}],\n  5\n)\n"
+	srcJSON := strings.ReplaceAll(src, "\"", "\\\"")
+	srcJSON = strings.ReplaceAll(srcJSON, "\n", "\\n")
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///a.slug","version":1,"text":"`+srcJSON+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":40,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":"file:///a.slug"},"position":{"line":4,"character":3}}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok || int(id) != 40 {
+			continue
+		}
+		res, ok := m["result"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("signatureHelp result missing: %#v", m)
+		}
+		ap, _ := res["activeParameter"].(float64)
+		if int(ap) != 2 {
+			t.Fatalf("expected activeParameter=2, got %#v", res["activeParameter"])
+		}
+		return
+	}
+	t.Fatal("signatureHelp response not found")
+}
+
+func TestServerSignatureHelpReturnsNilOutsideCallContext(t *testing.T) {
+	src := "val sum = fn(a, b, c) { a }\nsum(1, 2, 3)\nval x = 42\n"
+	srcJSON := strings.ReplaceAll(src, "\"", "\\\"")
+	srcJSON = strings.ReplaceAll(srcJSON, "\n", "\\n")
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///a.slug","version":1,"text":"`+srcJSON+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":41,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":"file:///a.slug"},"position":{"line":2,"character":0}}}`) +
+			frame(`{"jsonrpc":"2.0","id":42,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":"file:///a.slug"},"position":{"line":1,"character":12}}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	seen41 := false
+	seen42 := false
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok {
+			continue
+		}
+		switch int(id) {
+		case 41:
+			seen41 = true
+			if v, exists := m["result"]; !exists || v != nil {
+				t.Fatalf("expected nil signatureHelp result for id=41, got %#v", m["result"])
+			}
+		case 42:
+			seen42 = true
+			if v, exists := m["result"]; !exists || v != nil {
+				t.Fatalf("expected nil signatureHelp result for id=42, got %#v", m["result"])
+			}
+		}
+	}
+	if !seen41 {
+		t.Fatal("signatureHelp response id=41 not found")
+	}
+	if !seen42 {
+		t.Fatal("signatureHelp response id=42 not found")
+	}
+}
+
+func TestServerSignatureHelpStableAcrossTriggerSequence(t *testing.T) {
+	src := "val sum = fn(a, b, c) { a }\nsum(1, 2, 3)\n"
+	srcJSON := strings.ReplaceAll(src, "\"", "\\\"")
+	srcJSON = strings.ReplaceAll(srcJSON, "\n", "\\n")
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///a.slug","version":1,"text":"`+srcJSON+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":43,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":"file:///a.slug"},"position":{"line":1,"character":4}}}`) +
+			frame(`{"jsonrpc":"2.0","id":44,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":"file:///a.slug"},"position":{"line":1,"character":7}}}`) +
+			frame(`{"jsonrpc":"2.0","id":45,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":"file:///a.slug"},"position":{"line":1,"character":10}}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	want := map[int]int{
+		43: 0,
+		44: 1,
+		45: 2,
+	}
+	seen := map[int]bool{}
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok {
+			continue
+		}
+		i := int(id)
+		expected, tracked := want[i]
+		if !tracked {
+			continue
+		}
+		seen[i] = true
+		res, ok := m["result"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("signatureHelp result missing for id=%d: %#v", i, m)
+		}
+		ap, _ := res["activeParameter"].(float64)
+		if int(ap) != expected {
+			t.Fatalf("id=%d expected activeParameter=%d, got %#v", i, expected, res["activeParameter"])
+		}
+	}
+	for id := range want {
+		if !seen[id] {
+			t.Fatalf("signatureHelp response id=%d not found", id)
+		}
+	}
+}
+
 func TestFindCallContextHandlesEscapedQuotesInStringArgs(t *testing.T) {
 	src := "val sum = fn(a, b, c) { a }\nsum(\"a\\\",b\", 2, 3)\n"
 	off := strings.Index(src, ", 3)")
