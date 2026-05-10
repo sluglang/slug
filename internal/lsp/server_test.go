@@ -73,6 +73,25 @@ func TestServerInitializeShutdownExit(t *testing.T) {
 	if len(msgs) < 2 {
 		t.Fatalf("expected responses, got %d", len(msgs))
 	}
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok || int(id) != 1 {
+			continue
+		}
+		res, ok := m["result"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("initialize result missing: %#v", m)
+		}
+		caps, ok := res["capabilities"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("initialize capabilities missing: %#v", res)
+		}
+		if _, ok := caps["completionProvider"].(map[string]interface{}); !ok {
+			t.Fatalf("completionProvider missing in capabilities: %#v", caps)
+		}
+		return
+	}
+	t.Fatal("initialize response not found")
 }
 
 func TestServerExitBeforeShutdownReturnsError(t *testing.T) {
@@ -483,6 +502,92 @@ func TestServerDefinitionReturnsNilInsideStringLiteral(t *testing.T) {
 		return
 	}
 	t.Fatal("definition response not found")
+}
+
+func TestServerCompletionReturnsKeywordsAndSymbols(t *testing.T) {
+	src := "val answer = 42\\nval an = ans\\nv\\n"
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///a.slug","version":1,"text":"`+src+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":12,"method":"textDocument/completion","params":{"textDocument":{"uri":"file:///a.slug"},"position":{"line":1,"character":12}}}`) +
+			frame(`{"jsonrpc":"2.0","id":13,"method":"textDocument/completion","params":{"textDocument":{"uri":"file:///a.slug"},"position":{"line":2,"character":1}}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	seen12 := false
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok || int(id) != 12 {
+			continue
+		}
+		seen12 = true
+		res, ok := m["result"].([]interface{})
+		if !ok {
+			t.Fatalf("completion result missing: %#v", m)
+		}
+		foundAnswer := false
+		foundAnd := false
+		for _, it := range res {
+			item, _ := it.(map[string]interface{})
+			label, _ := item["label"].(string)
+			if label == "answer" {
+				foundAnswer = true
+			}
+			if label == "and" {
+				foundAnd = true
+			}
+		}
+		if !foundAnswer {
+			t.Fatalf("expected symbol completion 'answer', got %#v", res)
+		}
+		if foundAnd {
+			t.Fatalf("unexpected non-prefix completion 'and' for prefix 'ans': %#v", res)
+		}
+		break
+	}
+	if !seen12 {
+		t.Fatal("completion response id=12 not found")
+	}
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok || int(id) != 13 {
+			continue
+		}
+		res, ok := m["result"].([]interface{})
+		if !ok {
+			t.Fatalf("completion result missing: %#v", m)
+		}
+		foundVal := false
+		foundVar := false
+		foundAnswer := false
+		for _, it := range res {
+			item, _ := it.(map[string]interface{})
+			label, _ := item["label"].(string)
+			if label == "val" {
+				foundVal = true
+			}
+			if label == "var" {
+				foundVar = true
+			}
+			if label == "answer" {
+				foundAnswer = true
+			}
+		}
+		if !foundVal || !foundVar {
+			t.Fatalf("expected keyword completions 'val' and 'var', got %#v", res)
+		}
+		if foundAnswer {
+			t.Fatalf("unexpected symbol completion 'answer' for prefix 'v': %#v", res)
+		}
+		return
+	}
+	t.Fatal("completion response(s) not found")
 }
 
 func TestNormalizeURIFileScheme(t *testing.T) {

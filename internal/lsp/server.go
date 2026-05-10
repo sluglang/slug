@@ -76,6 +76,7 @@ type serverCapabilities struct {
 	HoverProvider          bool                    `json:"hoverProvider,omitempty"`
 	DefinitionProvider     bool                    `json:"definitionProvider,omitempty"`
 	DocumentSymbolProvider bool                    `json:"documentSymbolProvider,omitempty"`
+	CompletionProvider     *completionProvider     `json:"completionProvider,omitempty"`
 }
 
 type textDocumentSyncOptions struct {
@@ -115,6 +116,10 @@ type textDocumentPositionParams struct {
 	Position lspPosition `json:"position"`
 }
 
+type completionProvider struct {
+	ResolveProvider bool `json:"resolveProvider,omitempty"`
+}
+
 type cancelRequestParams struct {
 	ID json.RawMessage `json:"id"`
 }
@@ -145,6 +150,12 @@ type lspDocumentSymbol struct {
 	Range          lspRange `json:"range"`
 	SelectionRange lspRange `json:"selectionRange"`
 	Detail         string   `json:"detail,omitempty"`
+}
+
+type lspCompletionItem struct {
+	Label  string `json:"label"`
+	Kind   int    `json:"kind,omitempty"`
+	Detail string `json:"detail,omitempty"`
 }
 
 type symbolDef struct {
@@ -197,6 +208,7 @@ func NewServer(in io.Reader, out io.Writer, analyze Analyzer) *Server {
 		"textDocument/hover":          s.handleHover,
 		"textDocument/definition":     s.handleDefinition,
 		"textDocument/documentSymbol": s.handleDocumentSymbol,
+		"textDocument/completion":     s.handleCompletion,
 	}
 	return s
 }
@@ -270,6 +282,7 @@ func (s *Server) handleInitialize(req rpcRequest) error {
 		HoverProvider:          true,
 		DefinitionProvider:     true,
 		DocumentSymbolProvider: true,
+		CompletionProvider:     &completionProvider{ResolveProvider: false},
 	}})
 }
 
@@ -439,6 +452,46 @@ func (s *Server) handleDocumentSymbol(req rpcRequest) error {
 	return s.writeResult(req.ID, out)
 }
 
+func (s *Server) handleCompletion(req rpcRequest) error {
+	var p textDocumentPositionParams
+	if err := json.Unmarshal(req.Params, &p); err != nil {
+		return s.writeError(idOrNil(req.ID), -32602, "Invalid params", err.Error())
+	}
+	normURI, _ := normalizeURI(p.TextDocument.URI)
+	doc, ok := s.docs[normURI]
+	if !ok {
+		return s.writeResult(req.ID, []lspCompletionItem{})
+	}
+
+	offset := offsetFromPosition(doc.Text, p.Position.Line, p.Position.Character)
+	prefix := completionPrefixAtOffset(doc.Text, offset)
+	syms := collectSymbols(doc.Text)
+	seen := map[string]bool{}
+	items := make([]lspCompletionItem, 0, 64)
+
+	add := func(label string, kind int, detail string) {
+		if label == "" {
+			return
+		}
+		if prefix != "" && !strings.HasPrefix(label, prefix) {
+			return
+		}
+		if seen[label] {
+			return
+		}
+		seen[label] = true
+		items = append(items, lspCompletionItem{Label: label, Kind: kind, Detail: detail})
+	}
+
+	for _, kw := range slugKeywords {
+		add(kw, 14, "keyword")
+	}
+	for _, s := range syms {
+		add(s.Name, toCompletionItemKind(s.Kind), s.Kind)
+	}
+	return s.writeResult(req.ID, items)
+}
+
 func toDocumentSymbolKind(kind string) int {
 	switch kind {
 	case "function":
@@ -448,6 +501,27 @@ func toDocumentSymbolKind(kind string) int {
 	default:
 		return 13
 	}
+}
+
+func toCompletionItemKind(kind string) int {
+	switch kind {
+	case "function":
+		return 3
+	case "parameter", "variable":
+		return 6
+	case "struct":
+		return 22
+	default:
+		return 1
+	}
+}
+
+var slugKeywords = []string{
+	"nil", "true", "false",
+	"fn", "foreign", "val", "var", "struct", "copy",
+	"if", "else", "match", "return", "recur",
+	"throw", "defer",
+	"nursery", "spawn", "select",
 }
 
 func (s *Server) flushDirtyDocs(force bool) error {
@@ -805,6 +879,24 @@ func identifierAtOffset(src string, off int) (name string, start int, end int) {
 		}
 	}
 	return "", 0, 0
+}
+
+func completionPrefixAtOffset(src string, off int) string {
+	name, start, _ := identifierAtOffset(src, off)
+	if name == "" {
+		return ""
+	}
+	if off < start {
+		return ""
+	}
+	end := start + len(name)
+	if off > end {
+		off = end
+	}
+	if off-start <= 0 {
+		return ""
+	}
+	return name[:off-start]
 }
 
 func identTokenAtByteOffset(src string, off int) (name string, start int, end int, ok bool) {

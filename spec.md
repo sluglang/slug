@@ -1257,3 +1257,27 @@ Validation performed:
 Validation performed:
 - `go test ./internal/lsp -count=1`
 - `go test ./... -count=1`
+
+### LSP Phase 5: textDocument/completion (keywords + in-scope symbols)
+
+- Added `textDocument/completion` support in `internal/lsp/server.go`.
+- Advertised completion capability during initialize:
+  - `completionProvider` with `resolveProvider: false`.
+- Implemented completion candidate set:
+  - Slug language keywords.
+  - In-scope symbols discovered from current document symbol collection.
+- Implemented prefix filtering based on cursor position:
+  - completion suggestions are filtered to labels matching current identifier prefix.
+  - supports end-of-token cursor positions through existing identifier offset logic.
+- Added completion item kind mapping for common symbol categories.
+
+Tests added/updated in `internal/lsp/server_test.go`:
+- `TestServerInitializeShutdownExit` now asserts `completionProvider` capability is present.
+- `TestServerCompletionReturnsKeywordsAndSymbols` validates:
+  - symbol completion (e.g. `answer`) is returned for matching prefix,
+  - keyword completion (e.g. `val`, `var`) is returned for matching prefix,
+  - non-matching symbol is excluded by prefix filter.
+
+Validation performed:
+- `go test ./internal/lsp -count=1`
+- `go test ./... -count=1`
