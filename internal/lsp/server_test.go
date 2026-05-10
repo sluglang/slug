@@ -7,6 +7,7 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"time"
 )
 
 func frame(msg string) string {
@@ -164,6 +165,34 @@ func TestServerDidChangeBeforeOpenIgnored(t *testing.T) {
 	}
 }
 
+func TestServerDebouncesRapidDidChangeBursts(t *testing.T) {
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///a.slug","version":1,"text":"a"}}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":"file:///a.slug","version":2},"contentChanges":[{"text":"b"}]}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":"file:///a.slug","version":3},"contentChanges":[{"text":"c"}]}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) {
+		return []string{"ParseError: e\n    --> /tmp/a.slug:1:1\n"}, nil
+	})
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	count := 0
+	for _, m := range msgs {
+		if method, _ := m["method"].(string); method == "textDocument/publishDiagnostics" {
+			count++
+		}
+	}
+	if count > 4 {
+		t.Fatalf("expected coalesced diagnostics notifications, got %d", count)
+	}
+}
+
 func TestServerPublishesDiagnosticsOnDidOpenAndChange(t *testing.T) {
 	in := strings.NewReader(
 		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
@@ -228,6 +257,73 @@ func TestServerDedupesDuplicateDiagnostics(t *testing.T) {
 		return
 	}
 	t.Fatal("expected diagnostics notification")
+}
+
+func TestServerCancelRequestNotificationIsAccepted(t *testing.T) {
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"$/cancelRequest","params":{"id":99}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	if !s.canceledReqs["99"] {
+		t.Fatal("expected canceled request id to be recorded")
+	}
+}
+
+func TestServerFlushesDeferredDiagnosticsOnShutdown(t *testing.T) {
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///a.slug","version":1,"text":"a"}}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":"file:///a.slug","version":2},"contentChanges":[{"text":"b"}]}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) {
+		if src == "b" {
+			return []string{"ParseError: changed\n    --> /tmp/a.slug:1:1\n"}, nil
+		}
+		return nil, nil
+	})
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	found := false
+	for _, m := range msgs {
+		if method, _ := m["method"].(string); method != "textDocument/publishDiagnostics" {
+			continue
+		}
+		params, ok := m["params"].(map[string]interface{})
+		if !ok {
+			continue
+		}
+		diags, ok := params["diagnostics"].([]interface{})
+		if !ok {
+			continue
+		}
+		if len(diags) > 0 {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("expected diagnostics to be flushed on shutdown")
+	}
+}
+
+func TestDebounceWindowConstantIsSane(t *testing.T) {
+	if diagnosticsDebounceWindow <= 0 {
+		t.Fatal("debounce window must be > 0")
+	}
+	if diagnosticsDebounceWindow > 500*time.Millisecond {
+		t.Fatalf("debounce window unexpectedly high: %s", diagnosticsDebounceWindow)
+	}
 }
 
 func TestNormalizeURIFileScheme(t *testing.T) {

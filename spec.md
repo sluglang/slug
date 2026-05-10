@@ -1138,3 +1138,40 @@ Tests expanded in `internal/lsp/server_test.go`:
 Validation performed:
 - `go test ./internal/lsp ./cmd/app ./internal/semantic ./internal/runtime ./internal/vm -count=1`
 - `go test ./... -count=1`
+
+### LSP mode Phase 3: performance guardrails and extensibility scaffolding
+
+- Completed Phase 3 for LSP server with debounce/coalescing, dispatch refactor, and cancellation scaffold.
+
+Dispatch and extensibility:
+- Refactored request handling to method-dispatch map (`handlers`) with dedicated handler methods.
+- This enables straightforward addition of future methods (`hover`, `completion`, etc.) without growing a single switch block.
+
+Performance and coalescing:
+- Added diagnostics debounce window (`diagnosticsDebounceWindow`).
+- `didChange` now coalesces rapid bursts per document:
+  - immediate publish if outside debounce window,
+  - otherwise mark document dirty and defer diagnostics publish.
+- Added deferred dirty-doc flush on:
+  - non-change message boundaries,
+  - shutdown,
+  - loop exit/EOF.
+
+Cancellation scaffold:
+- Added `$/cancelRequest` notification handler.
+- Cancelled request IDs are recorded internally (`canceledReqs`) for future long-running request methods.
+
+Phase 2 behavior retained:
+- protocol state guards (initialize/shutdown/exit ordering),
+- URI normalization + local path derivation,
+- diagnostic deduplication and message/range normalization.
+
+Tests expanded in `internal/lsp/server_test.go`:
+- cancel-request acceptance,
+- deferred diagnostics flush behavior,
+- debounce window sanity,
+- existing lifecycle/protocol/diagnostics hardening tests remain green.
+
+Validation performed:
+- `go test ./internal/lsp ./cmd/app ./internal/semantic ./internal/runtime ./internal/vm -count=1`
+- `go test ./... -count=1`

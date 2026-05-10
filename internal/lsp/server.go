@@ -12,18 +12,25 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type Analyzer func(path, src string) ([]string, []string)
 
+const diagnosticsDebounceWindow = 75 * time.Millisecond
+
 type Server struct {
-	in           *bufio.Reader
-	out          io.Writer
-	analyze      Analyzer
-	docs         map[string]document
-	shutdown     bool
-	initialized  bool
-	seenShutdown bool
+	in              *bufio.Reader
+	out             io.Writer
+	analyze         Analyzer
+	docs            map[string]document
+	shutdown        bool
+	initialized     bool
+	seenShutdown    bool
+	lastPublishedAt map[string]time.Time
+	dirtyDocs       map[string]bool
+	canceledReqs    map[string]bool
+	handlers        map[string]func(rpcRequest) error
 }
 
 type document struct {
@@ -92,6 +99,10 @@ type didCloseParams struct {
 	} `json:"textDocument"`
 }
 
+type cancelRequestParams struct {
+	ID json.RawMessage `json:"id"`
+}
+
 type publishDiagnosticsParams struct {
 	URI         string          `json:"uri"`
 	Diagnostics []lspDiagnostic `json:"diagnostics"`
@@ -117,18 +128,35 @@ type lspPosition struct {
 var diagLocRe = regexp.MustCompile(`-->\s+(.+):(\d+):(\d+)`)
 
 func NewServer(in io.Reader, out io.Writer, analyze Analyzer) *Server {
-	return &Server{
-		in:      bufio.NewReader(in),
-		out:     out,
-		analyze: analyze,
-		docs:    map[string]document{},
+	s := &Server{
+		in:              bufio.NewReader(in),
+		out:             out,
+		analyze:         analyze,
+		docs:            map[string]document{},
+		lastPublishedAt: map[string]time.Time{},
+		dirtyDocs:       map[string]bool{},
+		canceledReqs:    map[string]bool{},
 	}
+	s.handlers = map[string]func(rpcRequest) error{
+		"initialize":             s.handleInitialize,
+		"initialized":            s.handleInitialized,
+		"shutdown":               s.handleShutdown,
+		"exit":                   s.handleExit,
+		"textDocument/didOpen":   s.handleDidOpen,
+		"textDocument/didChange": s.handleDidChange,
+		"textDocument/didClose":  s.handleDidClose,
+		"$/cancelRequest":        s.handleCancelRequest,
+	}
+	return s
 }
 
 func (s *Server) Run() error {
 	for {
+		_ = s.flushDirtyDocs(false)
+
 		body, err := readFramedMessage(s.in)
 		if err == io.EOF {
+			_ = s.flushDirtyDocs(true)
 			return nil
 		}
 		if err != nil {
@@ -150,6 +178,7 @@ func (s *Server) Run() error {
 			if !s.seenShutdown {
 				return fmt.Errorf("lsp exit received before shutdown")
 			}
+			_ = s.flushDirtyDocs(true)
 			return nil
 		}
 	}
@@ -169,57 +198,110 @@ func (s *Server) handle(req rpcRequest) error {
 		return nil
 	}
 
-	switch req.Method {
-	case "initialize":
-		s.initialized = true
-		return s.writeResult(req.ID, initializeResult{Capabilities: serverCapabilities{TextDocumentSync: textDocumentSyncOptions{OpenClose: true, Change: 1}}})
-	case "initialized":
-		return nil
-	case "shutdown":
-		s.shutdown = true
-		s.seenShutdown = true
-		return s.writeResult(req.ID, nil)
-	case "exit":
-		return nil
-	case "textDocument/didOpen":
-		var p didOpenParams
-		if err := json.Unmarshal(req.Params, &p); err != nil {
-			return s.writeError(idOrNil(req.ID), -32602, "Invalid params", err.Error())
-		}
-		normURI, normPath := normalizeURI(p.TextDocument.URI)
-		s.docs[normURI] = document{URI: normURI, Path: normPath, Text: p.TextDocument.Text, Version: p.TextDocument.Version, Language: p.TextDocument.LanguageID}
-		return s.publishDiagnosticsFor(normURI)
-	case "textDocument/didChange":
-		var p didChangeParams
-		if err := json.Unmarshal(req.Params, &p); err != nil {
-			return s.writeError(idOrNil(req.ID), -32602, "Invalid params", err.Error())
-		}
-		normURI, _ := normalizeURI(p.TextDocument.URI)
-		doc, ok := s.docs[normURI]
-		if !ok {
-			// Invalid transition: didChange before didOpen; ignore safely.
-			return nil
-		}
-		if len(p.ContentChanges) > 0 {
-			doc.Text = p.ContentChanges[len(p.ContentChanges)-1].Text
-		}
-		doc.Version = p.TextDocument.Version
-		s.docs[normURI] = doc
-		return s.publishDiagnosticsFor(normURI)
-	case "textDocument/didClose":
-		var p didCloseParams
-		if err := json.Unmarshal(req.Params, &p); err != nil {
-			return s.writeError(idOrNil(req.ID), -32602, "Invalid params", err.Error())
-		}
-		normURI, _ := normalizeURI(p.TextDocument.URI)
-		delete(s.docs, normURI)
-		return s.publishDiagnostics(normURI, nil)
-	default:
+	h, ok := s.handlers[req.Method]
+	if !ok {
 		if len(req.ID) > 0 {
 			return s.writeError(idOrNil(req.ID), -32601, "Method not found", req.Method)
 		}
 		return nil
 	}
+	if req.Method != "textDocument/didChange" {
+		_ = s.flushDirtyDocs(false)
+	}
+	return h(req)
+}
+
+func (s *Server) handleInitialize(req rpcRequest) error {
+	s.initialized = true
+	return s.writeResult(req.ID, initializeResult{Capabilities: serverCapabilities{TextDocumentSync: textDocumentSyncOptions{OpenClose: true, Change: 1}}})
+}
+
+func (s *Server) handleInitialized(_ rpcRequest) error {
+	return nil
+}
+
+func (s *Server) handleShutdown(req rpcRequest) error {
+	s.shutdown = true
+	s.seenShutdown = true
+	_ = s.flushDirtyDocs(true)
+	return s.writeResult(req.ID, nil)
+}
+
+func (s *Server) handleExit(_ rpcRequest) error {
+	return nil
+}
+
+func (s *Server) handleDidOpen(req rpcRequest) error {
+	var p didOpenParams
+	if err := json.Unmarshal(req.Params, &p); err != nil {
+		return s.writeError(idOrNil(req.ID), -32602, "Invalid params", err.Error())
+	}
+	normURI, normPath := normalizeURI(p.TextDocument.URI)
+	s.docs[normURI] = document{URI: normURI, Path: normPath, Text: p.TextDocument.Text, Version: p.TextDocument.Version, Language: p.TextDocument.LanguageID}
+	return s.publishDiagnosticsFor(normURI)
+}
+
+func (s *Server) handleDidChange(req rpcRequest) error {
+	var p didChangeParams
+	if err := json.Unmarshal(req.Params, &p); err != nil {
+		return s.writeError(idOrNil(req.ID), -32602, "Invalid params", err.Error())
+	}
+	normURI, _ := normalizeURI(p.TextDocument.URI)
+	doc, ok := s.docs[normURI]
+	if !ok {
+		return nil
+	}
+	if len(p.ContentChanges) > 0 {
+		doc.Text = p.ContentChanges[len(p.ContentChanges)-1].Text
+	}
+	doc.Version = p.TextDocument.Version
+	s.docs[normURI] = doc
+
+	if last, ok := s.lastPublishedAt[normURI]; ok && time.Since(last) < diagnosticsDebounceWindow {
+		s.dirtyDocs[normURI] = true
+		return nil
+	}
+	return s.publishDiagnosticsFor(normURI)
+}
+
+func (s *Server) handleDidClose(req rpcRequest) error {
+	var p didCloseParams
+	if err := json.Unmarshal(req.Params, &p); err != nil {
+		return s.writeError(idOrNil(req.ID), -32602, "Invalid params", err.Error())
+	}
+	normURI, _ := normalizeURI(p.TextDocument.URI)
+	delete(s.docs, normURI)
+	delete(s.dirtyDocs, normURI)
+	delete(s.lastPublishedAt, normURI)
+	return s.publishDiagnostics(normURI, nil)
+}
+
+func (s *Server) handleCancelRequest(req rpcRequest) error {
+	var p cancelRequestParams
+	if err := json.Unmarshal(req.Params, &p); err != nil {
+		return nil
+	}
+	if len(p.ID) == 0 {
+		return nil
+	}
+	id := string(bytes.TrimSpace(p.ID))
+	s.canceledReqs[id] = true
+	return nil
+}
+
+func (s *Server) flushDirtyDocs(force bool) error {
+	for uri := range s.dirtyDocs {
+		if !force {
+			if last, ok := s.lastPublishedAt[uri]; ok && time.Since(last) < diagnosticsDebounceWindow {
+				continue
+			}
+		}
+		if err := s.publishDiagnosticsFor(uri); err != nil {
+			return err
+		}
+		delete(s.dirtyDocs, uri)
+	}
+	return nil
 }
 
 func (s *Server) publishDiagnosticsFor(uri string) error {
@@ -240,7 +322,11 @@ func (s *Server) publishDiagnosticsFor(uri string) error {
 		diags = append(diags, parseDiagnostic(w, 2, "slug-semantic"))
 	}
 	diags = dedupeDiagnostics(diags)
-	return s.publishDiagnostics(uri, diags)
+	if err := s.publishDiagnostics(uri, diags); err != nil {
+		return err
+	}
+	s.lastPublishedAt[uri] = time.Now()
+	return nil
 }
 
 func (s *Server) publishDiagnostics(uri string, diags []lspDiagnostic) error {
