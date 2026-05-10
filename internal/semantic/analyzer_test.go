@@ -195,7 +195,7 @@ val x = "hello" - 1
 		EnableTypeCheck: true,
 	})
 	if len(warns) != 0 {
-		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
 	}
 	if len(errs) == 0 {
 		t.Fatal("expected semantic errors when type check enabled, got none")
@@ -205,7 +205,7 @@ val x = "hello" - 1
 	}
 }
 
-func TestSemanticTypeCheckStrictChecksStructFieldTagsInInit(t *testing.T) {
+func TestSemanticTypeCheckChecksStructFieldTagsInInit(t *testing.T) {
 	input := `
 val User = struct {
   @num age,
@@ -223,7 +223,7 @@ val u = User { age: "bad" }
 		EnableTypeCheck: true,
 	})
 	if len(warns) != 0 {
-		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
 	}
 	if len(errs) == 0 {
 		t.Fatal("expected struct field type mismatch error, got none")
@@ -271,7 +271,7 @@ val f = fn(flag, x) {
 	}
 }
 
-func TestSemanticTypeCheckStrictChecksMatchPatternNarrowing(t *testing.T) {
+func TestSemanticTypeCheckChecksMatchPatternNarrowing(t *testing.T) {
 	input := `
 val xs = [1, 2]
 val out = match xs {
@@ -289,7 +289,7 @@ val out = match xs {
 		EnableTypeCheck: true,
 	})
 	if len(warns) != 0 {
-		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
 	}
 	if len(errs) == 0 {
 		t.Fatal("expected narrowed-pattern type mismatch error, got none")
@@ -299,7 +299,7 @@ val out = match xs {
 	}
 }
 
-func TestSemanticTypeCheckStrictHasCallArgumentMismatchMessage(t *testing.T) {
+func TestSemanticTypeCheckHasCallArgumentMismatchMessage(t *testing.T) {
 	input := `
 val f = fn(@num n) { n + 1 }
 val out = f("bad")
@@ -314,7 +314,7 @@ val out = f("bad")
 		EnableTypeCheck: true,
 	})
 	if len(warns) != 0 {
-		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
 	}
 	if len(errs) == 0 {
 		t.Fatal("expected call argument type mismatch error, got none")
@@ -324,7 +324,7 @@ val out = f("bad")
 	}
 }
 
-func TestSemanticTypeCheckStrictAllowsTaggedDefaultNil(t *testing.T) {
+func TestSemanticTypeCheckAllowsTaggedDefaultNil(t *testing.T) {
 	input := `
 val assertThrows = fn(@fn f, expected, @str msg = nil) {
   true
@@ -340,14 +340,14 @@ val assertThrows = fn(@fn f, expected, @str msg = nil) {
 		EnableTypeCheck: true,
 	})
 	if len(warns) != 0 {
-		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
 	}
 	if len(errs) > 0 {
 		t.Fatalf("expected no semantic errors for tagged default nil, got: %v", errs)
 	}
 }
 
-func TestSemanticTypeCheckStrictAllowsIfBranchWithThrowElse(t *testing.T) {
+func TestSemanticTypeCheckAllowsIfBranchWithThrowElse(t *testing.T) {
 	input := `
 val Error = struct {
   @str type = "Error",
@@ -372,14 +372,14 @@ val assert = fn(a, msg = nil) {
 		EnableTypeCheck: true,
 	})
 	if len(warns) != 0 {
-		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
 	}
 	if len(errs) > 0 {
 		t.Fatalf("expected no semantic errors for if/throw branch, got: %v", errs)
 	}
 }
 
-func TestSemanticTypeCheckStrictAllowsCallsUsingDefaultArity(t *testing.T) {
+func TestSemanticTypeCheckAllowsCallsUsingDefaultArity(t *testing.T) {
 	input := `
 val g = fn(a, b = 2, c = 3) { a + b + c }
 val ok1 = g(1)
@@ -396,14 +396,14 @@ val ok3 = g(1, 4, 5)
 		EnableTypeCheck: true,
 	})
 	if len(warns) != 0 {
-		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
 	}
 	if len(errs) > 0 {
 		t.Fatalf("expected no semantic errors for default-arity calls, got: %v", errs)
 	}
 }
 
-func TestSemanticTypeCheckStrictAllowsMatchBodyFunctionWithHeterogeneousParams(t *testing.T) {
+func TestSemanticTypeCheckAllowsMatchBodyFunctionWithHeterogeneousParams(t *testing.T) {
 	input := `
 val mapLike = fn(@list vs, @fn f, acc = []) match {
   [[], ...] => acc
@@ -420,14 +420,14 @@ val mapLike = fn(@list vs, @fn f, acc = []) match {
 		EnableTypeCheck: true,
 	})
 	if len(warns) != 0 {
-		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
 	}
 	if len(errs) > 0 {
 		t.Fatalf("expected no semantic errors for heterogeneous match-body params, got: %v", errs)
 	}
 }
 
-func TestSemanticTypeCheckStrictAllowsGenericFnTagAcrossArities(t *testing.T) {
+func TestSemanticTypeCheckAllowsGenericFnTagAcrossArities(t *testing.T) {
 	input := `
 val apply = fn(@fn f) { f() }
 val v = apply(fn() { 1 })
@@ -446,14 +446,14 @@ val useMapLike = fn(@list xs, @fn f) {
 		EnableTypeCheck: true,
 	})
 	if len(warns) != 0 {
-		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
 	}
 	if len(errs) > 0 {
 		t.Fatalf("expected no semantic errors for generic @fn constraints, got: %v", errs)
 	}
 }
 
-func TestSemanticTypeCheckStrictAllowsMultiPatternLiteralAlternatives(t *testing.T) {
+func TestSemanticTypeCheckAllowsMultiPatternLiteralAlternatives(t *testing.T) {
 	input := `
 val parseBoolLike = fn(v) {
   match v {
@@ -472,14 +472,14 @@ val parseBoolLike = fn(v) {
 		EnableTypeCheck: true,
 	})
 	if len(warns) != 0 {
-		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
 	}
 	if len(errs) > 0 {
 		t.Fatalf("expected no semantic errors for multi-pattern literal alternatives, got: %v", errs)
 	}
 }
 
-func TestSemanticTypeCheckStrictAllowsNestedMatchAfterTypeDispatch(t *testing.T) {
+func TestSemanticTypeCheckAllowsNestedMatchAfterTypeDispatch(t *testing.T) {
 	input := `
 val BOOLEAN_TYPE = :bool
 val NUMBER_TYPE = :num
@@ -517,14 +517,14 @@ val toBoolean = fn(v) {
 		EnableTypeCheck: true,
 	})
 	if len(warns) != 0 {
-		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
 	}
 	if len(errs) > 0 {
 		t.Fatalf("expected no semantic errors for nested match after type dispatch, got: %v", errs)
 	}
 }
 
-func TestSemanticTypeCheckStrictAllowsListPatternMatchOnBytes(t *testing.T) {
+func TestSemanticTypeCheckAllowsListPatternMatchOnBytes(t *testing.T) {
 	input := `
 val list = 0x"0102"
 
@@ -544,14 +544,14 @@ val out = match list {
 		EnableTypeCheck: true,
 	})
 	if len(warns) != 0 {
-		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
 	}
 	if len(errs) > 0 {
 		t.Fatalf("expected no semantic errors for bytes list-pattern match, got: %v", errs)
 	}
 }
 
-func TestSemanticTypeCheckStrictAllowsHeterogeneousMapPatternArms(t *testing.T) {
+func TestSemanticTypeCheckAllowsHeterogeneousMapPatternArms(t *testing.T) {
 	input := `
 val f = fn(x) {
   match x {
@@ -579,14 +579,14 @@ val out = {"k":"v"} /> f
 		EnableTypeCheck: true,
 	})
 	if len(warns) != 0 {
-		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
 	}
 	if len(errs) > 0 {
 		t.Fatalf("expected no semantic errors for heterogeneous map pattern arms, got: %v", errs)
 	}
 }
 
-func TestSemanticTypeCheckStrictAllowsMultipleMapValueShapesAcrossCalls(t *testing.T) {
+func TestSemanticTypeCheckAllowsMultipleMapValueShapesAcrossCalls(t *testing.T) {
 	input := `
 val f = fn(x) {
   match x {
@@ -615,14 +615,14 @@ val b = {"k":1} /> f
 		EnableTypeCheck: true,
 	})
 	if len(warns) != 0 {
-		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
 	}
 	if len(errs) > 0 {
 		t.Fatalf("expected no semantic errors for multiple map value shapes across calls, got: %v", errs)
 	}
 }
 
-func TestSemanticTypeCheckStrictAllowsFunctionTagOverloadSetCalls(t *testing.T) {
+func TestSemanticTypeCheckAllowsFunctionTagOverloadSetCalls(t *testing.T) {
 	input := `
 var add = fn(@num b) { b + 255 }
 var add = fn(@bool b) { !b }
@@ -650,14 +650,14 @@ val g = fn() { 12 } /> add
 		EnableTypeCheck: true,
 	})
 	if len(warns) != 0 {
-		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
 	}
 	if len(errs) > 0 {
 		t.Fatalf("expected no semantic errors for function-tag overload set calls, got: %v", errs)
 	}
 }
 
-func TestSemanticTypeCheckStrictAllowsHeterogeneousMapLiteralValues(t *testing.T) {
+func TestSemanticTypeCheckAllowsHeterogeneousMapLiteralValues(t *testing.T) {
 	input := `
 val a = {"name": "Alice", "age": 30}
 val b = {"mix": {"a": [1, {"b": "c"}]}}
@@ -672,14 +672,14 @@ val b = {"mix": {"a": [1, {"b": "c"}]}}
 		EnableTypeCheck: true,
 	})
 	if len(warns) != 0 {
-		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
 	}
 	if len(errs) > 0 {
 		t.Fatalf("expected no semantic errors for heterogeneous map literal values, got: %v", errs)
 	}
 }
 
-func TestSemanticTypeCheckStrictAllowsDynamicUntaggedStructField(t *testing.T) {
+func TestSemanticTypeCheckAllowsDynamicUntaggedStructField(t *testing.T) {
 	input := `
 val ParseResult = struct {
   value,
@@ -700,14 +700,14 @@ val c = ParseResult { value: 123, nextIdx: 3 }
 		EnableTypeCheck: true,
 	})
 	if len(warns) != 0 {
-		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
 	}
 	if len(errs) > 0 {
 		t.Fatalf("expected no semantic errors for dynamic untagged struct field, got: %v", errs)
 	}
 }
 
-func TestSemanticTypeCheckStrictAllowsIfUsedForSideEffectsWithMixedBranchValues(t *testing.T) {
+func TestSemanticTypeCheckAllowsIfUsedForSideEffectsWithMixedBranchValues(t *testing.T) {
 	input := `
 val f = fn(c) {
   var line = 0
@@ -730,14 +730,14 @@ val f = fn(c) {
 		EnableTypeCheck: true,
 	})
 	if len(warns) != 0 {
-		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
 	}
 	if len(errs) > 0 {
 		t.Fatalf("expected no semantic errors for side-effect if branches, got: %v", errs)
 	}
 }
 
-func TestSemanticTypeCheckStrictAllowsMatchWithHeterogeneousStructCaseResults(t *testing.T) {
+func TestSemanticTypeCheckAllowsMatchWithHeterogeneousStructCaseResults(t *testing.T) {
 	input := `
 val SectionNode = struct {
 	name,
@@ -762,14 +762,14 @@ val node = match frame["kind"] {
 		EnableTypeCheck: true,
 	})
 	if len(warns) != 0 {
-		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
 	}
 	if len(errs) > 0 {
 		t.Fatalf("expected no strict type-check errors, got: %v", errs)
 	}
 }
 
-func TestSemanticTypeCheckStrictAllowsSpreadToSatisfyFixedArity(t *testing.T) {
+func TestSemanticTypeCheckAllowsSpreadToSatisfyFixedArity(t *testing.T) {
 	input := `
 val rgbStyle = fn(r, g, b) { [r, g, b] }
 val vals = [1, 2, 3]
@@ -785,14 +785,14 @@ val out = rgbStyle(...vals)
 		EnableTypeCheck: true,
 	})
 	if len(warns) != 0 {
-		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
 	}
 	if len(errs) > 0 {
 		t.Fatalf("expected no strict type-check errors, got: %v", errs)
 	}
 }
 
-func TestSemanticTypeCheckStrictAllowsDeferredBitwiseBytesModeInConcatFlow(t *testing.T) {
+func TestSemanticTypeCheckAllowsDeferredBitwiseBytesModeInConcatFlow(t *testing.T) {
 	input := `
 val paddedKey = 0x"0102"
 val ipad = 0x"0304"
@@ -809,14 +809,14 @@ val inner = (paddedKey ^ ipad) + message
 		EnableTypeCheck: true,
 	})
 	if len(warns) != 0 {
-		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
 	}
 	if len(errs) > 0 {
 		t.Fatalf("expected no strict type-check errors, got: %v", errs)
 	}
 }
 
-func TestSemanticTypeCheckStrictTracksIfBranchUnionForCalls(t *testing.T) {
+func TestSemanticTypeCheckTracksIfBranchUnionForCalls(t *testing.T) {
 	input := `
 val x = if (true) { 1 } else { "nope" }
 val useNum = fn(@num n) { n + 1 }
@@ -832,7 +832,7 @@ val out = useNum(x)
 		EnableTypeCheck: true,
 	})
 	if len(warns) != 0 {
-		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
 	}
 	if len(errs) == 0 {
 		t.Fatal("expected strict type-check error from union<num|str> passed to @num")
@@ -842,7 +842,7 @@ val out = useNum(x)
 	}
 }
 
-func TestSemanticTypeCheckStrictTracksMatchCaseUnionForCalls(t *testing.T) {
+func TestSemanticTypeCheckTracksMatchCaseUnionForCalls(t *testing.T) {
 	input := `
 val x = match "s" {
 	"s" => 1
@@ -861,7 +861,7 @@ val out = useNum(x)
 		EnableTypeCheck: true,
 	})
 	if len(warns) != 0 {
-		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
 	}
 	if len(errs) == 0 {
 		t.Fatal("expected strict type-check error from union<num|bool> passed to @num")
@@ -871,7 +871,7 @@ val out = useNum(x)
 	}
 }
 
-func TestSemanticTypeCheckStrictNarrowsIfTypeGuardTrueBranch(t *testing.T) {
+func TestSemanticTypeCheckNarrowsIfTypeGuardTrueBranch(t *testing.T) {
 	input := `
 val f = fn(x) {
 	if (type(x) == STRING_TYPE) {
@@ -891,14 +891,14 @@ val f = fn(x) {
 		EnableTypeCheck: true,
 	})
 	if len(warns) != 0 {
-		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
 	}
 	if len(errs) > 0 {
 		t.Fatalf("expected no strict type-check errors, got: %v", errs)
 	}
 }
 
-func TestSemanticTypeCheckStrictNarrowsIfNilGuardElseBranch(t *testing.T) {
+func TestSemanticTypeCheckNarrowsIfNilGuardElseBranch(t *testing.T) {
 	input := `
 val x = if (true) { nil } else { 1 }
 val f = fn() {
@@ -919,14 +919,14 @@ val f = fn() {
 		EnableTypeCheck: true,
 	})
 	if len(warns) != 0 {
-		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
 	}
 	if len(errs) > 0 {
 		t.Fatalf("expected no strict type-check errors, got: %v", errs)
 	}
 }
 
-func TestSemanticTypeCheckStrictNarrowsMatchGuardTypePredicate(t *testing.T) {
+func TestSemanticTypeCheckNarrowsMatchGuardTypePredicate(t *testing.T) {
 	input := `
 val f = fn(x) {
 	match x {
@@ -945,14 +945,14 @@ val f = fn(x) {
 		EnableTypeCheck: true,
 	})
 	if len(warns) != 0 {
-		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
 	}
 	if len(errs) > 0 {
 		t.Fatalf("expected no strict type-check errors, got: %v", errs)
 	}
 }
 
-func TestSemanticTypeCheckStrictNarrowsIfPredicateTrueBranch(t *testing.T) {
+func TestSemanticTypeCheckNarrowsIfPredicateTrueBranch(t *testing.T) {
 	input := `
 val x = if (true) { [1,2] } else { {"a":1} }
 val f = fn() {
@@ -973,14 +973,14 @@ val f = fn() {
 		EnableTypeCheck: true,
 	})
 	if len(warns) != 0 {
-		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
 	}
 	if len(errs) > 0 {
 		t.Fatalf("expected no strict type-check errors, got: %v", errs)
 	}
 }
 
-func TestSemanticTypeCheckStrictNarrowsIfPredicateElseBranch(t *testing.T) {
+func TestSemanticTypeCheckNarrowsIfPredicateElseBranch(t *testing.T) {
 	input := `
 val x = if (true) { [1,2] } else { {"a":1} }
 val f = fn() {
@@ -1001,14 +1001,14 @@ val f = fn() {
 		EnableTypeCheck: true,
 	})
 	if len(warns) != 0 {
-		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
 	}
 	if len(errs) > 0 {
 		t.Fatalf("expected no strict type-check errors, got: %v", errs)
 	}
 }
 
-func TestSemanticTypeCheckStrictNarrowsMatchGuardPredicate(t *testing.T) {
+func TestSemanticTypeCheckNarrowsMatchGuardPredicate(t *testing.T) {
 	input := `
 val f = fn(x) {
 	match x {
@@ -1027,14 +1027,14 @@ val f = fn(x) {
 		EnableTypeCheck: true,
 	})
 	if len(warns) != 0 {
-		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
 	}
 	if len(errs) > 0 {
 		t.Fatalf("expected no strict type-check errors, got: %v", errs)
 	}
 }
 
-func TestSemanticTypeCheckStrictNarrowsLenGuardShape(t *testing.T) {
+func TestSemanticTypeCheckNarrowsLenGuardShape(t *testing.T) {
 	input := `
 val x = if (true) { [1,2] } else { {"a":1} }
 val f = fn() {
@@ -1055,14 +1055,14 @@ val f = fn() {
 		EnableTypeCheck: true,
 	})
 	if len(warns) != 0 {
-		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
 	}
 	if len(errs) > 0 {
 		t.Fatalf("expected no strict type-check errors, got: %v", errs)
 	}
 }
 
-func TestSemanticTypeCheckStrictReportsUnreachableIfBranchOnContradictoryGuard(t *testing.T) {
+func TestSemanticTypeCheckReportsUnreachableIfBranchOnContradictoryGuard(t *testing.T) {
 	input := `
 val x = if (true) { [1,2] } else { {"a":1} }
 val y = if (isList(x) && isMap(x)) { 1 } else { 2 }
@@ -1077,7 +1077,7 @@ val y = if (isList(x) && isMap(x)) { 1 } else { 2 }
 		EnableTypeCheck: true,
 	})
 	if len(warns) != 0 {
-		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
 	}
 	if len(errs) == 0 {
 		t.Fatal("expected unreachable branch diagnostic, got none")
@@ -1087,7 +1087,7 @@ val y = if (isList(x) && isMap(x)) { 1 } else { 2 }
 	}
 }
 
-func TestSemanticTypeCheckStrictReportsUnreachableMatchGuardOnContradiction(t *testing.T) {
+func TestSemanticTypeCheckReportsUnreachableMatchGuardOnContradiction(t *testing.T) {
 	input := `
 val f = fn(x) {
 	match x {
@@ -1106,7 +1106,7 @@ val f = fn(x) {
 		EnableTypeCheck: true,
 	})
 	if len(warns) != 0 {
-		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
 	}
 	if len(errs) == 0 {
 		t.Fatal("expected unreachable match case diagnostic, got none")
@@ -1116,7 +1116,7 @@ val f = fn(x) {
 	}
 }
 
-func TestSemanticTypeCheckStrictTracksVarReassignmentWidening(t *testing.T) {
+func TestSemanticTypeCheckTracksVarReassignmentWidening(t *testing.T) {
 	input := `
 val f = fn() {
 	var acc = nil
@@ -1135,14 +1135,14 @@ val f = fn() {
 		EnableTypeCheck: true,
 	})
 	if len(warns) != 0 {
-		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
 	}
 	if len(errs) > 0 {
 		t.Fatalf("expected no strict type-check errors, got: %v", errs)
 	}
 }
 
-func TestSemanticTypeCheckStrictTracksVarReassignmentAcrossIfBranches(t *testing.T) {
+func TestSemanticTypeCheckTracksVarReassignmentAcrossIfBranches(t *testing.T) {
 	input := `
 val f = fn(flag) {
 	var x = nil
@@ -1164,14 +1164,14 @@ val f = fn(flag) {
 		EnableTypeCheck: true,
 	})
 	if len(warns) != 0 {
-		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
 	}
 	if len(errs) > 0 {
 		t.Fatalf("expected no strict type-check errors, got: %v", errs)
 	}
 }
 
-func TestSemanticTypeCheckStrictStabilizesRecurParameterTypes(t *testing.T) {
+func TestSemanticTypeCheckStabilizesRecurParameterTypes(t *testing.T) {
 	input := `
 val f = fn(x, i = 0) {
 	if (i >= 3) {
@@ -1191,14 +1191,14 @@ val f = fn(x, i = 0) {
 		EnableTypeCheck: true,
 	})
 	if len(warns) != 0 {
-		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
 	}
 	if len(errs) > 0 {
 		t.Fatalf("expected no strict type-check errors, got: %v", errs)
 	}
 }
 
-func TestSemanticTypeCheckStrictSimplifiesUnionListFamilies(t *testing.T) {
+func TestSemanticTypeCheckSimplifiesUnionListFamilies(t *testing.T) {
 	input := `
 val x = if (true) { [1] } else { ["a"] }
 val y = x :+ 2
@@ -1213,14 +1213,14 @@ val y = x :+ 2
 		EnableTypeCheck: true,
 	})
 	if len(warns) != 0 {
-		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
 	}
 	if len(errs) > 0 {
 		t.Fatalf("expected no strict type-check errors, got: %v", errs)
 	}
 }
 
-func TestSemanticTypeCheckStrictAllowsStringInterpolationWithNumbers(t *testing.T) {
+func TestSemanticTypeCheckAllowsStringInterpolationWithNumbers(t *testing.T) {
 	input := `
 val count = 10
 val failed = 2
@@ -1236,14 +1236,14 @@ println("Test executed: {{count}} / failed {{failed}}")
 		EnableTypeCheck: true,
 	})
 	if len(warns) != 0 {
-		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
 	}
 	if len(errs) > 0 {
 		t.Fatalf("expected no semantic errors for string interpolation with numbers, got: %v", errs)
 	}
 }
 
-func TestSemanticTypeCheckStrictAllowsChainedStringTimesNumberTimesNumber(t *testing.T) {
+func TestSemanticTypeCheckAllowsChainedStringTimesNumberTimesNumber(t *testing.T) {
 	input := `
 val makeIndent = fn(@num spaces, @num depth) {
   " " * spaces * depth
@@ -1259,14 +1259,14 @@ val makeIndent = fn(@num spaces, @num depth) {
 		EnableTypeCheck: true,
 	})
 	if len(warns) != 0 {
-		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
 	}
 	if len(errs) > 0 {
 		t.Fatalf("expected no semantic errors for chained string repetition, got: %v", errs)
 	}
 }
 
-func TestSemanticTypeCheckStrictAllowsBytesAppendAndPrependOperators(t *testing.T) {
+func TestSemanticTypeCheckAllowsBytesAppendAndPrependOperators(t *testing.T) {
 	input := `
 val a = 0x"0102" :+ 3
 val b = 0 +: 0x"0102"
@@ -1281,14 +1281,14 @@ val b = 0 +: 0x"0102"
 		EnableTypeCheck: true,
 	})
 	if len(warns) != 0 {
-		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
 	}
 	if len(errs) > 0 {
 		t.Fatalf("expected no semantic errors for bytes append/prepend operators, got: %v", errs)
 	}
 }
 
-func TestSemanticTypeCheckStrictAllowsBytesBitwiseOperators(t *testing.T) {
+func TestSemanticTypeCheckAllowsBytesBitwiseOperators(t *testing.T) {
 	input := `
 val a = 0x"ff00" & 0x"0ff0"
 val b = 0x"ff00" | 0x"0ff0"
@@ -1306,14 +1306,14 @@ val e = 0x"0ff0" ^ 255
 		EnableTypeCheck: true,
 	})
 	if len(warns) != 0 {
-		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
 	}
 	if len(errs) > 0 {
 		t.Fatalf("expected no semantic errors for bytes bitwise operators, got: %v", errs)
 	}
 }
 
-func TestSemanticTypeCheckStrictAllowsBytesBitNotPrefixOperator(t *testing.T) {
+func TestSemanticTypeCheckAllowsBytesBitNotPrefixOperator(t *testing.T) {
 	input := `
 val a = ~0x"00ff"
 `
@@ -1327,7 +1327,7 @@ val a = ~0x"00ff"
 		EnableTypeCheck: true,
 	})
 	if len(warns) != 0 {
-		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
 	}
 	if len(errs) > 0 {
 		t.Fatalf("expected no semantic errors for bytes bit-not operator, got: %v", errs)

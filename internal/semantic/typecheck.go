@@ -534,23 +534,6 @@ func (c *typeChecker) inferBlock(block *ast.BlockStatement) *tnode {
 	return c.inferBlockInCurrentScope(block)
 }
 
-func (c *typeChecker) inferBlockWithRefinements(block *ast.BlockStatement, refs map[string]*tnode) *tnode {
-	if block == nil {
-		return c.scalar(typeNil)
-	}
-	if c.hasImpossibleRefinement(refs) {
-		return c.scalar(typeNever)
-	}
-	c.pushScope()
-	c.pushOverride()
-	defer c.popScope()
-	defer c.popOverride()
-	for name, t := range refs {
-		c.bind(name, t)
-	}
-	return c.inferBlockInCurrentScope(block)
-}
-
 func (c *typeChecker) inferBlockWithRefinementsAndOverrides(block *ast.BlockStatement, refs map[string]*tnode) (*tnode, map[string]*tnode) {
 	if block == nil {
 		return c.scalar(typeNil), map[string]*tnode{}
@@ -584,6 +567,9 @@ func (c *typeChecker) mergeIfOverrides(outer map[string]*tnode, thenOv, elseOv m
 		}
 		merged := c.unionType(thenType, elseType)
 		c.tracef(-1, "merge", fmt.Sprintf("%s: then=%s else=%s -> %s", name, c.describe(thenType), c.describe(elseType), c.describe(merged)))
+		if c.find(merged).kind == typeAny && c.find(thenType).kind != typeAny && c.find(elseType).kind != typeAny {
+			c.tracef(-1, "union-normalize", fmt.Sprintf("context=if-merge var=%s widened-to-any", name))
+		}
 		c.setOverride(name, merged)
 	}
 }
@@ -859,7 +845,7 @@ func (c *typeChecker) inferFunctionLiteral(fn *ast.FunctionLiteral) *tnode {
 	ret := c.scalar(typeNil)
 	if fn.Body != nil {
 		iterations := 1
-		if containsRecurInBlock(fn.Body) {
+		if containsRecurInCurrentFunction(fn.Body) {
 			iterations = 4
 		}
 		for i := 0; i < iterations; i++ {
@@ -912,112 +898,114 @@ func (c *typeChecker) inferFunctionIteration(body *ast.BlockStatement, paramName
 	return iterRet, changed
 }
 
-func containsRecurInBlock(block *ast.BlockStatement) bool {
+func containsRecurInCurrentFunction(block *ast.BlockStatement) bool {
 	if block == nil {
 		return false
 	}
 	for _, s := range block.Statements {
-		if containsRecurInStmt(s) {
+		if containsRecurInStmt(s, false) {
 			return true
 		}
 	}
 	return false
 }
 
-func containsRecurInStmt(stmt ast.Statement) bool {
+func containsRecurInStmt(stmt ast.Statement, nestedFn bool) bool {
 	switch s := stmt.(type) {
 	case *ast.ExpressionStatement:
-		return containsRecurInExpr(s.Expression)
+		return containsRecurInExpr(s.Expression, nestedFn)
 	case *ast.ReturnStatement:
-		return containsRecurInExpr(s.ReturnValue)
+		return containsRecurInExpr(s.ReturnValue, nestedFn)
 	case *ast.ThrowStatement:
-		return containsRecurInExpr(s.Value)
+		return containsRecurInExpr(s.Value, nestedFn)
 	case *ast.BlockStatement:
-		return containsRecurInBlock(s)
+		return containsRecurInCurrentFunction(s)
 	case *ast.DeferStatement:
 		if s.Call == nil {
 			return false
 		}
-		return containsRecurInStmt(s.Call)
+		return containsRecurInStmt(s.Call, nestedFn)
 	default:
 		return false
 	}
 }
 
-func containsRecurInExpr(expr ast.Expression) bool {
+func containsRecurInExpr(expr ast.Expression, nestedFn bool) bool {
 	switch e := expr.(type) {
 	case *ast.RecurExpression:
-		return true
+		return !nestedFn
 	case *ast.IfExpression:
-		if containsRecurInExpr(e.Condition) {
+		if containsRecurInExpr(e.Condition, nestedFn) {
 			return true
 		}
-		return containsRecurInBlock(e.ThenBranch) || containsRecurInBlock(e.ElseBranch)
+		return containsRecurInCurrentFunction(e.ThenBranch) || containsRecurInCurrentFunction(e.ElseBranch)
 	case *ast.InfixExpression:
-		return containsRecurInExpr(e.Left) || containsRecurInExpr(e.Right)
+		return containsRecurInExpr(e.Left, nestedFn) || containsRecurInExpr(e.Right, nestedFn)
 	case *ast.PrefixExpression:
-		return containsRecurInExpr(e.Right)
+		return containsRecurInExpr(e.Right, nestedFn)
 	case *ast.CallExpression:
-		if containsRecurInExpr(e.Function) {
+		if containsRecurInExpr(e.Function, nestedFn) {
 			return true
 		}
 		for _, a := range e.Arguments {
-			if containsRecurInExpr(a) {
+			if containsRecurInExpr(a, nestedFn) {
 				return true
 			}
 		}
 		return false
 	case *ast.FunctionLiteral:
-		return containsRecurInBlock(e.Body)
+		// Nested function literals should not trigger fixed-point iterations
+		// for the outer function.
+		return containsRecurInExpr(e.Body, true)
 	case *ast.MatchExpression:
-		if containsRecurInExpr(e.Value) {
+		if containsRecurInExpr(e.Value, nestedFn) {
 			return true
 		}
 		for _, cs := range e.Cases {
 			if cs == nil {
 				continue
 			}
-			if containsRecurInExpr(cs.Guard) || containsRecurInBlock(cs.Body) {
+			if containsRecurInExpr(cs.Guard, nestedFn) || containsRecurInCurrentFunction(cs.Body) {
 				return true
 			}
 		}
 		return false
 	case *ast.ListLiteral:
 		for _, it := range e.Elements {
-			if containsRecurInExpr(it) {
+			if containsRecurInExpr(it, nestedFn) {
 				return true
 			}
 		}
 		return false
 	case *ast.MapLiteral:
 		for k, v := range e.Pairs {
-			if containsRecurInExpr(k) || containsRecurInExpr(v) {
+			if containsRecurInExpr(k, nestedFn) || containsRecurInExpr(v, nestedFn) {
 				return true
 			}
 		}
 		return false
 	case *ast.IndexExpression:
-		return containsRecurInExpr(e.Left) || containsRecurInExpr(e.Index)
+		return containsRecurInExpr(e.Left, nestedFn) || containsRecurInExpr(e.Index, nestedFn)
 	case *ast.StructInitExpression:
-		if containsRecurInExpr(e.Schema) {
+		if containsRecurInExpr(e.Schema, nestedFn) {
 			return true
 		}
 		for _, f := range e.Fields {
-			if containsRecurInExpr(f.Value) {
+			if containsRecurInExpr(f.Value, nestedFn) {
 				return true
 			}
 		}
 		return false
 	case *ast.StructCopyExpression:
-		return containsRecurInExpr(e.Source) || containsRecurInExpr(e.Fields)
+		return containsRecurInExpr(e.Source, nestedFn) || containsRecurInExpr(e.Fields, nestedFn)
 	case *ast.VarExpression:
-		return containsRecurInExpr(e.Value)
+		return containsRecurInExpr(e.Value, nestedFn)
 	case *ast.ValExpression:
-		return containsRecurInExpr(e.Value)
+		return containsRecurInExpr(e.Value, nestedFn)
 	case *ast.SpawnExpression:
-		return containsRecurInExpr(e.Body)
+		return containsRecurInExpr(e.Body, nestedFn)
 	case *ast.BlockStatement:
-		return containsRecurInBlock(e)
+		return containsRecurInCurrentFunction(e)
 	default:
 		return false
 	}
@@ -1274,6 +1262,9 @@ func (c *typeChecker) trackReassignmentType(lhs ast.Expression, rhs *tnode, pos 
 		// and include assigned value shape to model mutable var evolution.
 		merged := c.unionType(cur, rhs)
 		c.tracef(pos, "widen", fmt.Sprintf("%s: %s + %s -> %s", name, c.describe(cur), c.describe(rhs), c.describe(merged)))
+		if c.find(merged).kind == typeAny && c.find(cur).kind != typeAny && c.find(rhs).kind != typeAny {
+			c.tracef(pos, "union-normalize", fmt.Sprintf("context=assignment var=%s widened-to-any", name))
+		}
 		c.scopes[i][name] = merged
 		c.setOverride(name, rhs)
 		return

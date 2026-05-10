@@ -563,19 +563,19 @@
   - standardized `### Mental model` headings where previously inline.
 - Kept all technical content and syntax semantics unchanged; this pass was editorial consistency only.
 
-### Semantic inferred type checking (constraint-first, warn-gated)
+### Semantic inferred type checking (constraint-first, initial warn-gated rollout)
 
 - Added inferred type checking to semantic analysis with a constraint-based engine in `internal/semantic/typecheck.go`.
 - Added semantic API options:
   - `semantic.AnalyzeWithOptions(path, src, program, AnalyzeOptions)` returning `(errors, warnings)`.
-  - `AnalyzeOptions{EnableTypeCheck, StrictTypeCheck}`.
+  - Historical rollout shape at this stage: `AnalyzeOptions{EnableTypeCheck, StrictTypeCheck}`.
 - Kept `semantic.Analyze(...)` compatibility by returning errors only (no behavior change for existing callers).
 - Type-checking v1 coverage includes:
   - declaration inference (`val`/`var`),
   - call arity and argument compatibility,
   - operator compatibility constraints,
   - hard tag constraints for known type tags (e.g., `@num`, `@str`, `@list`, `@map`, `@task`, `@chan`, `@struct`).
-- Added warn-gated rollout plumbing through runtime/CLI config:
+- Added warn-gated rollout plumbing through runtime/CLI config (historical at this stage):
   - `Configuration.EnableTypeCheck` and `Configuration.StrictTypeCheck`.
   - CLI flags `-type-check` (default `true`) and `-type-check-strict` (default `false`).
   - Runtime execution/module loading now consumes semantic warnings separately from errors.
