@@ -1071,13 +1071,13 @@ func TestServerSignatureHelpImportedFunction(t *testing.T) {
 }
 
 func TestServerSignatureHelpIncludesDocAndParamDocs(t *testing.T) {
-	src := "/**\n * Adds values.\n * @param a left side\n * @param b right side\n */\nval add = fn(a, b) { a + b }\nadd(1, 2)\n"
+	src := "/**\n * Adds values.\n * @param a left side\n * @param b right side\n */\n@testWith([1, 2], 3)\n@testWith([\"1\"], 1)\nval add = fn(a, b) { a + b }\nadd(1, 2)\n"
 	srcJSON := strings.ReplaceAll(src, "\"", "\\\"")
 	srcJSON = strings.ReplaceAll(srcJSON, "\n", "\\n")
 	in := strings.NewReader(
 		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
 			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///a.slug","version":1,"text":"`+srcJSON+`"}}}`) +
-			frame(`{"jsonrpc":"2.0","id":48,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":"file:///a.slug"},"position":{"line":6,"character":7}}}`) +
+			frame(`{"jsonrpc":"2.0","id":48,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":"file:///a.slug"},"position":{"line":8,"character":7}}}`) +
 			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
 			frame(`{"jsonrpc":"2.0","method":"exit"}`),
 	)
@@ -1106,6 +1106,12 @@ func TestServerSignatureHelpIncludesDocAndParamDocs(t *testing.T) {
 		if !strings.Contains(dv, "Adds values.") {
 			t.Fatalf("expected signature documentation to include function docs, got %q", dv)
 		}
+		if !strings.Contains(dv, "#### Examples") || !strings.Contains(dv, "add(1, 2)  // => 3") {
+			t.Fatalf("expected signature documentation to include @testWith examples, got %q", dv)
+		}
+		if !strings.Contains(dv, "add(\"1\")  // => 1") {
+			t.Fatalf("expected string examples to keep quotes, got %q", dv)
+		}
 		params, _ := s0["parameters"].([]interface{})
 		if len(params) != 2 {
 			t.Fatalf("expected 2 parameters, got %#v", s0["parameters"])
@@ -1115,6 +1121,127 @@ func TestServerSignatureHelpIncludesDocAndParamDocs(t *testing.T) {
 		p0v, _ := p0doc["value"].(string)
 		if !strings.Contains(p0v, "left side") {
 			t.Fatalf("expected first parameter doc from @param, got %q", p0v)
+		}
+		return
+	}
+	t.Fatal("signatureHelp response not found")
+}
+
+func TestServerSignatureHelpImportedWildcardIncludesDocsFromDiskModule(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("SLUG_HOME", tmp)
+	libDir := filepath.Join(tmp, "lib", "slug")
+	if err := os.MkdirAll(libDir, 0o755); err != nil {
+		t.Fatalf("mkdir failed: %v", err)
+	}
+	stdPath := filepath.Join(libDir, "std.slug")
+	stdSrc := "/**\n * Reduce wildcard docs.\n * @param vs values\n * @param f reducer\n * @param init seed\n */\n@export val reduce = fn(vs, f, init){ init }\n"
+	if err := os.WriteFile(stdPath, []byte(stdSrc), 0o644); err != nil {
+		t.Fatalf("write std module failed: %v", err)
+	}
+	src := "var {*} = import(\"slug.std\")\nreduce([1,2], fn(a,b){a}, 0)\n"
+	srcJSON := strings.ReplaceAll(src, "\"", "\\\"")
+	srcJSON = strings.ReplaceAll(srcJSON, "\n", "\\n")
+	playPath := filepath.Join(tmp, "playground.slug")
+	if err := os.WriteFile(playPath, []byte(src), 0o644); err != nil {
+		t.Fatalf("write playground failed: %v", err)
+	}
+	playURI, _ := normalizeURI(playPath)
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"`+playURI+`","version":1,"text":"`+srcJSON+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":51,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":"`+playURI+`"},"position":{"line":1,"character":24}}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok || int(id) != 51 {
+			continue
+		}
+		res, ok := m["result"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("signatureHelp result missing: %#v", m)
+		}
+		sigs, _ := res["signatures"].([]interface{})
+		if len(sigs) == 0 {
+			t.Fatalf("expected signatures, got %#v", res)
+		}
+		s0, _ := sigs[0].(map[string]interface{})
+		doc, _ := s0["documentation"].(map[string]interface{})
+		dv, _ := doc["value"].(string)
+		if !strings.Contains(dv, "Reduce wildcard docs.") {
+			t.Fatalf("expected wildcard signature docs from module, got %q", dv)
+		}
+		params, _ := s0["parameters"].([]interface{})
+		p1, _ := params[1].(map[string]interface{})
+		p1doc, _ := p1["documentation"].(map[string]interface{})
+		p1v, _ := p1doc["value"].(string)
+		if !strings.Contains(p1v, "reducer") {
+			t.Fatalf("expected wildcard parameter docs from @param, got %q", p1v)
+		}
+		return
+	}
+	t.Fatal("signatureHelp response not found")
+}
+
+func TestServerSignatureHelpImportedMemberCallIncludesDocsFromDiskModule(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("SLUG_HOME", tmp)
+	libDir := filepath.Join(tmp, "lib", "slug")
+	if err := os.MkdirAll(libDir, 0o755); err != nil {
+		t.Fatalf("mkdir failed: %v", err)
+	}
+	stdPath := filepath.Join(libDir, "std.slug")
+	stdSrc := "/**\n * Reduce member docs.\n * @param vs values\n * @param f reducer\n * @param init seed\n */\n@export val reduce = fn(vs, f, init){ init }\n"
+	if err := os.WriteFile(stdPath, []byte(stdSrc), 0o644); err != nil {
+		t.Fatalf("write std module failed: %v", err)
+	}
+	src := "val std = import(\"slug.std\")\nstd.reduce([1,2], fn(a,b){a}, 0)\n"
+	srcJSON := strings.ReplaceAll(src, "\"", "\\\"")
+	srcJSON = strings.ReplaceAll(srcJSON, "\n", "\\n")
+	playPath := filepath.Join(tmp, "playground.slug")
+	if err := os.WriteFile(playPath, []byte(src), 0o644); err != nil {
+		t.Fatalf("write playground failed: %v", err)
+	}
+	playURI, _ := normalizeURI(playPath)
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"`+playURI+`","version":1,"text":"`+srcJSON+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":52,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":"`+playURI+`"},"position":{"line":1,"character":28}}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok || int(id) != 52 {
+			continue
+		}
+		res, ok := m["result"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("signatureHelp result missing: %#v", m)
+		}
+		sigs, _ := res["signatures"].([]interface{})
+		if len(sigs) == 0 {
+			t.Fatalf("expected signatures, got %#v", res)
+		}
+		s0, _ := sigs[0].(map[string]interface{})
+		doc, _ := s0["documentation"].(map[string]interface{})
+		dv, _ := doc["value"].(string)
+		if !strings.Contains(dv, "Reduce member docs.") {
+			t.Fatalf("expected member-call signature docs from module, got %q", dv)
 		}
 		return
 	}
@@ -1543,7 +1670,7 @@ func TestServerCompletionResolveEnrichesImportedItemFromModuleDocs(t *testing.T)
 		t.Fatalf("mkdir failed: %v", err)
 	}
 	stdPath := filepath.Join(libDir, "std.slug")
-	stdSrc := "/**\n * Reduce docs from std.\n */\n@export val reduce = fn(vs, f, init){ init }\n"
+	stdSrc := "/**\n * Reduce docs from std.\n */\n@testWith([[1,2], fn(a,b){a+b}, 0], 3)\n@export val reduce = fn(vs, f, init){ init }\n"
 	if err := os.WriteFile(stdPath, []byte(stdSrc), 0o644); err != nil {
 		t.Fatalf("write std module failed: %v", err)
 	}
@@ -1588,6 +1715,9 @@ func TestServerCompletionResolveEnrichesImportedItemFromModuleDocs(t *testing.T)
 		value, _ := doc["value"].(string)
 		if !strings.Contains(value, "Reduce docs from std.") {
 			t.Fatalf("expected imported module docs in completion resolve, got %#v", value)
+		}
+		if !strings.Contains(value, "#### Examples") || !strings.Contains(value, "reduce(") || !strings.Contains(value, "// => 3") {
+			t.Fatalf("expected imported module @testWith examples in completion resolve, got %#v", value)
 		}
 		return
 	}

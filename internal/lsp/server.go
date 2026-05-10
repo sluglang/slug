@@ -1268,6 +1268,13 @@ func collectSymbols(src string) []symbolDef {
 			if s.Call != nil {
 				walkStmt(s.Call)
 			}
+		case *ast.ForeignFunctionDeclaration:
+			if s.Name != nil {
+				start := s.Name.Token.Position
+				end := start + len(s.Name.Token.Literal)
+				detail := buildFunctionDocMarkdown(s.Name.Value, s.Doc, s.HasDoc, s.Tags)
+				syms = append(syms, symbolDef{Name: s.Name.Value, Kind: "function", Detail: detail, Start: start, End: end, ScopeDepth: scopeDepth})
+			}
 		}
 	}
 
@@ -1275,17 +1282,33 @@ func collectSymbols(src string) []symbolDef {
 		switch e := ex.(type) {
 		case *ast.VarExpression:
 			detail := ""
+			if _, ok := e.Value.(*ast.FunctionLiteral); ok {
+				for _, n := range topLevelPatternNames(e.Pattern) {
+					detail = buildFunctionDocMarkdown(n.Name, e.Doc, e.HasDoc, e.Tags)
+					addPattern(e.Pattern, "variable", detail)
+					goto walkVarValue
+				}
+			}
 			if e.HasDoc {
 				detail = strings.TrimSpace(e.Doc)
 			}
 			addPattern(e.Pattern, "variable", detail)
+		walkVarValue:
 			walkExpr(e.Value)
 		case *ast.ValExpression:
 			detail := ""
+			if _, ok := e.Value.(*ast.FunctionLiteral); ok {
+				for _, n := range topLevelPatternNames(e.Pattern) {
+					detail = buildFunctionDocMarkdown(n.Name, e.Doc, e.HasDoc, e.Tags)
+					addPattern(e.Pattern, "variable", detail)
+					goto walkValValue
+				}
+			}
 			if e.HasDoc {
 				detail = strings.TrimSpace(e.Doc)
 			}
 			addPattern(e.Pattern, "variable", detail)
+		walkValValue:
 			walkExpr(e.Value)
 		case *ast.FunctionLiteral:
 			scopeDepth++
@@ -2082,10 +2105,7 @@ func collectFunctionSignatures(src string) []functionSignature {
 			if s.Name != nil {
 				start := s.Name.Token.Position
 				end := start + len(s.Name.Token.Literal)
-				detail := ""
-				if s.HasDoc {
-					detail = strings.TrimSpace(s.Doc)
-				}
+				detail := buildFunctionDocMarkdown(s.Name.Value, s.Doc, s.HasDoc, s.Tags)
 				add(s.Name.Value, s.Parameters, detail, start, end)
 			}
 		}
@@ -2095,22 +2115,16 @@ func collectFunctionSignatures(src string) []functionSignature {
 		switch e := ex.(type) {
 		case *ast.ValExpression:
 			if fn, ok := e.Value.(*ast.FunctionLiteral); ok {
-				detail := ""
-				if e.HasDoc {
-					detail = strings.TrimSpace(e.Doc)
-				}
 				for _, n := range topLevelPatternNames(e.Pattern) {
+					detail := buildFunctionDocMarkdown(n.Name, e.Doc, e.HasDoc, e.Tags)
 					add(n.Name, fn.Parameters, detail, n.Start, n.End)
 				}
 			}
 			walkExpr(e.Value)
 		case *ast.VarExpression:
 			if fn, ok := e.Value.(*ast.FunctionLiteral); ok {
-				detail := ""
-				if e.HasDoc {
-					detail = strings.TrimSpace(e.Doc)
-				}
 				for _, n := range topLevelPatternNames(e.Pattern) {
+					detail := buildFunctionDocMarkdown(n.Name, e.Doc, e.HasDoc, e.Tags)
 					add(n.Name, fn.Parameters, detail, n.Start, n.End)
 				}
 			}
@@ -2311,6 +2325,75 @@ func parseParamDocs(doc string) map[string]string {
 		}
 	}
 	return out
+}
+
+func buildFunctionDocMarkdown(name string, doc string, hasDoc bool, tags []*ast.Tag) string {
+	base := ""
+	if hasDoc {
+		base = strings.TrimSpace(doc)
+	}
+	examples := renderTestWithExamplesMarkdown(name, tags)
+	switch {
+	case base == "":
+		return examples
+	case examples == "":
+		return base
+	default:
+		return base + examples
+	}
+}
+
+func renderTestWithExamplesMarkdown(name string, tags []*ast.Tag) string {
+	args := tagArgs(tags, "@testWith")
+	if len(args) < 2 {
+		return ""
+	}
+	lines := make([]string, 0, len(args)/2)
+	for i := 0; i+1 < len(args); i += 2 {
+		inputsExpr := args[i]
+		expectedExpr := args[i+1]
+		inputs := []ast.Expression{inputsExpr}
+		if lst, ok := inputsExpr.(*ast.ListLiteral); ok {
+			inputs = lst.Elements
+		}
+		argParts := make([]string, 0, len(inputs))
+		for _, in := range inputs {
+			argParts = append(argParts, renderTestWithValue(in))
+		}
+		lines = append(lines, fmt.Sprintf("%s(%s)  // => %s", name, strings.Join(argParts, ", "), renderTestWithValue(expectedExpr)))
+	}
+	if len(lines) == 0 {
+		return ""
+	}
+	return "\n\n#### Examples\n\n```slug\n" + strings.Join(lines, "\n") + "\n```"
+}
+
+func tagArgs(tags []*ast.Tag, name string) []ast.Expression {
+	out := make([]ast.Expression, 0, 4)
+	for _, t := range tags {
+		if t == nil || t.Name != name || len(t.Args) == 0 {
+			continue
+		}
+		out = append(out, t.Args...)
+	}
+	return out
+}
+
+func renderTestWithValue(v ast.Expression) string {
+	switch x := v.(type) {
+	case *ast.StringLiteral:
+		return strconv.Quote(x.Value)
+	case *ast.ListLiteral:
+		parts := make([]string, 0, len(x.Elements))
+		for _, el := range x.Elements {
+			parts = append(parts, renderTestWithValue(el))
+		}
+		return "[" + strings.Join(parts, ", ") + "]"
+	case *ast.Nil, *ast.Boolean:
+		return x.String()
+	default:
+		return x.String()
+	}
 }
 
 func isEscapedAt(src string, idx int) bool {

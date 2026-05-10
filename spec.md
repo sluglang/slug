@@ -1972,3 +1972,65 @@ Tests added:
 Validation performed:
 - `go test ./internal/lsp -count=1`
 - `go test ./... -count=1`
+
+### LSP Phase 30: signatureHelp imported-doc coverage for wildcard and member calls
+
+- Added end-to-end regressions to confirm signature-help doc enrichment for imported calls loaded from disk modules (`SLUG_HOME`) across additional import forms.
+- Confirms docs and parameter docs are available for:
+  - wildcard import calls (`var {*} = import("slug.std")`),
+  - module member calls (`val std = import("slug.std"); std.reduce(...)`).
+
+Tests added:
+- `internal/lsp/server_test.go`
+  - `TestServerSignatureHelpImportedWildcardIncludesDocsFromDiskModule`
+  - `TestServerSignatureHelpImportedMemberCallIncludesDocsFromDiskModule`
+
+Validation performed:
+- `go test ./internal/lsp -count=1`
+- `go test ./... -count=1`
+
+### LSP Phase 31: include `@testWith` examples in markdown docs
+
+- Added shared LSP doc markdown enrichment for function symbols/signatures to include rendered `@testWith` examples.
+- Output format aligns with `slug.doc.markdown` style:
+  - `#### Examples` heading
+  - fenced `slug` code block
+  - lines like `fnName(args...)  // => expected`
+
+Implementation updates:
+- `internal/lsp/server.go`
+  - Function doc assembly now uses `buildFunctionDocMarkdown(name, doc, hasDoc, tags)`.
+  - Added example render helpers:
+    - `renderTestWithExamplesMarkdown(name, tags)`
+    - `tagArgs(tags, "@testWith")`
+    - `renderTestWithValue(expr)`
+  - Applied during symbol/signature extraction for:
+    - top-level `val/var` function bindings,
+    - top-level foreign functions.
+
+Tests updated:
+- `internal/lsp/server_test.go`
+  - `TestServerSignatureHelpIncludesDocAndParamDocs` now asserts `@testWith` examples appear in signature markdown documentation.
+  - `TestServerCompletionResolveEnrichesImportedItemFromModuleDocs` now asserts imported completion docs include an examples section from `@testWith`.
+
+Validation performed:
+- `go test ./internal/lsp -count=1`
+- `go test ./... -count=1`
+
+### LSP Phase 32: `@testWith` string example quoting fix
+
+- Fixed `@testWith` markdown rendering so string literals are always emitted with quotes.
+- This avoids ambiguous example output where string inputs could be mistaken for identifiers or numeric literals.
+
+Implementation update:
+- `internal/lsp/server.go`
+  - `renderTestWithValue` now renders `*ast.StringLiteral` via `strconv.Quote(x.Value)`.
+
+Tests updated:
+- `internal/lsp/server_test.go`
+  - `TestServerSignatureHelpIncludesDocAndParamDocs` now includes a string-input `@testWith` case and asserts rendered output contains:
+    - `add("1")  // => 1`
+
+Validation performed:
+- `go test ./internal/lsp -count=1`
+- `go test ./... -count=1`
