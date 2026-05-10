@@ -771,6 +771,11 @@ func (c *typeChecker) unify(a, b *tnode) bool {
 	case typeMap:
 		return c.unify(a.key, b.key) && c.unify(a.val, b.val)
 	case typeFn:
+		// Generic function constraints (e.g. from @fn tags) intentionally do not
+		// pin arity/parameter shape; they only require function-typed values.
+		if (a.maxArgs == -1 && len(a.params) == 0) || (b.maxArgs == -1 && len(b.params) == 0) {
+			return true
+		}
 		if a.variadic != b.variadic {
 			return false
 		}

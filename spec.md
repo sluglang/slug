@@ -650,3 +650,13 @@
   - `TestSemanticTypeCheckStrictAllowsMatchBodyFunctionWithHeterogeneousParams`.
 - Validation performed:
   - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
+
+### Semantic typing fix for generic @fn constraint unification
+
+- Fixed false-positive function argument mismatch diagnostics where both sides were function-typed (`expected fn, got fn`).
+- Root cause: unifier required concrete function shape/arity equivalence even for generic `@fn` tag constraints.
+- Updated function unification to treat generic `@fn` constraints as function-kind compatibility (not exact arity shape).
+- Added regression test:
+  - `TestSemanticTypeCheckStrictAllowsGenericFnTagAcrossArities`.
+- Validation performed:
+  - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`

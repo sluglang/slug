@@ -399,3 +399,30 @@ val mapLike = fn(@list vs, @fn f, acc = []) match {
 		t.Fatalf("expected no semantic errors for heterogeneous match-body params, got: %v", errs)
 	}
 }
+
+func TestSemanticTypeCheckStrictAllowsGenericFnTagAcrossArities(t *testing.T) {
+	input := `
+val apply = fn(@fn f) { f() }
+val v = apply(fn() { 1 })
+
+val useMapLike = fn(@list xs, @fn f) {
+  xs /> map(fn(v) { [v, f()] })
+}
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+		StrictTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+	}
+	if len(errs) > 0 {
+		t.Fatalf("expected no semantic errors for generic @fn constraints, got: %v", errs)
+	}
+}
