@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/url"
 	"path/filepath"
 	"regexp"
@@ -13,10 +14,10 @@ import (
 	"slug/internal/ast"
 	"slug/internal/lexer"
 	"slug/internal/parser"
+	"slug/internal/token"
 	"strconv"
 	"strings"
 	"time"
-	"unicode"
 	"unicode/utf8"
 )
 
@@ -212,6 +213,7 @@ func (s *Server) Run() error {
 		if err != nil {
 			return err
 		}
+		slog.Debug("lsp.rpc.inbound", "payload", string(body))
 
 		var req rpcRequest
 		if err := json.Unmarshal(body, &req); err != nil {
@@ -400,9 +402,10 @@ func (s *Server) handleDefinition(req rpcRequest) error {
 	if !found {
 		return s.writeResult(req.ID, nil)
 	}
+	defRange := offsetRangeToLSP(doc.Text, sym.Start, sym.End)
 	loc := lspLocation{
 		URI:   normURI,
-		Range: offsetRangeToLSP(doc.Text, sym.Start, sym.End),
+		Range: defRange,
 	}
 	return s.writeResult(req.ID, []lspLocation{loc})
 }
@@ -792,45 +795,37 @@ func identifierAtOffset(src string, off int) (name string, start int, end int) {
 	if off > len(src) {
 		off = len(src)
 	}
-	if off >= len(src) {
-		return "", 0, 0
+	if name, start, end, ok := identTokenAtByteOffset(src, off); ok {
+		return name, start, end
 	}
-	ch, _ := utf8.DecodeRuneInString(src[off:])
-	if !isIdentRune(ch) {
-		return "", 0, 0
-	}
-	left := off
-	for left > 0 {
-		r, size := utf8.DecodeLastRuneInString(src[:left])
-		if !isIdentRune(r) {
-			break
+	// LSP positions are between characters; clients often send end-of-word positions.
+	if off > 0 {
+		if name, start, end, ok := identTokenAtByteOffset(src, off-1); ok {
+			return name, start, end
 		}
-		left -= size
 	}
-	right := off
-	for right < len(src) {
-		r, size := utf8.DecodeRuneInString(src[right:])
-		if !isIdentRune(r) {
-			break
-		}
-		right += size
-	}
-	if right <= left {
-		return "", 0, 0
-	}
-	v := src[left:right]
-	if v == "" {
-		return "", 0, 0
-	}
-	r, _ := utf8.DecodeRuneInString(v)
-	if !(unicode.IsLetter(r) || r == '_') {
-		return "", 0, 0
-	}
-	return v, left, right
+	return "", 0, 0
 }
 
-func isIdentRune(r rune) bool {
-	return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_'
+func identTokenAtByteOffset(src string, off int) (name string, start int, end int, ok bool) {
+	if off < 0 || off >= len(src) {
+		return "", 0, 0, false
+	}
+	l := lexer.New(src)
+	for {
+		tok := l.NextToken()
+		if tok.Type == token.EOF || tok.Type == token.ILLEGAL {
+			return "", 0, 0, false
+		}
+		if tok.Type != token.IDENT {
+			continue
+		}
+		start = tok.Position
+		end = start + len(tok.Literal)
+		if off >= start && off < end {
+			return tok.Literal, start, end, true
+		}
+	}
 }
 
 func offsetFromPosition(src string, line int, col int) int {
@@ -985,6 +980,7 @@ func writeFramedMessage(w io.Writer, v interface{}) error {
 	if err != nil {
 		return err
 	}
+	slog.Debug("lsp.rpc.outbound", "payload", string(body))
 	_, err = io.Copy(w, bytes.NewBufferString(fmt.Sprintf("Content-Length: %d\r\n\r\n", len(body))))
 	if err != nil {
 		return err

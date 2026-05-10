@@ -457,6 +457,34 @@ func TestServerDefinitionReturnsNilOutsideIdentifier(t *testing.T) {
 	t.Fatal("definition response not found")
 }
 
+func TestServerDefinitionReturnsNilInsideStringLiteral(t *testing.T) {
+	src := "val alpha = 1\\n\"alpha\"\\n"
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///a.slug","version":1,"text":"`+src+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":11,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///a.slug"},"position":{"line":1,"character":2}}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok || int(id) != 11 {
+			continue
+		}
+		if m["result"] != nil {
+			t.Fatalf("expected nil definition result inside string literal, got %#v", m["result"])
+		}
+		return
+	}
+	t.Fatal("definition response not found")
+}
+
 func TestNormalizeURIFileScheme(t *testing.T) {
 	u, p := normalizeURI("file:///tmp/x.slug")
 	if !strings.HasPrefix(u, "file://") {

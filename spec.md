@@ -1217,3 +1217,43 @@ Validation performed:
 Validation performed:
 - `go test ./internal/lsp -count=1`
 - `go test ./... -count=1`
+
+### LSP fix: avoid false definition links in non-identifier text
+
+- Refined symbol-at-cursor resolution in `internal/lsp/server.go` to use lexer token spans:
+  - `textDocument/hover` and `textDocument/definition` now resolve only when cursor is on an `IDENT` token.
+  - Added end-of-word fallback (`offset-1`) to support clients that send boundary positions.
+- This prevents definition links from activating inside string literals/comments/other non-identifier text while preserving expected navigation on real symbols.
+
+Tests added in `internal/lsp/server_test.go`:
+- `TestServerDefinitionReturnsNilInsideStringLiteral`
+- Existing `TestServerDefinitionReturnsNilOutsideIdentifier` remains as guard.
+
+Validation performed:
+- `go test ./internal/lsp -count=1`
+- `go test ./... -count=1`
+
+### LSP diagnostics aid: debug tracing for hover/definition requests
+
+- Added debug-level structured logs in `internal/lsp/server.go` for:
+  - `textDocument/hover` request outcomes: no symbol, unresolved symbol, resolved symbol.
+  - `textDocument/definition` request outcomes: no symbol, unresolved symbol, resolved location.
+- Logged fields include URI, request line/character/offset, symbol name/kind (when available), resolved definition range (when available), and request id.
+- Logging uses existing `slog` pipeline and is enabled via CLI log level (e.g. `-log-level debug`).
+
+Validation performed:
+- `go test ./internal/lsp -count=1`
+- `go test ./... -count=1`
+
+### LSP logging update: protocol-level inbound/outbound tracing only
+
+- Replaced method-specific hover/definition debug logs with protocol-level JSON-RPC tracing in `internal/lsp/server.go`.
+- Added debug logs for every framed message:
+  - inbound: `lsp.rpc.inbound` with raw JSON payload
+  - outbound: `lsp.rpc.outbound` with raw JSON payload
+- Removed granular symbol-resolution debug logging for `hover`/`definition` to reduce noise and keep transport-level visibility focused.
+- Removed now-unused identifier helper (`isIdentRune`) after logging refactor.
+
+Validation performed:
+- `go test ./internal/lsp -count=1`
+- `go test ./... -count=1`
