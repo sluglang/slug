@@ -1588,3 +1588,29 @@ Test update:
 Validation performed:
 - `go test ./internal/lsp -count=1`
 - `go test ./... -count=1`
+
+### LSP Phase 15: codeAction quick-fix for unresolved imports
+
+- Added initial `textDocument/codeAction` support in `internal/lsp/server.go`.
+- Advertised `codeActionProvider: true` in initialize capabilities.
+
+Implemented quick-fix behavior:
+- For unresolved identifier under selected range, LSP now suggests import actions:
+  - `Add import for '<symbol>' from '<module>'`
+- Actions return `WorkspaceEdit` inserting:
+  - `val { <symbol> } = import("<module>")`
+
+Module candidate discovery for quick-fix:
+- open documents with `@export` symbols,
+- `$SLUG_HOME/lib` recursive scan for exported top-level symbols.
+
+Insertion behavior:
+- inserts import near top import block via `importInsertionPosition` heuristic.
+
+Tests added/updated in `internal/lsp/server_test.go`:
+- Initialize capability assertion includes `codeActionProvider == true`.
+- `TestServerCodeActionSuggestsImportForUnresolvedSymbolFromSlugHome` validates quick-fix generation using `SLUG_HOME/lib` export discovery.
+
+Validation performed:
+- `go test ./internal/lsp -count=1`
+- `go test ./... -count=1`

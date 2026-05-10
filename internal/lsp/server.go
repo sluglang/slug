@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"net/url"
 	"os"
@@ -93,6 +94,7 @@ type serverCapabilities struct {
 	DocumentHighlightProvider bool                    `json:"documentHighlightProvider,omitempty"`
 	ReferencesProvider        bool                    `json:"referencesProvider,omitempty"`
 	RenameProvider            *renameProvider         `json:"renameProvider,omitempty"`
+	CodeActionProvider        bool                    `json:"codeActionProvider,omitempty"`
 	CompletionProvider        *completionProvider     `json:"completionProvider,omitempty"`
 }
 
@@ -131,6 +133,13 @@ type textDocumentPositionParams struct {
 		URI string `json:"uri"`
 	} `json:"textDocument"`
 	Position lspPosition `json:"position"`
+}
+
+type codeActionParams struct {
+	TextDocument struct {
+		URI string `json:"uri"`
+	} `json:"textDocument"`
+	Range lspRange `json:"range"`
 }
 
 type referenceParams struct {
@@ -218,6 +227,12 @@ type lspWorkspaceEdit struct {
 	Changes map[string][]lspTextEdit `json:"changes,omitempty"`
 }
 
+type lspCodeAction struct {
+	Title string            `json:"title"`
+	Kind  string            `json:"kind,omitempty"`
+	Edit  *lspWorkspaceEdit `json:"edit,omitempty"`
+}
+
 type symbolDef struct {
 	Name       string
 	Kind       string
@@ -295,6 +310,7 @@ func NewServer(in io.Reader, out io.Writer, analyze Analyzer) *Server {
 		"textDocument/references":        s.handleReferences,
 		"textDocument/prepareRename":     s.handlePrepareRename,
 		"textDocument/rename":            s.handleRename,
+		"textDocument/codeAction":        s.handleCodeAction,
 		"textDocument/completion":        s.handleCompletion,
 		"completionItem/resolve":         s.handleCompletionResolve,
 	}
@@ -373,6 +389,7 @@ func (s *Server) handleInitialize(req rpcRequest) error {
 		DocumentHighlightProvider: true,
 		ReferencesProvider:        true,
 		RenameProvider:            &renameProvider{PrepareProvider: true},
+		CodeActionProvider:        true,
 		CompletionProvider:        &completionProvider{ResolveProvider: true},
 	}})
 }
@@ -688,6 +705,49 @@ func (s *Server) handleRename(req rpcRequest) error {
 	return s.writeResult(req.ID, &lspWorkspaceEdit{
 		Changes: changes,
 	})
+}
+
+func (s *Server) handleCodeAction(req rpcRequest) error {
+	var p codeActionParams
+	if err := json.Unmarshal(req.Params, &p); err != nil {
+		return s.writeError(idOrNil(req.ID), -32602, "Invalid params", err.Error())
+	}
+	normURI, _ := normalizeURI(p.TextDocument.URI)
+	doc, ok := s.docs[normURI]
+	if !ok {
+		return s.writeResult(req.ID, []lspCodeAction{})
+	}
+	offset := offsetFromPosition(doc.Text, p.Range.Start.Line, p.Range.Start.Character)
+	name, _, _ := identifierAtOffset(doc.Text, offset)
+	if name == "" {
+		return s.writeResult(req.ID, []lspCodeAction{})
+	}
+	syms := collectSymbols(doc.Text)
+	if _, found := resolveSymbolAt(name, offset, syms); found {
+		return s.writeResult(req.ID, []lspCodeAction{})
+	}
+	modules := s.discoverExportingModules(normURI, name)
+	if len(modules) == 0 {
+		return s.writeResult(req.ID, []lspCodeAction{})
+	}
+	insertPos := importInsertionPosition(doc.Text)
+	actions := make([]lspCodeAction, 0, len(modules))
+	for _, module := range modules {
+		ins := fmt.Sprintf("val { %s } = import(\"%s\")\n", name, module)
+		actions = append(actions, lspCodeAction{
+			Title: fmt.Sprintf("Add import for '%s' from '%s'", name, module),
+			Kind:  "quickfix",
+			Edit: &lspWorkspaceEdit{
+				Changes: map[string][]lspTextEdit{
+					normURI: {{
+						Range:   lspRange{Start: insertPos, End: insertPos},
+						NewText: ins,
+					}},
+				},
+			},
+		})
+	}
+	return s.writeResult(req.ID, actions)
 }
 
 func (s *Server) handleCompletion(req rpcRequest) error {
@@ -2068,6 +2128,75 @@ func containsString(vs []string, target string) bool {
 		}
 	}
 	return false
+}
+
+func importInsertionPosition(src string) lspPosition {
+	lines := strings.Split(src, "\n")
+	line := 0
+	for i, ln := range lines {
+		trim := strings.TrimSpace(ln)
+		if trim == "" {
+			if i == line {
+				continue
+			}
+			break
+		}
+		if strings.Contains(trim, "import(") && (strings.HasPrefix(trim, "val ") || strings.HasPrefix(trim, "var ")) {
+			line = i + 1
+			continue
+		}
+		break
+	}
+	return lspPosition{Line: line, Character: 0}
+}
+
+func (s *Server) discoverExportingModules(originURI string, name string) []string {
+	seen := map[string]bool{}
+	out := []string{}
+	for uri, doc := range s.docs {
+		mod := moduleNameFromURI(uri)
+		if mod == "" {
+			continue
+		}
+		for _, exp := range collectExportedTopLevelSymbols(doc.Text) {
+			if exp.Name == name && !seen[mod] {
+				seen[mod] = true
+				out = append(out, mod)
+			}
+		}
+	}
+	slugHome := strings.TrimSpace(os.Getenv("SLUG_HOME"))
+	if slugHome == "" {
+		return out
+	}
+	libRoot := filepath.Join(slugHome, "lib")
+	_ = filepath.WalkDir(libRoot, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d == nil || d.IsDir() || !strings.HasSuffix(path, ".slug") {
+			return nil
+		}
+		rel, err := filepath.Rel(libRoot, path)
+		if err != nil {
+			return nil
+		}
+		mod := strings.TrimSuffix(filepath.ToSlash(rel), ".slug")
+		mod = strings.ReplaceAll(mod, "/", ".")
+		if seen[mod] {
+			return nil
+		}
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return nil
+		}
+		for _, exp := range collectExportedTopLevelSymbols(string(b)) {
+			if exp.Name == name {
+				seen[mod] = true
+				out = append(out, mod)
+				break
+			}
+		}
+		return nil
+	})
+	return out
 }
 
 func dedupeLocations(in []lspLocation) []lspLocation {

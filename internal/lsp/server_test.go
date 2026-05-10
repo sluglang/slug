@@ -108,6 +108,9 @@ func TestServerInitializeShutdownExit(t *testing.T) {
 		if rp, _ := cp["resolveProvider"].(bool); !rp {
 			t.Fatalf("expected resolveProvider=true, got %#v", cp["resolveProvider"])
 		}
+		if capVal, ok := caps["codeActionProvider"].(bool); !ok || !capVal {
+			t.Fatalf("expected codeActionProvider=true, got %#v", caps["codeActionProvider"])
+		}
 		return
 	}
 	t.Fatal("initialize response not found")
@@ -570,6 +573,56 @@ func TestServerDefinitionResolvesWildcardImportedExportFromModuleFile(t *testing
 		return
 	}
 	t.Fatal("definition response not found")
+}
+
+func TestServerCodeActionSuggestsImportForUnresolvedSymbolFromSlugHome(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("SLUG_HOME", tmp)
+	libDir := filepath.Join(tmp, "lib", "slug")
+	if err := os.MkdirAll(libDir, 0o755); err != nil {
+		t.Fatalf("mkdir failed: %v", err)
+	}
+	stdPath := filepath.Join(libDir, "std.slug")
+	stdSrc := "@export val reduce = fn(a,b){ a }\\n"
+	if err := os.WriteFile(stdPath, []byte(stdSrc), 0o644); err != nil {
+		t.Fatalf("write std module failed: %v", err)
+	}
+	playPath := filepath.Join(tmp, "playground.slug")
+	playSrc := "[1,2] /> reduce(0, fn(a,b){a})\\n"
+	if err := os.WriteFile(playPath, []byte(strings.ReplaceAll(playSrc, "\\\\", "")), 0o644); err != nil {
+		t.Fatalf("write playground failed: %v", err)
+	}
+	playURI, _ := normalizeURI(playPath)
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"`+playURI+`","version":1,"text":"`+playSrc+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":31,"method":"textDocument/codeAction","params":{"textDocument":{"uri":"`+playURI+`"},"range":{"start":{"line":0,"character":10},"end":{"line":0,"character":16}}}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok || int(id) != 31 {
+			continue
+		}
+		res, ok := m["result"].([]interface{})
+		if !ok || len(res) == 0 {
+			t.Fatalf("codeAction result missing: %#v", m)
+		}
+		act, _ := res[0].(map[string]interface{})
+		title, _ := act["title"].(string)
+		if !strings.Contains(title, "reduce") || !strings.Contains(title, "slug.std") {
+			t.Fatalf("unexpected code action title: %q (%#v)", title, act)
+		}
+		return
+	}
+	t.Fatal("codeAction response not found")
 }
 
 func TestServerCompletionReturnsKeywordsAndSymbols(t *testing.T) {
