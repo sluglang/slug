@@ -70,6 +70,12 @@ type mulCheck struct {
 	right *tnode
 }
 
+type bitwiseCheck struct {
+	pos   int
+	left  *tnode
+	right *tnode
+}
+
 type typeChecker struct {
 	a           *analyzer
 	nextID      int
@@ -78,6 +84,7 @@ type typeChecker struct {
 	callChecks  []callCheck
 	plusChecks  []plusCheck
 	mulChecks   []mulCheck
+	bitChecks   []bitwiseCheck
 	scopes      []map[string]*tnode
 	schemas     map[string]map[string]*tnode
 }
@@ -663,25 +670,9 @@ func (c *typeChecker) inferInfix(e *ast.InfixExpression) *tnode {
 		c.addConstraint(out, c.scalar(typeNum), e.Token.Position, "numeric result")
 		return out
 	case "&", "|", "^":
-		lf := c.find(left)
-		rf := c.find(right)
-		// runtime supports:
-		// - num<op>num -> num
-		// - bytes<op>bytes -> bytes
-		// - bytes<op>num / num<op>bytes -> bytes (num converted to one byte at runtime)
-		if lf.kind == typeBytes || rf.kind == typeBytes {
-			if lf.kind != typeBytes {
-				c.addConstraint(left, c.scalar(typeNum), e.Token.Position, "bytes bitwise mixed operator")
-			}
-			if rf.kind != typeBytes {
-				c.addConstraint(right, c.scalar(typeNum), e.Token.Position, "bytes bitwise mixed operator")
-			}
-			c.addConstraint(out, c.scalar(typeBytes), e.Token.Position, "bytes bitwise result")
-			return out
-		}
-		c.addConstraint(left, c.scalar(typeNum), e.Token.Position, "numeric operator")
-		c.addConstraint(right, c.scalar(typeNum), e.Token.Position, "numeric operator")
-		c.addConstraint(out, c.scalar(typeNum), e.Token.Position, "numeric result")
+		// Defer bitwise mode compatibility to post-unification to avoid eager
+		// numeric pinning when operands are unresolved during inference.
+		c.bitChecks = append(c.bitChecks, bitwiseCheck{pos: e.Token.Position, left: left, right: right})
 		return out
 	case "*":
 		// Defer '*' compatibility check (runtime allows num*num and str*num).
@@ -944,6 +935,11 @@ func (c *typeChecker) solveConstraints() {
 			c.addDiag(mc.pos, "numeric operator type mismatch: expected num, got %s", c.describe(mc.left))
 		}
 	}
+	for _, bc := range c.bitChecks {
+		if !c.isBitwiseCompatible(bc.left, bc.right) {
+			c.addDiag(bc.pos, "bitwise operator type mismatch: %s vs %s", c.describe(bc.left), c.describe(bc.right))
+		}
+	}
 }
 
 func (c *typeChecker) isCompatible(got, expected *tnode) bool {
@@ -1038,6 +1034,34 @@ func (c *typeChecker) isMulCompatible(left, right *tnode) bool {
 	// runtime: num * num
 	if l.kind == typeNum {
 		return r.kind == typeNum
+	}
+	return false
+}
+
+func (c *typeChecker) isBitwiseCompatible(left, right *tnode) bool {
+	l := c.find(left)
+	r := c.find(right)
+	if l == nil || r == nil {
+		return true
+	}
+	if l.kind == typeAny || r.kind == typeAny || l.kind == typeUnknown || r.kind == typeUnknown {
+		return true
+	}
+	// runtime:
+	// - num <op> num
+	// - bytes <op> bytes
+	// - bytes <op> num / num <op> bytes
+	if l.kind == typeNum && r.kind == typeNum {
+		return true
+	}
+	if l.kind == typeBytes && r.kind == typeBytes {
+		return true
+	}
+	if l.kind == typeBytes && r.kind == typeNum {
+		return true
+	}
+	if l.kind == typeNum && r.kind == typeBytes {
+		return true
 	}
 	return false
 }

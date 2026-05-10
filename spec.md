@@ -850,3 +850,15 @@
 - Validation performed:
   - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
   - `SLUG_HOME=$(pwd) go run ./cmd/app/main.go -log-level error --root ./lib lib/slug/term/colour.slug` (passes)
+
+### Semantic typing fix for deferred bitwise-mode inference
+
+- Fixed false-positive `+` mismatch cascades caused by eager numeric pinning of bitwise expressions (`&`, `|`, `^`) before operand kinds were fully inferred.
+- Updated bitwise inference to defer mode validation until post-unification, aligned with runtime-supported bitwise modes:
+  - `num <op> num`
+  - `bytes <op> bytes`
+  - `bytes <op> num` and `num <op> bytes`
+- Added regression test:
+  - `TestSemanticTypeCheckStrictAllowsDeferredBitwiseBytesModeInConcatFlow`.
+- Validation performed:
+  - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
