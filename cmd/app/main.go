@@ -30,6 +30,7 @@ var (
 	debugTxtAST     bool
 	typeCheck       bool
 	typeCheckStrict bool
+	typeCheckTrace  bool
 )
 
 func init() {
@@ -44,6 +45,7 @@ func init() {
 	flag.BoolVar(&debugTxtAST, "debug-txt-ast", false, "Render the AST as a TXT file")
 	flag.BoolVar(&typeCheck, "type-check", true, "Enable inferred type checking during semantic analysis")
 	flag.BoolVar(&typeCheckStrict, "type-check-strict", false, "Treat inferred type diagnostics as semantic errors")
+	flag.BoolVar(&typeCheckTrace, "type-check-trace", false, "Emit semantic type-check trace events to stderr (debug)")
 	// log config
 	flag.StringVar(&logLevel, "log-level", "NONE", "Log level: trace, debug, info, warn, error, none")
 	flag.StringVar(&logFile, "log-file", "", "Log file path (if not set, logs to stderr)")
@@ -110,6 +112,7 @@ func main() {
 		MainModule:      mainModule,
 		EnableTypeCheck: typeCheck,
 		StrictTypeCheck: typeCheckStrict,
+		TypeCheckTrace:  typeCheckTrace,
 	}
 
 	// 3. Tokenize & Parse
@@ -262,5 +265,6 @@ Options:
   -debug-txt-ast     Render the AST as a TXT file.
   -type-check        Enable inferred type checking during semantic analysis.
   -type-check-strict Treat inferred type diagnostics as semantic errors.
+  -type-check-trace  Emit semantic type-check trace events to stderr (debug).
 `)
 }

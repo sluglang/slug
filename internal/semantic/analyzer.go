@@ -3,6 +3,7 @@ package semantic
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"slug/internal/ast"
 	"slug/internal/util"
 )
@@ -10,6 +11,8 @@ import (
 type AnalyzeOptions struct {
 	EnableTypeCheck bool
 	StrictTypeCheck bool
+	TypeCheckTrace  bool
+	TraceWriter     io.Writer
 }
 
 // Analyze performs semantic validation and annotations on a parsed AST.
@@ -29,7 +32,7 @@ func AnalyzeWithOptions(path, src string, program *ast.Program, opts AnalyzeOpti
 	a.validateStructSchemaUsage(program)
 	a.validateMainTagUsage(program)
 	if opts.EnableTypeCheck {
-		a.runInferredTypeChecks(program, opts.StrictTypeCheck)
+		a.runInferredTypeChecks(program, opts.StrictTypeCheck, opts.TypeCheckTrace, opts.TraceWriter)
 	}
 	return a.errors, a.warnings
 }

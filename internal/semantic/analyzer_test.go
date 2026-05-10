@@ -1,6 +1,7 @@
 package semantic_test
 
 import (
+	"bytes"
 	"slug/internal/ast"
 	"slug/internal/lexer"
 	"slug/internal/parser"
@@ -235,6 +236,45 @@ val u = User { age: "bad" }
 	}
 	if !containsError(errs, "struct field User.age") {
 		t.Fatalf("expected struct field mismatch error, got: %v", errs)
+	}
+}
+
+func TestSemanticTypeCheckTraceEmitsEvents(t *testing.T) {
+	input := `
+val f = fn(flag, x) {
+  var acc = nil
+  if (flag && isList(x)) {
+    acc = x
+  } else {
+    acc = []
+  }
+  acc
+}
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	var buf bytes.Buffer
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+		StrictTypeCheck: true,
+		TypeCheckTrace:  true,
+		TraceWriter:     &buf,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings, got: %v", warns)
+	}
+	if len(errs) > 0 {
+		t.Fatalf("expected no errors, got: %v", errs)
+	}
+	if buf.Len() == 0 {
+		t.Fatal("expected trace output, got none")
+	}
+	if !strings.Contains(buf.String(), "TypeTrace:") {
+		t.Fatalf("expected TypeTrace output, got: %s", buf.String())
 	}
 }
 

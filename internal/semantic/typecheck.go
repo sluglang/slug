@@ -2,8 +2,10 @@ package semantic
 
 import (
 	"fmt"
+	"io"
 	"slug/internal/ast"
 	"slug/internal/object"
+	"slug/internal/util"
 	"sort"
 	"strings"
 )
@@ -85,6 +87,8 @@ type bitwiseCheck struct {
 
 type typeChecker struct {
 	a           *analyzer
+	trace       bool
+	traceWriter io.Writer
 	nextID      int
 	constraints []tconstraint
 	diags       []tdiag
@@ -98,8 +102,8 @@ type typeChecker struct {
 	schemas     map[string]map[string]*tnode
 }
 
-func (a *analyzer) runInferredTypeChecks(program *ast.Program, strict bool) {
-	c := newTypeChecker(a)
+func (a *analyzer) runInferredTypeChecks(program *ast.Program, strict bool, trace bool, traceWriter io.Writer) {
+	c := newTypeChecker(a, trace, traceWriter)
 	c.checkProgram(program)
 	for _, d := range c.diags {
 		if strict {
@@ -110,11 +114,29 @@ func (a *analyzer) runInferredTypeChecks(program *ast.Program, strict bool) {
 	}
 }
 
-func newTypeChecker(a *analyzer) *typeChecker {
-	c := &typeChecker{a: a, schemas: map[string]map[string]*tnode{}, diagSeen: map[string]bool{}}
+func newTypeChecker(a *analyzer, trace bool, traceWriter io.Writer) *typeChecker {
+	c := &typeChecker{
+		a:           a,
+		trace:       trace,
+		traceWriter: traceWriter,
+		schemas:     map[string]map[string]*tnode{},
+		diagSeen:    map[string]bool{},
+	}
 	c.pushScope()
 	c.pushOverride()
 	return c
+}
+
+func (c *typeChecker) tracef(pos int, event string, details string) {
+	if !c.trace || c.traceWriter == nil {
+		return
+	}
+	if pos < 0 {
+		_, _ = fmt.Fprintf(c.traceWriter, "TypeTrace: %s | %s\n", event, details)
+		return
+	}
+	line, col := util.GetLineAndColumn(c.a.src, pos)
+	_, _ = fmt.Fprintf(c.traceWriter, "TypeTrace: %s @ %s:%d:%d | %s\n", event, c.a.path, line, col, details)
 }
 
 func (c *typeChecker) checkProgram(program *ast.Program) {
@@ -299,6 +321,7 @@ func (c *typeChecker) fnType(params []*tnode, ret *tnode, variadic bool, minArgs
 }
 
 func (c *typeChecker) unionType(types ...*tnode) *tnode {
+	origCount := len(types)
 	flat := make([]*tnode, 0, len(types))
 	seen := map[string]bool{}
 	var addOpt func(*tnode)
@@ -348,9 +371,12 @@ func (c *typeChecker) unionType(types ...*tnode) *tnode {
 		return flat[0]
 	}
 	if len(flat) > maxUnionOptions {
+		c.tracef(-1, "union-normalize", fmt.Sprintf("widen-to-any options=%d cap=%d", len(flat), maxUnionOptions))
 		return c.scalar(typeAny)
 	}
-	return &tnode{kind: typeUnion, options: flat}
+	u := &tnode{kind: typeUnion, options: flat}
+	c.tracef(-1, "union-normalize", fmt.Sprintf("inputs=%d normalized=%d -> %s", origCount, len(flat), c.describe(u)))
+	return u
 }
 
 func (c *typeChecker) normalizeUnionOptions(options []*tnode) []*tnode {
@@ -561,6 +587,7 @@ func (c *typeChecker) mergeIfOverrides(outer map[string]*tnode, thenOv, elseOv m
 			}
 		}
 		merged := c.unionType(thenType, elseType)
+		c.tracef(-1, "merge", fmt.Sprintf("%s: then=%s else=%s -> %s", name, c.describe(thenType), c.describe(elseType), c.describe(merged)))
 		c.setOverride(name, merged)
 	}
 }
@@ -569,6 +596,7 @@ func (c *typeChecker) hasImpossibleRefinement(refs map[string]*tnode) bool {
 	for _, t := range refs {
 		tf := c.find(t)
 		if tf != nil && tf.kind == typeNever {
+			c.tracef(-1, "contradiction", "refinement collapsed to never")
 			return true
 		}
 	}
@@ -1091,7 +1119,7 @@ func (c *typeChecker) inferInfix(e *ast.InfixExpression) *tnode {
 	switch e.Operator {
 	case "=":
 		c.addConstraint(left, right, e.Token.Position, "assignment")
-		c.trackReassignmentType(e.Left, right)
+		c.trackReassignmentType(e.Left, right, e.Token.Position)
 		return right
 	case "+":
 		lf := c.find(left)
@@ -1232,7 +1260,7 @@ func (c *typeChecker) unionContainerModes(t *tnode) (hasList bool, hasBytes bool
 	return hasList, hasBytes, hasOther
 }
 
-func (c *typeChecker) trackReassignmentType(lhs ast.Expression, rhs *tnode) {
+func (c *typeChecker) trackReassignmentType(lhs ast.Expression, rhs *tnode, pos int) {
 	id, ok := lhs.(*ast.Identifier)
 	if !ok || id == nil {
 		return
@@ -1248,7 +1276,9 @@ func (c *typeChecker) trackReassignmentType(lhs ast.Expression, rhs *tnode) {
 		}
 		// Lightweight path-sensitive widening: preserve prior possibilities
 		// and include assigned value shape to model mutable var evolution.
-		c.scopes[i][name] = c.unionType(cur, rhs)
+		merged := c.unionType(cur, rhs)
+		c.tracef(pos, "widen", fmt.Sprintf("%s: %s + %s -> %s", name, c.describe(cur), c.describe(rhs), c.describe(merged)))
+		c.scopes[i][name] = merged
 		c.setOverride(name, rhs)
 		return
 	}
@@ -1767,9 +1797,11 @@ func (c *typeChecker) refineBinding(name string, target *tnode, _ bool, out map[
 	if narrowed == nil {
 		if fromRefinement {
 			out[name] = c.scalar(typeNever)
+			c.tracef(-1, "contradiction", fmt.Sprintf("refine %s: %s ∩ %s -> never", name, c.describe(base), c.describe(target)))
 		}
 		return
 	}
+	c.tracef(-1, "refine", fmt.Sprintf("%s: %s -> %s (target=%s)", name, c.describe(base), c.describe(narrowed), c.describe(target)))
 	out[name] = narrowed
 }
 
@@ -1782,9 +1814,11 @@ func (c *typeChecker) refineBindingExclude(name string, target *tnode, out map[s
 	if narrowed == nil {
 		if fromRefinement {
 			out[name] = c.scalar(typeNever)
+			c.tracef(-1, "contradiction", fmt.Sprintf("exclude %s: %s minus %s -> never", name, c.describe(base), c.describe(target)))
 		}
 		return
 	}
+	c.tracef(-1, "refine", fmt.Sprintf("%s: %s exclude %s -> %s", name, c.describe(base), c.describe(target), c.describe(narrowed)))
 	out[name] = narrowed
 }
 

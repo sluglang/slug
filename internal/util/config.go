@@ -21,6 +21,7 @@ type Configuration struct {
 	MainModule      string // The entry point module name (e.g., "slug.server")
 	EnableTypeCheck bool
 	StrictTypeCheck bool
+	TypeCheckTrace  bool
 	Store           *ConfigStore
 }
 

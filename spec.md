@@ -1006,3 +1006,26 @@ Regression coverage added:
 
 Validation performed:
 - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
+
+### Semantic typing enhancement: debug trace mode (`-type-check-trace`)
+
+- Added non-invasive semantic type-check trace mode to explain inference decisions without changing normal diagnostics behavior.
+- New CLI flag:
+  - `-type-check-trace` (disabled by default)
+- Config/runtime plumbing:
+  - added `TypeCheckTrace` to runtime configuration,
+  - semantic analysis options now carry trace enablement + writer.
+- Trace emission format:
+  - `TypeTrace: <event> @ <path>:<line>:<col> | <details>`
+  - location omitted when event is global (non-positioned).
+- Implemented trace event categories (initial coverage):
+  - `refine` (guard narrowing include/exclude)
+  - `merge` (branch merge unioning)
+  - `widen` (assignment/accumulator widening)
+  - `contradiction` (refinement collapses to `never`)
+  - `union-normalize` (normalization and cap widening decisions)
+- Added regression coverage:
+  - `TestSemanticTypeCheckTraceEmitsEvents`.
+
+Validation performed:
+- `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`

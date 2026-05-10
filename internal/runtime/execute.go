@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"log/slog"
+	"os"
 	"slug/internal/ast"
 	"slug/internal/object"
 	"slug/internal/semantic"
@@ -18,6 +19,8 @@ func ExecuteProgram(rt *Runtime, env *object.Environment, program *ast.Program) 
 	semErrs, semWarns := semantic.AnalyzeWithOptions(path, env.Src, program, semantic.AnalyzeOptions{
 		EnableTypeCheck: rt.Config.EnableTypeCheck,
 		StrictTypeCheck: rt.Config.StrictTypeCheck,
+		TypeCheckTrace:  rt.Config.TypeCheckTrace,
+		TraceWriter:     os.Stderr,
 	})
 	if len(semWarns) > 0 {
 		slog.Warn("Semantic type warnings executing program",
