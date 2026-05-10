@@ -18,6 +18,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -78,6 +79,7 @@ type serverCapabilities struct {
 	DocumentSymbolProvider    bool                    `json:"documentSymbolProvider,omitempty"`
 	DocumentHighlightProvider bool                    `json:"documentHighlightProvider,omitempty"`
 	ReferencesProvider        bool                    `json:"referencesProvider,omitempty"`
+	RenameProvider            *renameProvider         `json:"renameProvider,omitempty"`
 	CompletionProvider        *completionProvider     `json:"completionProvider,omitempty"`
 }
 
@@ -128,8 +130,25 @@ type referenceParams struct {
 	} `json:"context"`
 }
 
+type renameParams struct {
+	TextDocument struct {
+		URI string `json:"uri"`
+	} `json:"textDocument"`
+	Position lspPosition `json:"position"`
+	NewName  string      `json:"newName"`
+}
+
+type prepareRenameResult struct {
+	Range       lspRange `json:"range"`
+	Placeholder string   `json:"placeholder,omitempty"`
+}
+
 type completionProvider struct {
 	ResolveProvider bool `json:"resolveProvider,omitempty"`
+}
+
+type renameProvider struct {
+	PrepareProvider bool `json:"prepareProvider,omitempty"`
 }
 
 type cancelRequestParams struct {
@@ -175,6 +194,15 @@ type lspCompletionItem struct {
 type lspDocumentHighlight struct {
 	Range lspRange `json:"range"`
 	Kind  int      `json:"kind,omitempty"`
+}
+
+type lspTextEdit struct {
+	Range   lspRange `json:"range"`
+	NewText string   `json:"newText"`
+}
+
+type lspWorkspaceEdit struct {
+	Changes map[string][]lspTextEdit `json:"changes,omitempty"`
 }
 
 type symbolDef struct {
@@ -229,6 +257,8 @@ func NewServer(in io.Reader, out io.Writer, analyze Analyzer) *Server {
 		"textDocument/documentSymbol":    s.handleDocumentSymbol,
 		"textDocument/documentHighlight": s.handleDocumentHighlight,
 		"textDocument/references":        s.handleReferences,
+		"textDocument/prepareRename":     s.handlePrepareRename,
+		"textDocument/rename":            s.handleRename,
 		"textDocument/completion":        s.handleCompletion,
 		"completionItem/resolve":         s.handleCompletionResolve,
 	}
@@ -306,6 +336,7 @@ func (s *Server) handleInitialize(req rpcRequest) error {
 		DocumentSymbolProvider:    true,
 		DocumentHighlightProvider: true,
 		ReferencesProvider:        true,
+		RenameProvider:            &renameProvider{PrepareProvider: true},
 		CompletionProvider:        &completionProvider{ResolveProvider: true},
 	}})
 }
@@ -518,6 +549,68 @@ func (s *Server) handleReferences(req rpcRequest) error {
 	includeDecl := p.Context.IncludeDeclaration
 	refs := collectScopedReferenceLocations(doc.Text, normURI, name, target, syms, includeDecl)
 	return s.writeResult(req.ID, refs)
+}
+
+func (s *Server) handlePrepareRename(req rpcRequest) error {
+	var p textDocumentPositionParams
+	if err := json.Unmarshal(req.Params, &p); err != nil {
+		return s.writeError(idOrNil(req.ID), -32602, "Invalid params", err.Error())
+	}
+	normURI, _ := normalizeURI(p.TextDocument.URI)
+	doc, ok := s.docs[normURI]
+	if !ok {
+		return s.writeResult(req.ID, nil)
+	}
+	offset := offsetFromPosition(doc.Text, p.Position.Line, p.Position.Character)
+	name, start, end := identifierAtOffset(doc.Text, offset)
+	if name == "" {
+		return s.writeResult(req.ID, nil)
+	}
+	syms := collectSymbols(doc.Text)
+	target, found := resolveSymbolAt(name, offset, syms)
+	if !found {
+		return s.writeResult(req.ID, nil)
+	}
+	rng := offsetRangeToLSP(doc.Text, start, end)
+	return s.writeResult(req.ID, prepareRenameResult{Range: rng, Placeholder: target.Name})
+}
+
+func (s *Server) handleRename(req rpcRequest) error {
+	var p renameParams
+	if err := json.Unmarshal(req.Params, &p); err != nil {
+		return s.writeError(idOrNil(req.ID), -32602, "Invalid params", err.Error())
+	}
+	if !isValidIdentifierName(p.NewName) {
+		return s.writeError(idOrNil(req.ID), -32602, "Invalid params", "newName must be a valid identifier")
+	}
+	normURI, _ := normalizeURI(p.TextDocument.URI)
+	doc, ok := s.docs[normURI]
+	if !ok {
+		return s.writeResult(req.ID, &lspWorkspaceEdit{Changes: map[string][]lspTextEdit{}})
+	}
+	offset := offsetFromPosition(doc.Text, p.Position.Line, p.Position.Character)
+	name, _, _ := identifierAtOffset(doc.Text, offset)
+	if name == "" {
+		return s.writeError(idOrNil(req.ID), -32602, "Invalid params", "cursor is not on a renameable symbol")
+	}
+	syms := collectSymbols(doc.Text)
+	target, found := resolveSymbolAt(name, offset, syms)
+	if !found {
+		return s.writeError(idOrNil(req.ID), -32602, "Invalid params", "could not resolve symbol for rename")
+	}
+	refs := collectScopedReferenceLocations(doc.Text, normURI, name, target, syms, true)
+	edits := make([]lspTextEdit, 0, len(refs))
+	for _, ref := range refs {
+		edits = append(edits, lspTextEdit{
+			Range:   ref.Range,
+			NewText: p.NewName,
+		})
+	}
+	return s.writeResult(req.ID, &lspWorkspaceEdit{
+		Changes: map[string][]lspTextEdit{
+			normURI: edits,
+		},
+	})
 }
 
 func (s *Server) handleCompletion(req rpcRequest) error {
@@ -1087,6 +1180,27 @@ func collectScopedReferenceLocations(src string, uri string, name string, target
 		})
 	}
 	return out
+}
+
+func isValidIdentifierName(name string) bool {
+	if name == "" {
+		return false
+	}
+	r, size := utf8.DecodeRuneInString(name)
+	if r == utf8.RuneError && size == 0 {
+		return false
+	}
+	if !(unicode.IsLetter(r) || r == '_') {
+		return false
+	}
+	for i := size; i < len(name); {
+		ch, w := utf8.DecodeRuneInString(name[i:])
+		if !(unicode.IsLetter(ch) || unicode.IsDigit(ch) || ch == '_') {
+			return false
+		}
+		i += w
+	}
+	return true
 }
 
 func identTokenAtByteOffset(src string, off int) (name string, start int, end int, ok bool) {

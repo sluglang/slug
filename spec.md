@@ -1342,3 +1342,31 @@ Tests added/updated in `internal/lsp/server_test.go`:
 Validation performed:
 - `go test ./internal/lsp -count=1`
 - `go test ./... -count=1`
+
+### LSP Phase 9: prepareRename + textDocument/rename (scope-aware)
+
+- Added rename capabilities in `internal/lsp/server.go`:
+  - `renameProvider` with `prepareProvider: true`.
+  - request handlers:
+    - `textDocument/prepareRename`
+    - `textDocument/rename`
+- Implemented `prepareRename` behavior:
+  - validates cursor is on a renameable identifier symbol,
+  - returns precise target range and placeholder symbol name.
+- Implemented scope-aware rename behavior:
+  - validates `newName` as a legal identifier,
+  - resolves symbol under cursor,
+  - computes scoped references bound to the same declaration,
+  - returns `WorkspaceEdit.changes` text edits for all matching occurrences,
+  - supports declaration-inclusive rename edits.
+- Added identifier validation helper for rename names.
+
+Tests added/updated in `internal/lsp/server_test.go`:
+- `TestServerInitializeShutdownExit` now asserts `renameProvider.prepareProvider == true`.
+- `TestServerPrepareRenameReturnsRangeAndPlaceholder`.
+- `TestServerRenameReturnsScopedWorkspaceEdits`.
+- `TestServerRenameRejectsInvalidIdentifier`.
+
+Validation performed:
+- `go test ./internal/lsp -count=1`
+- `go test ./... -count=1`

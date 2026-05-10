@@ -95,6 +95,13 @@ func TestServerInitializeShutdownExit(t *testing.T) {
 		if rp, ok := caps["referencesProvider"].(bool); !ok || !rp {
 			t.Fatalf("expected referencesProvider=true, got %#v", caps["referencesProvider"])
 		}
+		rn, ok := caps["renameProvider"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("expected renameProvider object, got %#v", caps["renameProvider"])
+		}
+		if pp, _ := rn["prepareProvider"].(bool); !pp {
+			t.Fatalf("expected renameProvider.prepareProvider=true, got %#v", rn["prepareProvider"])
+		}
 		cp, _ := caps["completionProvider"].(map[string]interface{})
 		if rp, _ := cp["resolveProvider"].(bool); !rp {
 			t.Fatalf("expected resolveProvider=true, got %#v", cp["resolveProvider"])
@@ -767,6 +774,112 @@ func TestServerReferencesExcludeDeclaration(t *testing.T) {
 		return
 	}
 	t.Fatal("references response not found")
+}
+
+func TestServerPrepareRenameReturnsRangeAndPlaceholder(t *testing.T) {
+	src := "val answer = 42\\nval use = answer\\n"
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///a.slug","version":1,"text":"`+src+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":19,"method":"textDocument/prepareRename","params":{"textDocument":{"uri":"file:///a.slug"},"position":{"line":1,"character":11}}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok || int(id) != 19 {
+			continue
+		}
+		res, ok := m["result"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("prepareRename result missing: %#v", m)
+		}
+		placeholder, _ := res["placeholder"].(string)
+		if placeholder != "answer" {
+			t.Fatalf("expected placeholder=answer, got %q (%#v)", placeholder, res)
+		}
+		return
+	}
+	t.Fatal("prepareRename response not found")
+}
+
+func TestServerRenameReturnsScopedWorkspaceEdits(t *testing.T) {
+	src := "val answer = 42\\nval use = answer\\nanswer\\n"
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///a.slug","version":1,"text":"`+src+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":20,"method":"textDocument/rename","params":{"textDocument":{"uri":"file:///a.slug"},"position":{"line":1,"character":11},"newName":"result"}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok || int(id) != 20 {
+			continue
+		}
+		res, ok := m["result"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("rename result missing: %#v", m)
+		}
+		changes, ok := res["changes"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("rename changes missing: %#v", res)
+		}
+		editsRaw, ok := changes["file:///a.slug"].([]interface{})
+		if !ok {
+			t.Fatalf("rename edits for uri missing: %#v", changes)
+		}
+		if len(editsRaw) != 3 {
+			t.Fatalf("expected 3 rename edits, got %d (%#v)", len(editsRaw), editsRaw)
+		}
+		return
+	}
+	t.Fatal("rename response not found")
+}
+
+func TestServerRenameRejectsInvalidIdentifier(t *testing.T) {
+	src := "val answer = 42\\nval use = answer\\n"
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///a.slug","version":1,"text":"`+src+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":21,"method":"textDocument/rename","params":{"textDocument":{"uri":"file:///a.slug"},"position":{"line":1,"character":11},"newName":"bad-name"}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok || int(id) != 21 {
+			continue
+		}
+		errObj, ok := m["error"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("expected rename error response, got %#v", m)
+		}
+		code, _ := errObj["code"].(float64)
+		if int(code) != -32602 {
+			t.Fatalf("expected invalid params error code -32602, got %#v", errObj)
+		}
+		return
+	}
+	t.Fatal("rename error response not found")
 }
 
 func TestNormalizeURIFileScheme(t *testing.T) {
