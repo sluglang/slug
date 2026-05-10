@@ -1113,6 +1113,79 @@ func TestServerRenameFromInlineImportMemberEditsExporterAndUsage(t *testing.T) {
 	t.Fatal("rename response not found")
 }
 
+func TestServerReferencesFromMultiModuleInlineImportResolvesWhenUnambiguous(t *testing.T) {
+	srcA := "@export val answer = 42\\nanswer\\n"
+	srcB := "@export val other = 7\\n"
+	srcC := "import(\\\"a\\\",\\\"b\\\").answer\\n"
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///lib/a.slug","version":1,"text":"`+srcA+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///lib/b.slug","version":1,"text":"`+srcB+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///lib/c.slug","version":1,"text":"`+srcC+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":28,"method":"textDocument/references","params":{"textDocument":{"uri":"file:///lib/a.slug"},"position":{"line":1,"character":2},"context":{"includeDeclaration":true}}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok || int(id) != 28 {
+			continue
+		}
+		res, ok := m["result"].([]interface{})
+		if !ok {
+			t.Fatalf("references result missing: %#v", m)
+		}
+		if len(res) != 3 {
+			t.Fatalf("expected 3 references with unambiguous multi-module inline import, got %d (%#v)", len(res), res)
+		}
+		return
+	}
+	t.Fatal("references response not found")
+}
+
+func TestServerRenameFromAmbiguousMultiModuleInlineImportFailsSafely(t *testing.T) {
+	srcA := "@export val answer = 42\\nanswer\\n"
+	srcB := "@export val answer = 7\\n"
+	srcC := "import(\\\"a\\\",\\\"b\\\").answer\\n"
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///lib/a.slug","version":1,"text":"`+srcA+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///lib/b.slug","version":1,"text":"`+srcB+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///lib/c.slug","version":1,"text":"`+srcC+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":29,"method":"textDocument/rename","params":{"textDocument":{"uri":"file:///lib/c.slug"},"position":{"line":0,"character":21},"newName":"result"}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok || int(id) != 29 {
+			continue
+		}
+		errObj, ok := m["error"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("expected rename error response, got %#v", m)
+		}
+		code, _ := errObj["code"].(float64)
+		if int(code) != -32602 {
+			t.Fatalf("expected invalid params error code -32602, got %#v", errObj)
+		}
+		return
+	}
+	t.Fatal("rename ambiguous error response not found")
+}
+
 func TestNormalizeURIFileScheme(t *testing.T) {
 	u, p := normalizeURI("file:///tmp/x.slug")
 	if !strings.HasPrefix(u, "file://") {

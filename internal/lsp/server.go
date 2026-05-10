@@ -231,6 +231,12 @@ type moduleSymbolIdentity struct {
 	Kind   string
 }
 
+type memberIdentityHit struct {
+	Name       string
+	Range      lspRange
+	Candidates []string
+}
+
 type lspDiagnostic struct {
 	Range    lspRange `json:"range"`
 	Severity int      `json:"severity"`
@@ -554,7 +560,7 @@ func (s *Server) handleReferences(req rpcRequest) error {
 		return s.writeResult(req.ID, []lspLocation{})
 	}
 	offset := offsetFromPosition(doc.Text, p.Position.Line, p.Position.Character)
-	if identity, _, ok := resolveModuleMemberIdentityAtOffset(doc.Text, offset); ok {
+	if identity, _, ok, _ := s.resolveModuleMemberIdentityAtOffset(doc.Text, offset); ok {
 		refs := s.collectReferencesForIdentityAcrossOpenDocs(normURI, identity, p.Context.IncludeDeclaration)
 		return s.writeResult(req.ID, refs)
 	}
@@ -583,8 +589,10 @@ func (s *Server) handlePrepareRename(req rpcRequest) error {
 		return s.writeResult(req.ID, nil)
 	}
 	offset := offsetFromPosition(doc.Text, p.Position.Line, p.Position.Character)
-	if identity, rng, ok := resolveModuleMemberIdentityAtOffset(doc.Text, offset); ok {
+	if identity, rng, ok, ambiguous := s.resolveModuleMemberIdentityAtOffset(doc.Text, offset); ok {
 		return s.writeResult(req.ID, prepareRenameResult{Range: rng, Placeholder: identity.Name})
+	} else if ambiguous {
+		return s.writeResult(req.ID, nil)
 	}
 	name, start, end := identifierAtOffset(doc.Text, offset)
 	if name == "" {
@@ -613,7 +621,7 @@ func (s *Server) handleRename(req rpcRequest) error {
 		return s.writeResult(req.ID, &lspWorkspaceEdit{Changes: map[string][]lspTextEdit{}})
 	}
 	offset := offsetFromPosition(doc.Text, p.Position.Line, p.Position.Character)
-	if identity, _, ok := resolveModuleMemberIdentityAtOffset(doc.Text, offset); ok {
+	if identity, _, ok, ambiguous := s.resolveModuleMemberIdentityAtOffset(doc.Text, offset); ok {
 		refs := s.collectReferencesForIdentityAcrossOpenDocs(normURI, identity, true)
 		changes := map[string][]lspTextEdit{}
 		for _, ref := range refs {
@@ -623,6 +631,8 @@ func (s *Server) handleRename(req rpcRequest) error {
 			})
 		}
 		return s.writeResult(req.ID, &lspWorkspaceEdit{Changes: changes})
+	} else if ambiguous {
+		return s.writeError(idOrNil(req.ID), -32602, "Invalid params", "ambiguous import member; cannot safely rename")
 	}
 	name, _, _ := identifierAtOffset(doc.Text, offset)
 	if name == "" {
@@ -1580,7 +1590,26 @@ func moduleNameFromURI(uri string) string {
 	return strings.ReplaceAll(p, "/", ".")
 }
 
-func resolveModuleMemberIdentityAtOffset(src string, off int) (moduleSymbolIdentity, lspRange, bool) {
+func (s *Server) resolveModuleMemberIdentityAtOffset(src string, off int) (moduleSymbolIdentity, lspRange, bool, bool) {
+	hits := collectModuleMemberHitsAtOffset(src, off)
+	if len(hits) == 0 {
+		return moduleSymbolIdentity{}, lspRange{}, false, false
+	}
+	hit := hits[0]
+	if len(hit.Candidates) == 0 {
+		return moduleSymbolIdentity{}, lspRange{}, false, false
+	}
+	if len(hit.Candidates) == 1 {
+		return moduleSymbolIdentity{Module: hit.Candidates[0], Name: hit.Name, Kind: "variable"}, hit.Range, true, false
+	}
+	modules := s.modulesExportingName(hit.Candidates, hit.Name)
+	if len(modules) == 1 {
+		return moduleSymbolIdentity{Module: modules[0], Name: hit.Name, Kind: "variable"}, hit.Range, true, false
+	}
+	return moduleSymbolIdentity{}, hit.Range, false, true
+}
+
+func collectModuleMemberHitsAtOffset(src string, off int) []memberIdentityHit {
 	l := lexer.New(src)
 	p := parser.New(l, "<lsp>", src)
 	program := p.ParseProgram()
@@ -1589,110 +1618,104 @@ func resolveModuleMemberIdentityAtOffset(src string, off int) (moduleSymbolIdent
 	for _, b := range objBindings {
 		aliasToModule[b.LocalName] = b.SourceModule
 	}
+	hits := []memberIdentityHit{}
 
-	var walkStmt func(ast.Statement) (moduleSymbolIdentity, lspRange, bool)
-	var walkExpr func(ast.Expression) (moduleSymbolIdentity, lspRange, bool)
+	var walkStmt func(ast.Statement)
+	var walkExpr func(ast.Expression)
 
-	walkStmt = func(st ast.Statement) (moduleSymbolIdentity, lspRange, bool) {
+	walkStmt = func(st ast.Statement) {
 		switch s := st.(type) {
 		case *ast.ExpressionStatement:
-			return walkExpr(s.Expression)
+			walkExpr(s.Expression)
 		case *ast.ReturnStatement:
-			return walkExpr(s.ReturnValue)
+			walkExpr(s.ReturnValue)
 		case *ast.ThrowStatement:
-			return walkExpr(s.Value)
+			walkExpr(s.Value)
 		case *ast.BlockStatement:
 			for _, c := range s.Statements {
-				if id, rg, ok := walkStmt(c); ok {
-					return id, rg, true
-				}
+				walkStmt(c)
 			}
 		}
-		return moduleSymbolIdentity{}, lspRange{}, false
 	}
 
-	walkExpr = func(ex ast.Expression) (moduleSymbolIdentity, lspRange, bool) {
+	walkExpr = func(ex ast.Expression) {
 		switch e := ex.(type) {
 		case *ast.IndexExpression:
 			if e.IsDotLookup {
-				if module, ok := moduleForDotLookupLeft(e.Left, aliasToModule); ok {
+				if modules, ok := modulesForDotLookupLeft(e.Left, aliasToModule); ok {
 					switch k := e.Index.(type) {
 					case *ast.SymbolLiteral:
 						start := k.Token.Position
 						end := start + len(k.Token.Literal)
 						if off >= start && off < end {
-							return moduleSymbolIdentity{Module: module, Name: k.Value, Kind: "variable"}, offsetRangeToLSP(src, start, end), true
+							hits = append(hits, memberIdentityHit{
+								Name:       k.Value,
+								Range:      offsetRangeToLSP(src, start, end),
+								Candidates: modules,
+							})
 						}
 					case *ast.Identifier:
 						start := k.Token.Position
 						end := start + len(k.Token.Literal)
 						if off >= start && off < end {
-							return moduleSymbolIdentity{Module: module, Name: k.Value, Kind: "variable"}, offsetRangeToLSP(src, start, end), true
+							hits = append(hits, memberIdentityHit{
+								Name:       k.Value,
+								Range:      offsetRangeToLSP(src, start, end),
+								Candidates: modules,
+							})
 						}
 					}
 				}
 			}
-			if id, rg, ok := walkExpr(e.Left); ok {
-				return id, rg, true
-			}
-			return walkExpr(e.Index)
+			walkExpr(e.Left)
+			walkExpr(e.Index)
 		case *ast.CallExpression:
-			if id, rg, ok := walkExpr(e.Function); ok {
-				return id, rg, true
-			}
+			walkExpr(e.Function)
 			for _, a := range e.Arguments {
-				if id, rg, ok := walkExpr(a); ok {
-					return id, rg, true
-				}
+				walkExpr(a)
 			}
 		case *ast.ValExpression:
-			return walkExpr(e.Value)
+			walkExpr(e.Value)
 		case *ast.VarExpression:
-			return walkExpr(e.Value)
+			walkExpr(e.Value)
 		case *ast.IfExpression:
-			if id, rg, ok := walkExpr(e.Condition); ok {
-				return id, rg, true
-			}
+			walkExpr(e.Condition)
 			if e.ThenBranch != nil {
-				if id, rg, ok := walkStmt(e.ThenBranch); ok {
-					return id, rg, true
-				}
+				walkStmt(e.ThenBranch)
 			}
 			if e.ElseBranch != nil {
-				if id, rg, ok := walkStmt(e.ElseBranch); ok {
-					return id, rg, true
-				}
+				walkStmt(e.ElseBranch)
 			}
 		}
-		return moduleSymbolIdentity{}, lspRange{}, false
 	}
 
 	for _, st := range program.Statements {
-		if id, rg, ok := walkStmt(st); ok {
-			return id, rg, true
-		}
+		walkStmt(st)
 	}
-	return moduleSymbolIdentity{}, lspRange{}, false
+	return hits
 }
 
-func moduleForDotLookupLeft(left ast.Expression, aliasToModule map[string]string) (string, bool) {
+func modulesForDotLookupLeft(left ast.Expression, aliasToModule map[string]string) ([]string, bool) {
 	if ident, ok := left.(*ast.Identifier); ok {
 		module, ok := aliasToModule[ident.Value]
-		return module, ok
+		if !ok {
+			return nil, false
+		}
+		return []string{module}, true
 	}
 	call, ok := left.(*ast.CallExpression)
 	if !ok {
-		return "", false
+		return nil, false
 	}
 	fn, ok := call.Function.(*ast.Identifier)
 	if !ok || fn.Value != "import" {
-		return "", false
+		return nil, false
 	}
 	modules := importModuleArgs(call.Arguments)
-	if len(modules) != 1 {
-		return "", false
+	if len(modules) < 1 {
+		return nil, false
 	}
-	return modules[0], true
+	return modules, true
 }
 
 func collectMemberReferencesForAliases(src string, uri string, aliases []moduleObjectBinding, member string) []lspLocation {
@@ -1813,7 +1836,7 @@ func collectInlineImportMemberReferences(src string, uri string, module string, 
 		switch e := ex.(type) {
 		case *ast.IndexExpression:
 			if e.IsDotLookup {
-				if mod, ok := moduleForDotLookupLeft(e.Left, nil); ok && mod == module {
+				if mods, ok := modulesForDotLookupLeft(e.Left, nil); ok && containsString(mods, module) {
 					switch k := e.Index.(type) {
 					case *ast.SymbolLiteral:
 						if k.Value == member {
@@ -1866,6 +1889,39 @@ func collectInlineImportMemberReferences(src string, uri string, module string, 
 		walkStmt(st)
 	}
 	return out
+}
+
+func (s *Server) modulesExportingName(candidates []string, name string) []string {
+	out := []string{}
+	for _, candidate := range candidates {
+		if s.moduleExportsName(candidate, name) {
+			out = append(out, candidate)
+		}
+	}
+	return out
+}
+
+func (s *Server) moduleExportsName(module string, name string) bool {
+	for uri, doc := range s.docs {
+		if moduleNameFromURI(uri) != module {
+			continue
+		}
+		for _, exp := range collectExportedTopLevelSymbols(doc.Text) {
+			if exp.Name == name {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func containsString(vs []string, target string) bool {
+	for _, v := range vs {
+		if v == target {
+			return true
+		}
+	}
+	return false
 }
 
 func dedupeLocations(in []lspLocation) []lspLocation {

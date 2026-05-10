@@ -1495,3 +1495,35 @@ Tests added in `internal/lsp/server_test.go`:
 Validation performed:
 - `go test ./internal/lsp -count=1`
 - `go test ./... -count=1`
+
+### LSP Phase 14: multi-module inline import support + collision-safe rename
+
+- Extended inline/chained import-member handling to support multi-module calls:
+  - `import("a", "b").name`
+- Added module-candidate resolution for dot lookups:
+  - left operand now maps to one or more module candidates (alias or inline import args).
+- Added disambiguation against open-document export index:
+  - if exactly one candidate module exports the member name, use that module identity.
+  - if multiple candidates export the same member, mark as ambiguous.
+
+Safety behavior:
+- `textDocument/rename` now fails safely for ambiguous multi-module member targets:
+  - returns JSON-RPC invalid params (`-32602`) with clear ambiguity reason.
+- `textDocument/prepareRename` returns `nil` for ambiguous targets.
+- `textDocument/references` only returns results when member identity is resolvable.
+
+Implementation notes:
+- Refactored member identity extraction to collect candidate-module hits at cursor offset.
+- Added helpers:
+  - `collectModuleMemberHitsAtOffset`
+  - `modulesForDotLookupLeft`
+  - `modulesExportingName` / `moduleExportsName`
+  - `containsString`
+
+Tests added in `internal/lsp/server_test.go`:
+- `TestServerReferencesFromMultiModuleInlineImportResolvesWhenUnambiguous`
+- `TestServerRenameFromAmbiguousMultiModuleInlineImportFailsSafely`
+
+Validation performed:
+- `go test ./internal/lsp -count=1`
+- `go test ./... -count=1`
