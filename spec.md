@@ -1890,3 +1890,17 @@ Tests added:
 Validation performed:
 - `go test ./internal/lsp -count=1`
 - `go test ./... -count=1`
+
+### LSP Phase 26: cancellation regression coverage for string request IDs
+
+- Added cancellation regressions for string-based request IDs to lock ID normalization behavior across clients that do not use numeric IDs.
+- Covers both success-response suppression and error-response suppression paths.
+
+Tests added:
+- `internal/lsp/server_test.go`
+  - `TestServerSignatureHelpCanceledStringIDSuppressesResponse`
+  - `TestServerCanceledUnknownRequestStringIDSuppressesErrorResponse`
+
+Validation performed:
+- `go test ./internal/lsp -count=1`
+- `go test ./... -count=1`

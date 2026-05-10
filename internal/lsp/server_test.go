@@ -183,6 +183,31 @@ func TestServerCanceledUnknownRequestSuppressesErrorResponse(t *testing.T) {
 	}
 }
 
+func TestServerCanceledUnknownRequestStringIDSuppressesErrorResponse(t *testing.T) {
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"$/cancelRequest","params":{"id":"req-unknown"}}`) +
+			frame(`{"jsonrpc":"2.0","id":"req-unknown","method":"does/not/exist","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	for _, m := range msgs {
+		id, ok := m["id"].(string)
+		if !ok {
+			continue
+		}
+		if id == "req-unknown" {
+			t.Fatalf("expected canceled unknown request id=req-unknown to be suppressed, got %#v", m)
+		}
+	}
+}
+
 func TestServerRejectsRequestsAfterShutdown(t *testing.T) {
 	in := strings.NewReader(
 		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
@@ -1184,6 +1209,35 @@ func TestServerSignatureHelpCanceledRequestSuppressesResponse(t *testing.T) {
 		}
 		if int(id) == 46 {
 			t.Fatalf("expected canceled signatureHelp id=46 to be suppressed, got %#v", m)
+		}
+	}
+}
+
+func TestServerSignatureHelpCanceledStringIDSuppressesResponse(t *testing.T) {
+	src := "val sum = fn(a, b, c) { a }\nsum(1, 2, 3)\n"
+	srcJSON := strings.ReplaceAll(src, "\"", "\\\"")
+	srcJSON = strings.ReplaceAll(srcJSON, "\n", "\\n")
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///a.slug","version":1,"text":"`+srcJSON+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","method":"$/cancelRequest","params":{"id":"sig-1"}}`) +
+			frame(`{"jsonrpc":"2.0","id":"sig-1","method":"textDocument/signatureHelp","params":{"textDocument":{"uri":"file:///a.slug"},"position":{"line":1,"character":7}}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	for _, m := range msgs {
+		id, ok := m["id"].(string)
+		if !ok {
+			continue
+		}
+		if id == "sig-1" {
+			t.Fatalf("expected canceled signatureHelp id=sig-1 to be suppressed, got %#v", m)
 		}
 	}
 }
