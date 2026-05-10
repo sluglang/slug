@@ -64,6 +64,12 @@ type plusCheck struct {
 	right *tnode
 }
 
+type mulCheck struct {
+	pos   int
+	left  *tnode
+	right *tnode
+}
+
 type typeChecker struct {
 	a           *analyzer
 	nextID      int
@@ -71,6 +77,7 @@ type typeChecker struct {
 	diags       []tdiag
 	callChecks  []callCheck
 	plusChecks  []plusCheck
+	mulChecks   []mulCheck
 	scopes      []map[string]*tnode
 	schemas     map[string]map[string]*tnode
 }
@@ -631,22 +638,8 @@ func (c *typeChecker) inferInfix(e *ast.InfixExpression) *tnode {
 		c.addConstraint(out, c.scalar(typeNum), e.Token.Position, "numeric result")
 		return out
 	case "*":
-		// runtime supports num*num and str*num
-		lf := c.find(left)
-		rf := c.find(right)
-		if lf.kind == typeStr {
-			c.addConstraint(right, c.scalar(typeNum), e.Token.Position, "string repetition count")
-			c.addConstraint(out, c.scalar(typeStr), e.Token.Position, "string repetition result")
-			return out
-		}
-		if rf.kind == typeStr {
-			c.addConstraint(left, c.scalar(typeNum), e.Token.Position, "string repetition count")
-			c.addConstraint(out, c.scalar(typeStr), e.Token.Position, "string repetition result")
-			return out
-		}
-		c.addConstraint(left, c.scalar(typeNum), e.Token.Position, "numeric operator")
-		c.addConstraint(right, c.scalar(typeNum), e.Token.Position, "numeric operator")
-		c.addConstraint(out, c.scalar(typeNum), e.Token.Position, "numeric result")
+		// Defer '*' compatibility check (runtime allows num*num and str*num).
+		c.mulChecks = append(c.mulChecks, mulCheck{pos: e.Token.Position, left: left, right: right})
 		return out
 	case "==", "!=":
 		c.addConstraint(out, c.scalar(typeBool), e.Token.Position, "equality result")
@@ -888,6 +881,11 @@ func (c *typeChecker) solveConstraints() {
 			c.addDiag(pc.pos, "operator '+' type mismatch: %s vs %s", c.describe(pc.left), c.describe(pc.right))
 		}
 	}
+	for _, mc := range c.mulChecks {
+		if !c.isMulCompatible(mc.left, mc.right) {
+			c.addDiag(mc.pos, "numeric operator type mismatch: expected num, got %s", c.describe(mc.left))
+		}
+	}
 }
 
 func (c *typeChecker) isCompatible(got, expected *tnode) bool {
@@ -964,6 +962,26 @@ func (c *typeChecker) isPlusCompatible(left, right *tnode) bool {
 	default:
 		return false
 	}
+}
+
+func (c *typeChecker) isMulCompatible(left, right *tnode) bool {
+	l := c.find(left)
+	r := c.find(right)
+	if l == nil || r == nil {
+		return true
+	}
+	if l.kind == typeAny || r.kind == typeAny || l.kind == typeUnknown || r.kind == typeUnknown {
+		return true
+	}
+	// runtime: str * num
+	if l.kind == typeStr {
+		return r.kind == typeNum
+	}
+	// runtime: num * num
+	if l.kind == typeNum {
+		return r.kind == typeNum
+	}
+	return false
 }
 
 func (c *typeChecker) renderConstraintMismatch(cs tconstraint) string {

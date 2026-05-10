@@ -789,3 +789,15 @@
   - `TestSemanticTypeCheckStrictAllowsStringInterpolationWithNumbers`.
 - Validation performed:
   - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
+
+### Semantic typing fix for chained string repetition (`*`) inference
+
+- Fixed false-positive numeric-operator diagnostics for chained string repetition expressions like `" " * spaces * depth`.
+- Updated `*` typing to deferred runtime-aligned compatibility checks (similar to `+`), preventing eager intermediate-type misclassification.
+- Runtime-compatible `*` modes enforced by deferred checks:
+  - `num * num`
+  - `str * num`
+- Added regression test:
+  - `TestSemanticTypeCheckStrictAllowsChainedStringTimesNumberTimesNumber`.
+- Validation performed:
+  - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
