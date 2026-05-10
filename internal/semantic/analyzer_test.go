@@ -1198,6 +1198,29 @@ val f = fn(x, i = 0) {
 	}
 }
 
+func TestSemanticTypeCheckStrictSimplifiesUnionListFamilies(t *testing.T) {
+	input := `
+val x = if (true) { [1] } else { ["a"] }
+val y = x :+ 2
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+		StrictTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+	}
+	if len(errs) > 0 {
+		t.Fatalf("expected no strict type-check errors, got: %v", errs)
+	}
+}
+
 func TestSemanticTypeCheckStrictAllowsStringInterpolationWithNumbers(t *testing.T) {
 	input := `
 val count = 10

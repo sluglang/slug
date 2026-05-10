@@ -987,3 +987,22 @@ Regression coverage added:
 
 Validation performed:
 - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
+
+### Semantic typing enhancement: union simplification and dominance pruning
+
+- Added union normalization pipeline to reduce union explosion and improve diagnostics.
+- Union construction now includes:
+  - dominance pruning (`any` dominates all members, `never` removed),
+  - structural deduplication by normalized type signature,
+  - safe family merging:
+    - `list<t1> | list<t2> -> list<t1|t2>`
+    - `map<k1,v1> | map<k2,v2> -> map<k1|k2, v1|v2>`
+- Added union member cap (`maxUnionOptions`) with widening fallback to `any` when unions grow beyond cap.
+- Improved union diagnostic readability:
+  - stable sorted union member rendering in `describe(...)`.
+
+Regression coverage added:
+- `TestSemanticTypeCheckStrictSimplifiesUnionListFamilies`
+
+Validation performed:
+- `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`

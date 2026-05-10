@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slug/internal/ast"
 	"slug/internal/object"
+	"sort"
 	"strings"
 )
 
@@ -27,6 +28,8 @@ const (
 	typeStruct  typeKind = "struct"
 	typeUnion   typeKind = "union"
 )
+
+const maxUnionOptions = 8
 
 type tnode struct {
 	kind     typeKind
@@ -337,13 +340,93 @@ func (c *typeChecker) unionType(types ...*tnode) *tnode {
 			return flat[0]
 		}
 	}
+	flat = c.normalizeUnionOptions(flat)
 	if len(flat) == 0 {
 		return c.freshUnknown()
 	}
 	if len(flat) == 1 {
 		return flat[0]
 	}
+	if len(flat) > maxUnionOptions {
+		return c.scalar(typeAny)
+	}
 	return &tnode{kind: typeUnion, options: flat}
+}
+
+func (c *typeChecker) normalizeUnionOptions(options []*tnode) []*tnode {
+	if len(options) == 0 {
+		return options
+	}
+	// any dominates all.
+	for _, opt := range options {
+		of := c.find(opt)
+		if of != nil && of.kind == typeAny {
+			return []*tnode{c.scalar(typeAny)}
+		}
+	}
+	// Dedup + remove never.
+	out := make([]*tnode, 0, len(options))
+	seen := map[string]bool{}
+	for _, opt := range options {
+		of := c.find(opt)
+		if of == nil || of.kind == typeNever {
+			continue
+		}
+		sig := c.typeSig(of)
+		if seen[sig] {
+			continue
+		}
+		seen[sig] = true
+		out = append(out, of)
+	}
+	// Merge list/map families where safe.
+	out = c.mergeUnionFamilies(out)
+	return out
+}
+
+func (c *typeChecker) mergeUnionFamilies(options []*tnode) []*tnode {
+	if len(options) < 2 {
+		return options
+	}
+	var listElem *tnode
+	var mapKey *tnode
+	var mapVal *tnode
+	hasList := false
+	hasMap := false
+	rest := make([]*tnode, 0, len(options))
+	for _, opt := range options {
+		of := c.find(opt)
+		if of == nil {
+			continue
+		}
+		switch of.kind {
+		case typeList:
+			hasList = true
+			if listElem == nil {
+				listElem = of.elem
+			} else {
+				listElem = c.unionType(listElem, of.elem)
+			}
+		case typeMap:
+			hasMap = true
+			if mapKey == nil {
+				mapKey = of.key
+				mapVal = of.val
+			} else {
+				mapKey = c.unionType(mapKey, of.key)
+				mapVal = c.unionType(mapVal, of.val)
+			}
+		default:
+			rest = append(rest, of)
+		}
+	}
+	if hasList {
+		rest = append(rest, c.listType(listElem))
+	}
+	if hasMap {
+		rest = append(rest, c.mapType(mapKey, mapVal))
+	}
+	return rest
 }
 
 func (c *typeChecker) cloneScalarTagType(tag string) *tnode {
@@ -2278,8 +2361,13 @@ func (c *typeChecker) describe(t *tnode) string {
 		}
 		return "struct"
 	case typeUnion:
+		opts := make([]*tnode, len(t.options))
+		copy(opts, t.options)
+		sort.Slice(opts, func(i, j int) bool {
+			return c.typeSig(opts[i]) < c.typeSig(opts[j])
+		})
 		out := "union<"
-		for i, opt := range t.options {
+		for i, opt := range opts {
 			if i > 0 {
 				out += " | "
 			}
