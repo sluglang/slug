@@ -3113,6 +3113,9 @@ func (s *Server) writeResult(id json.RawMessage, result interface{}) error {
 }
 
 func (s *Server) writeError(id interface{}, code int, message string, data interface{}) error {
+	if s.isCanceledAnyID(id) {
+		return nil
+	}
 	return writeFramedMessage(s.out, rpcErrorResponse{JSONRPC: "2.0", ID: id, Error: &rpcError{Code: code, Message: message, Data: data}})
 }
 
@@ -3128,11 +3131,61 @@ func (s *Server) isCanceledID(id json.RawMessage) bool {
 	return true
 }
 
+func (s *Server) isCanceledAnyID(id interface{}) bool {
+	key := cancelAnyIDKey(id)
+	if key == "" {
+		return false
+	}
+	if !s.canceledReqs[key] {
+		return false
+	}
+	delete(s.canceledReqs, key)
+	return true
+}
+
 func cancelIDKey(id json.RawMessage) string {
 	if len(id) == 0 {
 		return ""
 	}
 	return string(bytes.TrimSpace(id))
+}
+
+func cancelAnyIDKey(id interface{}) string {
+	if id == nil {
+		return ""
+	}
+	switch v := id.(type) {
+	case json.RawMessage:
+		return cancelIDKey(v)
+	case string:
+		b, err := json.Marshal(v)
+		if err != nil {
+			return ""
+		}
+		return string(b)
+	case float64:
+		return strconv.FormatFloat(v, 'f', -1, 64)
+	case float32:
+		return strconv.FormatFloat(float64(v), 'f', -1, 32)
+	case int:
+		return strconv.Itoa(v)
+	case int64:
+		return strconv.FormatInt(v, 10)
+	case int32:
+		return strconv.FormatInt(int64(v), 10)
+	case uint:
+		return strconv.FormatUint(uint64(v), 10)
+	case uint64:
+		return strconv.FormatUint(v, 10)
+	case uint32:
+		return strconv.FormatUint(uint64(v), 10)
+	default:
+		b, err := json.Marshal(v)
+		if err != nil {
+			return ""
+		}
+		return string(b)
+	}
 }
 
 func maxInt(a, b int) int {

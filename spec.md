@@ -1868,3 +1868,25 @@ Tests added:
 Validation performed:
 - `go test ./internal/lsp -count=1`
 - `go test ./... -count=1`
+
+### LSP Phase 25: canceled-request suppression for error responses
+
+- Completed cancellation handling so both success and error responses are suppressed for canceled request IDs.
+- `writeError` now checks cancellation state before sending outbound payloads.
+- Added generic cancel-ID normalization for interface IDs (numeric and string) so `$/cancelRequest` matching is consistent across response paths.
+
+Implementation updates:
+- `internal/lsp/server.go`
+  - `writeError` now suppresses canceled responses.
+  - Added:
+    - `isCanceledAnyID(id interface{}) bool`
+    - `cancelAnyIDKey(id interface{}) string`
+
+Tests added:
+- `internal/lsp/server_test.go`
+  - `TestServerCanceledUnknownRequestSuppressesErrorResponse`
+  - Cancels request id `9` before sending unknown method request and verifies no response with id `9` is emitted.
+
+Validation performed:
+- `go test ./internal/lsp -count=1`
+- `go test ./... -count=1`

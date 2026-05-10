@@ -160,6 +160,29 @@ func TestServerUnknownRequestReturnsMethodNotFound(t *testing.T) {
 	}
 }
 
+func TestServerCanceledUnknownRequestSuppressesErrorResponse(t *testing.T) {
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"$/cancelRequest","params":{"id":9}}`) +
+			frame(`{"jsonrpc":"2.0","id":9,"method":"does/not/exist","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok || int(id) != 9 {
+			continue
+		}
+		t.Fatalf("expected canceled unknown request id=9 to be suppressed, got %#v", m)
+	}
+}
+
 func TestServerRejectsRequestsAfterShutdown(t *testing.T) {
 	in := strings.NewReader(
 		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
