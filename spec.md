@@ -1636,3 +1636,25 @@ Tests added/updated in `internal/lsp/server_test.go`:
 Validation performed:
 - `go test ./internal/lsp -count=1`
 - `go test ./... -count=1`
+
+### LSP codeAction enhancement: qualify unresolved symbols with existing import alias
+
+- Added a second unresolved-symbol quick-fix path in `internal/lsp/server.go`:
+  - when a module-object alias import exists (e.g. `val std = import("slug.std")`) and module exports the unresolved symbol,
+  - offer `Qualify with 'std.<symbol>'`.
+- Action applies an in-place text replacement of the unresolved identifier range (e.g. `reduce` -> `std.reduce`).
+
+Behavior notes:
+- Qualification quick-fixes are generated before import-insertion actions.
+- Module export verification uses open-doc export index first, then runtime-aligned module path candidates (including `SLUG_HOME`).
+
+Implementation additions:
+- `moduleMayExportName` helper.
+- `handleCodeAction` now emits both qualification and import actions when applicable.
+
+Tests added in `internal/lsp/server_test.go`:
+- `TestServerCodeActionSuggestsQualifyWithExistingImportAlias`
+
+Validation performed:
+- `go test ./internal/lsp -count=1`
+- `go test ./... -count=1`

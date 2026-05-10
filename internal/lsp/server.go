@@ -723,7 +723,7 @@ func (s *Server) handleCodeAction(req rpcRequest) error {
 		return s.writeResult(req.ID, []lspCodeAction{})
 	}
 	offset := offsetFromPosition(doc.Text, p.Range.Start.Line, p.Range.Start.Character)
-	name, _, _ := identifierAtOffset(doc.Text, offset)
+	name, start, end := identifierAtOffset(doc.Text, offset)
 	if name == "" {
 		return s.writeResult(req.ID, []lspCodeAction{})
 	}
@@ -731,11 +731,31 @@ func (s *Server) handleCodeAction(req rpcRequest) error {
 	if _, found := resolveSymbolAt(name, offset, syms); found {
 		return s.writeResult(req.ID, []lspCodeAction{})
 	}
+	actions := make([]lspCodeAction, 0, 8)
+
+	// Prefer local qualification quick-fixes when a module-object import alias exists.
+	for _, b := range collectImportObjectBindings(doc.Text, "") {
+		if !s.moduleMayExportName(normURI, b.SourceModule, name) {
+			continue
+		}
+		actions = append(actions, lspCodeAction{
+			Title: fmt.Sprintf("Qualify with '%s.%s'", b.LocalName, name),
+			Kind:  "quickfix",
+			Edit: &lspWorkspaceEdit{
+				Changes: map[string][]lspTextEdit{
+					normURI: {{
+						Range:   offsetRangeToLSP(doc.Text, start, end),
+						NewText: b.LocalName + "." + name,
+					}},
+				},
+			},
+		})
+	}
+
 	modules := s.discoverExportingModules(normURI, name)
 	if len(modules) == 0 {
-		return s.writeResult(req.ID, []lspCodeAction{})
+		return s.writeResult(req.ID, actions)
 	}
-	actions := make([]lspCodeAction, 0, len(modules))
 	for _, module := range modules {
 		plan := buildImportEditPlan(doc.Text, module, name)
 		actions = append(actions, lspCodeAction{
@@ -2315,6 +2335,25 @@ func (s *Server) discoverExportingModules(originURI string, name string) []strin
 		return nil
 	})
 	return out
+}
+
+func (s *Server) moduleMayExportName(originURI string, module string, name string) bool {
+	if s.moduleExportsName(module, name) {
+		return true
+	}
+	candidates := modulePathCandidatesFromURI(originURI, module)
+	for _, path := range candidates {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		for _, exp := range collectExportedTopLevelSymbols(string(b)) {
+			if exp.Name == name {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func dedupeLocations(in []lspLocation) []lspLocation {
