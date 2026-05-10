@@ -338,13 +338,14 @@ func (c *typeChecker) inferExpr(expr ast.Expression) *tnode {
 		}
 		return c.listType(elemType)
 	case *ast.MapLiteral:
-		kt := c.freshUnknown()
-		vt := c.freshUnknown()
+		// Slug maps are heterogeneous at runtime for both keys and values.
+		// Infer nested expressions for local checks without forcing global
+		// key/value homogeneity across the literal.
+		kt := c.scalar(typeAny)
+		vt := c.scalar(typeAny)
 		for k, v := range e.Pairs {
-			kType := c.inferExpr(k)
-			vType := c.inferExpr(v)
-			c.addConstraint(kt, kType, e.Token.Position, "map key type")
-			c.addConstraint(vt, vType, e.Token.Position, "map value type")
+			_ = c.inferExpr(k)
+			_ = c.inferExpr(v)
 		}
 		return c.mapType(kt, vt)
 	case *ast.PrefixExpression:

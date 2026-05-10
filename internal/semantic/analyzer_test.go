@@ -637,6 +637,29 @@ val g = fn() { 12 } /> add
 	}
 }
 
+func TestSemanticTypeCheckStrictAllowsHeterogeneousMapLiteralValues(t *testing.T) {
+	input := `
+val a = {"name": "Alice", "age": 30}
+val b = {"mix": {"a": [1, {"b": "c"}]}}
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+		StrictTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+	}
+	if len(errs) > 0 {
+		t.Fatalf("expected no semantic errors for heterogeneous map literal values, got: %v", errs)
+	}
+}
+
 func TestSemanticTypeCheckStrictAllowsBytesAppendAndPrependOperators(t *testing.T) {
 	input := `
 val a = 0x"0102" :+ 3

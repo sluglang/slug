@@ -768,3 +768,13 @@
   - `TestSemanticTypeCheckStrictAllowsFunctionTagOverloadSetCalls`.
 - Validation performed:
   - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
+
+### Semantic typing fix for heterogeneous map literals
+
+- Fixed false-positive map value/key homogeneity diagnostics in map literals.
+- Root cause: map literals were inferred as single key type + single value type, conflicting with runtime-allowed heterogeneous maps.
+- Updated map literal inference to retain heterogeneous key/value compatibility while still inferring nested expression constraints.
+- Added regression test:
+  - `TestSemanticTypeCheckStrictAllowsHeterogeneousMapLiteralValues`.
+- Validation performed:
+  - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
