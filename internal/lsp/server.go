@@ -220,6 +220,11 @@ type importBinding struct {
 	SourceName   string
 }
 
+type moduleObjectBinding struct {
+	LocalName    string
+	SourceModule string
+}
+
 type moduleSymbolIdentity struct {
 	Module string
 	Name   string
@@ -549,6 +554,10 @@ func (s *Server) handleReferences(req rpcRequest) error {
 		return s.writeResult(req.ID, []lspLocation{})
 	}
 	offset := offsetFromPosition(doc.Text, p.Position.Line, p.Position.Character)
+	if identity, _, ok := resolveModuleMemberIdentityAtOffset(doc.Text, offset); ok {
+		refs := s.collectReferencesForIdentityAcrossOpenDocs(normURI, identity, p.Context.IncludeDeclaration)
+		return s.writeResult(req.ID, refs)
+	}
 	name, _, _ := identifierAtOffset(doc.Text, offset)
 	if name == "" {
 		return s.writeResult(req.ID, []lspLocation{})
@@ -574,6 +583,9 @@ func (s *Server) handlePrepareRename(req rpcRequest) error {
 		return s.writeResult(req.ID, nil)
 	}
 	offset := offsetFromPosition(doc.Text, p.Position.Line, p.Position.Character)
+	if identity, rng, ok := resolveModuleMemberIdentityAtOffset(doc.Text, offset); ok {
+		return s.writeResult(req.ID, prepareRenameResult{Range: rng, Placeholder: identity.Name})
+	}
 	name, start, end := identifierAtOffset(doc.Text, offset)
 	if name == "" {
 		return s.writeResult(req.ID, nil)
@@ -601,6 +613,17 @@ func (s *Server) handleRename(req rpcRequest) error {
 		return s.writeResult(req.ID, &lspWorkspaceEdit{Changes: map[string][]lspTextEdit{}})
 	}
 	offset := offsetFromPosition(doc.Text, p.Position.Line, p.Position.Character)
+	if identity, _, ok := resolveModuleMemberIdentityAtOffset(doc.Text, offset); ok {
+		refs := s.collectReferencesForIdentityAcrossOpenDocs(normURI, identity, true)
+		changes := map[string][]lspTextEdit{}
+		for _, ref := range refs {
+			changes[ref.URI] = append(changes[ref.URI], lspTextEdit{
+				Range:   ref.Range,
+				NewText: p.NewName,
+			})
+		}
+		return s.writeResult(req.ID, &lspWorkspaceEdit{Changes: changes})
+	}
 	name, _, _ := identifierAtOffset(doc.Text, offset)
 	if name == "" {
 		return s.writeError(idOrNil(req.ID), -32602, "Invalid params", "cursor is not on a renameable symbol")
@@ -1204,9 +1227,16 @@ func (s *Server) collectReferencesAcrossOpenDocs(originURI string, name string, 
 		return out
 	}
 
+	refs := s.collectReferencesForIdentityAcrossOpenDocs(originURI, identity, includeDeclaration)
+	refs = append(refs, out...)
+	return dedupeLocations(refs)
+}
+
+func (s *Server) collectReferencesForIdentityAcrossOpenDocs(originURI string, identity moduleSymbolIdentity, includeDeclaration bool) []lspLocation {
+	out := []lspLocation{}
 	for uri, doc := range s.docs {
 		if uri == originURI {
-			continue
+			// keep scanning origin too for importer alias/member references
 		}
 		syms := collectSymbols(doc.Text)
 		docModule := moduleNameFromURI(uri)
@@ -1228,6 +1258,9 @@ func (s *Server) collectReferencesAcrossOpenDocs(originURI string, name string, 
 				out = append(out, refs...)
 			}
 		}
+		objBindings := collectImportObjectBindings(doc.Text, identity.Module)
+		memberRefs := collectMemberReferencesForAliases(doc.Text, uri, objBindings, identity.Name)
+		out = append(out, memberRefs...)
 	}
 	return dedupeLocations(out)
 }
@@ -1382,6 +1415,53 @@ func collectImportBindingsForModule(src string, onlyModule string) []importBindi
 	return out
 }
 
+func collectImportObjectBindings(src string, onlyModule string) []moduleObjectBinding {
+	l := lexer.New(src)
+	p := parser.New(l, "<lsp>", src)
+	program := p.ParseProgram()
+	out := []moduleObjectBinding{}
+
+	for _, st := range program.Statements {
+		es, ok := st.(*ast.ExpressionStatement)
+		if !ok || es.Expression == nil {
+			continue
+		}
+		var pattern ast.MatchPattern
+		var value ast.Expression
+		switch e := es.Expression.(type) {
+		case *ast.ValExpression:
+			pattern, value = e.Pattern, e.Value
+		case *ast.VarExpression:
+			pattern, value = e.Pattern, e.Value
+		default:
+			continue
+		}
+		call, ok := value.(*ast.CallExpression)
+		if !ok {
+			continue
+		}
+		fn, ok := call.Function.(*ast.Identifier)
+		if !ok || fn.Value != "import" {
+			continue
+		}
+		modules := importModuleArgs(call.Arguments)
+		if len(modules) != 1 {
+			continue
+		}
+		module := modules[0]
+		if onlyModule != "" && module != onlyModule {
+			continue
+		}
+		for _, n := range topLevelPatternNames(pattern) {
+			out = append(out, moduleObjectBinding{
+				LocalName:    n.Name,
+				SourceModule: module,
+			})
+		}
+	}
+	return out
+}
+
 func importModuleArgs(args []ast.Expression) []string {
 	out := make([]string, 0, len(args))
 	for _, a := range args {
@@ -1496,6 +1576,192 @@ func moduleNameFromURI(uri string) string {
 		return ""
 	}
 	return strings.ReplaceAll(p, "/", ".")
+}
+
+func resolveModuleMemberIdentityAtOffset(src string, off int) (moduleSymbolIdentity, lspRange, bool) {
+	l := lexer.New(src)
+	p := parser.New(l, "<lsp>", src)
+	program := p.ParseProgram()
+	objBindings := collectImportObjectBindings(src, "")
+	if len(objBindings) == 0 {
+		return moduleSymbolIdentity{}, lspRange{}, false
+	}
+	aliasToModule := map[string]string{}
+	for _, b := range objBindings {
+		aliasToModule[b.LocalName] = b.SourceModule
+	}
+
+	var walkStmt func(ast.Statement) (moduleSymbolIdentity, lspRange, bool)
+	var walkExpr func(ast.Expression) (moduleSymbolIdentity, lspRange, bool)
+
+	walkStmt = func(st ast.Statement) (moduleSymbolIdentity, lspRange, bool) {
+		switch s := st.(type) {
+		case *ast.ExpressionStatement:
+			return walkExpr(s.Expression)
+		case *ast.ReturnStatement:
+			return walkExpr(s.ReturnValue)
+		case *ast.ThrowStatement:
+			return walkExpr(s.Value)
+		case *ast.BlockStatement:
+			for _, c := range s.Statements {
+				if id, rg, ok := walkStmt(c); ok {
+					return id, rg, true
+				}
+			}
+		}
+		return moduleSymbolIdentity{}, lspRange{}, false
+	}
+
+	walkExpr = func(ex ast.Expression) (moduleSymbolIdentity, lspRange, bool) {
+		switch e := ex.(type) {
+		case *ast.IndexExpression:
+			if left, ok := e.Left.(*ast.Identifier); ok && e.IsDotLookup {
+				module, ok := aliasToModule[left.Value]
+				if ok {
+					switch k := e.Index.(type) {
+					case *ast.SymbolLiteral:
+						start := k.Token.Position
+						end := start + len(k.Token.Literal)
+						if off >= start && off < end {
+							return moduleSymbolIdentity{Module: module, Name: k.Value, Kind: "variable"}, offsetRangeToLSP(src, start, end), true
+						}
+					case *ast.Identifier:
+						start := k.Token.Position
+						end := start + len(k.Token.Literal)
+						if off >= start && off < end {
+							return moduleSymbolIdentity{Module: module, Name: k.Value, Kind: "variable"}, offsetRangeToLSP(src, start, end), true
+						}
+					}
+				}
+			}
+			if id, rg, ok := walkExpr(e.Left); ok {
+				return id, rg, true
+			}
+			return walkExpr(e.Index)
+		case *ast.CallExpression:
+			if id, rg, ok := walkExpr(e.Function); ok {
+				return id, rg, true
+			}
+			for _, a := range e.Arguments {
+				if id, rg, ok := walkExpr(a); ok {
+					return id, rg, true
+				}
+			}
+		case *ast.ValExpression:
+			return walkExpr(e.Value)
+		case *ast.VarExpression:
+			return walkExpr(e.Value)
+		case *ast.IfExpression:
+			if id, rg, ok := walkExpr(e.Condition); ok {
+				return id, rg, true
+			}
+			if e.ThenBranch != nil {
+				if id, rg, ok := walkStmt(e.ThenBranch); ok {
+					return id, rg, true
+				}
+			}
+			if e.ElseBranch != nil {
+				if id, rg, ok := walkStmt(e.ElseBranch); ok {
+					return id, rg, true
+				}
+			}
+		}
+		return moduleSymbolIdentity{}, lspRange{}, false
+	}
+
+	for _, st := range program.Statements {
+		if id, rg, ok := walkStmt(st); ok {
+			return id, rg, true
+		}
+	}
+	return moduleSymbolIdentity{}, lspRange{}, false
+}
+
+func collectMemberReferencesForAliases(src string, uri string, aliases []moduleObjectBinding, member string) []lspLocation {
+	if len(aliases) == 0 || member == "" {
+		return nil
+	}
+	aliasSet := map[string]bool{}
+	for _, a := range aliases {
+		aliasSet[a.LocalName] = true
+	}
+	l := lexer.New(src)
+	p := parser.New(l, "<lsp>", src)
+	program := p.ParseProgram()
+	out := []lspLocation{}
+	seen := map[string]bool{}
+
+	var walkStmt func(ast.Statement)
+	var walkExpr func(ast.Expression)
+
+	walkStmt = func(st ast.Statement) {
+		switch s := st.(type) {
+		case *ast.ExpressionStatement:
+			walkExpr(s.Expression)
+		case *ast.ReturnStatement:
+			walkExpr(s.ReturnValue)
+		case *ast.ThrowStatement:
+			walkExpr(s.Value)
+		case *ast.BlockStatement:
+			for _, c := range s.Statements {
+				walkStmt(c)
+			}
+		}
+	}
+	walkExpr = func(ex ast.Expression) {
+		switch e := ex.(type) {
+		case *ast.IndexExpression:
+			if left, ok := e.Left.(*ast.Identifier); ok && e.IsDotLookup && aliasSet[left.Value] {
+				switch k := e.Index.(type) {
+				case *ast.SymbolLiteral:
+					if k.Value == member {
+						start := k.Token.Position
+						end := start + len(k.Token.Literal)
+						rng := offsetRangeToLSP(src, start, end)
+						key := fmt.Sprintf("%d:%d:%d:%d", rng.Start.Line, rng.Start.Character, rng.End.Line, rng.End.Character)
+						if !seen[key] {
+							seen[key] = true
+							out = append(out, lspLocation{URI: uri, Range: rng})
+						}
+					}
+				case *ast.Identifier:
+					if k.Value == member {
+						start := k.Token.Position
+						end := start + len(k.Token.Literal)
+						rng := offsetRangeToLSP(src, start, end)
+						key := fmt.Sprintf("%d:%d:%d:%d", rng.Start.Line, rng.Start.Character, rng.End.Line, rng.End.Character)
+						if !seen[key] {
+							seen[key] = true
+							out = append(out, lspLocation{URI: uri, Range: rng})
+						}
+					}
+				}
+			}
+			walkExpr(e.Left)
+			walkExpr(e.Index)
+		case *ast.CallExpression:
+			walkExpr(e.Function)
+			for _, a := range e.Arguments {
+				walkExpr(a)
+			}
+		case *ast.ValExpression:
+			walkExpr(e.Value)
+		case *ast.VarExpression:
+			walkExpr(e.Value)
+		case *ast.IfExpression:
+			walkExpr(e.Condition)
+			if e.ThenBranch != nil {
+				walkStmt(e.ThenBranch)
+			}
+			if e.ElseBranch != nil {
+				walkStmt(e.ElseBranch)
+			}
+		}
+	}
+	for _, st := range program.Statements {
+		walkStmt(st)
+	}
+	return out
 }
 
 func dedupeLocations(in []lspLocation) []lspLocation {

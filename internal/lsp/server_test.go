@@ -959,6 +959,83 @@ func TestServerRenameRejectsInvalidIdentifier(t *testing.T) {
 	t.Fatal("rename error response not found")
 }
 
+func TestServerReferencesIncludeModuleObjectMemberUsages(t *testing.T) {
+	srcA := "@export val answer = 42\\nanswer\\n"
+	srcB := "val m = import(\\\"a\\\")\\nm.answer\\n"
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///lib/a.slug","version":1,"text":"`+srcA+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///lib/b.slug","version":1,"text":"`+srcB+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":24,"method":"textDocument/references","params":{"textDocument":{"uri":"file:///lib/a.slug"},"position":{"line":1,"character":2},"context":{"includeDeclaration":true}}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok || int(id) != 24 {
+			continue
+		}
+		res, ok := m["result"].([]interface{})
+		if !ok {
+			t.Fatalf("references result missing: %#v", m)
+		}
+		if len(res) != 3 {
+			t.Fatalf("expected 3 references including module-object member usage, got %d (%#v)", len(res), res)
+		}
+		return
+	}
+	t.Fatal("references response not found")
+}
+
+func TestServerRenameFromModuleObjectMemberEditsExporterAndUsage(t *testing.T) {
+	srcA := "@export val answer = 42\\nanswer\\n"
+	srcB := "val m = import(\\\"a\\\")\\nm.answer\\n"
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///lib/a.slug","version":1,"text":"`+srcA+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///lib/b.slug","version":1,"text":"`+srcB+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":25,"method":"textDocument/rename","params":{"textDocument":{"uri":"file:///lib/b.slug"},"position":{"line":1,"character":3},"newName":"result"}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok || int(id) != 25 {
+			continue
+		}
+		res, ok := m["result"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("rename result missing: %#v", m)
+		}
+		changes, ok := res["changes"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("rename changes missing: %#v", res)
+		}
+		editsA, okA := changes["file:///lib/a.slug"].([]interface{})
+		editsB, okB := changes["file:///lib/b.slug"].([]interface{})
+		if !okA || !okB {
+			t.Fatalf("expected rename edits for exporter and module-object importer docs, got %#v", changes)
+		}
+		if len(editsA) != 2 || len(editsB) != 1 {
+			t.Fatalf("expected edits a=2 b=1, got a=%d b=%d", len(editsA), len(editsB))
+		}
+		return
+	}
+	t.Fatal("rename response not found")
+}
+
 func TestNormalizeURIFileScheme(t *testing.T) {
 	u, p := normalizeURI("file:///tmp/x.slug")
 	if !strings.HasPrefix(u, "file://") {

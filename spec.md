@@ -1431,3 +1431,36 @@ Tests updated/added in `internal/lsp/server_test.go`:
 Validation performed:
 - `go test ./internal/lsp -count=1`
 - `go test ./... -count=1`
+
+### LSP Phase 12: module-object import member indexing (`m = import("mod"); m.name`)
+
+- Extended module-aware cross-file references/rename to support module-object imports in `internal/lsp/server.go`.
+
+New capabilities added:
+- Parse top-level module-object bindings:
+  - `val m = import("module")` / `var m = import("module")` (single-module import call).
+- Resolve cursor-on-member identity for dot lookups:
+  - `m.answer` where `m` is a module-object import alias.
+- Include module-object member usages in cross-open-document identity reference collection.
+
+Behavior changes:
+- `textDocument/references`:
+  - if cursor is on a module-object member token (`m.foo`), resolve to module identity and return module-aware references (including declaration when requested).
+- `textDocument/prepareRename`:
+  - supports module-object member tokens with proper rename range/placeholder.
+- `textDocument/rename`:
+  - supports initiating rename from module-object member usage and applies edits across exporter/importer usages.
+
+New helpers introduced:
+- `collectImportObjectBindings`
+- `resolveModuleMemberIdentityAtOffset`
+- `collectMemberReferencesForAliases`
+- `collectReferencesForIdentityAcrossOpenDocs`
+
+Tests added in `internal/lsp/server_test.go`:
+- `TestServerReferencesIncludeModuleObjectMemberUsages`
+- `TestServerRenameFromModuleObjectMemberEditsExporterAndUsage`
+
+Validation performed:
+- `go test ./internal/lsp -count=1`
+- `go test ./... -count=1`
