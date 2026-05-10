@@ -179,8 +179,8 @@ val x = "hello" - 1
 	if len(warns) == 0 {
 		t.Fatal("expected type warnings, got none")
 	}
-	if !containsError(warns, "inferred type mismatch") {
-		t.Fatalf("expected inferred type mismatch warning, got: %v", warns)
+	if !containsError(warns, "numeric operator type mismatch") {
+		t.Fatalf("expected numeric operator type mismatch warning, got: %v", warns)
 	}
 }
 
@@ -204,8 +204,8 @@ val x = "hello" - 1
 	if len(errs) == 0 {
 		t.Fatal("expected semantic errors in strict mode, got none")
 	}
-	if !containsError(errs, "inferred type mismatch") {
-		t.Fatalf("expected inferred type mismatch error, got: %v", errs)
+	if !containsError(errs, "numeric operator type mismatch") {
+		t.Fatalf("expected numeric operator type mismatch error, got: %v", errs)
 	}
 }
 
@@ -242,7 +242,7 @@ func TestSemanticTypeCheckStrictChecksMatchPatternNarrowing(t *testing.T) {
 	input := `
 val xs = [1, 2]
 val out = match xs {
-  [h, ...t] => h + "bad"
+  [h, ...t] => h - "bad"
   _ => 0
 }
 `
@@ -262,7 +262,140 @@ val out = match xs {
 	if len(errs) == 0 {
 		t.Fatal("expected narrowed-pattern type mismatch error, got none")
 	}
-	if !containsError(errs, "inferred type mismatch") {
-		t.Fatalf("expected inferred type mismatch error, got: %v", errs)
+	if !containsError(errs, "numeric operator type mismatch") {
+		t.Fatalf("expected numeric operator mismatch error from pattern narrowing, got: %v", errs)
+	}
+}
+
+func TestSemanticTypeCheckStrictHasCallArgumentMismatchMessage(t *testing.T) {
+	input := `
+val f = fn(@num n) { n + 1 }
+val out = f("bad")
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+		StrictTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+	}
+	if len(errs) == 0 {
+		t.Fatal("expected call argument type mismatch error, got none")
+	}
+	if !containsError(errs, "call argument type mismatch") {
+		t.Fatalf("expected call argument type mismatch message, got: %v", errs)
+	}
+}
+
+func TestSemanticTypeCheckStrictAllowsTaggedDefaultNil(t *testing.T) {
+	input := `
+val assertThrows = fn(@fn f, expected, @str msg = nil) {
+  true
+}
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+		StrictTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+	}
+	if len(errs) > 0 {
+		t.Fatalf("expected no semantic errors for tagged default nil, got: %v", errs)
+	}
+}
+
+func TestSemanticTypeCheckStrictAllowsIfBranchWithThrowElse(t *testing.T) {
+	input := `
+val Error = struct {
+  @str type = "Error",
+  @str msg,
+}
+
+val assert = fn(a, msg = nil) {
+  if (a) {
+    true
+  } else {
+    throw Error { type: "AssertionError", msg: "nope" }
+  }
+}
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+		StrictTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+	}
+	if len(errs) > 0 {
+		t.Fatalf("expected no semantic errors for if/throw branch, got: %v", errs)
+	}
+}
+
+func TestSemanticTypeCheckStrictAllowsCallsUsingDefaultArity(t *testing.T) {
+	input := `
+val g = fn(a, b = 2, c = 3) { a + b + c }
+val ok1 = g(1)
+val ok2 = g(1, 4)
+val ok3 = g(1, 4, 5)
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+		StrictTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+	}
+	if len(errs) > 0 {
+		t.Fatalf("expected no semantic errors for default-arity calls, got: %v", errs)
+	}
+}
+
+func TestSemanticTypeCheckStrictAllowsMatchBodyFunctionWithHeterogeneousParams(t *testing.T) {
+	input := `
+val mapLike = fn(@list vs, @fn f, acc = []) match {
+  [[], ...] => acc
+  [[h, ...t], ...] => recur(t, f, acc :+ h /> f())
+}
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+		StrictTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+	}
+	if len(errs) > 0 {
+		t.Fatalf("expected no semantic errors for heterogeneous match-body params, got: %v", errs)
 	}
 }

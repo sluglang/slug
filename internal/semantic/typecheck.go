@@ -35,6 +35,8 @@ type tnode struct {
 	params   []*tnode
 	ret      *tnode
 	variadic bool
+	minArgs  int
+	maxArgs  int
 	name     string
 }
 
@@ -136,11 +138,11 @@ func (c *typeChecker) mapType(key, val *tnode) *tnode {
 	return &tnode{kind: typeMap, key: key, val: val}
 }
 
-func (c *typeChecker) fnType(params []*tnode, ret *tnode, variadic bool) *tnode {
+func (c *typeChecker) fnType(params []*tnode, ret *tnode, variadic bool, minArgs, maxArgs int) *tnode {
 	if ret == nil {
 		ret = c.freshUnknown()
 	}
-	return &tnode{kind: typeFn, params: params, ret: ret, variadic: variadic}
+	return &tnode{kind: typeFn, params: params, ret: ret, variadic: variadic, minArgs: minArgs, maxArgs: maxArgs}
 }
 
 func (c *typeChecker) cloneScalarTagType(tag string) *tnode {
@@ -160,7 +162,7 @@ func (c *typeChecker) cloneScalarTagType(tag string) *tnode {
 	case "@map":
 		return c.mapType(c.freshUnknown(), c.freshUnknown())
 	case "@fn":
-		return c.fnType(nil, c.freshUnknown(), false)
+		return c.fnType(nil, c.freshUnknown(), false, 0, -1)
 	case "@task":
 		return c.scalar(typeTask)
 	case "@chan":
@@ -193,7 +195,10 @@ func (c *typeChecker) inferStatement(stmt ast.Statement) *tnode {
 	case *ast.ReturnStatement:
 		return c.inferExpr(s.ReturnValue)
 	case *ast.ThrowStatement:
-		return c.inferExpr(s.Value)
+		// Throw does not produce a normal value in-flow; model as any-compatible
+		// so branch-join logic doesn't force incompatible value unification.
+		_ = c.inferExpr(s.Value)
+		return c.scalar(typeAny)
 	case *ast.BlockStatement:
 		return c.inferBlock(s)
 	case *ast.DeferStatement:
@@ -251,10 +256,11 @@ func (c *typeChecker) inferExpr(expr ast.Expression) *tnode {
 		c.bind(e.Value, unknown)
 		return unknown
 	case *ast.ListLiteral:
-		elemType := c.freshUnknown()
+		// Slug lists are heterogeneous at runtime. Infer each element for local
+		// constraints/side effects, but do not force all elements to unify.
+		elemType := c.scalar(typeAny)
 		for _, item := range e.Elements {
-			itemType := c.inferExpr(item)
-			c.addConstraint(elemType, itemType, e.Token.Position, "list element type")
+			_ = c.inferExpr(item)
 		}
 		return c.listType(elemType)
 	case *ast.MapLiteral:
@@ -434,7 +440,12 @@ func (c *typeChecker) inferFunctionLiteral(fn *ast.FunctionLiteral) *tnode {
 		ret = c.inferBlock(fn.Body)
 	}
 	c.popScope()
-	return c.fnType(params, ret, len(fn.Parameters) > 0 && fn.Parameters[len(fn.Parameters)-1].IsVariadic)
+	minArgs := fn.Signature.Min
+	maxArgs := fn.Signature.Max
+	if maxArgs > 1_000_000 {
+		maxArgs = -1
+	}
+	return c.fnType(params, ret, len(fn.Parameters) > 0 && fn.Parameters[len(fn.Parameters)-1].IsVariadic, minArgs, maxArgs)
 }
 
 func (c *typeChecker) inferCall(call *ast.CallExpression) *tnode {
@@ -446,8 +457,21 @@ func (c *typeChecker) inferCall(call *ast.CallExpression) *tnode {
 	}
 	ct := c.find(callee)
 	if ct.kind == typeFn {
-		if !ct.variadic && len(args) != len(ct.params) {
-			c.addDiag(call.Token.Position, "call arity mismatch: expected %d arguments, got %d", len(ct.params), len(args))
+		argc := len(args)
+		minArgs := ct.minArgs
+		maxArgs := ct.maxArgs
+		if maxArgs == 0 && len(ct.params) > 0 && !ct.variadic {
+			maxArgs = len(ct.params)
+		}
+		if maxArgs == 0 && len(ct.params) == 0 {
+			maxArgs = -1
+		}
+		if argc < minArgs || (maxArgs >= 0 && argc > maxArgs) {
+			if maxArgs >= 0 {
+				c.addDiag(call.Token.Position, "call arity mismatch: expected %d..%d arguments, got %d", minArgs, maxArgs, argc)
+			} else {
+				c.addDiag(call.Token.Position, "call arity mismatch: expected at least %d arguments, got %d", minArgs, argc)
+			}
 		}
 		limit := len(args)
 		if len(ct.params) < limit {
@@ -659,9 +683,39 @@ func (c *typeChecker) enforceTags(t *tnode, tags []*ast.Tag, pos int) {
 func (c *typeChecker) solveConstraints() {
 	for _, cs := range c.constraints {
 		if !c.unify(cs.lhs, cs.rhs) {
-			c.addDiag(cs.pos, "inferred type mismatch (%s): %s vs %s", cs.reason, c.describe(cs.lhs), c.describe(cs.rhs))
+			c.addDiag(cs.pos, "%s", c.renderConstraintMismatch(cs))
 		}
 	}
+}
+
+func (c *typeChecker) renderConstraintMismatch(cs tconstraint) string {
+	left := c.describe(cs.lhs)
+	right := c.describe(cs.rhs)
+	switch cs.reason {
+	case "assignment":
+		return fmt.Sprintf("assignment type mismatch: cannot assign %s to %s", right, left)
+	case "call argument type":
+		return fmt.Sprintf("call argument type mismatch: expected %s, got %s", right, left)
+	case "call return type":
+		return fmt.Sprintf("call return type mismatch: expected %s, got %s", right, left)
+	case "if condition must be boolean":
+		return fmt.Sprintf("if condition type mismatch: expected bool, got %s", left)
+	case "match guard must be boolean":
+		return fmt.Sprintf("match guard type mismatch: expected bool, got %s", left)
+	case "select await expects task":
+		return fmt.Sprintf("select await type mismatch: expected task, got %s", left)
+	case "prefix numeric operator":
+		return fmt.Sprintf("prefix operator type mismatch: expected num, got %s", left)
+	case "numeric operator":
+		return fmt.Sprintf("numeric operator type mismatch: expected num, got %s", left)
+	case "logical operator":
+		return fmt.Sprintf("logical operator type mismatch: expected bool, got %s", left)
+	case "+ operand compatibility":
+		return fmt.Sprintf("operator '+' type mismatch: %s vs %s", left, right)
+	case "comparison operand compatibility":
+		return fmt.Sprintf("comparison operand type mismatch: %s vs %s", left, right)
+	}
+	return fmt.Sprintf("inferred type mismatch (%s): %s vs %s", cs.reason, left, right)
 }
 
 func (c *typeChecker) find(t *tnode) *tnode {
@@ -692,6 +746,11 @@ func (c *typeChecker) unify(a, b *tnode) bool {
 		return true
 	}
 	if a == b {
+		return true
+	}
+	// Slug runtime/tag dispatch treats nil as admissible across typed positions.
+	// Keep semantic typing aligned by allowing nil to unify with any concrete type.
+	if a.kind == typeNil || b.kind == typeNil {
 		return true
 	}
 	if a.kind == typeAny || b.kind == typeAny {

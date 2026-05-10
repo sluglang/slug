@@ -598,3 +598,55 @@
   - `TestSemanticTypeCheckStrictChecksMatchPatternNarrowing`
 - Validation performed:
   - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
+
+### Semantic inferred type diagnostics quality pass
+
+- Improved inferred type diagnostic readability by rendering context-specific mismatch messages in semantic solver output.
+- Added targeted message forms for common failure contexts:
+  - assignment mismatch,
+  - call argument mismatch,
+  - if/match-guard boolean mismatch,
+  - numeric/logical/prefix operator mismatches,
+  - comparison and select-await mismatches.
+- Kept inference behavior unchanged; this pass improves message quality only.
+- Added semantic test coverage for call argument mismatch messaging.
+- Validation performed:
+  - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
+
+### Semantic typing nil-compatibility alignment
+
+- Updated semantic type unification to allow `nil` compatibility with concrete types, aligning inferred checks with runtime/tag dispatch behavior.
+- Fixes false-positive diagnostics for typed defaults like `@str msg = nil`.
+- Added regression test:
+  - `TestSemanticTypeCheckStrictAllowsTaggedDefaultNil` in `internal/semantic/analyzer_test.go`.
+- Validation performed:
+  - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
+
+### Semantic typing branch-join fix for throw paths
+
+- Fixed false-positive `if` branch type mismatch diagnostics when one branch throws.
+- Semantic inference now models `throw` statements as non-returning/any-compatible for branch result unification.
+- Added regression test:
+  - `TestSemanticTypeCheckStrictAllowsIfBranchWithThrowElse`.
+- Validation performed:
+  - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
+
+### Semantic typing arity fix for default parameters
+
+- Updated inferred call arity checking to respect function signature min/max arity (default parameters) instead of raw parameter count.
+- Function type nodes now retain inferred arity bounds derived from parser signature metadata.
+- Fixes false-positive arity diagnostics for calls that omit defaulted trailing arguments.
+- Added regression test:
+  - `TestSemanticTypeCheckStrictAllowsCallsUsingDefaultArity`.
+- Validation performed:
+  - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
+
+### Semantic typing fix for heterogeneous list literals in match-body functions
+
+- Fixed false-positive list element unification errors in inferred type checking.
+- Root cause: list literals were inferred as homogeneous; this conflicted with parser-injected match scrutinee lists for `fn(...) match { ... }` (which can contain heterogeneous parameter types).
+- Updated list literal inference to treat list element type as `any`-compatible while still inferring each element expression.
+- Added regression test:
+  - `TestSemanticTypeCheckStrictAllowsMatchBodyFunctionWithHeterogeneousParams`.
+- Validation performed:
+  - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
