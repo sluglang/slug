@@ -862,3 +862,19 @@
   - `TestSemanticTypeCheckStrictAllowsDeferredBitwiseBytesModeInConcatFlow`.
 - Validation performed:
   - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
+
+### Semantic typing enhancement: union-based branch joins for `if`/`match`
+
+- Implemented lightweight union typing in inferred semantic checks to preserve branch result alternatives instead of collapsing to `any`.
+- Added new inferred type kind: `union<...>` and union flatten/dedup behavior.
+- Updated `if` expression inference to return a union of `then`/`else` result types.
+- Updated `match` expression inference to return a union across case body result types.
+- Made compatibility logic union-aware for:
+  - general call/type compatibility checks,
+  - deferred operator checks (`+`, `*`, bitwise).
+- Result: flow-sensitive branch typing is retained for downstream checks (for example, passing `if`/`match` result unions into typed function parameters now reports precise mismatches when not all alternatives are valid).
+- Added regression tests:
+  - `TestSemanticTypeCheckStrictTracksIfBranchUnionForCalls`
+  - `TestSemanticTypeCheckStrictTracksMatchCaseUnionForCalls`
+- Validation performed:
+  - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`

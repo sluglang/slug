@@ -802,6 +802,63 @@ val inner = (paddedKey ^ ipad) + message
 	}
 }
 
+func TestSemanticTypeCheckStrictTracksIfBranchUnionForCalls(t *testing.T) {
+	input := `
+val x = if (true) { 1 } else { "nope" }
+val useNum = fn(@num n) { n + 1 }
+val out = useNum(x)
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+		StrictTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+	}
+	if len(errs) == 0 {
+		t.Fatal("expected strict type-check error from union<num|str> passed to @num")
+	}
+	if !containsError(errs, "call argument type mismatch") {
+		t.Fatalf("expected call argument type mismatch, got: %v", errs)
+	}
+}
+
+func TestSemanticTypeCheckStrictTracksMatchCaseUnionForCalls(t *testing.T) {
+	input := `
+val x = match "s" {
+	"s" => 1
+	_ => true
+}
+val useNum = fn(@num n) { n + 1 }
+val out = useNum(x)
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+		StrictTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+	}
+	if len(errs) == 0 {
+		t.Fatal("expected strict type-check error from union<num|bool> passed to @num")
+	}
+	if !containsError(errs, "call argument type mismatch") {
+		t.Fatalf("expected call argument type mismatch, got: %v", errs)
+	}
+}
+
 func TestSemanticTypeCheckStrictAllowsStringInterpolationWithNumbers(t *testing.T) {
 	input := `
 val count = 10

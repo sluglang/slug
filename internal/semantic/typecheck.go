@@ -23,6 +23,7 @@ const (
 	typeTask    typeKind = "task"
 	typeChan    typeKind = "chan"
 	typeStruct  typeKind = "struct"
+	typeUnion   typeKind = "union"
 )
 
 type tnode struct {
@@ -33,6 +34,7 @@ type tnode struct {
 	key      *tnode
 	val      *tnode
 	params   []*tnode
+	options  []*tnode
 	ret      *tnode
 	variadic bool
 	minArgs  int
@@ -203,6 +205,11 @@ func (c *typeChecker) cloneForCaseScope(t *tnode, memo map[*tnode]*tnode) *tnode
 			cp.params[i] = c.cloneForCaseScope(t.params[i], memo)
 		}
 		cp.ret = c.cloneForCaseScope(t.ret, memo)
+	case typeUnion:
+		cp.options = make([]*tnode, 0, len(t.options))
+		for _, opt := range t.options {
+			cp.options = append(cp.options, c.cloneForCaseScope(opt, memo))
+		}
 	}
 	return cp
 }
@@ -238,6 +245,54 @@ func (c *typeChecker) fnType(params []*tnode, ret *tnode, variadic bool, minArgs
 		ret = c.freshUnknown()
 	}
 	return &tnode{kind: typeFn, params: params, ret: ret, variadic: variadic, minArgs: minArgs, maxArgs: maxArgs}
+}
+
+func (c *typeChecker) unionType(types ...*tnode) *tnode {
+	flat := make([]*tnode, 0, len(types))
+	seen := map[string]bool{}
+	var addOpt func(*tnode)
+	addOpt = func(t *tnode) {
+		if t == nil {
+			return
+		}
+		tf := c.find(t)
+		if tf == nil {
+			return
+		}
+		if tf.kind == typeAny {
+			flat = []*tnode{c.scalar(typeAny)}
+			seen = map[string]bool{"any": true}
+			return
+		}
+		if tf.kind == typeUnion {
+			for _, opt := range tf.options {
+				addOpt(opt)
+				if len(flat) == 1 && flat[0].kind == typeAny {
+					return
+				}
+			}
+			return
+		}
+		sig := c.typeSig(tf)
+		if seen[sig] {
+			return
+		}
+		seen[sig] = true
+		flat = append(flat, tf)
+	}
+	for _, t := range types {
+		addOpt(t)
+		if len(flat) == 1 && flat[0].kind == typeAny {
+			return flat[0]
+		}
+	}
+	if len(flat) == 0 {
+		return c.freshUnknown()
+	}
+	if len(flat) == 1 {
+		return flat[0]
+	}
+	return &tnode{kind: typeUnion, options: flat}
 }
 
 func (c *typeChecker) cloneScalarTagType(tag string) *tnode {
@@ -395,14 +450,12 @@ func (c *typeChecker) inferExpr(expr ast.Expression) *tnode {
 	case *ast.IfExpression:
 		cond := c.inferExpr(e.Condition)
 		c.addConstraint(cond, c.scalar(typeBool), e.Token.Position, "if condition must be boolean")
-		_ = c.inferBlock(e.ThenBranch)
+		thenType := c.inferBlock(e.ThenBranch)
+		elseType := c.scalar(typeNil)
 		if e.ElseBranch != nil {
-			_ = c.inferBlock(e.ElseBranch)
+			elseType = c.inferBlock(e.ElseBranch)
 		}
-		// Slug conditionals are often used for side effects; branch values can
-		// legitimately differ in this dynamic setting. Keep branch-local checks
-		// but do not force branch result type unification.
-		return c.scalar(typeAny)
+		return c.unionType(thenType, elseType)
 	case *ast.FunctionLiteral:
 		return c.inferFunctionLiteral(e)
 	case *ast.CallExpression:
@@ -462,6 +515,7 @@ func (c *typeChecker) inferExpr(expr ast.Expression) *tnode {
 		if e.Value != nil {
 			scrutinee = c.inferExpr(e.Value)
 		}
+		caseResults := make([]*tnode, 0, len(e.Cases))
 		for _, cs := range e.Cases {
 			if cs == nil {
 				continue
@@ -481,13 +535,12 @@ func (c *typeChecker) inferExpr(expr ast.Expression) *tnode {
 			}
 			bodyType := c.inferBlockInCurrentScope(cs.Body)
 			c.popScope()
-			_ = bodyType
+			caseResults = append(caseResults, bodyType)
 		}
-		// Slug match expressions are frequently used to dispatch across
-		// heterogeneous runtime shapes (for example different struct schemas).
-		// Keep case-local checks/pattern narrowing, but avoid forcing all
-		// case body result values into one static type.
-		return c.scalar(typeAny)
+		if len(caseResults) == 0 {
+			return c.scalar(typeNil)
+		}
+		return c.unionType(caseResults...)
 	case *ast.SelectExpression:
 		out := c.freshUnknown()
 		for _, cs := range e.Cases {
@@ -942,6 +995,37 @@ func (c *typeChecker) solveConstraints() {
 	}
 }
 
+func (c *typeChecker) typeSig(t *tnode) string {
+	t = c.find(t)
+	if t == nil {
+		return "nilnode"
+	}
+	switch t.kind {
+	case typeList:
+		return "list<" + c.typeSig(t.elem) + ">"
+	case typeMap:
+		return "map<" + c.typeSig(t.key) + "," + c.typeSig(t.val) + ">"
+	case typeFn:
+		return "fn"
+	case typeStruct:
+		if t.name == "" {
+			return "struct"
+		}
+		return "struct(" + t.name + ")"
+	case typeUnion:
+		out := "union("
+		for i, opt := range t.options {
+			if i > 0 {
+				out += "|"
+			}
+			out += c.typeSig(opt)
+		}
+		return out + ")"
+	default:
+		return string(t.kind)
+	}
+}
+
 func (c *typeChecker) isCompatible(got, expected *tnode) bool {
 	g := c.find(got)
 	e := c.find(expected)
@@ -953,6 +1037,22 @@ func (c *typeChecker) isCompatible(got, expected *tnode) bool {
 	}
 	if g.kind == typeAny || e.kind == typeAny || g.kind == typeUnknown || e.kind == typeUnknown {
 		return true
+	}
+	if g.kind == typeUnion {
+		for _, opt := range g.options {
+			if !c.isCompatible(opt, e) {
+				return false
+			}
+		}
+		return true
+	}
+	if e.kind == typeUnion {
+		for _, opt := range e.options {
+			if c.isCompatible(g, opt) {
+				return true
+			}
+		}
+		return false
 	}
 	if g.kind == typeNil || e.kind == typeNil {
 		return true
@@ -1001,6 +1101,22 @@ func (c *typeChecker) isPlusCompatible(left, right *tnode) bool {
 	if l.kind == typeAny || r.kind == typeAny || l.kind == typeUnknown || r.kind == typeUnknown {
 		return true
 	}
+	if l.kind == typeUnion {
+		for _, opt := range l.options {
+			if !c.isPlusCompatible(opt, r) {
+				return false
+			}
+		}
+		return true
+	}
+	if r.kind == typeUnion {
+		for _, opt := range r.options {
+			if !c.isPlusCompatible(l, opt) {
+				return false
+			}
+		}
+		return true
+	}
 	// Runtime allows string concatenation with any value.
 	if l.kind == typeStr || r.kind == typeStr {
 		return true
@@ -1027,6 +1143,22 @@ func (c *typeChecker) isMulCompatible(left, right *tnode) bool {
 	if l.kind == typeAny || r.kind == typeAny || l.kind == typeUnknown || r.kind == typeUnknown {
 		return true
 	}
+	if l.kind == typeUnion {
+		for _, opt := range l.options {
+			if !c.isMulCompatible(opt, r) {
+				return false
+			}
+		}
+		return true
+	}
+	if r.kind == typeUnion {
+		for _, opt := range r.options {
+			if !c.isMulCompatible(l, opt) {
+				return false
+			}
+		}
+		return true
+	}
 	// runtime: str * num
 	if l.kind == typeStr {
 		return r.kind == typeNum
@@ -1045,6 +1177,22 @@ func (c *typeChecker) isBitwiseCompatible(left, right *tnode) bool {
 		return true
 	}
 	if l.kind == typeAny || r.kind == typeAny || l.kind == typeUnknown || r.kind == typeUnknown {
+		return true
+	}
+	if l.kind == typeUnion {
+		for _, opt := range l.options {
+			if !c.isBitwiseCompatible(opt, r) {
+				return false
+			}
+		}
+		return true
+	}
+	if r.kind == typeUnion {
+		for _, opt := range r.options {
+			if !c.isBitwiseCompatible(l, opt) {
+				return false
+			}
+		}
 		return true
 	}
 	// runtime:
@@ -1134,6 +1282,22 @@ func (c *typeChecker) unify(a, b *tnode) bool {
 	if a.kind == typeAny || b.kind == typeAny {
 		return true
 	}
+	if a.kind == typeUnion {
+		for _, opt := range a.options {
+			if c.isCompatible(opt, b) {
+				return true
+			}
+		}
+		return false
+	}
+	if b.kind == typeUnion {
+		for _, opt := range b.options {
+			if c.isCompatible(a, opt) {
+				return true
+			}
+		}
+		return false
+	}
 	if a.kind == typeUnknown {
 		return c.bindUnknown(a, b)
 	}
@@ -1193,6 +1357,15 @@ func (c *typeChecker) describe(t *tnode) string {
 			return "struct(" + t.name + ")"
 		}
 		return "struct"
+	case typeUnion:
+		out := "union<"
+		for i, opt := range t.options {
+			if i > 0 {
+				out += " | "
+			}
+			out += c.describe(opt)
+		}
+		return out + ">"
 	default:
 		return string(t.kind)
 	}
