@@ -738,3 +738,23 @@
 - Expanded regression coverage in bytes bitwise test to include mixed forms.
 - Validation performed:
   - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
+
+### Semantic typing fix for heterogeneous map-pattern arms and case scrutinee isolation
+
+- Fixed over-constrained map pattern inference and cross-case scrutinee leakage in match analysis.
+- Updated match case typing to clone scrutinee type per case, preventing sibling case constraints from intersecting.
+- Updated map-pattern narrowing/binding to avoid forcing homogeneous map value types per arm.
+- Added regression test based on heterogeneous map arm sample:
+  - `TestSemanticTypeCheckStrictAllowsHeterogeneousMapPatternArms`.
+- Validation performed:
+  - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
+
+### Semantic typing fix for call-site monomorphization across heterogeneous map shapes
+
+- Fixed false-positive call argument mismatches caused by early call-site monomorphization of function parameter types.
+- Updated call argument checking to use deferred compatibility validation after constraint solving, instead of eagerly constraining parameter nodes from each call site.
+- Preserves inferred function requirements while allowing valid heterogeneous argument shapes across different calls when function logic supports them.
+- Added regression test:
+  - `TestSemanticTypeCheckStrictAllowsMultipleMapValueShapesAcrossCalls`.
+- Validation performed:
+  - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`

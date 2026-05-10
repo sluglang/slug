@@ -528,6 +528,79 @@ val out = match list {
 	}
 }
 
+func TestSemanticTypeCheckStrictAllowsHeterogeneousMapPatternArms(t *testing.T) {
+	input := `
+val f = fn(x) {
+  match x {
+    {} => "empty map"
+    {"k":1} => "map with k == 1"
+    {"k":k} if k == "a" => "map with " + k
+    {"k":k} => "map with " + k
+    {"k1", "k2":k, ...a} => "map with " + k + " '" + a + "'"
+    {...} => "map with data"
+    _ => {
+      return "default"
+    }
+  }
+}
+
+val out = {"k":"v"} /> f
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+		StrictTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+	}
+	if len(errs) > 0 {
+		t.Fatalf("expected no semantic errors for heterogeneous map pattern arms, got: %v", errs)
+	}
+}
+
+func TestSemanticTypeCheckStrictAllowsMultipleMapValueShapesAcrossCalls(t *testing.T) {
+	input := `
+val f = fn(x) {
+  match x {
+    {} => "empty map"
+    {"k":1} => "map with k == 1"
+    {"k":k} if k == "a" => "map with " + k
+    {"k":k} => "map with " + k
+    {"k1", "k2":k, ...a} => "map with " + k + " '" + a + "'"
+    {...} => "map with data"
+    _ => {
+      return "default"
+    }
+  }
+}
+
+val a = {"k":"v"} /> f
+val b = {"k":1} /> f
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+		StrictTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+	}
+	if len(errs) > 0 {
+		t.Fatalf("expected no semantic errors for multiple map value shapes across calls, got: %v", errs)
+	}
+}
+
 func TestSemanticTypeCheckStrictAllowsBytesAppendAndPrependOperators(t *testing.T) {
 	input := `
 val a = 0x"0102" :+ 3

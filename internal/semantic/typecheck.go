@@ -52,11 +52,18 @@ type tdiag struct {
 	msg string
 }
 
+type callCheck struct {
+	pos      int
+	got      *tnode
+	expected *tnode
+}
+
 type typeChecker struct {
 	a           *analyzer
 	nextID      int
 	constraints []tconstraint
 	diags       []tdiag
+	callChecks  []callCheck
 	scopes      []map[string]*tnode
 	schemas     map[string]map[string]*tnode
 }
@@ -428,8 +435,13 @@ func (c *typeChecker) inferExpr(expr ast.Expression) *tnode {
 				continue
 			}
 			c.pushIsolatedScopeFromVisible()
-			if scrutinee != nil {
-				c.narrowPattern(cs.Pattern, scrutinee, cs.Token.Position)
+			caseMemo := map[*tnode]*tnode{}
+			caseScrutinee := scrutinee
+			if caseScrutinee != nil {
+				caseScrutinee = c.cloneForCaseScope(caseScrutinee, caseMemo)
+			}
+			if caseScrutinee != nil {
+				c.narrowPattern(cs.Pattern, caseScrutinee, cs.Token.Position)
 			}
 			if cs.Guard != nil {
 				guardType := c.inferExpr(cs.Guard)
@@ -543,7 +555,11 @@ func (c *typeChecker) inferCall(call *ast.CallExpression) *tnode {
 			limit = len(ct.params)
 		}
 		for i := 0; i < limit; i++ {
-			c.addConstraint(args[i], ct.params[i], call.Token.Position, "call argument type")
+			c.callChecks = append(c.callChecks, callCheck{
+				pos:      call.Token.Position,
+				got:      args[i],
+				expected: ct.params[i],
+			})
 		}
 		c.addConstraint(result, ct.ret, call.Token.Position, "call return type")
 	}
@@ -688,13 +704,12 @@ func (c *typeChecker) bindPattern(pattern ast.MatchPattern, valueType *tnode) {
 			c.bindPattern(item, elem)
 		}
 	case *ast.MapPattern:
-		mv := c.freshUnknown()
-		c.addConstraint(valueType, c.mapType(c.freshUnknown(), mv), p.Token.Position, "map pattern type")
+		c.addConstraint(valueType, c.mapType(c.freshUnknown(), c.scalar(typeAny)), p.Token.Position, "map pattern type")
 		for _, entry := range p.Pairs {
-			c.bindPattern(entry.Pattern, mv)
+			c.bindPattern(entry.Pattern, c.freshUnknown())
 		}
 		if p.Spread != nil {
-			c.bindPattern(p.Spread, c.mapType(c.freshUnknown(), mv))
+			c.bindPattern(p.Spread, c.mapType(c.freshUnknown(), c.scalar(typeAny)))
 		}
 	case *ast.StructPattern:
 		for _, f := range p.Fields {
@@ -726,13 +741,12 @@ func (c *typeChecker) narrowPattern(pattern ast.MatchPattern, valueType *tnode, 
 			c.narrowPattern(item, elem, pos)
 		}
 	case *ast.MapPattern:
-		mv := c.freshUnknown()
-		c.addConstraint(valueType, c.mapType(c.freshUnknown(), mv), pos, "match map pattern")
+		c.addConstraint(valueType, c.mapType(c.freshUnknown(), c.scalar(typeAny)), pos, "match map pattern")
 		for _, entry := range p.Pairs {
-			c.narrowPattern(entry.Pattern, mv, pos)
+			c.narrowPattern(entry.Pattern, c.freshUnknown(), pos)
 		}
 		if p.Spread != nil {
-			c.narrowPattern(p.Spread, c.mapType(c.freshUnknown(), mv), pos)
+			c.narrowPattern(p.Spread, c.mapType(c.freshUnknown(), c.scalar(typeAny)), pos)
 		}
 	case *ast.StructPattern:
 		c.addConstraint(valueType, &tnode{kind: typeStruct, name: p.Schema.Value}, pos, "match struct pattern")
@@ -843,6 +857,60 @@ func (c *typeChecker) solveConstraints() {
 		if !c.unify(cs.lhs, cs.rhs) {
 			c.addDiag(cs.pos, "%s", c.renderConstraintMismatch(cs))
 		}
+	}
+	for _, cc := range c.callChecks {
+		if !c.isCompatible(cc.got, cc.expected) {
+			c.addDiag(cc.pos, "call argument type mismatch: expected %s, got %s", c.describe(cc.expected), c.describe(cc.got))
+		}
+	}
+}
+
+func (c *typeChecker) isCompatible(got, expected *tnode) bool {
+	g := c.find(got)
+	e := c.find(expected)
+	if g == nil || e == nil {
+		return true
+	}
+	if g == e {
+		return true
+	}
+	if g.kind == typeAny || e.kind == typeAny || g.kind == typeUnknown || e.kind == typeUnknown {
+		return true
+	}
+	if g.kind == typeNil || e.kind == typeNil {
+		return true
+	}
+	if g.kind != e.kind {
+		return false
+	}
+	switch g.kind {
+	case typeList:
+		return c.isCompatible(g.elem, e.elem)
+	case typeMap:
+		return c.isCompatible(g.key, e.key) && c.isCompatible(g.val, e.val)
+	case typeFn:
+		if (e.maxArgs == -1 && len(e.params) == 0) || (g.maxArgs == -1 && len(g.params) == 0) {
+			return true
+		}
+		if g.variadic != e.variadic {
+			return false
+		}
+		if len(g.params) != len(e.params) {
+			return false
+		}
+		for i := range g.params {
+			if !c.isCompatible(g.params[i], e.params[i]) {
+				return false
+			}
+		}
+		return c.isCompatible(g.ret, e.ret)
+	case typeStruct:
+		if g.name != "" && e.name != "" && g.name != e.name {
+			return false
+		}
+		return true
+	default:
+		return true
 	}
 }
 
