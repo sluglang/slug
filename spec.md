@@ -1658,3 +1658,83 @@ Tests added in `internal/lsp/server_test.go`:
 Validation performed:
 - `go test ./internal/lsp -count=1`
 - `go test ./... -count=1`
+
+### LSP codeAction ranking/dedup: deterministic quick-fix ordering
+
+- Added deterministic ranking + dedup for code actions in `internal/lsp/server.go`.
+- Quick-fix rank order (least disruptive first):
+  1. qualify with existing alias (`std.reduce`)
+  2. extend existing import binding (`, reduce`)
+  3. insert new import line (`val { reduce } = import("...")`)
+- Added stable secondary ordering by title for deterministic UX.
+
+Implementation additions:
+- `rankAndDedupeCodeActions`
+- `actionRank`
+- `actionDedupKey`
+- `importEditPlan.Mode` to classify import edit strategy (`extend` vs `insert`).
+
+Test update:
+- `TestServerCodeActionSuggestsQualifyWithExistingImportAlias` now asserts ranked first action is the qualification fix.
+
+Validation performed:
+- `go test ./internal/lsp -count=1`
+- `go test ./... -count=1`
+
+### LSP codeAction preference refinement: favor import-extension over alias qualification
+
+- Refined quick-fix ranking in `internal/lsp/server.go` to prefer import-style consistency.
+- Updated ranking order when multiple fixes are available:
+  1. extend existing import binding (`extend`)
+  2. qualify with alias (`qualify`)
+  3. insert new import line (`insert`)
+
+Implementation details:
+- Added internal code-action metadata field `RankGroup` (non-serialized) to carry strategy classification.
+- `handleCodeAction` now tags actions with `RankGroup`:
+  - `extend`, `qualify`, `insert`.
+- `actionRank` now uses `RankGroup` primarily for deterministic style-aware ordering.
+
+Test added in `internal/lsp/server_test.go`:
+- `TestServerCodeActionPrefersExtendImportOverQualifyWhenBothAvailable`
+  - verifies first ranked action is import extension (`", reduce"`) when both extension and qualification fixes are possible.
+
+Validation performed:
+- `go test ./internal/lsp -count=1`
+- `go test ./... -count=1`
+
+### LSP Phase 16: textDocument/signatureHelp (initial function parameter help)
+
+- Added `textDocument/signatureHelp` support in `internal/lsp/server.go`.
+- Advertised `signatureHelpProvider` capabilities with trigger characters:
+  - `(`
+  - `,`
+
+Implemented behavior:
+- Detect enclosing call context and active parameter index from cursor position.
+- Resolve function signatures from:
+  - local function bindings (`val/var name = fn(...)`),
+  - imported destructured bindings,
+  - wildcard import module exports,
+  - module-member forms (`alias.fn(...)`, `import("mod").fn(...)`).
+- Returns LSP `SignatureHelp` payload with:
+  - signature label,
+  - parameter labels,
+  - active parameter index.
+
+Implementation helpers added:
+- `collectFunctionSignatures`
+- `resolveFunctionAt`
+- `findCallContext`
+- `resolveSignatureForCallee`
+- `resolveModuleExportSignature`
+- inline module parse helpers (`parseInlineImportModules`, `moduleForAliasInDoc`).
+
+Tests added/updated in `internal/lsp/server_test.go`:
+- initialize capabilities now assert `signatureHelpProvider` exists.
+- `TestServerSignatureHelpLocalFunctionAndActiveParam`
+- `TestServerSignatureHelpImportedFunction`
+
+Validation performed:
+- `go test ./internal/lsp -count=1`
+- `go test ./... -count=1`

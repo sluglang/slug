@@ -17,6 +17,7 @@ import (
 	"slug/internal/lexer"
 	"slug/internal/parser"
 	"slug/internal/token"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -96,6 +97,7 @@ type serverCapabilities struct {
 	RenameProvider            *renameProvider         `json:"renameProvider,omitempty"`
 	CodeActionProvider        bool                    `json:"codeActionProvider,omitempty"`
 	CompletionProvider        *completionProvider     `json:"completionProvider,omitempty"`
+	SignatureHelpProvider     *signatureHelpProvider  `json:"signatureHelpProvider,omitempty"`
 }
 
 type textDocumentSyncOptions struct {
@@ -173,6 +175,10 @@ type renameProvider struct {
 	PrepareProvider bool `json:"prepareProvider,omitempty"`
 }
 
+type signatureHelpProvider struct {
+	TriggerCharacters []string `json:"triggerCharacters,omitempty"`
+}
+
 type cancelRequestParams struct {
 	ID json.RawMessage `json:"id"`
 }
@@ -231,11 +237,30 @@ type lspCodeAction struct {
 	Title string            `json:"title"`
 	Kind  string            `json:"kind,omitempty"`
 	Edit  *lspWorkspaceEdit `json:"edit,omitempty"`
+	// Internal ranking metadata; not part of LSP payload.
+	RankGroup string `json:"-"`
+}
+
+type lspSignatureHelp struct {
+	Signatures      []lspSignatureInformation `json:"signatures"`
+	ActiveSignature int                       `json:"activeSignature"`
+	ActiveParameter int                       `json:"activeParameter"`
+}
+
+type lspSignatureInformation struct {
+	Label         string                    `json:"label"`
+	Parameters    []lspParameterInformation `json:"parameters,omitempty"`
+	Documentation *lspMarkupContent         `json:"documentation,omitempty"`
+}
+
+type lspParameterInformation struct {
+	Label string `json:"label"`
 }
 
 type importEditPlan struct {
 	Range   lspRange
 	NewText string
+	Mode    string
 }
 
 type symbolDef struct {
@@ -262,6 +287,15 @@ type moduleSymbolIdentity struct {
 	Module string
 	Name   string
 	Kind   string
+}
+
+type functionSignature struct {
+	Name       string
+	Params     []string
+	Detail     string
+	ScopeDepth int
+	Start      int
+	End        int
 }
 
 type memberIdentityHit struct {
@@ -316,6 +350,7 @@ func NewServer(in io.Reader, out io.Writer, analyze Analyzer) *Server {
 		"textDocument/prepareRename":     s.handlePrepareRename,
 		"textDocument/rename":            s.handleRename,
 		"textDocument/codeAction":        s.handleCodeAction,
+		"textDocument/signatureHelp":     s.handleSignatureHelp,
 		"textDocument/completion":        s.handleCompletion,
 		"completionItem/resolve":         s.handleCompletionResolve,
 	}
@@ -396,6 +431,7 @@ func (s *Server) handleInitialize(req rpcRequest) error {
 		RenameProvider:            &renameProvider{PrepareProvider: true},
 		CodeActionProvider:        true,
 		CompletionProvider:        &completionProvider{ResolveProvider: true},
+		SignatureHelpProvider:     &signatureHelpProvider{TriggerCharacters: []string{"(", ","}},
 	}})
 }
 
@@ -739,8 +775,9 @@ func (s *Server) handleCodeAction(req rpcRequest) error {
 			continue
 		}
 		actions = append(actions, lspCodeAction{
-			Title: fmt.Sprintf("Qualify with '%s.%s'", b.LocalName, name),
-			Kind:  "quickfix",
+			Title:     fmt.Sprintf("Qualify with '%s.%s'", b.LocalName, name),
+			Kind:      "quickfix",
+			RankGroup: "qualify",
 			Edit: &lspWorkspaceEdit{
 				Changes: map[string][]lspTextEdit{
 					normURI: {{
@@ -754,13 +791,18 @@ func (s *Server) handleCodeAction(req rpcRequest) error {
 
 	modules := s.discoverExportingModules(normURI, name)
 	if len(modules) == 0 {
-		return s.writeResult(req.ID, actions)
+		return s.writeResult(req.ID, rankAndDedupeCodeActions(actions))
 	}
 	for _, module := range modules {
 		plan := buildImportEditPlan(doc.Text, module, name)
+		title := fmt.Sprintf("Add import for '%s' from '%s'", name, module)
+		if plan.Mode == "extend" {
+			title = fmt.Sprintf("Extend import from '%s' with '%s'", module, name)
+		}
 		actions = append(actions, lspCodeAction{
-			Title: fmt.Sprintf("Add import for '%s' from '%s'", name, module),
-			Kind:  "quickfix",
+			Title:     title,
+			Kind:      "quickfix",
+			RankGroup: plan.Mode,
 			Edit: &lspWorkspaceEdit{
 				Changes: map[string][]lspTextEdit{
 					normURI: {{
@@ -771,7 +813,51 @@ func (s *Server) handleCodeAction(req rpcRequest) error {
 			},
 		})
 	}
-	return s.writeResult(req.ID, actions)
+	return s.writeResult(req.ID, rankAndDedupeCodeActions(actions))
+}
+
+func (s *Server) handleSignatureHelp(req rpcRequest) error {
+	var p textDocumentPositionParams
+	if err := json.Unmarshal(req.Params, &p); err != nil {
+		return s.writeError(idOrNil(req.ID), -32602, "Invalid params", err.Error())
+	}
+	normURI, _ := normalizeURI(p.TextDocument.URI)
+	doc, ok := s.docs[normURI]
+	if !ok {
+		return s.writeResult(req.ID, nil)
+	}
+	offset := offsetFromPosition(doc.Text, p.Position.Line, p.Position.Character)
+	calleeExpr, activeParam, ok := findCallContext(doc.Text, offset)
+	if !ok {
+		return s.writeResult(req.ID, nil)
+	}
+	sig, ok := s.resolveSignatureForCallee(normURI, doc.Text, calleeExpr, offset)
+	if !ok {
+		return s.writeResult(req.ID, nil)
+	}
+	label := sig.Name + "(" + strings.Join(sig.Params, ", ") + ")"
+	params := make([]lspParameterInformation, 0, len(sig.Params))
+	for _, pn := range sig.Params {
+		params = append(params, lspParameterInformation{Label: pn})
+	}
+	if activeParam < 0 {
+		activeParam = 0
+	}
+	if activeParam >= len(params) && len(params) > 0 {
+		activeParam = len(params) - 1
+	}
+	help := lspSignatureHelp{
+		Signatures: []lspSignatureInformation{{
+			Label:      label,
+			Parameters: params,
+		}},
+		ActiveSignature: 0,
+		ActiveParameter: activeParam,
+	}
+	if strings.TrimSpace(sig.Detail) != "" {
+		help.Signatures[0].Documentation = &lspMarkupContent{Kind: "markdown", Value: sig.Detail}
+	}
+	return s.writeResult(req.ID, help)
 }
 
 func (s *Server) handleCompletion(req rpcRequest) error {
@@ -1811,10 +1897,307 @@ func (s *Server) resolveModuleExportLocation(originURI string, module string, na
 	return lspLocation{}, false
 }
 
+func (s *Server) resolveModuleExportSignature(originURI string, module string, name string) (functionSignature, bool) {
+	var src string
+	if docURI, ok := s.findOpenDocURIByModule(module); ok {
+		src = s.docs[docURI].Text
+	} else {
+		candidates := modulePathCandidatesFromURI(originURI, module)
+		if len(candidates) == 0 {
+			return functionSignature{}, false
+		}
+		var loaded bool
+		for _, path := range candidates {
+			b, err := os.ReadFile(path)
+			if err != nil {
+				continue
+			}
+			src = string(b)
+			loaded = true
+			break
+		}
+		if !loaded {
+			return functionSignature{}, false
+		}
+	}
+	sigs := collectFunctionSignatures(src)
+	for _, sig := range sigs {
+		if sig.Name == name && sig.ScopeDepth == 0 {
+			return sig, true
+		}
+	}
+	return functionSignature{}, false
+}
+
 func (s *Server) findOpenDocURIByModule(module string) (string, bool) {
 	for uri := range s.docs {
 		if moduleNameFromURI(uri) == module {
 			return uri, true
+		}
+	}
+	return "", false
+}
+
+func collectFunctionSignatures(src string) []functionSignature {
+	l := lexer.New(src)
+	p := parser.New(l, "<lsp>", src)
+	program := p.ParseProgram()
+	out := []functionSignature{}
+	scopeDepth := 0
+
+	var walkStmt func(ast.Statement)
+	var walkExpr func(ast.Expression)
+	add := func(name string, params []*ast.FunctionParameter, detail string, start int, end int) {
+		pn := make([]string, 0, len(params))
+		for _, p := range params {
+			if p == nil || p.Name == nil {
+				continue
+			}
+			pn = append(pn, p.Name.Value)
+		}
+		out = append(out, functionSignature{Name: name, Params: pn, Detail: detail, ScopeDepth: scopeDepth, Start: start, End: end})
+	}
+
+	walkStmt = func(st ast.Statement) {
+		switch s := st.(type) {
+		case *ast.ExpressionStatement:
+			walkExpr(s.Expression)
+		case *ast.ReturnStatement:
+			walkExpr(s.ReturnValue)
+		case *ast.ThrowStatement:
+			walkExpr(s.Value)
+		case *ast.BlockStatement:
+			scopeDepth++
+			for _, c := range s.Statements {
+				walkStmt(c)
+			}
+			scopeDepth--
+		case *ast.ForeignFunctionDeclaration:
+			if s.Name != nil {
+				start := s.Name.Token.Position
+				end := start + len(s.Name.Token.Literal)
+				add(s.Name.Value, s.Parameters, "foreign function", start, end)
+			}
+		}
+	}
+
+	walkExpr = func(ex ast.Expression) {
+		switch e := ex.(type) {
+		case *ast.ValExpression:
+			if fn, ok := e.Value.(*ast.FunctionLiteral); ok {
+				for _, n := range topLevelPatternNames(e.Pattern) {
+					add(n.Name, fn.Parameters, "function", n.Start, n.End)
+				}
+			}
+			walkExpr(e.Value)
+		case *ast.VarExpression:
+			if fn, ok := e.Value.(*ast.FunctionLiteral); ok {
+				for _, n := range topLevelPatternNames(e.Pattern) {
+					add(n.Name, fn.Parameters, "function", n.Start, n.End)
+				}
+			}
+			walkExpr(e.Value)
+		case *ast.FunctionLiteral:
+			scopeDepth++
+			if e.Body != nil {
+				for _, st := range e.Body.Statements {
+					walkStmt(st)
+				}
+			}
+			scopeDepth--
+		case *ast.IfExpression:
+			walkExpr(e.Condition)
+			if e.ThenBranch != nil {
+				walkStmt(e.ThenBranch)
+			}
+			if e.ElseBranch != nil {
+				walkStmt(e.ElseBranch)
+			}
+		case *ast.CallExpression:
+			walkExpr(e.Function)
+			for _, a := range e.Arguments {
+				walkExpr(a)
+			}
+		case *ast.IndexExpression:
+			walkExpr(e.Left)
+			walkExpr(e.Index)
+		}
+	}
+
+	for _, st := range program.Statements {
+		walkStmt(st)
+	}
+	return out
+}
+
+func resolveFunctionAt(name string, useOffset int, defs []functionSignature) (functionSignature, bool) {
+	best := functionSignature{}
+	found := false
+	for _, d := range defs {
+		if d.Name != name || d.Start > useOffset {
+			continue
+		}
+		if !found || d.ScopeDepth > best.ScopeDepth || (d.ScopeDepth == best.ScopeDepth && d.Start > best.Start) {
+			best = d
+			found = true
+		}
+	}
+	return best, found
+}
+
+func findCallContext(src string, off int) (calleeExpr string, activeParam int, ok bool) {
+	if off < 0 {
+		return "", 0, false
+	}
+	if off > len(src) {
+		off = len(src)
+	}
+	depth := 0
+	open := -1
+	for i := off - 1; i >= 0; i-- {
+		switch src[i] {
+		case ')':
+			depth++
+		case '(':
+			if depth == 0 {
+				open = i
+				i = -1
+				break
+			}
+			depth--
+		}
+	}
+	if open < 0 {
+		return "", 0, false
+	}
+	j := open - 1
+	for j >= 0 && (src[j] == ' ' || src[j] == '\t' || src[j] == '\n' || src[j] == '\r') {
+		j--
+	}
+	if j < 0 {
+		return "", 0, false
+	}
+	start := j
+	for start >= 0 {
+		b := src[start]
+		if (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || (b >= '0' && b <= '9') || b == '_' || b == '.' || b == '"' || b == '\'' || b == '(' || b == ')' {
+			start--
+			continue
+		}
+		break
+	}
+	start++
+	if start > j {
+		return "", 0, false
+	}
+	callee := strings.TrimSpace(src[start : j+1])
+	if callee == "" {
+		return "", 0, false
+	}
+	param := 0
+	nest := 0
+	for i := open + 1; i < off && i < len(src); i++ {
+		switch src[i] {
+		case '(', '[', '{':
+			nest++
+		case ')', ']', '}':
+			if nest > 0 {
+				nest--
+			}
+		case ',':
+			if nest == 0 {
+				param++
+			}
+		}
+	}
+	return callee, param, true
+}
+
+func (s *Server) resolveSignatureForCallee(originURI string, src string, callee string, callOffset int) (functionSignature, bool) {
+	callee = strings.TrimSpace(callee)
+	if callee == "" {
+		return functionSignature{}, false
+	}
+	if strings.Contains(callee, ".") {
+		parts := strings.Split(callee, ".")
+		member := parts[len(parts)-1]
+		prefix := strings.Join(parts[:len(parts)-1], ".")
+		if prefix == "import(\"slug.std\")" || strings.HasPrefix(prefix, "import(") {
+			mods := parseInlineImportModules(prefix)
+			for _, m := range mods {
+				if sig, ok := s.resolveModuleExportSignature(originURI, m, member); ok {
+					return sig, true
+				}
+			}
+		}
+		if mod, ok := moduleForAliasInDoc(src, prefix); ok {
+			if sig, ok := s.resolveModuleExportSignature(originURI, mod, member); ok {
+				return sig, true
+			}
+		}
+	}
+	name := callee
+	if idx := strings.LastIndex(name, "."); idx >= 0 {
+		name = name[idx+1:]
+	}
+	defs := collectFunctionSignatures(src)
+	if sig, ok := resolveFunctionAt(name, callOffset, defs); ok {
+		if sig.ScopeDepth == 0 {
+			for _, b := range collectImportBindingsForModule(src, "") {
+				if b.LocalName == name {
+					if imp, ok := s.resolveModuleExportSignature(originURI, b.SourceModule, b.SourceName); ok {
+						return imp, true
+					}
+				}
+			}
+			for _, mod := range collectWildcardImportModules(src) {
+				if imp, ok := s.resolveModuleExportSignature(originURI, mod, name); ok {
+					return imp, true
+				}
+			}
+		}
+		return sig, true
+	}
+	for _, b := range collectImportBindingsForModule(src, "") {
+		if b.LocalName == name {
+			if imp, ok := s.resolveModuleExportSignature(originURI, b.SourceModule, b.SourceName); ok {
+				return imp, true
+			}
+		}
+	}
+	for _, mod := range collectWildcardImportModules(src) {
+		if imp, ok := s.resolveModuleExportSignature(originURI, mod, name); ok {
+			return imp, true
+		}
+	}
+	return functionSignature{}, false
+}
+
+func parseInlineImportModules(expr string) []string {
+	expr = strings.TrimSpace(expr)
+	if !strings.HasPrefix(expr, "import(") || !strings.HasSuffix(expr, ")") {
+		return nil
+	}
+	inside := strings.TrimSpace(expr[len("import(") : len(expr)-1])
+	if inside == "" {
+		return nil
+	}
+	parts := strings.Split(inside, ",")
+	out := []string{}
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		p = strings.Trim(p, "\"'")
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+func moduleForAliasInDoc(src string, alias string) (string, bool) {
+	for _, b := range collectImportObjectBindings(src, "") {
+		if b.LocalName == alias {
+			return b.SourceModule, true
 		}
 	}
 	return "", false
@@ -2182,6 +2565,7 @@ func buildImportEditPlan(src string, module string, symbol string) importEditPla
 	return importEditPlan{
 		Range:   lspRange{Start: insertPos, End: insertPos},
 		NewText: fmt.Sprintf("val { %s } = import(\"%s\")\n", symbol, module),
+		Mode:    "insert",
 	}
 }
 
@@ -2239,9 +2623,84 @@ func extendExistingImportBinding(src string, module string, symbol string) (impo
 		return importEditPlan{
 			Range:   lspRange{Start: ins, End: ins},
 			NewText: ", " + symbol,
+			Mode:    "extend",
 		}, true
 	}
 	return importEditPlan{}, false
+}
+
+func rankAndDedupeCodeActions(in []lspCodeAction) []lspCodeAction {
+	if len(in) <= 1 {
+		return in
+	}
+	type ranked struct {
+		a lspCodeAction
+		r int
+		k string
+	}
+	seen := map[string]bool{}
+	items := make([]ranked, 0, len(in))
+	for _, a := range in {
+		k := actionDedupKey(a)
+		if k == "" || seen[k] {
+			continue
+		}
+		seen[k] = true
+		items = append(items, ranked{a: a, r: actionRank(a), k: k})
+	}
+	sort.SliceStable(items, func(i, j int) bool {
+		if items[i].r != items[j].r {
+			return items[i].r < items[j].r
+		}
+		return items[i].a.Title < items[j].a.Title
+	})
+	out := make([]lspCodeAction, 0, len(items))
+	for _, it := range items {
+		out = append(out, it.a)
+	}
+	return out
+}
+
+func actionRank(a lspCodeAction) int {
+	switch a.RankGroup {
+	case "extend":
+		return 0
+	case "qualify":
+		return 1
+	case "insert":
+		return 2
+	}
+	if a.Edit == nil {
+		return 100
+	}
+	for _, edits := range a.Edit.Changes {
+		for _, e := range edits {
+			if strings.Contains(e.NewText, ".") && !strings.HasPrefix(e.NewText, "val {") && !strings.HasPrefix(e.NewText, "var {") {
+				return 0
+			}
+			if strings.HasPrefix(e.NewText, ", ") {
+				return 1
+			}
+			if strings.HasPrefix(e.NewText, "val {") || strings.HasPrefix(e.NewText, "var {") {
+				return 2
+			}
+		}
+	}
+	return 50
+}
+
+func actionDedupKey(a lspCodeAction) string {
+	if a.Edit == nil {
+		return a.Title
+	}
+	parts := []string{a.Title}
+	for uri, edits := range a.Edit.Changes {
+		for _, e := range edits {
+			parts = append(parts, fmt.Sprintf("%s:%d:%d:%d:%d:%s", uri, e.Range.Start.Line, e.Range.Start.Character, e.Range.End.Line, e.Range.End.Character, e.NewText))
+		}
+	}
+	sort.Strings(parts)
+	return strings.Join(parts, "|")
 }
 
 func offsetAfterNode(src string, n ast.Node) int {

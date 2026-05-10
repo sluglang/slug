@@ -111,6 +111,9 @@ func TestServerInitializeShutdownExit(t *testing.T) {
 		if capVal, ok := caps["codeActionProvider"].(bool); !ok || !capVal {
 			t.Fatalf("expected codeActionProvider=true, got %#v", caps["codeActionProvider"])
 		}
+		if shp, ok := caps["signatureHelpProvider"].(map[string]interface{}); !ok || shp == nil {
+			t.Fatalf("expected signatureHelpProvider, got %#v", caps["signatureHelpProvider"])
+		}
 		return
 	}
 	t.Fatal("initialize response not found")
@@ -726,6 +729,11 @@ func TestServerCodeActionSuggestsQualifyWithExistingImportAlias(t *testing.T) {
 		if !ok || len(res) == 0 {
 			t.Fatalf("codeAction result missing: %#v", m)
 		}
+		first, _ := res[0].(map[string]interface{})
+		firstTitle, _ := first["title"].(string)
+		if !strings.Contains(firstTitle, "std.reduce") {
+			t.Fatalf("expected first ranked action to qualify with std.reduce, got %q", firstTitle)
+		}
 		found := false
 		for _, item := range res {
 			act, _ := item.(map[string]interface{})
@@ -752,6 +760,169 @@ func TestServerCodeActionSuggestsQualifyWithExistingImportAlias(t *testing.T) {
 		return
 	}
 	t.Fatal("codeAction response not found")
+}
+
+func TestServerCodeActionPrefersExtendImportOverQualifyWhenBothAvailable(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("SLUG_HOME", tmp)
+	libDir := filepath.Join(tmp, "lib", "slug")
+	if err := os.MkdirAll(libDir, 0o755); err != nil {
+		t.Fatalf("mkdir failed: %v", err)
+	}
+	stdPath := filepath.Join(libDir, "std.slug")
+	stdSrc := "@export val map = fn(v){v}\n@export val reduce = fn(v){v}\n"
+	if err := os.WriteFile(stdPath, []byte(stdSrc), 0o644); err != nil {
+		t.Fatalf("write std module failed: %v", err)
+	}
+	playPath := filepath.Join(tmp, "playground.slug")
+	playSrc := "val std = import(\"slug.std\")\nval { map } = import(\"slug.std\")\n[1,2] /> reduce(0, fn(a,b){a})\n"
+	playSrcJSON := strings.ReplaceAll(playSrc, "\"", "\\\"")
+	playSrcJSON = strings.ReplaceAll(playSrcJSON, "\n", "\\n")
+	if err := os.WriteFile(playPath, []byte(playSrc), 0o644); err != nil {
+		t.Fatalf("write playground failed: %v", err)
+	}
+	playURI, _ := normalizeURI(playPath)
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"`+playURI+`","version":1,"text":"`+playSrcJSON+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":34,"method":"textDocument/codeAction","params":{"textDocument":{"uri":"`+playURI+`"},"range":{"start":{"line":2,"character":9},"end":{"line":2,"character":15}}}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok || int(id) != 34 {
+			continue
+		}
+		res, ok := m["result"].([]interface{})
+		if !ok || len(res) == 0 {
+			t.Fatalf("codeAction result missing: %#v", m)
+		}
+		first, _ := res[0].(map[string]interface{})
+		title, _ := first["title"].(string)
+		if !strings.Contains(title, "Extend import") {
+			t.Fatalf("expected first ranked action to extend existing import, got %q", title)
+		}
+		edit, _ := first["edit"].(map[string]interface{})
+		changes, _ := edit["changes"].(map[string]interface{})
+		edits, _ := changes[playURI].([]interface{})
+		if len(edits) != 1 {
+			t.Fatalf("expected single edit, got %#v", edits)
+		}
+		e0, _ := edits[0].(map[string]interface{})
+		newText, _ := e0["newText"].(string)
+		if newText != ", reduce" {
+			t.Fatalf("expected extension edit ', reduce', got %q", newText)
+		}
+		return
+	}
+	t.Fatal("codeAction response not found")
+}
+
+func TestServerSignatureHelpLocalFunctionAndActiveParam(t *testing.T) {
+	src := "val sum = fn(a, b) { a + b }\n[1,2] /> sum(1, 2)\n"
+	srcJSON := strings.ReplaceAll(src, "\"", "\\\"")
+	srcJSON = strings.ReplaceAll(srcJSON, "\n", "\\n")
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///a.slug","version":1,"text":"`+srcJSON+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":35,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":"file:///a.slug"},"position":{"line":1,"character":17}}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok || int(id) != 35 {
+			continue
+		}
+		res, ok := m["result"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("signatureHelp result missing: %#v", m)
+		}
+		ap, _ := res["activeParameter"].(float64)
+		if int(ap) != 1 {
+			t.Fatalf("expected activeParameter=1, got %#v", res["activeParameter"])
+		}
+		sigs, _ := res["signatures"].([]interface{})
+		if len(sigs) == 0 {
+			t.Fatalf("expected signatures, got %#v", res)
+		}
+		s0, _ := sigs[0].(map[string]interface{})
+		lbl, _ := s0["label"].(string)
+		if !strings.Contains(lbl, "sum(a, b)") {
+			t.Fatalf("unexpected signature label: %q", lbl)
+		}
+		return
+	}
+	t.Fatal("signatureHelp response not found")
+}
+
+func TestServerSignatureHelpImportedFunction(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("SLUG_HOME", tmp)
+	libDir := filepath.Join(tmp, "lib", "slug")
+	if err := os.MkdirAll(libDir, 0o755); err != nil {
+		t.Fatalf("mkdir failed: %v", err)
+	}
+	stdPath := filepath.Join(libDir, "std.slug")
+	stdSrc := "@export val reduce = fn(vs, f, init){ init }\n"
+	if err := os.WriteFile(stdPath, []byte(stdSrc), 0o644); err != nil {
+		t.Fatalf("write std module failed: %v", err)
+	}
+	src := "val { reduce } = import(\"slug.std\")\nreduce([1,2], fn(a,b){a}, 0)\n"
+	srcJSON := strings.ReplaceAll(src, "\"", "\\\"")
+	srcJSON = strings.ReplaceAll(srcJSON, "\n", "\\n")
+	playPath := filepath.Join(tmp, "playground.slug")
+	if err := os.WriteFile(playPath, []byte(src), 0o644); err != nil {
+		t.Fatalf("write playground failed: %v", err)
+	}
+	playURI, _ := normalizeURI(playPath)
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"`+playURI+`","version":1,"text":"`+srcJSON+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":36,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":"`+playURI+`"},"position":{"line":1,"character":24}}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok || int(id) != 36 {
+			continue
+		}
+		res, ok := m["result"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("signatureHelp result missing: %#v", m)
+		}
+		sigs, _ := res["signatures"].([]interface{})
+		if len(sigs) == 0 {
+			t.Fatalf("expected signatures, got %#v", res)
+		}
+		s0, _ := sigs[0].(map[string]interface{})
+		lbl, _ := s0["label"].(string)
+		if !strings.Contains(lbl, "reduce(vs, f, init)") {
+			t.Fatalf("unexpected imported signature label: %q", lbl)
+		}
+		return
+	}
+	t.Fatal("signatureHelp response not found")
 }
 
 func TestServerCompletionReturnsKeywordsAndSymbols(t *testing.T) {
