@@ -426,3 +426,76 @@ val useMapLike = fn(@list xs, @fn f) {
 		t.Fatalf("expected no semantic errors for generic @fn constraints, got: %v", errs)
 	}
 }
+
+func TestSemanticTypeCheckStrictAllowsMultiPatternLiteralAlternatives(t *testing.T) {
+	input := `
+val parseBoolLike = fn(v) {
+  match v {
+    "true", "t", "yes", "y", "1" => true
+    _ => false
+  }
+}
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+		StrictTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+	}
+	if len(errs) > 0 {
+		t.Fatalf("expected no semantic errors for multi-pattern literal alternatives, got: %v", errs)
+	}
+}
+
+func TestSemanticTypeCheckStrictAllowsNestedMatchAfterTypeDispatch(t *testing.T) {
+	input := `
+val BOOLEAN_TYPE = :bool
+val NUMBER_TYPE = :num
+val NIL_TYPE = :nil
+val STRING_TYPE = :str
+
+val Error = struct {
+  @str type = "Error",
+  @str msg,
+}
+
+val toBoolean = fn(v) {
+  match v /> type() {
+    ^BOOLEAN_TYPE => v
+    ^NUMBER_TYPE  => v == 1
+    ^NIL_TYPE     => false
+    ^STRING_TYPE  => {
+      match v {
+        "true", "t", "yes", "y", "TRUE", "T", "YES", "Y", "1" => true
+        "false", "f", "no", "n", "FALSE", "F", "NO", "N", "0" => false
+        _ => throw Error { type: "TypeError", msg: "Cannot convert '{{v}}' to boolean" }
+      }
+    }
+    t => throw Error { type: "TypeError", msg: "Cannot convert type {{t}} to boolean" }
+  }
+}
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+		StrictTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+	}
+	if len(errs) > 0 {
+		t.Fatalf("expected no semantic errors for nested match after type dispatch, got: %v", errs)
+	}
+}

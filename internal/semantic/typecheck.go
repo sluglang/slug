@@ -90,6 +90,15 @@ func (c *typeChecker) pushScope() {
 	c.scopes = append(c.scopes, map[string]*tnode{})
 }
 
+func (c *typeChecker) pushIsolatedScopeFromVisible() {
+	visible := c.visibleBindings()
+	cloned := map[string]*tnode{}
+	for name, t := range visible {
+		cloned[name] = c.cloneForCaseScope(t, map[*tnode]*tnode{})
+	}
+	c.scopes = append(c.scopes, cloned)
+}
+
 func (c *typeChecker) popScope() {
 	if len(c.scopes) > 0 {
 		c.scopes = c.scopes[:len(c.scopes)-1]
@@ -110,6 +119,52 @@ func (c *typeChecker) lookup(name string) *tnode {
 		}
 	}
 	return nil
+}
+
+func (c *typeChecker) visibleBindings() map[string]*tnode {
+	out := map[string]*tnode{}
+	for i := 0; i < len(c.scopes); i++ {
+		for k, v := range c.scopes[i] {
+			out[k] = v
+		}
+	}
+	return out
+}
+
+func (c *typeChecker) cloneForCaseScope(t *tnode, memo map[*tnode]*tnode) *tnode {
+	t = c.find(t)
+	if t == nil {
+		return c.freshUnknown()
+	}
+	if existing, ok := memo[t]; ok {
+		return existing
+	}
+	cp := &tnode{
+		kind:     t.kind,
+		id:       t.id,
+		variadic: t.variadic,
+		minArgs:  t.minArgs,
+		maxArgs:  t.maxArgs,
+		name:     t.name,
+	}
+	memo[t] = cp
+	switch t.kind {
+	case typeUnknown:
+		cp.id = 0
+		cp.kind = typeUnknown
+	case typeList:
+		cp.elem = c.cloneForCaseScope(t.elem, memo)
+	case typeMap:
+		cp.key = c.cloneForCaseScope(t.key, memo)
+		cp.val = c.cloneForCaseScope(t.val, memo)
+	case typeFn:
+		cp.params = make([]*tnode, len(t.params))
+		for i := range t.params {
+			cp.params[i] = c.cloneForCaseScope(t.params[i], memo)
+		}
+		cp.ret = c.cloneForCaseScope(t.ret, memo)
+	}
+	return cp
 }
 
 func (c *typeChecker) freshUnknown() *tnode {
@@ -362,7 +417,7 @@ func (c *typeChecker) inferExpr(expr ast.Expression) *tnode {
 			if cs == nil {
 				continue
 			}
-			c.pushScope()
+			c.pushIsolatedScopeFromVisible()
 			if scrutinee != nil {
 				c.narrowPattern(cs.Pattern, scrutinee, cs.Token.Position)
 			}
@@ -628,8 +683,11 @@ func (c *typeChecker) narrowPattern(pattern ast.MatchPattern, valueType *tnode, 
 			c.narrowPattern(f.Pattern, c.freshUnknown(), pos)
 		}
 	case *ast.MultiPattern:
-		for _, alt := range p.Patterns {
-			c.narrowPattern(alt, valueType, pos)
+		// Multi-pattern alternatives are OR semantics. Constraining against all
+		// alternatives over-constrains (intersection) and creates false positives.
+		// For v1, narrow by the first alternative only as a safe approximation.
+		if len(p.Patterns) > 0 {
+			c.narrowPattern(p.Patterns[0], valueType, pos)
 		}
 	}
 }

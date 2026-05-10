@@ -660,3 +660,23 @@
   - `TestSemanticTypeCheckStrictAllowsGenericFnTagAcrossArities`.
 - Validation performed:
   - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
+
+### Semantic typing fix for multi-pattern alternative narrowing
+
+- Fixed false-positive type diagnostics for comma-separated match pattern alternatives (OR semantics).
+- Root cause: multi-pattern narrowing applied constraints from all alternatives (intersection), over-constraining scrutinee types.
+- Updated narrowing to treat alternatives safely for v1 by narrowing from the first alternative only.
+- Added regression test:
+  - `TestSemanticTypeCheckStrictAllowsMultiPatternLiteralAlternatives`.
+- Validation performed:
+  - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
+
+### Semantic typing fix for match-case branch type leakage
+
+- Fixed false-positive diagnostics caused by branch inference leaking across `match` cases.
+- Introduced isolated case scopes seeded from visible bindings so per-case constraints do not over-constrain sibling cases.
+- This resolves nested type-dispatch + inner-literal-match scenarios (e.g., `match v /> type()` with string-literal alternatives in a `^STRING_TYPE` branch).
+- Added regression test:
+  - `TestSemanticTypeCheckStrictAllowsNestedMatchAfterTypeDispatch`.
+- Validation performed:
+  - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
