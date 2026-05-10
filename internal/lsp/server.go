@@ -1668,28 +1668,27 @@ func moduleNameFromURI(uri string) string {
 	return strings.ReplaceAll(p, "/", ".")
 }
 
-func modulePathFromURI(originURI string, module string) string {
+func modulePathCandidatesFromURI(originURI string, module string) []string {
 	if module == "" {
-		return ""
+		return nil
 	}
 	_, local := normalizeURI(originURI)
 	if local == "" {
-		return ""
+		return nil
 	}
-	root := filepath.Dir(local)
-	slash := filepath.ToSlash(local)
-	if idx := strings.LastIndex(slash, "/lib/"); idx >= 0 {
-		root = filepath.FromSlash(slash[:idx])
+	pathParts := strings.Split(module, ".")
+	relPath := filepath.Join(pathParts...) + ".slug"
+
+	candidates := []string{
+		filepath.Join(filepath.Dir(local), relPath),
 	}
-	rel := filepath.FromSlash(strings.ReplaceAll(module, ".", "/") + ".slug")
-	return filepath.Join(root, "lib", rel)
+	if slugHome := strings.TrimSpace(os.Getenv("SLUG_HOME")); slugHome != "" {
+		candidates = append(candidates, filepath.Join(slugHome, "lib", relPath))
+	}
+	return candidates
 }
 
 func (s *Server) resolveModuleExportLocation(originURI string, module string, name string) (lspLocation, bool) {
-	path := modulePathFromURI(originURI, module)
-	if path == "" {
-		return lspLocation{}, false
-	}
 	var src string
 	var uri string
 	if docURI, ok := s.findOpenDocURIByModule(module); ok {
@@ -1697,12 +1696,24 @@ func (s *Server) resolveModuleExportLocation(originURI string, module string, na
 		src = doc.Text
 		uri = doc.URI
 	} else {
-		b, err := os.ReadFile(path)
-		if err != nil {
+		candidates := modulePathCandidatesFromURI(originURI, module)
+		if len(candidates) == 0 {
 			return lspLocation{}, false
 		}
-		src = string(b)
-		uri, _ = normalizeURI(path)
+		var loaded bool
+		for _, path := range candidates {
+			b, err := os.ReadFile(path)
+			if err != nil {
+				continue
+			}
+			src = string(b)
+			uri, _ = normalizeURI(path)
+			loaded = true
+			break
+		}
+		if !loaded {
+			return lspLocation{}, false
+		}
 	}
 	for _, exp := range collectExportedTopLevelSymbols(src) {
 		if exp.Name != name {

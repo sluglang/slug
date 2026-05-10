@@ -524,6 +524,7 @@ func TestServerDefinitionReturnsNilInsideStringLiteral(t *testing.T) {
 
 func TestServerDefinitionResolvesWildcardImportedExportFromModuleFile(t *testing.T) {
 	tmp := t.TempDir()
+	t.Setenv("SLUG_HOME", tmp)
 	libDir := filepath.Join(tmp, "lib", "slug")
 	if err := os.MkdirAll(libDir, 0o755); err != nil {
 		t.Fatalf("mkdir failed: %v", err)

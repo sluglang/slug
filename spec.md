@@ -1572,3 +1572,19 @@ Tests added in `internal/lsp/server_test.go`:
 Validation performed:
 - `go test ./internal/lsp -count=1`
 - `go test ./... -count=1`
+
+### LSP alignment: module resolution now follows runtime import search order
+
+- Updated LSP module export resolution in `internal/lsp/server.go` to match runtime import search priority used by `LoadModule`:
+  1. local root (directory of current file) + `<module path>.slug`
+  2. `$SLUG_HOME/lib/<module path>.slug`
+- Replaced previous path heuristic (`/lib/` URI slicing) with explicit candidate path generation:
+  - `modulePathCandidatesFromURI`
+- `resolveModuleExportLocation` now tries candidates in runtime-consistent order and keeps open-document preference when module file is already open.
+
+Test update:
+- `TestServerDefinitionResolvesWildcardImportedExportFromModuleFile` now sets `SLUG_HOME` via `t.Setenv` to validate fallback behavior consistently.
+
+Validation performed:
+- `go test ./internal/lsp -count=1`
+- `go test ./... -count=1`
