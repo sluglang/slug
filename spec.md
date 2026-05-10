@@ -778,3 +778,14 @@
   - `TestSemanticTypeCheckStrictAllowsHeterogeneousMapLiteralValues`.
 - Validation performed:
   - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
+
+### Semantic typing fix for string concatenation/interpolation with non-string values
+
+- Fixed false-positive `+` operator diagnostics in string interpolation/concatenation flows involving numbers.
+- Updated `+` typing to use deferred runtime-aligned compatibility checks:
+  - `string + any` and `any + string` are accepted,
+  - non-string `+` remains constrained to valid homogeneous modes (`num`, `list`, `bytes`).
+- Added regression test:
+  - `TestSemanticTypeCheckStrictAllowsStringInterpolationWithNumbers`.
+- Validation performed:
+  - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`

@@ -660,6 +660,30 @@ val b = {"mix": {"a": [1, {"b": "c"}]}}
 	}
 }
 
+func TestSemanticTypeCheckStrictAllowsStringInterpolationWithNumbers(t *testing.T) {
+	input := `
+val count = 10
+val failed = 2
+println("Test executed: {{count}} / failed {{failed}}")
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+		StrictTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+	}
+	if len(errs) > 0 {
+		t.Fatalf("expected no semantic errors for string interpolation with numbers, got: %v", errs)
+	}
+}
+
 func TestSemanticTypeCheckStrictAllowsBytesAppendAndPrependOperators(t *testing.T) {
 	input := `
 val a = 0x"0102" :+ 3

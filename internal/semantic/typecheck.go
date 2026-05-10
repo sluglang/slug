@@ -58,12 +58,19 @@ type callCheck struct {
 	expected *tnode
 }
 
+type plusCheck struct {
+	pos   int
+	left  *tnode
+	right *tnode
+}
+
 type typeChecker struct {
 	a           *analyzer
 	nextID      int
 	constraints []tconstraint
 	diags       []tdiag
 	callChecks  []callCheck
+	plusChecks  []plusCheck
 	scopes      []map[string]*tnode
 	schemas     map[string]map[string]*tnode
 }
@@ -594,8 +601,8 @@ func (c *typeChecker) inferInfix(e *ast.InfixExpression) *tnode {
 			c.addConstraint(out, c.scalar(typeStr), e.Token.Position, "string concatenation")
 			return out
 		}
-		c.addConstraint(left, right, e.Token.Position, "+ operand compatibility")
-		// supports num+num, list+list, bytes+bytes; unknown resolved by constraints.
+		// Defer '+' compatibility check to runtime-aligned rule after solving.
+		c.plusChecks = append(c.plusChecks, plusCheck{pos: e.Token.Position, left: left, right: right})
 		return out
 	case "-", "/", "%", "<<", ">>":
 		c.addConstraint(left, c.scalar(typeNum), e.Token.Position, "numeric operator")
@@ -876,6 +883,11 @@ func (c *typeChecker) solveConstraints() {
 			c.addDiag(cc.pos, "call argument type mismatch: expected %s, got %s", c.describe(cc.expected), c.describe(cc.got))
 		}
 	}
+	for _, pc := range c.plusChecks {
+		if !c.isPlusCompatible(pc.left, pc.right) {
+			c.addDiag(pc.pos, "operator '+' type mismatch: %s vs %s", c.describe(pc.left), c.describe(pc.right))
+		}
+	}
 }
 
 func (c *typeChecker) isCompatible(got, expected *tnode) bool {
@@ -924,6 +936,33 @@ func (c *typeChecker) isCompatible(got, expected *tnode) bool {
 		return true
 	default:
 		return true
+	}
+}
+
+func (c *typeChecker) isPlusCompatible(left, right *tnode) bool {
+	l := c.find(left)
+	r := c.find(right)
+	if l == nil || r == nil {
+		return true
+	}
+	// Be permissive with unresolved types.
+	if l.kind == typeAny || r.kind == typeAny || l.kind == typeUnknown || r.kind == typeUnknown {
+		return true
+	}
+	// Runtime allows string concatenation with any value.
+	if l.kind == typeStr || r.kind == typeStr {
+		return true
+	}
+	// Non-string modes require same shape.
+	switch l.kind {
+	case typeNum:
+		return r.kind == typeNum
+	case typeList:
+		return r.kind == typeList
+	case typeBytes:
+		return r.kind == typeBytes
+	default:
+		return false
 	}
 }
 
