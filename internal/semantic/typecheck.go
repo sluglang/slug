@@ -11,6 +11,7 @@ type typeKind string
 
 const (
 	typeUnknown typeKind = "unknown"
+	typeNever   typeKind = "never"
 	typeAny     typeKind = "any"
 	typeNil     typeKind = "nil"
 	typeBool    typeKind = "bool"
@@ -265,6 +266,9 @@ func (c *typeChecker) unionType(types ...*tnode) *tnode {
 			seen = map[string]bool{"any": true}
 			return
 		}
+		if tf.kind == typeNever {
+			return
+		}
 		if tf.kind == typeUnion {
 			for _, opt := range tf.options {
 				addOpt(opt)
@@ -375,12 +379,25 @@ func (c *typeChecker) inferBlockWithRefinements(block *ast.BlockStatement, refs 
 	if block == nil {
 		return c.scalar(typeNil)
 	}
+	if c.hasImpossibleRefinement(refs) {
+		return c.scalar(typeNever)
+	}
 	c.pushScope()
 	defer c.popScope()
 	for name, t := range refs {
 		c.bind(name, t)
 	}
 	return c.inferBlockInCurrentScope(block)
+}
+
+func (c *typeChecker) hasImpossibleRefinement(refs map[string]*tnode) bool {
+	for _, t := range refs {
+		tf := c.find(t)
+		if tf != nil && tf.kind == typeNever {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *typeChecker) inferBlockInCurrentScope(block *ast.BlockStatement) *tnode {
@@ -465,6 +482,12 @@ func (c *typeChecker) inferExpr(expr ast.Expression) *tnode {
 		c.addConstraint(cond, c.scalar(typeBool), e.Token.Position, "if condition must be boolean")
 		thenRefs := c.collectGuardRefinements(e.Condition, true)
 		elseRefs := c.collectGuardRefinements(e.Condition, false)
+		if c.hasImpossibleRefinement(thenRefs) {
+			c.addDiag(e.Token.Position, "unreachable if-branch: guard refinements are contradictory")
+		}
+		if c.hasImpossibleRefinement(elseRefs) {
+			c.addDiag(e.Token.Position, "unreachable else-branch: guard refinements are contradictory")
+		}
 		thenType := c.inferBlockWithRefinements(e.ThenBranch, thenRefs)
 		elseType := c.scalar(typeNil)
 		if e.ElseBranch != nil {
@@ -548,6 +571,12 @@ func (c *typeChecker) inferExpr(expr ast.Expression) *tnode {
 				guardType := c.inferExpr(cs.Guard)
 				c.addConstraint(guardType, c.scalar(typeBool), cs.Token.Position, "match guard must be boolean")
 				guardRefs := c.collectGuardRefinements(cs.Guard, true)
+				if c.hasImpossibleRefinement(guardRefs) {
+					c.addDiag(cs.Token.Position, "unreachable match case: guard refinements are contradictory")
+					c.popScope()
+					caseResults = append(caseResults, c.scalar(typeNever))
+					continue
+				}
 				for name, t := range guardRefs {
 					c.bind(name, t)
 				}
@@ -1014,7 +1043,12 @@ func (c *typeChecker) collectGuardRefinementsInto(expr ast.Expression, whenTrue 
 			}
 		case "==", "!=":
 			c.collectComparisonRefinement(e.Left, e.Right, e.Operator, whenTrue, out)
+			c.collectLenRefinement(e.Left, e.Right, e.Operator, whenTrue, out)
+		case ">", ">=", "<", "<=":
+			c.collectLenRefinement(e.Left, e.Right, e.Operator, whenTrue, out)
 		}
+	case *ast.CallExpression:
+		c.collectPredicateCallRefinement(e, whenTrue, out)
 	}
 }
 
@@ -1036,14 +1070,18 @@ func (c *typeChecker) collectComparisonRefinement(left, right ast.Expression, op
 	neq := (op == "!=" && whenTrue) || (op == "==" && !whenTrue)
 
 	if name, ok := identifierName(left); ok && isNilExpr(right) {
-		c.refineBinding(name, c.scalar(typeNil), eq, out)
+		if eq {
+			c.refineBinding(name, c.scalar(typeNil), true, out)
+		}
 		if neq {
 			c.refineBindingExclude(name, c.scalar(typeNil), out)
 		}
 		return
 	}
 	if name, ok := identifierName(right); ok && isNilExpr(left) {
-		c.refineBinding(name, c.scalar(typeNil), eq, out)
+		if eq {
+			c.refineBinding(name, c.scalar(typeNil), true, out)
+		}
 		if neq {
 			c.refineBindingExclude(name, c.scalar(typeNil), out)
 		}
@@ -1071,6 +1109,148 @@ func (c *typeChecker) collectComparisonRefinement(left, right ast.Expression, op
 			c.refineBindingExclude(name, target, out)
 			return
 		}
+	}
+}
+
+func (c *typeChecker) collectPredicateCallRefinement(call *ast.CallExpression, whenTrue bool, out map[string]*tnode) {
+	if call == nil {
+		return
+	}
+	fn, ok := call.Function.(*ast.Identifier)
+	if !ok || fn == nil || len(call.Arguments) != 1 {
+		return
+	}
+	name, ok := identifierName(call.Arguments[0])
+	if !ok {
+		return
+	}
+	var target *tnode
+	switch fn.Value {
+	case "isList":
+		target = c.listType(c.scalar(typeAny))
+	case "isMap":
+		target = c.mapType(c.scalar(typeAny), c.scalar(typeAny))
+	case "isStruct":
+		target = &tnode{kind: typeStruct}
+	case "isFn":
+		target = c.fnType(nil, c.freshUnknown(), false, 0, -1)
+	case "isBytes":
+		target = c.scalar(typeBytes)
+	case "isStr", "isString":
+		target = c.scalar(typeStr)
+	case "isNum", "isNumber":
+		target = c.scalar(typeNum)
+	case "isBool", "isBoolean":
+		target = c.scalar(typeBool)
+	default:
+		return
+	}
+	if whenTrue {
+		c.refineBinding(name, target, true, out)
+		return
+	}
+	c.refineBindingExclude(name, target, out)
+}
+
+func (c *typeChecker) collectLenRefinement(left, right ast.Expression, op string, whenTrue bool, out map[string]*tnode) {
+	name, n, cmpOp, ok := parseLenComparison(left, right, op)
+	if !ok {
+		return
+	}
+	base := c.lookup(name)
+	if base == nil {
+		return
+	}
+	// Conservative shape refinement only:
+	// len(x) > 0, >=1, !=0  => x is sequence/map-like in true branch
+	// len(x) == 0           => x is sequence/map-like in true branch
+	// len(x) == 0 false     => len(x) != 0 (sequence/map-like) but no element info.
+	seqMap := c.unionType(
+		c.listType(c.scalar(typeAny)),
+		c.mapType(c.scalar(typeAny), c.scalar(typeAny)),
+		c.scalar(typeBytes),
+		c.scalar(typeStr),
+	)
+	holds := evalLenPredicate(n, cmpOp, whenTrue)
+	if holds {
+		c.refineBinding(name, seqMap, true, out)
+	}
+}
+
+func parseLenComparison(left, right ast.Expression, op string) (string, int, string, bool) {
+	if name, ok := parseLenCallName(left); ok {
+		if n, ok := parseIntLiteral(right); ok {
+			return name, n, op, ok
+		}
+	}
+	if name, ok := parseLenCallName(right); ok {
+		if n, ok := parseIntLiteral(left); ok {
+			rop := reverseCmpOp(op)
+			if rop == "" {
+				return "", 0, "", false
+			}
+			return name, n, rop, true
+		}
+	}
+	return "", 0, "", false
+}
+
+func reverseCmpOp(op string) string {
+	switch op {
+	case ">":
+		return "<"
+	case ">=":
+		return "<="
+	case "<":
+		return ">"
+	case "<=":
+		return ">="
+	case "==", "!=":
+		return op
+	default:
+		return ""
+	}
+}
+
+func parseLenCallName(expr ast.Expression) (string, bool) {
+	call, ok := expr.(*ast.CallExpression)
+	if !ok || call == nil {
+		return "", false
+	}
+	fn, ok := call.Function.(*ast.Identifier)
+	if !ok || fn == nil || fn.Value != "len" || len(call.Arguments) != 1 {
+		return "", false
+	}
+	return identifierName(call.Arguments[0])
+}
+
+func parseIntLiteral(expr ast.Expression) (int, bool) {
+	n, ok := expr.(*ast.NumberLiteral)
+	if !ok || n == nil {
+		return 0, false
+	}
+	if n.Value.IsFloat() {
+		return 0, false
+	}
+	return n.Value.ToInt(), true
+}
+
+func evalLenPredicate(n int, op string, whenTrue bool) bool {
+	switch op {
+	case ">":
+		return (n >= 0 && whenTrue) || (n < 0 && !whenTrue)
+	case ">=":
+		return (n > 0 && whenTrue) || (n <= 0 && !whenTrue)
+	case "<":
+		return (n <= 0 && whenTrue) || (n > 0 && !whenTrue)
+	case "<=":
+		return (n < 0 && whenTrue) || (n >= 0 && !whenTrue)
+	case "==":
+		return n == 0
+	case "!=":
+		return n == 0
+	default:
+		return false
 	}
 }
 
@@ -1162,27 +1342,40 @@ func typeConstToKind(expr ast.Expression) (typeKind, bool) {
 }
 
 func (c *typeChecker) refineBinding(name string, target *tnode, _ bool, out map[string]*tnode) {
-	base := c.lookup(name)
+	base, fromRefinement := c.currentRefinementBase(name, out)
 	if base == nil {
 		return
 	}
 	narrowed := c.intersectType(base, target)
 	if narrowed == nil {
+		if fromRefinement {
+			out[name] = c.scalar(typeNever)
+		}
 		return
 	}
 	out[name] = narrowed
 }
 
 func (c *typeChecker) refineBindingExclude(name string, target *tnode, out map[string]*tnode) {
-	base := c.lookup(name)
+	base, fromRefinement := c.currentRefinementBase(name, out)
 	if base == nil {
 		return
 	}
 	narrowed := c.excludeType(base, target)
 	if narrowed == nil {
+		if fromRefinement {
+			out[name] = c.scalar(typeNever)
+		}
 		return
 	}
 	out[name] = narrowed
+}
+
+func (c *typeChecker) currentRefinementBase(name string, out map[string]*tnode) (*tnode, bool) {
+	if t, ok := out[name]; ok && t != nil {
+		return t, true
+	}
+	return c.lookup(name), false
 }
 
 func (c *typeChecker) intersectType(base, target *tnode) *tnode {
@@ -1200,7 +1393,7 @@ func (c *typeChecker) intersectType(base, target *tnode) *tnode {
 	if b.kind == typeUnion {
 		opts := make([]*tnode, 0, len(b.options))
 		for _, opt := range b.options {
-			if c.sameConcreteType(opt, t) {
+			if c.matchesRefinementTarget(opt, t) {
 				opts = append(opts, opt)
 			}
 		}
@@ -1209,7 +1402,7 @@ func (c *typeChecker) intersectType(base, target *tnode) *tnode {
 		}
 		return c.unionType(opts...)
 	}
-	if c.sameConcreteType(b, t) {
+	if c.matchesRefinementTarget(b, t) {
 		return b
 	}
 	return nil
@@ -1227,7 +1420,7 @@ func (c *typeChecker) excludeType(base, target *tnode) *tnode {
 	if b.kind == typeUnion {
 		opts := make([]*tnode, 0, len(b.options))
 		for _, opt := range b.options {
-			if c.sameConcreteType(opt, t) {
+			if c.matchesRefinementTarget(opt, t) {
 				continue
 			}
 			opts = append(opts, opt)
@@ -1237,10 +1430,61 @@ func (c *typeChecker) excludeType(base, target *tnode) *tnode {
 		}
 		return c.unionType(opts...)
 	}
-	if c.sameConcreteType(b, t) {
+	if c.matchesRefinementTarget(b, t) {
 		return nil
 	}
 	return b
+}
+
+func (c *typeChecker) matchesRefinementTarget(candidate, target *tnode) bool {
+	cf := c.find(candidate)
+	tf := c.find(target)
+	if cf == nil || tf == nil {
+		return false
+	}
+	if tf.kind == typeUnion {
+		for _, opt := range tf.options {
+			if c.matchesRefinementTarget(cf, opt) {
+				return true
+			}
+		}
+		return false
+	}
+	if tf.kind == typeAny || tf.kind == typeUnknown {
+		return true
+	}
+	if cf.kind != tf.kind {
+		return false
+	}
+	switch tf.kind {
+	case typeStruct:
+		if tf.name == "" {
+			return true
+		}
+		if cf.name == "" {
+			return false
+		}
+		return cf.name == tf.name
+	case typeList:
+		if tf.elem == nil {
+			return true
+		}
+		return c.matchesRefinementTarget(cf.elem, tf.elem)
+	case typeMap:
+		keyOK := true
+		valOK := true
+		if tf.key != nil {
+			keyOK = c.matchesRefinementTarget(cf.key, tf.key)
+		}
+		if tf.val != nil {
+			valOK = c.matchesRefinementTarget(cf.val, tf.val)
+		}
+		return keyOK && valOK
+	case typeFn:
+		return true
+	default:
+		return true
+	}
 }
 
 func (c *typeChecker) sameConcreteType(a, b *tnode) bool {
@@ -1357,6 +1601,9 @@ func (c *typeChecker) isCompatible(got, expected *tnode) bool {
 	if g == nil || e == nil {
 		return true
 	}
+	if g.kind == typeNever || e.kind == typeNever {
+		return true
+	}
 	if g == e {
 		return true
 	}
@@ -1422,6 +1669,9 @@ func (c *typeChecker) isPlusCompatible(left, right *tnode) bool {
 	if l == nil || r == nil {
 		return true
 	}
+	if l.kind == typeNever || r.kind == typeNever {
+		return true
+	}
 	// Be permissive with unresolved types.
 	if l.kind == typeAny || r.kind == typeAny || l.kind == typeUnknown || r.kind == typeUnknown {
 		return true
@@ -1465,6 +1715,9 @@ func (c *typeChecker) isMulCompatible(left, right *tnode) bool {
 	if l == nil || r == nil {
 		return true
 	}
+	if l.kind == typeNever || r.kind == typeNever {
+		return true
+	}
 	if l.kind == typeAny || r.kind == typeAny || l.kind == typeUnknown || r.kind == typeUnknown {
 		return true
 	}
@@ -1499,6 +1752,9 @@ func (c *typeChecker) isBitwiseCompatible(left, right *tnode) bool {
 	l := c.find(left)
 	r := c.find(right)
 	if l == nil || r == nil {
+		return true
+	}
+	if l.kind == typeNever || r.kind == typeNever {
 		return true
 	}
 	if l.kind == typeAny || r.kind == typeAny || l.kind == typeUnknown || r.kind == typeUnknown {
@@ -1596,6 +1852,9 @@ func (c *typeChecker) unify(a, b *tnode) bool {
 	if a == nil || b == nil {
 		return true
 	}
+	if a.kind == typeNever || b.kind == typeNever {
+		return true
+	}
 	if a == b {
 		return true
 	}
@@ -1669,6 +1928,8 @@ func (c *typeChecker) describe(t *tnode) string {
 		return "unknown"
 	}
 	switch t.kind {
+	case typeNever:
+		return "never"
 	case typeUnknown:
 		return fmt.Sprintf("t%d", t.id)
 	case typeList:

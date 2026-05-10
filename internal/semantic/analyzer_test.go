@@ -943,6 +943,176 @@ val f = fn(x) {
 	}
 }
 
+func TestSemanticTypeCheckStrictNarrowsIfPredicateTrueBranch(t *testing.T) {
+	input := `
+val x = if (true) { [1,2] } else { {"a":1} }
+val f = fn() {
+	if (isList(x)) {
+		x + [3]
+	} else {
+		x
+	}
+}
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+		StrictTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+	}
+	if len(errs) > 0 {
+		t.Fatalf("expected no strict type-check errors, got: %v", errs)
+	}
+}
+
+func TestSemanticTypeCheckStrictNarrowsIfPredicateElseBranch(t *testing.T) {
+	input := `
+val x = if (true) { [1,2] } else { {"a":1} }
+val f = fn() {
+	if (isList(x)) {
+		0
+	} else {
+		x["a"]
+	}
+}
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+		StrictTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+	}
+	if len(errs) > 0 {
+		t.Fatalf("expected no strict type-check errors, got: %v", errs)
+	}
+}
+
+func TestSemanticTypeCheckStrictNarrowsMatchGuardPredicate(t *testing.T) {
+	input := `
+val f = fn(x) {
+	match x {
+		v if isBytes(v) => v & 255
+		_ => 0
+	}
+}
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+		StrictTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+	}
+	if len(errs) > 0 {
+		t.Fatalf("expected no strict type-check errors, got: %v", errs)
+	}
+}
+
+func TestSemanticTypeCheckStrictNarrowsLenGuardShape(t *testing.T) {
+	input := `
+val x = if (true) { [1,2] } else { {"a":1} }
+val f = fn() {
+	if (len(x) > 0) {
+		len(x)
+	} else {
+		0
+	}
+}
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+		StrictTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+	}
+	if len(errs) > 0 {
+		t.Fatalf("expected no strict type-check errors, got: %v", errs)
+	}
+}
+
+func TestSemanticTypeCheckStrictReportsUnreachableIfBranchOnContradictoryGuard(t *testing.T) {
+	input := `
+val x = if (true) { [1,2] } else { {"a":1} }
+val y = if (isList(x) && isMap(x)) { 1 } else { 2 }
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+		StrictTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+	}
+	if len(errs) == 0 {
+		t.Fatal("expected unreachable branch diagnostic, got none")
+	}
+	if !containsError(errs, "unreachable if-branch") {
+		t.Fatalf("expected unreachable if-branch diagnostic, got: %v", errs)
+	}
+}
+
+func TestSemanticTypeCheckStrictReportsUnreachableMatchGuardOnContradiction(t *testing.T) {
+	input := `
+val f = fn(x) {
+	match x {
+		v if isBytes(v) && isMap(v) => 1
+		_ => 0
+	}
+}
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+		StrictTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+	}
+	if len(errs) == 0 {
+		t.Fatal("expected unreachable match case diagnostic, got none")
+	}
+	if !containsError(errs, "unreachable match case") {
+		t.Fatalf("expected unreachable match case diagnostic, got: %v", errs)
+	}
+}
+
 func TestSemanticTypeCheckStrictAllowsStringInterpolationWithNumbers(t *testing.T) {
 	input := `
 val count = 10

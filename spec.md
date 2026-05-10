@@ -896,3 +896,38 @@
   - `TestSemanticTypeCheckStrictNarrowsMatchGuardTypePredicate`
 - Validation performed:
   - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
+
+### Semantic typing enhancement: predicate-based guard narrowing
+
+- Extended flow-sensitive guard refinement to support predicate functions in `if` and `match` guards.
+- Added predicate narrowing support for common runtime shape/type predicates:
+  - `isList(x)`, `isMap(x)`, `isStruct(x)`, `isFn(x)`, `isBytes(x)`
+  - plus scalar aliases: `isStr/isString`, `isNum/isNumber`, `isBool/isBoolean`
+- Added conservative `len(...)` comparison shape narrowing for guard analysis:
+  - recognizes forms like `len(x) > 0`, `len(x) == 0`, and reversed operand variants,
+  - narrows guarded variable to sequence/map-like union (`list | map | bytes | str`) where condition implies a valid length-bearing shape.
+- Guard refinements remain branch-local and integrate with existing union-based branch typing.
+- Added regression tests:
+  - `TestSemanticTypeCheckStrictNarrowsIfPredicateTrueBranch`
+  - `TestSemanticTypeCheckStrictNarrowsIfPredicateElseBranch`
+  - `TestSemanticTypeCheckStrictNarrowsMatchGuardPredicate`
+  - `TestSemanticTypeCheckStrictNarrowsLenGuardShape`
+- Validation performed:
+  - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
+
+### Semantic typing enhancement: contradiction-aware guard narrowing and unreachable diagnostics
+
+- Added contradiction detection to flow-sensitive guard refinement.
+- Introduced internal `never` inferred type to represent impossible narrowed states.
+- Refinement engine now composes cumulatively within a single guard (`&&`/`||` paths) using current in-guard narrowed bindings.
+- When branch/case refinements become contradictory, semantic checks now emit focused diagnostics:
+  - `unreachable if-branch: guard refinements are contradictory`
+  - `unreachable else-branch: guard refinements are contradictory`
+  - `unreachable match case: guard refinements are contradictory`
+- Unreachable refined branches short-circuit local inference to avoid noisy follow-on mismatch errors.
+- Added refinement-shape matching for generic predicate targets (e.g. `list<any>`, `map<any,any>`) so shape narrowing remains practical with concrete inferred element/key/value types.
+- Added regression tests:
+  - `TestSemanticTypeCheckStrictReportsUnreachableIfBranchOnContradictoryGuard`
+  - `TestSemanticTypeCheckStrictReportsUnreachableMatchGuardOnContradiction`
+- Validation performed:
+  - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
