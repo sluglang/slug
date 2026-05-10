@@ -1303,3 +1303,22 @@ Tests added/updated in `internal/lsp/server_test.go`:
 Validation performed:
 - `go test ./internal/lsp -count=1`
 - `go test ./... -count=1`
+
+### LSP Phase 7: textDocument/documentHighlight
+
+- Added `textDocument/documentHighlight` support in `internal/lsp/server.go`.
+- Advertised `documentHighlightProvider: true` in initialize capabilities.
+- Implemented document highlights using lexer-backed identifier matching:
+  - resolve symbol at cursor via existing identifier resolution,
+  - return all `IDENT` token occurrences with matching label in the current document,
+  - return empty result when cursor is not on an identifier.
+- Highlight result shape uses `DocumentHighlight` ranges with `kind: Text` (`1`).
+
+Tests added/updated in `internal/lsp/server_test.go`:
+- `TestServerInitializeShutdownExit` now asserts `documentHighlightProvider == true`.
+- `TestServerDocumentHighlightReturnsAllIdentifierMatches` validates expected highlight count for repeated symbol occurrences.
+- `TestServerDocumentHighlightReturnsEmptyOutsideIdentifier` validates empty results when cursor is not on a symbol.
+
+Validation performed:
+- `go test ./internal/lsp -count=1`
+- `go test ./... -count=1`

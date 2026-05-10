@@ -72,11 +72,12 @@ type initializeResult struct {
 }
 
 type serverCapabilities struct {
-	TextDocumentSync       textDocumentSyncOptions `json:"textDocumentSync"`
-	HoverProvider          bool                    `json:"hoverProvider,omitempty"`
-	DefinitionProvider     bool                    `json:"definitionProvider,omitempty"`
-	DocumentSymbolProvider bool                    `json:"documentSymbolProvider,omitempty"`
-	CompletionProvider     *completionProvider     `json:"completionProvider,omitempty"`
+	TextDocumentSync          textDocumentSyncOptions `json:"textDocumentSync"`
+	HoverProvider             bool                    `json:"hoverProvider,omitempty"`
+	DefinitionProvider        bool                    `json:"definitionProvider,omitempty"`
+	DocumentSymbolProvider    bool                    `json:"documentSymbolProvider,omitempty"`
+	DocumentHighlightProvider bool                    `json:"documentHighlightProvider,omitempty"`
+	CompletionProvider        *completionProvider     `json:"completionProvider,omitempty"`
 }
 
 type textDocumentSyncOptions struct {
@@ -160,6 +161,11 @@ type lspCompletionItem struct {
 	Data          map[string]interface{} `json:"data,omitempty"`
 }
 
+type lspDocumentHighlight struct {
+	Range lspRange `json:"range"`
+	Kind  int      `json:"kind,omitempty"`
+}
+
 type symbolDef struct {
 	Name       string
 	Kind       string
@@ -199,19 +205,20 @@ func NewServer(in io.Reader, out io.Writer, analyze Analyzer) *Server {
 		canceledReqs:    map[string]bool{},
 	}
 	s.handlers = map[string]func(rpcRequest) error{
-		"initialize":                  s.handleInitialize,
-		"initialized":                 s.handleInitialized,
-		"shutdown":                    s.handleShutdown,
-		"exit":                        s.handleExit,
-		"textDocument/didOpen":        s.handleDidOpen,
-		"textDocument/didChange":      s.handleDidChange,
-		"textDocument/didClose":       s.handleDidClose,
-		"$/cancelRequest":             s.handleCancelRequest,
-		"textDocument/hover":          s.handleHover,
-		"textDocument/definition":     s.handleDefinition,
-		"textDocument/documentSymbol": s.handleDocumentSymbol,
-		"textDocument/completion":     s.handleCompletion,
-		"completionItem/resolve":      s.handleCompletionResolve,
+		"initialize":                     s.handleInitialize,
+		"initialized":                    s.handleInitialized,
+		"shutdown":                       s.handleShutdown,
+		"exit":                           s.handleExit,
+		"textDocument/didOpen":           s.handleDidOpen,
+		"textDocument/didChange":         s.handleDidChange,
+		"textDocument/didClose":          s.handleDidClose,
+		"$/cancelRequest":                s.handleCancelRequest,
+		"textDocument/hover":             s.handleHover,
+		"textDocument/definition":        s.handleDefinition,
+		"textDocument/documentSymbol":    s.handleDocumentSymbol,
+		"textDocument/documentHighlight": s.handleDocumentHighlight,
+		"textDocument/completion":        s.handleCompletion,
+		"completionItem/resolve":         s.handleCompletionResolve,
 	}
 	return s
 }
@@ -281,11 +288,12 @@ func (s *Server) handle(req rpcRequest) error {
 func (s *Server) handleInitialize(req rpcRequest) error {
 	s.initialized = true
 	return s.writeResult(req.ID, initializeResult{Capabilities: serverCapabilities{
-		TextDocumentSync:       textDocumentSyncOptions{OpenClose: true, Change: 1},
-		HoverProvider:          true,
-		DefinitionProvider:     true,
-		DocumentSymbolProvider: true,
-		CompletionProvider:     &completionProvider{ResolveProvider: true},
+		TextDocumentSync:          textDocumentSyncOptions{OpenClose: true, Change: 1},
+		HoverProvider:             true,
+		DefinitionProvider:        true,
+		DocumentSymbolProvider:    true,
+		DocumentHighlightProvider: true,
+		CompletionProvider:        &completionProvider{ResolveProvider: true},
 	}})
 }
 
@@ -453,6 +461,25 @@ func (s *Server) handleDocumentSymbol(req rpcRequest) error {
 		})
 	}
 	return s.writeResult(req.ID, out)
+}
+
+func (s *Server) handleDocumentHighlight(req rpcRequest) error {
+	var p textDocumentPositionParams
+	if err := json.Unmarshal(req.Params, &p); err != nil {
+		return s.writeError(idOrNil(req.ID), -32602, "Invalid params", err.Error())
+	}
+	normURI, _ := normalizeURI(p.TextDocument.URI)
+	doc, ok := s.docs[normURI]
+	if !ok {
+		return s.writeResult(req.ID, []lspDocumentHighlight{})
+	}
+	offset := offsetFromPosition(doc.Text, p.Position.Line, p.Position.Character)
+	name, _, _ := identifierAtOffset(doc.Text, offset)
+	if name == "" {
+		return s.writeResult(req.ID, []lspDocumentHighlight{})
+	}
+	highlights := collectIdentifierHighlights(doc.Text, name)
+	return s.writeResult(req.ID, highlights)
 }
 
 func (s *Server) handleCompletion(req rpcRequest) error {
@@ -962,6 +989,30 @@ func completionPrefixAtOffset(src string, off int) string {
 		return ""
 	}
 	return name[:off-start]
+}
+
+func collectIdentifierHighlights(src string, name string) []lspDocumentHighlight {
+	if name == "" {
+		return []lspDocumentHighlight{}
+	}
+	l := lexer.New(src)
+	out := make([]lspDocumentHighlight, 0, 16)
+	for {
+		tok := l.NextToken()
+		if tok.Type == token.EOF || tok.Type == token.ILLEGAL {
+			break
+		}
+		if tok.Type != token.IDENT || tok.Literal != name {
+			continue
+		}
+		start := tok.Position
+		end := start + len(tok.Literal)
+		out = append(out, lspDocumentHighlight{
+			Range: offsetRangeToLSP(src, start, end),
+			Kind:  1,
+		})
+	}
+	return out
 }
 
 func identTokenAtByteOffset(src string, off int) (name string, start int, end int, ok bool) {

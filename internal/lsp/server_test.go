@@ -89,6 +89,9 @@ func TestServerInitializeShutdownExit(t *testing.T) {
 		if _, ok := caps["completionProvider"].(map[string]interface{}); !ok {
 			t.Fatalf("completionProvider missing in capabilities: %#v", caps)
 		}
+		if dh, ok := caps["documentHighlightProvider"].(bool); !ok || !dh {
+			t.Fatalf("expected documentHighlightProvider=true, got %#v", caps["documentHighlightProvider"])
+		}
 		cp, _ := caps["completionProvider"].(map[string]interface{})
 		if rp, _ := cp["resolveProvider"].(bool); !rp {
 			t.Fatalf("expected resolveProvider=true, got %#v", cp["resolveProvider"])
@@ -633,6 +636,70 @@ func TestServerCompletionResolveEnrichesItem(t *testing.T) {
 		return
 	}
 	t.Fatal("completionItem/resolve response not found")
+}
+
+func TestServerDocumentHighlightReturnsAllIdentifierMatches(t *testing.T) {
+	src := "val answer = 42\\nval use = answer\\nanswer\\n"
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///a.slug","version":1,"text":"`+src+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":15,"method":"textDocument/documentHighlight","params":{"textDocument":{"uri":"file:///a.slug"},"position":{"line":1,"character":11}}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok || int(id) != 15 {
+			continue
+		}
+		res, ok := m["result"].([]interface{})
+		if !ok {
+			t.Fatalf("documentHighlight result missing: %#v", m)
+		}
+		if len(res) != 3 {
+			t.Fatalf("expected 3 highlights for 'answer', got %d (%#v)", len(res), res)
+		}
+		return
+	}
+	t.Fatal("documentHighlight response not found")
+}
+
+func TestServerDocumentHighlightReturnsEmptyOutsideIdentifier(t *testing.T) {
+	src := "val answer = 42\\n"
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///a.slug","version":1,"text":"`+src+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":16,"method":"textDocument/documentHighlight","params":{"textDocument":{"uri":"file:///a.slug"},"position":{"line":0,"character":3}}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok || int(id) != 16 {
+			continue
+		}
+		res, ok := m["result"].([]interface{})
+		if !ok {
+			t.Fatalf("documentHighlight result missing: %#v", m)
+		}
+		if len(res) != 0 {
+			t.Fatalf("expected empty highlights outside identifier, got %#v", res)
+		}
+		return
+	}
+	t.Fatal("documentHighlight response not found")
 }
 
 func TestNormalizeURIFileScheme(t *testing.T) {
