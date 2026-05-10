@@ -946,3 +946,28 @@
   - `TestSemanticTypeCheckStrictTracksVarReassignmentAcrossIfBranches`
 - Validation performed:
   - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
+
+### Semantic typing enhancement: staged block-local path sensitivity for mutable vars
+
+Implemented staged precision improvements for reassigned `var` handling without full SSA/CFG.
+
+- Added per-block override typing environment:
+  - new block-local override stack tracked alongside scope stack.
+- Lookup precedence updated:
+  - identifier lookup now prefers current block override, then lexical scope bindings.
+- Assignment behavior updated (`=` on identifiers):
+  - keeps existing conservative scope-level widening fallback (`old ∪ new`),
+  - also writes a dominating block-local override to assigned RHS type for path-sensitive same-block use.
+- `if` merge behavior added:
+  - branch blocks infer with isolated overrides,
+  - post-`if` overrides are merged with union per outer-visible binding,
+  - if no `else`, merge includes unchanged outer path.
+- Existing widening fallback remains in place as safety net for paths not yet modeled precisely.
+
+Regression coverage added/updated:
+- `TestSemanticTypeCheckStrictTracksVarReassignmentWidening` (now includes `acc = acc + 2`)
+- `TestSemanticTypeCheckStrictTracksVarReassignmentAcrossIfBranches` (numeric reassignment in both branches + numeric use after join)
+
+Validation performed:
+- `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
+- `go run ./cmd/app/main.go -log-level error --root ./lib lib/slug/web/response.slug`

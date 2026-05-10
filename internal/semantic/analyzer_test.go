@@ -1118,6 +1118,7 @@ func TestSemanticTypeCheckStrictTracksVarReassignmentWidening(t *testing.T) {
 val f = fn() {
 	var acc = nil
 	acc = 1
+	acc = acc + 2
 	acc
 }
 `
@@ -1146,9 +1147,9 @@ val f = fn(flag) {
 	if (flag) {
 		x = 1
 	} else {
-		x = "a"
+		x = 2
 	}
-	x
+	x + 1
 }
 `
 	l := lexer.New(input)

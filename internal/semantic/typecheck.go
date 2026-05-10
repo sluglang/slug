@@ -90,6 +90,7 @@ type typeChecker struct {
 	mulChecks   []mulCheck
 	bitChecks   []bitwiseCheck
 	scopes      []map[string]*tnode
+	overrides   []map[string]*tnode
 	schemas     map[string]map[string]*tnode
 }
 
@@ -108,6 +109,7 @@ func (a *analyzer) runInferredTypeChecks(program *ast.Program, strict bool) {
 func newTypeChecker(a *analyzer) *typeChecker {
 	c := &typeChecker{a: a, schemas: map[string]map[string]*tnode{}}
 	c.pushScope()
+	c.pushOverride()
 	return c
 }
 
@@ -122,6 +124,10 @@ func (c *typeChecker) pushScope() {
 	c.scopes = append(c.scopes, map[string]*tnode{})
 }
 
+func (c *typeChecker) pushOverride() {
+	c.overrides = append(c.overrides, map[string]*tnode{})
+}
+
 func (c *typeChecker) pushIsolatedScopeFromVisible() {
 	visible := c.visibleBindings()
 	cloned := map[string]*tnode{}
@@ -129,11 +135,22 @@ func (c *typeChecker) pushIsolatedScopeFromVisible() {
 		cloned[name] = c.cloneForCaseScope(t, map[*tnode]*tnode{})
 	}
 	c.scopes = append(c.scopes, cloned)
+	ov := map[string]*tnode{}
+	for name, t := range cloned {
+		ov[name] = t
+	}
+	c.overrides = append(c.overrides, ov)
 }
 
 func (c *typeChecker) popScope() {
 	if len(c.scopes) > 0 {
 		c.scopes = c.scopes[:len(c.scopes)-1]
+	}
+}
+
+func (c *typeChecker) popOverride() {
+	if len(c.overrides) > 0 {
+		c.overrides = c.overrides[:len(c.overrides)-1]
 	}
 }
 
@@ -150,19 +167,47 @@ func (c *typeChecker) bind(name string, t *tnode) {
 		// overload erase prior ones for call-site checks.
 		if ef != nil && tf != nil && ef.kind == typeFn && tf.kind == typeFn {
 			scope[name] = c.fnType(nil, c.freshUnknown(), false, 0, -1)
+			c.setOverride(name, scope[name])
 			return
 		}
 	}
 	scope[name] = t
+	c.setOverride(name, t)
 }
 
 func (c *typeChecker) lookup(name string) *tnode {
+	for i := len(c.overrides) - 1; i >= 0; i-- {
+		if t, ok := c.overrides[i][name]; ok {
+			return t
+		}
+	}
 	for i := len(c.scopes) - 1; i >= 0; i-- {
 		if t, ok := c.scopes[i][name]; ok {
 			return t
 		}
 	}
 	return nil
+}
+
+func (c *typeChecker) setOverride(name string, t *tnode) {
+	if name == "" || t == nil {
+		return
+	}
+	if len(c.overrides) == 0 {
+		c.pushOverride()
+	}
+	c.overrides[len(c.overrides)-1][name] = t
+}
+
+func (c *typeChecker) snapshotCurrentOverride() map[string]*tnode {
+	out := map[string]*tnode{}
+	if len(c.overrides) == 0 {
+		return out
+	}
+	for k, v := range c.overrides[len(c.overrides)-1] {
+		out[k] = v
+	}
+	return out
 }
 
 func (c *typeChecker) visibleBindings() map[string]*tnode {
@@ -371,7 +416,9 @@ func (c *typeChecker) inferBlock(block *ast.BlockStatement) *tnode {
 		return c.scalar(typeNil)
 	}
 	c.pushScope()
+	c.pushOverride()
 	defer c.popScope()
+	defer c.popOverride()
 	return c.inferBlockInCurrentScope(block)
 }
 
@@ -383,11 +430,49 @@ func (c *typeChecker) inferBlockWithRefinements(block *ast.BlockStatement, refs 
 		return c.scalar(typeNever)
 	}
 	c.pushScope()
+	c.pushOverride()
 	defer c.popScope()
+	defer c.popOverride()
 	for name, t := range refs {
 		c.bind(name, t)
 	}
 	return c.inferBlockInCurrentScope(block)
+}
+
+func (c *typeChecker) inferBlockWithRefinementsAndOverrides(block *ast.BlockStatement, refs map[string]*tnode) (*tnode, map[string]*tnode) {
+	if block == nil {
+		return c.scalar(typeNil), map[string]*tnode{}
+	}
+	if c.hasImpossibleRefinement(refs) {
+		return c.scalar(typeNever), map[string]*tnode{}
+	}
+	c.pushScope()
+	c.pushOverride()
+	for name, t := range refs {
+		c.bind(name, t)
+	}
+	outType := c.inferBlockInCurrentScope(block)
+	ov := c.snapshotCurrentOverride()
+	c.popOverride()
+	c.popScope()
+	return outType, ov
+}
+
+func (c *typeChecker) mergeIfOverrides(outer map[string]*tnode, thenOv, elseOv map[string]*tnode, hasElse bool) {
+	for name, outerType := range outer {
+		thenType, okThen := thenOv[name]
+		if !okThen {
+			thenType = outerType
+		}
+		elseType := outerType
+		if hasElse {
+			if t, ok := elseOv[name]; ok {
+				elseType = t
+			}
+		}
+		merged := c.unionType(thenType, elseType)
+		c.setOverride(name, merged)
+	}
 }
 
 func (c *typeChecker) hasImpossibleRefinement(refs map[string]*tnode) bool {
@@ -480,6 +565,7 @@ func (c *typeChecker) inferExpr(expr ast.Expression) *tnode {
 	case *ast.IfExpression:
 		cond := c.inferExpr(e.Condition)
 		c.addConstraint(cond, c.scalar(typeBool), e.Token.Position, "if condition must be boolean")
+		outerVisible := c.visibleBindings()
 		thenRefs := c.collectGuardRefinements(e.Condition, true)
 		elseRefs := c.collectGuardRefinements(e.Condition, false)
 		if c.hasImpossibleRefinement(thenRefs) {
@@ -488,11 +574,13 @@ func (c *typeChecker) inferExpr(expr ast.Expression) *tnode {
 		if c.hasImpossibleRefinement(elseRefs) {
 			c.addDiag(e.Token.Position, "unreachable else-branch: guard refinements are contradictory")
 		}
-		thenType := c.inferBlockWithRefinements(e.ThenBranch, thenRefs)
+		thenType, thenOv := c.inferBlockWithRefinementsAndOverrides(e.ThenBranch, thenRefs)
 		elseType := c.scalar(typeNil)
+		elseOv := map[string]*tnode{}
 		if e.ElseBranch != nil {
-			elseType = c.inferBlockWithRefinements(e.ElseBranch, elseRefs)
+			elseType, elseOv = c.inferBlockWithRefinementsAndOverrides(e.ElseBranch, elseRefs)
 		}
+		c.mergeIfOverrides(outerVisible, thenOv, elseOv, e.ElseBranch != nil)
 		return c.unionType(thenType, elseType)
 	case *ast.FunctionLiteral:
 		return c.inferFunctionLiteral(e)
@@ -573,6 +661,7 @@ func (c *typeChecker) inferExpr(expr ast.Expression) *tnode {
 				guardRefs := c.collectGuardRefinements(cs.Guard, true)
 				if c.hasImpossibleRefinement(guardRefs) {
 					c.addDiag(cs.Token.Position, "unreachable match case: guard refinements are contradictory")
+					c.popOverride()
 					c.popScope()
 					caseResults = append(caseResults, c.scalar(typeNever))
 					continue
@@ -582,6 +671,7 @@ func (c *typeChecker) inferExpr(expr ast.Expression) *tnode {
 				}
 			}
 			bodyType := c.inferBlockInCurrentScope(cs.Body)
+			c.popOverride()
 			c.popScope()
 			caseResults = append(caseResults, bodyType)
 		}
@@ -912,6 +1002,7 @@ func (c *typeChecker) trackReassignmentType(lhs ast.Expression, rhs *tnode) {
 		// Lightweight path-sensitive widening: preserve prior possibilities
 		// and include assigned value shape to model mutable var evolution.
 		c.scopes[i][name] = c.unionType(cur, rhs)
+		c.setOverride(name, rhs)
 		return
 	}
 }
