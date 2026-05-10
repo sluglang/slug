@@ -89,6 +89,10 @@ func TestServerInitializeShutdownExit(t *testing.T) {
 		if _, ok := caps["completionProvider"].(map[string]interface{}); !ok {
 			t.Fatalf("completionProvider missing in capabilities: %#v", caps)
 		}
+		cp, _ := caps["completionProvider"].(map[string]interface{})
+		if rp, _ := cp["resolveProvider"].(bool); !rp {
+			t.Fatalf("expected resolveProvider=true, got %#v", cp["resolveProvider"])
+		}
 		return
 	}
 	t.Fatal("initialize response not found")
@@ -588,6 +592,47 @@ func TestServerCompletionReturnsKeywordsAndSymbols(t *testing.T) {
 		return
 	}
 	t.Fatal("completion response(s) not found")
+}
+
+func TestServerCompletionResolveEnrichesItem(t *testing.T) {
+	src := "val answer = 42\\nval an = ans\\n"
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///a.slug","version":1,"text":"`+src+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":14,"method":"completionItem/resolve","params":{"label":"answer","kind":6,"data":{"uri":"file:///a.slug","label":"answer","kind":"variable"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok || int(id) != 14 {
+			continue
+		}
+		res, ok := m["result"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("resolve result missing: %#v", m)
+		}
+		detail, _ := res["detail"].(string)
+		if detail == "" {
+			t.Fatalf("expected detail to be populated: %#v", res)
+		}
+		doc, _ := res["documentation"].(map[string]interface{})
+		if doc == nil {
+			t.Fatalf("expected documentation in resolved item: %#v", res)
+		}
+		value, _ := doc["value"].(string)
+		if !strings.Contains(value, "answer") {
+			t.Fatalf("expected documentation mentioning symbol name: %#v", res)
+		}
+		return
+	}
+	t.Fatal("completionItem/resolve response not found")
 }
 
 func TestNormalizeURIFileScheme(t *testing.T) {

@@ -153,9 +153,11 @@ type lspDocumentSymbol struct {
 }
 
 type lspCompletionItem struct {
-	Label  string `json:"label"`
-	Kind   int    `json:"kind,omitempty"`
-	Detail string `json:"detail,omitempty"`
+	Label         string                 `json:"label"`
+	Kind          int                    `json:"kind,omitempty"`
+	Detail        string                 `json:"detail,omitempty"`
+	Documentation *lspMarkupContent      `json:"documentation,omitempty"`
+	Data          map[string]interface{} `json:"data,omitempty"`
 }
 
 type symbolDef struct {
@@ -209,6 +211,7 @@ func NewServer(in io.Reader, out io.Writer, analyze Analyzer) *Server {
 		"textDocument/definition":     s.handleDefinition,
 		"textDocument/documentSymbol": s.handleDocumentSymbol,
 		"textDocument/completion":     s.handleCompletion,
+		"completionItem/resolve":      s.handleCompletionResolve,
 	}
 	return s
 }
@@ -282,7 +285,7 @@ func (s *Server) handleInitialize(req rpcRequest) error {
 		HoverProvider:          true,
 		DefinitionProvider:     true,
 		DocumentSymbolProvider: true,
-		CompletionProvider:     &completionProvider{ResolveProvider: false},
+		CompletionProvider:     &completionProvider{ResolveProvider: true},
 	}})
 }
 
@@ -480,7 +483,16 @@ func (s *Server) handleCompletion(req rpcRequest) error {
 			return
 		}
 		seen[label] = true
-		items = append(items, lspCompletionItem{Label: label, Kind: kind, Detail: detail})
+		items = append(items, lspCompletionItem{
+			Label:  label,
+			Kind:   kind,
+			Detail: detail,
+			Data: map[string]interface{}{
+				"uri":   normURI,
+				"label": label,
+				"kind":  detail,
+			},
+		})
 	}
 
 	for _, kw := range slugKeywords {
@@ -490,6 +502,59 @@ func (s *Server) handleCompletion(req rpcRequest) error {
 		add(s.Name, toCompletionItemKind(s.Kind), s.Kind)
 	}
 	return s.writeResult(req.ID, items)
+}
+
+func (s *Server) handleCompletionResolve(req rpcRequest) error {
+	var item lspCompletionItem
+	if err := json.Unmarshal(req.Params, &item); err != nil {
+		return s.writeError(idOrNil(req.ID), -32602, "Invalid params", err.Error())
+	}
+	if item.Data == nil {
+		return s.writeResult(req.ID, item)
+	}
+	uri, _ := item.Data["uri"].(string)
+	label, _ := item.Data["label"].(string)
+	if uri == "" || label == "" {
+		return s.writeResult(req.ID, item)
+	}
+	doc, ok := s.docs[uri]
+	if !ok {
+		return s.writeResult(req.ID, item)
+	}
+
+	syms := collectSymbols(doc.Text)
+	best := symbolDef{}
+	found := false
+	for _, s := range syms {
+		if s.Name != label {
+			continue
+		}
+		if !found || s.ScopeDepth < best.ScopeDepth || (s.ScopeDepth == best.ScopeDepth && s.Start < best.Start) {
+			best = s
+			found = true
+		}
+	}
+	if !found {
+		if item.Detail == "" {
+			item.Detail = "symbol"
+		}
+		item.Documentation = &lspMarkupContent{
+			Kind:  "markdown",
+			Value: fmt.Sprintf("`%s`", item.Label),
+		}
+		return s.writeResult(req.ID, item)
+	}
+	item.Kind = toCompletionItemKind(best.Kind)
+	item.Detail = best.Kind
+	docLines := []string{fmt.Sprintf("`%s` (%s)", best.Name, best.Kind)}
+	if strings.TrimSpace(best.Detail) != "" {
+		docLines = append(docLines, "", best.Detail)
+	}
+	item.Documentation = &lspMarkupContent{
+		Kind:  "markdown",
+		Value: strings.Join(docLines, "\n"),
+	}
+	return s.writeResult(req.ID, item)
 }
 
 func toDocumentSymbolKind(kind string) int {

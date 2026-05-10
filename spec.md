@@ -1281,3 +1281,25 @@ Tests added/updated in `internal/lsp/server_test.go`:
 Validation performed:
 - `go test ./internal/lsp -count=1`
 - `go test ./... -count=1`
+
+### LSP Phase 6: completionItem/resolve (lazy completion enrichment)
+
+- Added `completionItem/resolve` handler in `internal/lsp/server.go`.
+- Updated initialize capabilities to advertise resolve support:
+  - `completionProvider.resolveProvider: true`
+- Extended completion items to include:
+  - `data` payload (`uri`, `label`, `kind`) for round-tripping into resolve requests,
+  - optional `documentation` field for lazy docs.
+- Resolve behavior:
+  - looks up current open document by item `data.uri`,
+  - resolves symbol metadata by `data.label`,
+  - enriches item `kind`, `detail`, and markdown `documentation`.
+  - falls back gracefully if symbol/document is unavailable.
+
+Tests added/updated in `internal/lsp/server_test.go`:
+- `TestServerInitializeShutdownExit` now asserts `completionProvider.resolveProvider == true`.
+- `TestServerCompletionResolveEnrichesItem` validates that resolve populates detail + documentation for a symbol completion item.
+
+Validation performed:
+- `go test ./internal/lsp -count=1`
+- `go test ./... -count=1`
