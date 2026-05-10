@@ -837,3 +837,16 @@
   - `TestSemanticTypeCheckStrictAllowsMatchWithHeterogeneousStructCaseResults`.
 - Validation performed:
   - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
+
+### Semantic typing fix for spread arguments and fixed-arity calls
+
+- Fixed false-positive call arity mismatch diagnostics for spread-based calls such as `rgbStyle(...v)` where `v` is list-like and the target function has fixed arity.
+- Updated call inference to be spread-aware:
+  - parse call arguments as spread vs non-spread,
+  - avoid strict exact-arity checks when spread is present (only fail when non-spread arguments already exceed max arity),
+  - propagate spread element typing into remaining positional parameter checks (`list` -> element type, `bytes` -> `num`, `str` -> `str`).
+- Added regression test:
+  - `TestSemanticTypeCheckStrictAllowsSpreadToSatisfyFixedArity`.
+- Validation performed:
+  - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
+  - `SLUG_HOME=$(pwd) go run ./cmd/app/main.go -log-level error --root ./lib lib/slug/term/colour.slug` (passes)

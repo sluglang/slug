@@ -557,13 +557,29 @@ func (c *typeChecker) inferFunctionLiteral(fn *ast.FunctionLiteral) *tnode {
 func (c *typeChecker) inferCall(call *ast.CallExpression) *tnode {
 	callee := c.inferExpr(call.Function)
 	result := c.freshUnknown()
-	args := make([]*tnode, 0, len(call.Arguments))
+	type callArg struct {
+		t        *tnode
+		isSpread bool
+	}
+	args := make([]callArg, 0, len(call.Arguments))
 	for _, arg := range call.Arguments {
-		args = append(args, c.inferExpr(arg))
+		if spread, ok := arg.(*ast.SpreadExpression); ok {
+			args = append(args, callArg{t: c.inferExpr(spread.Value), isSpread: true})
+			continue
+		}
+		args = append(args, callArg{t: c.inferExpr(arg)})
 	}
 	ct := c.find(callee)
 	if ct.kind == typeFn {
-		argc := len(args)
+		hasSpread := false
+		fixedArgs := 0
+		for _, a := range args {
+			if a.isSpread {
+				hasSpread = true
+				continue
+			}
+			fixedArgs++
+		}
 		minArgs := ct.minArgs
 		maxArgs := ct.maxArgs
 		if maxArgs == 0 && len(ct.params) > 0 && !ct.variadic {
@@ -572,23 +588,51 @@ func (c *typeChecker) inferCall(call *ast.CallExpression) *tnode {
 		if maxArgs == 0 && len(ct.params) == 0 {
 			maxArgs = -1
 		}
-		if argc < minArgs || (maxArgs >= 0 && argc > maxArgs) {
-			if maxArgs >= 0 {
-				c.addDiag(call.Token.Position, "call arity mismatch: expected %d..%d arguments, got %d", minArgs, maxArgs, argc)
-			} else {
-				c.addDiag(call.Token.Position, "call arity mismatch: expected at least %d arguments, got %d", minArgs, argc)
+		if !hasSpread {
+			argc := len(args)
+			if argc < minArgs || (maxArgs >= 0 && argc > maxArgs) {
+				if maxArgs >= 0 {
+					c.addDiag(call.Token.Position, "call arity mismatch: expected %d..%d arguments, got %d", minArgs, maxArgs, argc)
+				} else {
+					c.addDiag(call.Token.Position, "call arity mismatch: expected at least %d arguments, got %d", minArgs, argc)
+				}
 			}
+		} else if maxArgs >= 0 && fixedArgs > maxArgs {
+			// Spread can contribute 0..N args, so only reject when fixed args
+			// already exceed the maximum possible arity.
+			c.addDiag(call.Token.Position, "call arity mismatch: expected %d..%d arguments, got at least %d", minArgs, maxArgs, fixedArgs)
 		}
-		limit := len(args)
-		if len(ct.params) < limit {
-			limit = len(ct.params)
-		}
-		for i := 0; i < limit; i++ {
-			c.callChecks = append(c.callChecks, callCheck{
-				pos:      call.Token.Position,
-				got:      args[i],
-				expected: ct.params[i],
-			})
+		paramIdx := 0
+		for _, arg := range args {
+			if paramIdx >= len(ct.params) {
+				break
+			}
+			if !arg.isSpread {
+				c.callChecks = append(c.callChecks, callCheck{
+					pos:      call.Token.Position,
+					got:      arg.t,
+					expected: ct.params[paramIdx],
+				})
+				paramIdx++
+				continue
+			}
+			elem := c.freshUnknown()
+			at := c.find(arg.t)
+			switch at.kind {
+			case typeList:
+				elem = at.elem
+			case typeBytes:
+				elem = c.scalar(typeNum)
+			case typeStr:
+				elem = c.scalar(typeStr)
+			}
+			for ; paramIdx < len(ct.params); paramIdx++ {
+				c.callChecks = append(c.callChecks, callCheck{
+					pos:      call.Token.Position,
+					got:      elem,
+					expected: ct.params[paramIdx],
+				})
+			}
 		}
 		c.addConstraint(result, ct.ret, call.Token.Position, "call return type")
 	}
