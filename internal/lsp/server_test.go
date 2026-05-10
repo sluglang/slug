@@ -533,7 +533,7 @@ func TestServerDefinitionResolvesWildcardImportedExportFromModuleFile(t *testing
 		t.Fatalf("mkdir failed: %v", err)
 	}
 	stdPath := filepath.Join(libDir, "std.slug")
-	stdSrc := "@export val reduce = fn(a,b){ a }\\n"
+	stdSrc := "@export val reduce = fn(a,b){ a }\n"
 	if err := os.WriteFile(stdPath, []byte(stdSrc), 0o644); err != nil {
 		t.Fatalf("write std module failed: %v", err)
 	}
@@ -583,7 +583,7 @@ func TestServerCodeActionSuggestsImportForUnresolvedSymbolFromSlugHome(t *testin
 		t.Fatalf("mkdir failed: %v", err)
 	}
 	stdPath := filepath.Join(libDir, "std.slug")
-	stdSrc := "@export val reduce = fn(a,b){ a }\\n"
+	stdSrc := "@export val reduce = fn(a,b){ a }\n"
 	if err := os.WriteFile(stdPath, []byte(stdSrc), 0o644); err != nil {
 		t.Fatalf("write std module failed: %v", err)
 	}
@@ -619,6 +619,65 @@ func TestServerCodeActionSuggestsImportForUnresolvedSymbolFromSlugHome(t *testin
 		title, _ := act["title"].(string)
 		if !strings.Contains(title, "reduce") || !strings.Contains(title, "slug.std") {
 			t.Fatalf("unexpected code action title: %q (%#v)", title, act)
+		}
+		return
+	}
+	t.Fatal("codeAction response not found")
+}
+
+func TestServerCodeActionExtendsExistingDestructuredImport(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("SLUG_HOME", tmp)
+	libDir := filepath.Join(tmp, "lib", "slug")
+	if err := os.MkdirAll(libDir, 0o755); err != nil {
+		t.Fatalf("mkdir failed: %v", err)
+	}
+	stdPath := filepath.Join(libDir, "std.slug")
+	stdSrc := "@export val map = fn(v){v}\n@export val reduce = fn(v){v}\n"
+	if err := os.WriteFile(stdPath, []byte(stdSrc), 0o644); err != nil {
+		t.Fatalf("write std module failed: %v", err)
+	}
+	playPath := filepath.Join(tmp, "playground.slug")
+	playSrc := "val { map } = import(\"slug.std\")\n[1,2] /> reduce(0, fn(a,b){a})\n"
+	playSrcJSON := strings.ReplaceAll(playSrc, "\"", "\\\"")
+	playSrcJSON = strings.ReplaceAll(playSrcJSON, "\n", "\\n")
+	if err := os.WriteFile(playPath, []byte(playSrc), 0o644); err != nil {
+		t.Fatalf("write playground failed: %v", err)
+	}
+	playURI, _ := normalizeURI(playPath)
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"`+playURI+`","version":1,"text":"`+playSrcJSON+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":32,"method":"textDocument/codeAction","params":{"textDocument":{"uri":"`+playURI+`"},"range":{"start":{"line":1,"character":9},"end":{"line":1,"character":15}}}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok || int(id) != 32 {
+			continue
+		}
+		res, ok := m["result"].([]interface{})
+		if !ok || len(res) == 0 {
+			t.Fatalf("codeAction result missing: %#v", m)
+		}
+		act, _ := res[0].(map[string]interface{})
+		edit, _ := act["edit"].(map[string]interface{})
+		changes, _ := edit["changes"].(map[string]interface{})
+		edits, _ := changes[playURI].([]interface{})
+		if len(edits) != 1 {
+			t.Fatalf("expected single edit, got %#v", edits)
+		}
+		e0, _ := edits[0].(map[string]interface{})
+		newText, _ := e0["newText"].(string)
+		if newText != ", reduce" {
+			t.Fatalf("expected import extension edit ', reduce', got %q", newText)
 		}
 		return
 	}

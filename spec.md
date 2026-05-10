@@ -1614,3 +1614,25 @@ Tests added/updated in `internal/lsp/server_test.go`:
 Validation performed:
 - `go test ./internal/lsp -count=1`
 - `go test ./... -count=1`
+
+### LSP codeAction enhancement: prefer extending existing import bindings
+
+- Improved unresolved-import quick-fix generation in `internal/lsp/server.go`.
+- New priority for import edits:
+  1. extend an existing same-module destructured import when present (e.g. `val { map } = import("slug.std")` -> add `, reduce`),
+  2. otherwise insert a new import line.
+
+Implementation notes:
+- Added import edit planner:
+  - `buildImportEditPlan`
+  - `extendExistingImportBinding`
+- Added AST offset helper for precise insertion in existing import pattern:
+  - `offsetAfterNode`
+
+Tests added/updated in `internal/lsp/server_test.go`:
+- `TestServerCodeActionExtendsExistingDestructuredImport` validates in-place extension (`", reduce"`) instead of new-line insertion.
+- Updated module fixture sources to use real newlines for robust export parsing in codeAction tests.
+
+Validation performed:
+- `go test ./internal/lsp -count=1`
+- `go test ./... -count=1`

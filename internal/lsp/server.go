@@ -233,6 +233,11 @@ type lspCodeAction struct {
 	Edit  *lspWorkspaceEdit `json:"edit,omitempty"`
 }
 
+type importEditPlan struct {
+	Range   lspRange
+	NewText string
+}
+
 type symbolDef struct {
 	Name       string
 	Kind       string
@@ -730,18 +735,17 @@ func (s *Server) handleCodeAction(req rpcRequest) error {
 	if len(modules) == 0 {
 		return s.writeResult(req.ID, []lspCodeAction{})
 	}
-	insertPos := importInsertionPosition(doc.Text)
 	actions := make([]lspCodeAction, 0, len(modules))
 	for _, module := range modules {
-		ins := fmt.Sprintf("val { %s } = import(\"%s\")\n", name, module)
+		plan := buildImportEditPlan(doc.Text, module, name)
 		actions = append(actions, lspCodeAction{
 			Title: fmt.Sprintf("Add import for '%s' from '%s'", name, module),
 			Kind:  "quickfix",
 			Edit: &lspWorkspaceEdit{
 				Changes: map[string][]lspTextEdit{
 					normURI: {{
-						Range:   lspRange{Start: insertPos, End: insertPos},
-						NewText: ins,
+						Range:   plan.Range,
+						NewText: plan.NewText,
 					}},
 				},
 			},
@@ -2148,6 +2152,120 @@ func importInsertionPosition(src string) lspPosition {
 		break
 	}
 	return lspPosition{Line: line, Character: 0}
+}
+
+func buildImportEditPlan(src string, module string, symbol string) importEditPlan {
+	if plan, ok := extendExistingImportBinding(src, module, symbol); ok {
+		return plan
+	}
+	insertPos := importInsertionPosition(src)
+	return importEditPlan{
+		Range:   lspRange{Start: insertPos, End: insertPos},
+		NewText: fmt.Sprintf("val { %s } = import(\"%s\")\n", symbol, module),
+	}
+}
+
+func extendExistingImportBinding(src string, module string, symbol string) (importEditPlan, bool) {
+	l := lexer.New(src)
+	p := parser.New(l, "<lsp>", src)
+	program := p.ParseProgram()
+
+	for _, st := range program.Statements {
+		es, ok := st.(*ast.ExpressionStatement)
+		if !ok || es.Expression == nil {
+			continue
+		}
+		var pattern ast.MatchPattern
+		var value ast.Expression
+		switch e := es.Expression.(type) {
+		case *ast.ValExpression:
+			pattern, value = e.Pattern, e.Value
+		case *ast.VarExpression:
+			pattern, value = e.Pattern, e.Value
+		default:
+			continue
+		}
+		call, ok := value.(*ast.CallExpression)
+		if !ok {
+			continue
+		}
+		fn, ok := call.Function.(*ast.Identifier)
+		if !ok || fn.Value != "import" {
+			continue
+		}
+		mods := importModuleArgs(call.Arguments)
+		if len(mods) != 1 || mods[0] != module {
+			continue
+		}
+		mp, ok := pattern.(*ast.MapPattern)
+		if !ok || mp == nil {
+			continue
+		}
+		for _, entry := range mp.Pairs {
+			key := patternEntryKeyName(entry.Key)
+			b := patternBindingName(entry.Pattern)
+			if key == symbol || b == symbol {
+				return importEditPlan{}, false
+			}
+		}
+		if mp.SelectAll {
+			return importEditPlan{}, false
+		}
+		if len(mp.Pairs) == 0 {
+			return importEditPlan{}, false
+		}
+		last := mp.Pairs[len(mp.Pairs)-1]
+		ins := lspPosition{Line: positionFromOffset(src, offsetAfterNode(src, last.Pattern)).Line, Character: positionFromOffset(src, offsetAfterNode(src, last.Pattern)).Character}
+		return importEditPlan{
+			Range:   lspRange{Start: ins, End: ins},
+			NewText: ", " + symbol,
+		}, true
+	}
+	return importEditPlan{}, false
+}
+
+func offsetAfterNode(src string, n ast.Node) int {
+	if n == nil {
+		return 0
+	}
+	start := -1
+	length := 0
+	switch v := n.(type) {
+	case *ast.IdentifierPattern:
+		if v.Value != nil {
+			start = v.Value.Token.Position
+			length = len(v.Value.Token.Literal)
+		}
+	case *ast.BindingPattern:
+		if v.Name != nil {
+			start = v.Name.Token.Position
+			length = len(v.Name.Token.Literal)
+		}
+	case *ast.Identifier:
+		start = v.Token.Position
+		length = len(v.Token.Literal)
+	case *ast.SymbolLiteral:
+		start = v.Token.Position
+		length = len(v.Token.Literal)
+	default:
+		s := n.String()
+		if s == "" {
+			return 0
+		}
+		idx := strings.Index(src, s)
+		if idx >= 0 {
+			start = idx
+			length = len(s)
+		}
+	}
+	if start < 0 {
+		return 0
+	}
+	end := start + length
+	if end > len(src) {
+		end = len(src)
+	}
+	return end
 }
 
 func (s *Server) discoverExportingModules(originURI string, name string) []string {
