@@ -594,8 +594,45 @@ func (c *typeChecker) inferInfix(e *ast.InfixExpression) *tnode {
 		c.addConstraint(out, c.scalar(typeBool), e.Token.Position, "logical result")
 		return out
 	case ":+", "+:":
-		c.addConstraint(left, c.listType(c.freshUnknown()), e.Token.Position, "list concat operator")
-		c.addConstraint(out, c.listType(c.freshUnknown()), e.Token.Position, "list concat result")
+		lf := c.find(left)
+		rf := c.find(right)
+		if e.Operator == ":+" {
+			// list :+ any -> list
+			if lf.kind == typeList {
+				c.addConstraint(out, lf, e.Token.Position, "list concat result")
+				return out
+			}
+			// bytes :+ num -> bytes
+			if lf.kind == typeBytes {
+				c.addConstraint(right, c.scalar(typeNum), e.Token.Position, "bytes append operator")
+				c.addConstraint(out, c.scalar(typeBytes), e.Token.Position, "bytes append result")
+				return out
+			}
+			// Unknown lhs: allow either list or bytes mode without eager mismatch.
+			if lf.kind == typeUnknown || lf.kind == typeAny {
+				c.addConstraint(out, c.freshUnknown(), e.Token.Position, "list concat result")
+				return out
+			}
+			c.addDiag(e.Token.Position, "list/bytes append type mismatch: expected list or bytes on left, got %s", c.describe(left))
+			return out
+		}
+		// +: operator
+		// any +: list -> list
+		if rf.kind == typeList {
+			c.addConstraint(out, rf, e.Token.Position, "list prepend result")
+			return out
+		}
+		// num +: bytes -> bytes
+		if rf.kind == typeBytes {
+			c.addConstraint(left, c.scalar(typeNum), e.Token.Position, "bytes prepend operator")
+			c.addConstraint(out, c.scalar(typeBytes), e.Token.Position, "bytes prepend result")
+			return out
+		}
+		if rf.kind == typeUnknown || rf.kind == typeAny {
+			c.addConstraint(out, c.freshUnknown(), e.Token.Position, "list concat result")
+			return out
+		}
+		c.addDiag(e.Token.Position, "list/bytes prepend type mismatch: expected list or bytes on right, got %s", c.describe(right))
 		return out
 	default:
 		return out
@@ -614,8 +651,8 @@ func (c *typeChecker) bindPattern(pattern ast.MatchPattern, valueType *tnode) {
 		}
 		c.bindPattern(p.Pattern, valueType)
 	case *ast.ListPattern:
-		elem := c.freshUnknown()
-		c.addConstraint(valueType, c.listType(elem), p.Token.Position, "list pattern type")
+		elem := c.sequenceElementType(valueType)
+		c.constrainSequenceLike(valueType, elem, p.Token.Position, "list pattern type")
 		for _, item := range p.Elements {
 			c.bindPattern(item, elem)
 		}
@@ -652,8 +689,8 @@ func (c *typeChecker) narrowPattern(pattern ast.MatchPattern, valueType *tnode, 
 		lit := c.inferExpr(p.Value)
 		c.addConstraint(valueType, lit, pos, "match literal pattern")
 	case *ast.ListPattern:
-		elem := c.freshUnknown()
-		c.addConstraint(valueType, c.listType(elem), pos, "match list pattern")
+		elem := c.sequenceElementType(valueType)
+		c.constrainSequenceLike(valueType, elem, pos, "match list pattern")
 		for _, item := range p.Elements {
 			c.narrowPattern(item, elem, pos)
 		}
@@ -689,6 +726,38 @@ func (c *typeChecker) narrowPattern(pattern ast.MatchPattern, valueType *tnode, 
 		if len(p.Patterns) > 0 {
 			c.narrowPattern(p.Patterns[0], valueType, pos)
 		}
+	}
+}
+
+func (c *typeChecker) sequenceElementType(seq *tnode) *tnode {
+	s := c.find(seq)
+	if s != nil {
+		switch s.kind {
+		case typeBytes:
+			return c.scalar(typeNum)
+		case typeList:
+			if s.elem != nil {
+				return s.elem
+			}
+		}
+	}
+	return c.freshUnknown()
+}
+
+func (c *typeChecker) constrainSequenceLike(seq, elem *tnode, pos int, reason string) {
+	s := c.find(seq)
+	if s == nil {
+		return
+	}
+	switch s.kind {
+	case typeBytes:
+		// bytes are sequence-like at runtime and match list-pattern opcodes
+		return
+	case typeList, typeUnknown, typeAny:
+		c.addConstraint(seq, c.listType(elem), pos, reason)
+	default:
+		// Keep diagnostic quality clear for obvious non-sequence matches.
+		c.addDiag(pos, "list pattern type mismatch: expected list or bytes, got %s", c.describe(seq))
 	}
 }
 

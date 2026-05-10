@@ -680,3 +680,28 @@
   - `TestSemanticTypeCheckStrictAllowsNestedMatchAfterTypeDispatch`.
 - Validation performed:
   - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
+
+### Semantic typing alignment for bytes as sequence-like in list patterns
+
+- Updated pattern typing so list patterns accept bytes as sequence-like values, matching runtime behavior.
+- Added sequence-aware pattern helpers in semantic typing:
+  - list-pattern narrowing/binding now supports `list` and `bytes`,
+  - bytes element pattern bindings infer numeric element type.
+- Added clearer diagnostic for obvious non-sequence list-pattern subjects.
+- Added regression test:
+  - `TestSemanticTypeCheckStrictAllowsListPatternMatchOnBytes`.
+- Validation performed:
+  - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
+
+### Semantic typing alignment for bytes append/prepend operators
+
+- Fixed false-positive type diagnostics for bytes sequence update operators:
+  - `bytes :+ num` (append byte)
+  - `num +: bytes` (prepend byte)
+- Updated inferred operator rules for `:+` / `+:` to align with runtime behavior:
+  - list append/prepend remains supported,
+  - bytes append/prepend now explicitly modeled with numeric byte elements.
+- Added regression test:
+  - `TestSemanticTypeCheckStrictAllowsBytesAppendAndPrependOperators`.
+- Validation performed:
+  - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`

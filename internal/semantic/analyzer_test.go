@@ -499,3 +499,54 @@ val toBoolean = fn(v) {
 		t.Fatalf("expected no semantic errors for nested match after type dispatch, got: %v", errs)
 	}
 }
+
+func TestSemanticTypeCheckStrictAllowsListPatternMatchOnBytes(t *testing.T) {
+	input := `
+val list = 0x"0102"
+
+val out = match list {
+  [] => false
+  [...] => true
+  _ => false
+}
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+		StrictTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+	}
+	if len(errs) > 0 {
+		t.Fatalf("expected no semantic errors for bytes list-pattern match, got: %v", errs)
+	}
+}
+
+func TestSemanticTypeCheckStrictAllowsBytesAppendAndPrependOperators(t *testing.T) {
+	input := `
+val a = 0x"0102" :+ 3
+val b = 0 +: 0x"0102"
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+		StrictTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+	}
+	if len(errs) > 0 {
+		t.Fatalf("expected no semantic errors for bytes append/prepend operators, got: %v", errs)
+	}
+}
