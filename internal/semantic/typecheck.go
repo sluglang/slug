@@ -754,6 +754,7 @@ func (c *typeChecker) inferInfix(e *ast.InfixExpression) *tnode {
 	switch e.Operator {
 	case "=":
 		c.addConstraint(left, right, e.Token.Position, "assignment")
+		c.trackReassignmentType(e.Left, right)
 		return right
 	case "+":
 		lf := c.find(left)
@@ -795,6 +796,23 @@ func (c *typeChecker) inferInfix(e *ast.InfixExpression) *tnode {
 		lf := c.find(left)
 		rf := c.find(right)
 		if e.Operator == ":+" {
+			if lf.kind == typeUnion {
+				hasList, hasBytes, hasOther := c.unionContainerModes(lf)
+				// Ambiguous unions that may be list/bytes should not fail eagerly.
+				if hasList || hasBytes {
+					if hasBytes && !hasList {
+						c.addConstraint(right, c.scalar(typeNum), e.Token.Position, "bytes append operator")
+						c.addConstraint(out, c.scalar(typeBytes), e.Token.Position, "bytes append result")
+						return out
+					}
+					c.addConstraint(out, c.freshUnknown(), e.Token.Position, "list concat result")
+					return out
+				}
+				if !hasOther {
+					c.addConstraint(out, c.freshUnknown(), e.Token.Position, "list concat result")
+					return out
+				}
+			}
 			// list :+ any -> list
 			if lf.kind == typeList {
 				c.addConstraint(out, lf, e.Token.Position, "list concat result")
@@ -815,6 +833,22 @@ func (c *typeChecker) inferInfix(e *ast.InfixExpression) *tnode {
 			return out
 		}
 		// +: operator
+		if rf.kind == typeUnion {
+			hasList, hasBytes, hasOther := c.unionContainerModes(rf)
+			if hasList || hasBytes {
+				if hasBytes && !hasList {
+					c.addConstraint(left, c.scalar(typeNum), e.Token.Position, "bytes prepend operator")
+					c.addConstraint(out, c.scalar(typeBytes), e.Token.Position, "bytes prepend result")
+					return out
+				}
+				c.addConstraint(out, c.freshUnknown(), e.Token.Position, "list concat result")
+				return out
+			}
+			if !hasOther {
+				c.addConstraint(out, c.freshUnknown(), e.Token.Position, "list concat result")
+				return out
+			}
+		}
 		// any +: list -> list
 		if rf.kind == typeList {
 			c.addConstraint(out, rf, e.Token.Position, "list prepend result")
@@ -834,6 +868,51 @@ func (c *typeChecker) inferInfix(e *ast.InfixExpression) *tnode {
 		return out
 	default:
 		return out
+	}
+}
+
+func (c *typeChecker) unionContainerModes(t *tnode) (hasList bool, hasBytes bool, hasOther bool) {
+	tf := c.find(t)
+	if tf == nil || tf.kind != typeUnion {
+		return false, false, false
+	}
+	for _, opt := range tf.options {
+		of := c.find(opt)
+		if of == nil {
+			continue
+		}
+		switch of.kind {
+		case typeList:
+			hasList = true
+		case typeBytes:
+			hasBytes = true
+		case typeUnknown, typeAny, typeNil, typeNever:
+			// keep permissive for unresolved/flow states
+		default:
+			hasOther = true
+		}
+	}
+	return hasList, hasBytes, hasOther
+}
+
+func (c *typeChecker) trackReassignmentType(lhs ast.Expression, rhs *tnode) {
+	id, ok := lhs.(*ast.Identifier)
+	if !ok || id == nil {
+		return
+	}
+	name := id.Value
+	if name == "" {
+		return
+	}
+	for i := len(c.scopes) - 1; i >= 0; i-- {
+		cur, exists := c.scopes[i][name]
+		if !exists || cur == nil {
+			continue
+		}
+		// Lightweight path-sensitive widening: preserve prior possibilities
+		// and include assigned value shape to model mutable var evolution.
+		c.scopes[i][name] = c.unionType(cur, rhs)
+		return
 	}
 }
 

@@ -931,3 +931,18 @@
   - `TestSemanticTypeCheckStrictReportsUnreachableMatchGuardOnContradiction`
 - Validation performed:
   - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
+
+### Semantic typing enhancement: staged mutable reassignment tracking (`var`)
+
+- Added lightweight reassignment-aware typing for identifier assignments (`=`) to better model mutable `var` evolution.
+- On assignment to an existing binding, semantic inference now widens the binding type to include assigned value shapes (`old ∪ new`) instead of freezing to initializer-only type.
+- This improves handling of mutable values across iterative/control-flow-heavy code without requiring a full SSA/control-flow graph.
+- Scope of this stage:
+  - supports identifier reassignments,
+  - intentionally conservative/path-insensitive widening at assignment sites,
+  - does not yet model precise execution-order/path dominance across branches.
+- Added regression tests:
+  - `TestSemanticTypeCheckStrictTracksVarReassignmentWidening`
+  - `TestSemanticTypeCheckStrictTracksVarReassignmentAcrossIfBranches`
+- Validation performed:
+  - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
