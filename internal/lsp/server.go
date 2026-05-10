@@ -254,7 +254,8 @@ type lspSignatureInformation struct {
 }
 
 type lspParameterInformation struct {
-	Label string `json:"label"`
+	Label         string            `json:"label"`
+	Documentation *lspMarkupContent `json:"documentation,omitempty"`
 }
 
 type importEditPlan struct {
@@ -293,6 +294,7 @@ type functionSignature struct {
 	Name       string
 	Params     []string
 	Detail     string
+	ParamDocs  []string
 	ScopeDepth int
 	Start      int
 	End        int
@@ -837,8 +839,12 @@ func (s *Server) handleSignatureHelp(req rpcRequest) error {
 	}
 	label := sig.Name + "(" + strings.Join(sig.Params, ", ") + ")"
 	params := make([]lspParameterInformation, 0, len(sig.Params))
-	for _, pn := range sig.Params {
-		params = append(params, lspParameterInformation{Label: pn})
+	for i, pn := range sig.Params {
+		p := lspParameterInformation{Label: pn}
+		if i < len(sig.ParamDocs) && strings.TrimSpace(sig.ParamDocs[i]) != "" {
+			p.Documentation = &lspMarkupContent{Kind: "markdown", Value: sig.ParamDocs[i]}
+		}
+		params = append(params, p)
 	}
 	if activeParam < 0 {
 		activeParam = 0
@@ -1175,12 +1181,16 @@ func collectSymbols(src string) []symbolDef {
 	walkExpr = func(ex ast.Expression) {
 		switch e := ex.(type) {
 		case *ast.VarExpression:
-			addPattern(e.Pattern, "variable", "")
+			detail := ""
+			if e.HasDoc {
+				detail = strings.TrimSpace(e.Doc)
+			}
+			addPattern(e.Pattern, "variable", detail)
 			walkExpr(e.Value)
 		case *ast.ValExpression:
 			detail := ""
-			if _, ok := e.Value.(*ast.FunctionLiteral); ok {
-				detail = "function"
+			if e.HasDoc {
+				detail = strings.TrimSpace(e.Doc)
 			}
 			addPattern(e.Pattern, "variable", detail)
 			walkExpr(e.Value)
@@ -1949,13 +1959,16 @@ func collectFunctionSignatures(src string) []functionSignature {
 	var walkExpr func(ast.Expression)
 	add := func(name string, params []*ast.FunctionParameter, detail string, start int, end int) {
 		pn := make([]string, 0, len(params))
+		paramDocsByName := parseParamDocs(detail)
+		pdocs := make([]string, 0, len(params))
 		for _, p := range params {
 			if p == nil || p.Name == nil {
 				continue
 			}
 			pn = append(pn, p.Name.Value)
+			pdocs = append(pdocs, paramDocsByName[p.Name.Value])
 		}
-		out = append(out, functionSignature{Name: name, Params: pn, Detail: detail, ScopeDepth: scopeDepth, Start: start, End: end})
+		out = append(out, functionSignature{Name: name, Params: pn, Detail: detail, ParamDocs: pdocs, ScopeDepth: scopeDepth, Start: start, End: end})
 	}
 
 	walkStmt = func(st ast.Statement) {
@@ -1976,7 +1989,11 @@ func collectFunctionSignatures(src string) []functionSignature {
 			if s.Name != nil {
 				start := s.Name.Token.Position
 				end := start + len(s.Name.Token.Literal)
-				add(s.Name.Value, s.Parameters, "foreign function", start, end)
+				detail := ""
+				if s.HasDoc {
+					detail = strings.TrimSpace(s.Doc)
+				}
+				add(s.Name.Value, s.Parameters, detail, start, end)
 			}
 		}
 	}
@@ -1985,15 +2002,23 @@ func collectFunctionSignatures(src string) []functionSignature {
 		switch e := ex.(type) {
 		case *ast.ValExpression:
 			if fn, ok := e.Value.(*ast.FunctionLiteral); ok {
+				detail := ""
+				if e.HasDoc {
+					detail = strings.TrimSpace(e.Doc)
+				}
 				for _, n := range topLevelPatternNames(e.Pattern) {
-					add(n.Name, fn.Parameters, "function", n.Start, n.End)
+					add(n.Name, fn.Parameters, detail, n.Start, n.End)
 				}
 			}
 			walkExpr(e.Value)
 		case *ast.VarExpression:
 			if fn, ok := e.Value.(*ast.FunctionLiteral); ok {
+				detail := ""
+				if e.HasDoc {
+					detail = strings.TrimSpace(e.Doc)
+				}
 				for _, n := range topLevelPatternNames(e.Pattern) {
-					add(n.Name, fn.Parameters, "function", n.Start, n.End)
+					add(n.Name, fn.Parameters, detail, n.Start, n.End)
 				}
 			}
 			walkExpr(e.Value)
@@ -2162,6 +2187,37 @@ func findCallContext(src string, off int) (calleeExpr string, activeParam int, o
 		}
 	}
 	return callee, param, true
+}
+
+func parseParamDocs(doc string) map[string]string {
+	out := map[string]string{}
+	if strings.TrimSpace(doc) == "" {
+		return out
+	}
+	lines := strings.Split(doc, "\n")
+	for _, line := range lines {
+		s := strings.TrimSpace(line)
+		if !strings.HasPrefix(s, "@param") {
+			continue
+		}
+		rest := strings.TrimSpace(strings.TrimPrefix(s, "@param"))
+		if rest == "" {
+			continue
+		}
+		parts := strings.Fields(rest)
+		if len(parts) == 0 {
+			continue
+		}
+		name := parts[0]
+		desc := ""
+		if len(parts) > 1 {
+			desc = strings.TrimSpace(rest[len(name):])
+		}
+		if desc != "" {
+			out[name] = desc
+		}
+	}
+	return out
 }
 
 func isEscapedAt(src string, idx int) bool {

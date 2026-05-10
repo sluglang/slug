@@ -455,6 +455,45 @@ func TestServerHoverReturnsSymbolInfo(t *testing.T) {
 	t.Fatal("hover response not found")
 }
 
+func TestServerHoverIncludesDocComment(t *testing.T) {
+	src := "/**\n * Answer docs.\n */\nval answer = 42\nval use = answer\n"
+	srcJSON := strings.ReplaceAll(src, "\"", "\\\"")
+	srcJSON = strings.ReplaceAll(srcJSON, "\n", "\\n")
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///a.slug","version":1,"text":"`+srcJSON+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":47,"method":"textDocument/hover","params":{"textDocument":{"uri":"file:///a.slug"},"position":{"line":4,"character":11}}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok || int(id) != 47 {
+			continue
+		}
+		res, ok := m["result"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("hover result missing: %#v", m)
+		}
+		contents, ok := res["contents"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("hover contents missing: %#v", res)
+		}
+		v, _ := contents["value"].(string)
+		if !strings.Contains(v, "Answer docs.") {
+			t.Fatalf("expected hover to include doc comment, got: %q", v)
+		}
+		return
+	}
+	t.Fatal("hover response not found")
+}
+
 func TestServerDocumentSymbolReturnsTopLevel(t *testing.T) {
 	src := "val f = fn(x){ x }\\nval A = struct { name, }\\nvar n = 1\\n"
 	in := strings.NewReader(
@@ -967,6 +1006,57 @@ func TestServerSignatureHelpImportedFunction(t *testing.T) {
 		lbl, _ := s0["label"].(string)
 		if !strings.Contains(lbl, "reduce(vs, f, init)") {
 			t.Fatalf("unexpected imported signature label: %q", lbl)
+		}
+		return
+	}
+	t.Fatal("signatureHelp response not found")
+}
+
+func TestServerSignatureHelpIncludesDocAndParamDocs(t *testing.T) {
+	src := "/**\n * Adds values.\n * @param a left side\n * @param b right side\n */\nval add = fn(a, b) { a + b }\nadd(1, 2)\n"
+	srcJSON := strings.ReplaceAll(src, "\"", "\\\"")
+	srcJSON = strings.ReplaceAll(srcJSON, "\n", "\\n")
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///a.slug","version":1,"text":"`+srcJSON+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":48,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":"file:///a.slug"},"position":{"line":6,"character":7}}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok || int(id) != 48 {
+			continue
+		}
+		res, ok := m["result"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("signatureHelp result missing: %#v", m)
+		}
+		sigs, _ := res["signatures"].([]interface{})
+		if len(sigs) == 0 {
+			t.Fatalf("expected signatures, got %#v", res)
+		}
+		s0, _ := sigs[0].(map[string]interface{})
+		doc, _ := s0["documentation"].(map[string]interface{})
+		dv, _ := doc["value"].(string)
+		if !strings.Contains(dv, "Adds values.") {
+			t.Fatalf("expected signature documentation to include function docs, got %q", dv)
+		}
+		params, _ := s0["parameters"].([]interface{})
+		if len(params) != 2 {
+			t.Fatalf("expected 2 parameters, got %#v", s0["parameters"])
+		}
+		p0, _ := params[0].(map[string]interface{})
+		p0doc, _ := p0["documentation"].(map[string]interface{})
+		p0v, _ := p0doc["value"].(string)
+		if !strings.Contains(p0v, "left side") {
+			t.Fatalf("expected first parameter doc from @param, got %q", p0v)
 		}
 		return
 	}

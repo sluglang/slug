@@ -1904,3 +1904,27 @@ Tests added:
 Validation performed:
 - `go test ./internal/lsp -count=1`
 - `go test ./... -count=1`
+
+### LSP Phase 27: leverage existing Slug doc comments for hover and signature help
+
+- Reused existing parser doc metadata (no language doc format changes) to enrich LSP UX.
+- Hover now includes top-level symbol doc comments when present.
+- Signature help now includes function doc comments and per-parameter docs parsed from existing `@param <name> ...` lines inside the same doc block.
+
+Implementation updates:
+- `internal/lsp/server.go`
+  - `lspParameterInformation` now supports `documentation`.
+  - `functionSignature` now carries aligned `ParamDocs`.
+  - `collectSymbols` now propagates top-level `val/var` docs into symbol detail.
+  - `collectFunctionSignatures` now propagates `val/var/foreign` docs and extracts per-parameter docs via `parseParamDocs`.
+  - `handleSignatureHelp` now emits per-parameter documentation payloads.
+  - Added helper: `parseParamDocs(doc string) map[string]string`.
+
+Tests added:
+- `internal/lsp/server_test.go`
+  - `TestServerHoverIncludesDocComment`
+  - `TestServerSignatureHelpIncludesDocAndParamDocs`
+
+Validation performed:
+- `go test ./internal/lsp -count=1`
+- `go test ./... -count=1`
