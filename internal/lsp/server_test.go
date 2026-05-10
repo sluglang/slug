@@ -995,6 +995,24 @@ func TestServerSignatureHelpIgnoresCommasInsideMapAndListLiterals(t *testing.T) 
 	t.Fatal("signatureHelp response not found")
 }
 
+func TestFindCallContextHandlesEscapedQuotesInStringArgs(t *testing.T) {
+	src := "val sum = fn(a, b, c) { a }\nsum(\"a\\\",b\", 2, 3)\n"
+	off := strings.Index(src, ", 3)")
+	if off < 0 {
+		t.Fatalf("expected marker not found in source: %q", src)
+	}
+	callee, param, ok := findCallContext(src, off+2)
+	if !ok {
+		t.Fatal("expected call context to be found")
+	}
+	if callee != "sum" {
+		t.Fatalf("expected callee=sum, got %q", callee)
+	}
+	if param != 2 {
+		t.Fatalf("expected active parameter=2, got %d", param)
+	}
+}
+
 func TestServerCompletionReturnsKeywordsAndSymbols(t *testing.T) {
 	src := "val answer = 42\\nval an = ans\\nv\\n"
 	in := strings.NewReader(

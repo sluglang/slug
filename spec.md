@@ -1769,3 +1769,18 @@ Tests added:
 Validation performed:
 - `go test ./internal/lsp -count=1`
 - `go test ./... -count=1`
+
+### LSP Phase 19: call-context escape handling hardening
+
+- Fixed backward call-context scanning in `findCallContext` to correctly handle escaped quote characters while traversing string literals.
+- Added `isEscapedAt` helper (counts preceding backslashes) and used it when deciding whether a quote closes the current string during backward scan.
+- This prevents false call-context loss around arguments like `"...\",..."` that include escaped delimiters.
+
+Tests added/updated:
+- `internal/lsp/server_test.go`
+  - Added `TestFindCallContextHandlesEscapedQuotesInStringArgs`.
+  - Directly validates `findCallContext` returns callee `sum` and `activeParameter=2` for `sum("a\",b", 2, 3)`.
+
+Validation performed:
+- `go test ./internal/lsp -count=1`
+- `go test ./... -count=1`

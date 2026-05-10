@@ -2054,20 +2054,11 @@ func findCallContext(src string, off int) (calleeExpr string, activeParam int, o
 	}
 	depth := 0
 	inString := byte(0)
-	escaped := false
 	open := -1
 	for i := off - 1; i >= 0; i-- {
 		ch := src[i]
 		if inString != 0 {
-			if escaped {
-				escaped = false
-				continue
-			}
-			if ch == '\\' {
-				escaped = true
-				continue
-			}
-			if ch == inString {
+			if ch == inString && !isEscapedAt(src, i) {
 				inString = 0
 			}
 			continue
@@ -2124,7 +2115,7 @@ func findCallContext(src string, off int) (calleeExpr string, activeParam int, o
 	bracketDepth := 0
 	braceDepth := 0
 	inString = 0
-	escaped = false
+	escaped := false
 	for i := open + 1; i < off && i < len(src); i++ {
 		ch := src[i]
 		if inString != 0 {
@@ -2171,6 +2162,17 @@ func findCallContext(src string, off int) (calleeExpr string, activeParam int, o
 		}
 	}
 	return callee, param, true
+}
+
+func isEscapedAt(src string, idx int) bool {
+	if idx <= 0 || idx >= len(src) {
+		return false
+	}
+	slashes := 0
+	for i := idx - 1; i >= 0 && src[i] == '\\'; i-- {
+		slashes++
+	}
+	return slashes%2 == 1
 }
 
 func (s *Server) resolveSignatureForCallee(originURI string, src string, callee string, callOffset int) (functionSignature, bool) {
