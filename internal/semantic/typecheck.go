@@ -116,7 +116,19 @@ func (c *typeChecker) bind(name string, t *tnode) {
 	if len(c.scopes) == 0 {
 		c.pushScope()
 	}
-	c.scopes[len(c.scopes)-1][name] = t
+	scope := c.scopes[len(c.scopes)-1]
+	if existing, ok := scope[name]; ok {
+		ef := c.find(existing)
+		tf := c.find(t)
+		// Mirror runtime overload-merging semantics for repeated function bindings:
+		// keep a generic function-group-like view instead of letting the latest
+		// overload erase prior ones for call-site checks.
+		if ef != nil && tf != nil && ef.kind == typeFn && tf.kind == typeFn {
+			scope[name] = c.fnType(nil, c.freshUnknown(), false, 0, -1)
+			return
+		}
+	}
+	scope[name] = t
 }
 
 func (c *typeChecker) lookup(name string) *tnode {

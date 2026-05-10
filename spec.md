@@ -758,3 +758,13 @@
   - `TestSemanticTypeCheckStrictAllowsMultipleMapValueShapesAcrossCalls`.
 - Validation performed:
   - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
+
+### Semantic typing fix for repeated function binding overload sets
+
+- Fixed false-positive call mismatch diagnostics for repeated `var/val name = fn(...)` overload patterns.
+- Root cause: semantic scope binding replaced earlier function types with the latest one, unlike runtime function-group merge behavior.
+- Updated semantic binding behavior to merge repeated function bindings into a generic function-group-like function type for call-site checking.
+- Added regression test:
+  - `TestSemanticTypeCheckStrictAllowsFunctionTagOverloadSetCalls`.
+- Validation performed:
+  - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`

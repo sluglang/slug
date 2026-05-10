@@ -601,6 +601,42 @@ val b = {"k":1} /> f
 	}
 }
 
+func TestSemanticTypeCheckStrictAllowsFunctionTagOverloadSetCalls(t *testing.T) {
+	input := `
+var add = fn(@num b) { b + 255 }
+var add = fn(@bool b) { !b }
+var add = fn(@str b) { b + " slug" }
+var add = fn(@list b) { b :+ 255 }
+var add = fn(@map b) { b }
+var add = fn(@bytes b) { b :+ 255 }
+var add = fn(@fn b) { b() + 255 }
+
+val a = "hello" /> add
+val b = false /> add
+val c = 1 /> add
+val d = [] /> add
+val e = {} /> add
+val f = 0x"63ff00" /> add
+val g = fn() { 12 } /> add
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+		StrictTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+	}
+	if len(errs) > 0 {
+		t.Fatalf("expected no semantic errors for function-tag overload set calls, got: %v", errs)
+	}
+}
+
 func TestSemanticTypeCheckStrictAllowsBytesAppendAndPrependOperators(t *testing.T) {
 	input := `
 val a = 0x"0102" :+ 3
