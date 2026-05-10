@@ -1029,3 +1029,27 @@ Validation performed:
 
 Validation performed:
 - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
+
+### Semantic conformance snapshot suite for stdlib modules
+
+- Added semantic conformance golden test harness to guard behavior-level regressions across key stdlib modules.
+- New test:
+  - `internal/semantic/semantic_conformance_test.go`
+- Snapshot coverage includes:
+  - `lib/slug/std.slug`
+  - `lib/slug/mustache.slug`
+  - `lib/slug/json.slug`
+  - `lib/slug/web/response.slug`
+  - `lib/slug/crypto.slug`
+- For each module, snapshot captures:
+  - strict semantic error count,
+  - strict semantic warning count,
+  - type-check trace event counts by event name.
+- Golden file:
+  - `internal/semantic/testdata/semantic_conformance_golden.json`
+- Update flow:
+  - run with `UPDATE_SEMANTIC_GOLDEN=1` to refresh snapshots after intentional behavior changes.
+
+Validation performed:
+- `UPDATE_SEMANTIC_GOLDEN=1 go test ./internal/semantic -run TestSemanticConformanceSnapshots -count=1`
+- `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`

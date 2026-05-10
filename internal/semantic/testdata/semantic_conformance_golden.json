@@ -1,0 +1,48 @@
+{
+  "lib/slug/crypto.slug": {
+    "errors": 0,
+    "warnings": 0,
+    "trace_events": {
+      "merge": 28,
+      "union-normalize": 10
+    }
+  },
+  "lib/slug/json.slug": {
+    "errors": 0,
+    "warnings": 0,
+    "trace_events": {
+      "merge": 2117,
+      "refine": 4,
+      "union-normalize": 82
+    }
+  },
+  "lib/slug/mustache.slug": {
+    "errors": 0,
+    "warnings": 0,
+    "trace_events": {
+      "merge": 3555,
+      "refine": 73,
+      "union-normalize": 417,
+      "widen": 50
+    }
+  },
+  "lib/slug/std.slug": {
+    "errors": 0,
+    "warnings": 0,
+    "trace_events": {
+      "merge": 584,
+      "refine": 23,
+      "union-normalize": 66,
+      "widen": 1
+    }
+  },
+  "lib/slug/web/response.slug": {
+    "errors": 0,
+    "warnings": 0,
+    "trace_events": {
+      "merge": 346,
+      "union-normalize": 75,
+      "widen": 7
+    }
+  }
+}
