@@ -1738,3 +1738,34 @@ Tests added/updated in `internal/lsp/server_test.go`:
 Validation performed:
 - `go test ./internal/lsp -count=1`
 - `go test ./... -count=1`
+
+### LSP Phase 17: signatureHelp call-context robustness
+
+- Hardened call-context scanning in `internal/lsp/server.go` (`findCallContext`) to improve active-parameter inference in real code.
+- Backward scan now safely ignores parentheses inside string literals and handles escape sequences.
+- Forward argument scan now tracks nested `()`, `[]`, `{}` and string literals, so commas only increment active parameter at the top level of the current call.
+- This reduces false/missing `signatureHelp` responses in nested calls and string-heavy argument lists.
+
+Tests added:
+- `internal/lsp/server_test.go`:
+  - `TestServerSignatureHelpIgnoresCommasInsideStringsAndNestedCalls`
+  - Verifies outer-call `activeParameter` remains correct when prior arguments contain:
+    - commas inside string literals,
+    - nested function calls.
+
+Validation performed:
+- `go test ./internal/lsp -count=1`
+- `go test ./... -count=1`
+
+### LSP Phase 18: signatureHelp delimiter regression (map/list literals)
+
+- Added a regression test for signature help active-parameter tracking when earlier arguments contain mixed map/list literals with internal commas.
+- Ensures delimiters inside `{...}` and `[...]` do not increment the outer-call argument index.
+
+Tests added:
+- `internal/lsp/server_test.go`:
+  - `TestServerSignatureHelpIgnoresCommasInsideMapAndListLiterals`
+
+Validation performed:
+- `go test ./internal/lsp -count=1`
+- `go test ./... -count=1`

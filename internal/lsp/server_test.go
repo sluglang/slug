@@ -925,6 +925,76 @@ func TestServerSignatureHelpImportedFunction(t *testing.T) {
 	t.Fatal("signatureHelp response not found")
 }
 
+func TestServerSignatureHelpIgnoresCommasInsideStringsAndNestedCalls(t *testing.T) {
+	src := "val sum = fn(a, b, c) { a }\nsum(\"x,y\", sum(1,2), 3)\n"
+	srcJSON := strings.ReplaceAll(src, "\"", "\\\"")
+	srcJSON = strings.ReplaceAll(srcJSON, "\n", "\\n")
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///a.slug","version":1,"text":"`+srcJSON+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":37,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":"file:///a.slug"},"position":{"line":1,"character":21}}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok || int(id) != 37 {
+			continue
+		}
+		res, ok := m["result"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("signatureHelp result missing: %#v", m)
+		}
+		ap, _ := res["activeParameter"].(float64)
+		if int(ap) != 2 {
+			t.Fatalf("expected activeParameter=2, got %#v", res["activeParameter"])
+		}
+		return
+	}
+	t.Fatal("signatureHelp response not found")
+}
+
+func TestServerSignatureHelpIgnoresCommasInsideMapAndListLiterals(t *testing.T) {
+	src := "val sum = fn(a, b, c) { a }\nsum({\"k\":[1,2]}, [3,4], 5)\n"
+	srcJSON := strings.ReplaceAll(src, "\"", "\\\"")
+	srcJSON = strings.ReplaceAll(srcJSON, "\n", "\\n")
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///a.slug","version":1,"text":"`+srcJSON+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":38,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":"file:///a.slug"},"position":{"line":1,"character":24}}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok || int(id) != 38 {
+			continue
+		}
+		res, ok := m["result"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("signatureHelp result missing: %#v", m)
+		}
+		ap, _ := res["activeParameter"].(float64)
+		if int(ap) != 2 {
+			t.Fatalf("expected activeParameter=2, got %#v", res["activeParameter"])
+		}
+		return
+	}
+	t.Fatal("signatureHelp response not found")
+}
+
 func TestServerCompletionReturnsKeywordsAndSymbols(t *testing.T) {
 	src := "val answer = 42\\nval an = ans\\nv\\n"
 	in := strings.NewReader(

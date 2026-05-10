@@ -2053,10 +2053,31 @@ func findCallContext(src string, off int) (calleeExpr string, activeParam int, o
 		off = len(src)
 	}
 	depth := 0
+	inString := byte(0)
+	escaped := false
 	open := -1
 	for i := off - 1; i >= 0; i-- {
-		switch src[i] {
-		case ')':
+		ch := src[i]
+		if inString != 0 {
+			if escaped {
+				escaped = false
+				continue
+			}
+			if ch == '\\' {
+				escaped = true
+				continue
+			}
+			if ch == inString {
+				inString = 0
+			}
+			continue
+		}
+		if ch == '"' || ch == '\'' {
+			inString = ch
+			continue
+		}
+		switch ch {
+		case ')', ']', '}':
 			depth++
 		case '(':
 			if depth == 0 {
@@ -2065,6 +2086,10 @@ func findCallContext(src string, off int) (calleeExpr string, activeParam int, o
 				break
 			}
 			depth--
+		case '[', '{':
+			if depth > 0 {
+				depth--
+			}
 		}
 	}
 	if open < 0 {
@@ -2095,17 +2120,52 @@ func findCallContext(src string, off int) (calleeExpr string, activeParam int, o
 		return "", 0, false
 	}
 	param := 0
-	nest := 0
+	parenDepth := 0
+	bracketDepth := 0
+	braceDepth := 0
+	inString = 0
+	escaped = false
 	for i := open + 1; i < off && i < len(src); i++ {
-		switch src[i] {
-		case '(', '[', '{':
-			nest++
-		case ')', ']', '}':
-			if nest > 0 {
-				nest--
+		ch := src[i]
+		if inString != 0 {
+			if escaped {
+				escaped = false
+				continue
+			}
+			if ch == '\\' {
+				escaped = true
+				continue
+			}
+			if ch == inString {
+				inString = 0
+			}
+			continue
+		}
+		if ch == '"' || ch == '\'' {
+			inString = ch
+			continue
+		}
+		switch ch {
+		case '(':
+			parenDepth++
+		case ')':
+			if parenDepth > 0 {
+				parenDepth--
+			}
+		case '[':
+			bracketDepth++
+		case ']':
+			if bracketDepth > 0 {
+				bracketDepth--
+			}
+		case '{':
+			braceDepth++
+		case '}':
+			if braceDepth > 0 {
+				braceDepth--
 			}
 		case ',':
-			if nest == 0 {
+			if parenDepth == 0 && bracketDepth == 0 && braceDepth == 0 {
 				param++
 			}
 		}
