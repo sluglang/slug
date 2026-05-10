@@ -1097,3 +1097,44 @@ Tests added:
 Validation performed:
 - `go test ./internal/lsp ./cmd/app ./internal/semantic ./internal/runtime ./internal/vm -count=1`
 - `go test ./... -count=1`
+
+### LSP mode Phase 2: diagnostics hardening and protocol-state correctness
+
+- Hardened LSP server behavior in `internal/lsp/server.go` with protocol and diagnostics quality improvements.
+
+Protocol/state handling improvements:
+- Added explicit pre-initialize request handling:
+  - requests before `initialize` now return JSON-RPC error `-32002` (server not initialized),
+  - pre-initialize notifications are ignored safely.
+- Added post-shutdown request guard:
+  - requests after `shutdown` (except `exit`) now return JSON-RPC `-32600` invalid request.
+- Added shutdown/exit sequencing guard:
+  - `exit` before `shutdown` is treated as invalid lifecycle and returns runtime error from server loop.
+- Kept unknown notification behavior safe (ignored), unknown request methods return `-32601` method not found.
+
+Document/URI handling improvements:
+- Added URI normalization and local path derivation for `file://` documents.
+- Normalized URI is used for internal document store keys and diagnostic publication URI.
+- Local normalized path is provided to parser/semantic analyzer where available.
+- Added explicit invalid transition handling for `didChange` before `didOpen` (ignored safely).
+
+Diagnostics quality improvements:
+- Improved diagnostic position parsing with robust location regex extraction.
+- Improved diagnostic message normalization (ParseError/TypeWarning prefix cleanup).
+- Added diagnostic deduplication to prevent repeated identical diagnostics in publish payloads.
+- Maintained close behavior to clear diagnostics (`didClose` publishes empty diagnostics).
+
+Tests expanded in `internal/lsp/server_test.go`:
+- initialize/shutdown/exit success path,
+- exit-before-shutdown failure,
+- unknown method request returns `-32601`,
+- requests rejected after shutdown (`-32600`),
+- didChange-before-open ignored,
+- diagnostics publish on open/change,
+- duplicate diagnostics deduped,
+- URI normalization coverage,
+- diagnostic range parsing coverage.
+
+Validation performed:
+- `go test ./internal/lsp ./cmd/app ./internal/semantic ./internal/runtime ./internal/vm -count=1`
+- `go test ./... -count=1`
