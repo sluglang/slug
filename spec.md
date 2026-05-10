@@ -801,3 +801,39 @@
   - `TestSemanticTypeCheckStrictAllowsChainedStringTimesNumberTimesNumber`.
 - Validation performed:
   - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
+
+### Semantic typing fix for dynamic untagged struct fields
+
+- Fixed false-positive struct field mismatch diagnostics for intentionally dynamic untagged struct fields (e.g., `ParseResult.value` in JSON parser).
+- Updated struct schema registration behavior:
+  - untagged fields with no informative default (or `nil` default) are inferred as `any`,
+  - tagged fields and non-`nil` defaults continue to constrain field type.
+- Added regression test:
+  - `TestSemanticTypeCheckStrictAllowsDynamicUntaggedStructField`.
+- Validation performed:
+  - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
+
+### Semantic typing fix for mixed-value if branches used for control flow
+
+- Fixed false-positive branch mismatch diagnostics in `if` expressions that are used for side effects/control flow, where branch bodies may produce unrelated value types.
+- Updated `if` expression inference to:
+  - keep strict boolean checking for the condition,
+  - infer both branches for internal constraints,
+  - avoid forcing branch result type unification at expression level (result is treated as dynamic).
+- This aligns semantic checks with existing language/runtime behavior and prevents errors like `num vs bool` from branch-local assignments.
+- Added regression test:
+  - `TestSemanticTypeCheckStrictAllowsIfUsedForSideEffectsWithMixedBranchValues`.
+- Validation performed:
+  - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
+
+### Semantic typing fix for heterogeneous `match` case result values
+
+- Fixed false-positive `match case result` type mismatches when different `match` arms intentionally return different runtime shapes (for example, different struct schemas such as `SectionNode` vs `ParentNode`).
+- Updated `match` inference to:
+  - preserve case-local checks (pattern narrowing, guard boolean validation, inner expression constraints),
+  - avoid forcing all case bodies to unify to one static result type,
+  - treat the overall `match` expression result as dynamic.
+- Added regression test:
+  - `TestSemanticTypeCheckStrictAllowsMatchWithHeterogeneousStructCaseResults`.
+- Validation performed:
+  - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`

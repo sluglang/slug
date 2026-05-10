@@ -388,15 +388,14 @@ func (c *typeChecker) inferExpr(expr ast.Expression) *tnode {
 	case *ast.IfExpression:
 		cond := c.inferExpr(e.Condition)
 		c.addConstraint(cond, c.scalar(typeBool), e.Token.Position, "if condition must be boolean")
-		thenType := c.inferBlock(e.ThenBranch)
-		elseType := c.scalar(typeNil)
+		_ = c.inferBlock(e.ThenBranch)
 		if e.ElseBranch != nil {
-			elseType = c.inferBlock(e.ElseBranch)
+			_ = c.inferBlock(e.ElseBranch)
 		}
-		result := c.freshUnknown()
-		c.addConstraint(result, thenType, e.Token.Position, "if then branch")
-		c.addConstraint(result, elseType, e.Token.Position, "if else branch")
-		return result
+		// Slug conditionals are often used for side effects; branch values can
+		// legitimately differ in this dynamic setting. Keep branch-local checks
+		// but do not force branch result type unification.
+		return c.scalar(typeAny)
 	case *ast.FunctionLiteral:
 		return c.inferFunctionLiteral(e)
 	case *ast.CallExpression:
@@ -456,7 +455,6 @@ func (c *typeChecker) inferExpr(expr ast.Expression) *tnode {
 		if e.Value != nil {
 			scrutinee = c.inferExpr(e.Value)
 		}
-		out := c.freshUnknown()
 		for _, cs := range e.Cases {
 			if cs == nil {
 				continue
@@ -476,9 +474,13 @@ func (c *typeChecker) inferExpr(expr ast.Expression) *tnode {
 			}
 			bodyType := c.inferBlockInCurrentScope(cs.Body)
 			c.popScope()
-			c.addConstraint(out, bodyType, cs.Token.Position, "match case result")
+			_ = bodyType
 		}
-		return out
+		// Slug match expressions are frequently used to dispatch across
+		// heterogeneous runtime shapes (for example different struct schemas).
+		// Keep case-local checks/pattern narrowing, but avoid forcing all
+		// case body result values into one static type.
+		return c.scalar(typeAny)
 	case *ast.SelectExpression:
 		out := c.freshUnknown()
 		for _, cs := range e.Cases {
@@ -835,6 +837,10 @@ func (c *typeChecker) registerStructSchema(pattern ast.MatchPattern, value ast.E
 	fieldTypes := map[string]*tnode{}
 	for _, field := range schemaExpr.Fields {
 		ft := c.freshUnknown()
+		if len(field.Tags) == 0 && (field.Default == nil || isNilExpr(field.Default)) {
+			// Untagged open field: keep dynamic by default.
+			ft = c.scalar(typeAny)
+		}
 		for _, tag := range field.Tags {
 			if tag == nil {
 				continue
@@ -843,13 +849,21 @@ func (c *typeChecker) registerStructSchema(pattern ast.MatchPattern, value ast.E
 				c.addConstraint(ft, tt, field.Token.Position, fmt.Sprintf("struct schema tag %s.%s", name, field.Name))
 			}
 		}
-		if field.Default != nil {
+		if field.Default != nil && !isNilExpr(field.Default) {
 			dt := c.inferExpr(field.Default)
 			c.addConstraint(ft, dt, field.Token.Position, fmt.Sprintf("struct schema default %s.%s", name, field.Name))
 		}
 		fieldTypes[field.Name] = ft
 	}
 	c.schemas[name] = fieldTypes
+}
+
+func isNilExpr(expr ast.Expression) bool {
+	if expr == nil {
+		return true
+	}
+	_, ok := expr.(*ast.Nil)
+	return ok
 }
 
 func (c *typeChecker) enforceTags(t *tnode, tags []*ast.Tag, pos int) {

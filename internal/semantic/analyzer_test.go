@@ -660,6 +660,99 @@ val b = {"mix": {"a": [1, {"b": "c"}]}}
 	}
 }
 
+func TestSemanticTypeCheckStrictAllowsDynamicUntaggedStructField(t *testing.T) {
+	input := `
+val ParseResult = struct {
+  value,
+  @num nextIdx,
+}
+
+val a = ParseResult { value: "x", nextIdx: 1 }
+val b = ParseResult { value: true, nextIdx: 2 }
+val c = ParseResult { value: 123, nextIdx: 3 }
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+		StrictTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+	}
+	if len(errs) > 0 {
+		t.Fatalf("expected no semantic errors for dynamic untagged struct field, got: %v", errs)
+	}
+}
+
+func TestSemanticTypeCheckStrictAllowsIfUsedForSideEffectsWithMixedBranchValues(t *testing.T) {
+	input := `
+val f = fn(c) {
+  var line = 0
+  var lineStart = true
+  if (c == "\n") {
+    line = line + 1
+  } else {
+    lineStart = false
+  }
+  line
+}
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+		StrictTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+	}
+	if len(errs) > 0 {
+		t.Fatalf("expected no semantic errors for side-effect if branches, got: %v", errs)
+	}
+}
+
+func TestSemanticTypeCheckStrictAllowsMatchWithHeterogeneousStructCaseResults(t *testing.T) {
+	input := `
+val SectionNode = struct {
+	name,
+}
+val ParentNode = struct {
+	name,
+}
+val frame = { "kind": "section", "name": "x" }
+val node = match frame["kind"] {
+	"section" => SectionNode { name: frame["name"] }
+	"parent" => ParentNode { name: frame["name"] }
+	_ => nil
+}
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+		StrictTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in strict mode, got: %v", warns)
+	}
+	if len(errs) > 0 {
+		t.Fatalf("expected no strict type-check errors, got: %v", errs)
+	}
+}
+
 func TestSemanticTypeCheckStrictAllowsStringInterpolationWithNumbers(t *testing.T) {
 	input := `
 val count = 10
