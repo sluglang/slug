@@ -1928,3 +1928,26 @@ Tests added:
 Validation performed:
 - `go test ./internal/lsp -count=1`
 - `go test ./... -count=1`
+
+### LSP Phase 28: completion resolve doc enrichment for imported module symbols
+
+- Extended `completionItem/resolve` to enrich symbols imported from modules (including modules not currently open in the editor).
+- Resolution now follows language import semantics via existing module path resolution (`SLUG_HOME` and module candidate search), then loads module source and extracts symbol docs/kinds.
+- Aligned with `slug.doc.markdown` behavior by propagating full doc-comment text (trimmed, uncollapsed) into markdown documentation payloads.
+
+Implementation updates:
+- `internal/lsp/server.go`
+  - `handleCompletionResolve` now attempts import-based enrichment when local symbol detail is missing/empty.
+  - Added:
+    - `resolveCompletionImportedSymbol(originURI, src, localName)`
+    - `resolveModuleExportSymbolInfo(originURI, module, name)`
+  - Module symbol extraction now uses rich symbol/signature collectors to preserve doc comments and infer function kind at top level.
+
+Tests added:
+- `internal/lsp/server_test.go`
+  - `TestServerCompletionResolveEnrichesImportedItemFromModuleDocs`
+  - Verifies completion resolve for imported `reduce` reads function kind and doc text from module file under `SLUG_HOME`.
+
+Validation performed:
+- `go test ./internal/lsp -count=1`
+- `go test ./... -count=1`

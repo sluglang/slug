@@ -1477,6 +1477,65 @@ func TestServerCompletionResolveEnrichesItem(t *testing.T) {
 	t.Fatal("completionItem/resolve response not found")
 }
 
+func TestServerCompletionResolveEnrichesImportedItemFromModuleDocs(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("SLUG_HOME", tmp)
+	libDir := filepath.Join(tmp, "lib", "slug")
+	if err := os.MkdirAll(libDir, 0o755); err != nil {
+		t.Fatalf("mkdir failed: %v", err)
+	}
+	stdPath := filepath.Join(libDir, "std.slug")
+	stdSrc := "/**\n * Reduce docs from std.\n */\n@export val reduce = fn(vs, f, init){ init }\n"
+	if err := os.WriteFile(stdPath, []byte(stdSrc), 0o644); err != nil {
+		t.Fatalf("write std module failed: %v", err)
+	}
+	src := "val { reduce } = import(\"slug.std\")\nreduce([1,2], fn(a,b){a}, 0)\n"
+	srcJSON := strings.ReplaceAll(src, "\"", "\\\"")
+	srcJSON = strings.ReplaceAll(srcJSON, "\n", "\\n")
+	playPath := filepath.Join(tmp, "playground.slug")
+	if err := os.WriteFile(playPath, []byte(src), 0o644); err != nil {
+		t.Fatalf("write playground failed: %v", err)
+	}
+	playURI, _ := normalizeURI(playPath)
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"`+playURI+`","version":1,"text":"`+srcJSON+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":49,"method":"completionItem/resolve","params":{"label":"reduce","kind":6,"data":{"uri":"`+playURI+`","label":"reduce","kind":"variable"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok || int(id) != 49 {
+			continue
+		}
+		res, ok := m["result"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("resolve result missing: %#v", m)
+		}
+		detail, _ := res["detail"].(string)
+		if detail != "function" {
+			t.Fatalf("expected imported symbol kind=function, got %#v", res["detail"])
+		}
+		doc, _ := res["documentation"].(map[string]interface{})
+		if doc == nil {
+			t.Fatalf("expected documentation in resolved imported item: %#v", res)
+		}
+		value, _ := doc["value"].(string)
+		if !strings.Contains(value, "Reduce docs from std.") {
+			t.Fatalf("expected imported module docs in completion resolve, got %#v", value)
+		}
+		return
+	}
+	t.Fatal("completionItem/resolve response not found")
+}
+
 func TestServerDocumentHighlightReturnsAllIdentifierMatches(t *testing.T) {
 	src := "val answer = 42\\nval use = answer\\nanswer\\n"
 	in := strings.NewReader(

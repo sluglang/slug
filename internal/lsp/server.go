@@ -945,6 +945,21 @@ func (s *Server) handleCompletionResolve(req rpcRequest) error {
 			found = true
 		}
 	}
+	if (!found || strings.TrimSpace(best.Detail) == "") && label != "" {
+		if imported, ok := s.resolveCompletionImportedSymbol(uri, doc.Text, label); ok {
+			if !found {
+				best = imported
+				found = true
+			} else {
+				if strings.TrimSpace(best.Detail) == "" {
+					best.Detail = imported.Detail
+				}
+				if strings.TrimSpace(best.Kind) == "" || best.Kind == "variable" {
+					best.Kind = imported.Kind
+				}
+			}
+		}
+	}
 	if !found {
 		if item.Detail == "" {
 			item.Detail = "symbol"
@@ -966,6 +981,74 @@ func (s *Server) handleCompletionResolve(req rpcRequest) error {
 		Value: strings.Join(docLines, "\n"),
 	}
 	return s.writeResult(req.ID, item)
+}
+
+func (s *Server) resolveCompletionImportedSymbol(originURI string, src string, localName string) (symbolDef, bool) {
+	for _, b := range collectImportBindingsForModule(src, "") {
+		if b.LocalName != localName {
+			continue
+		}
+		if sym, ok := s.resolveModuleExportSymbolInfo(originURI, b.SourceModule, b.SourceName); ok {
+			return sym, true
+		}
+	}
+	for _, module := range collectWildcardImportModules(src) {
+		if sym, ok := s.resolveModuleExportSymbolInfo(originURI, module, localName); ok {
+			return sym, true
+		}
+	}
+	return symbolDef{}, false
+}
+
+func (s *Server) resolveModuleExportSymbolInfo(originURI string, module string, name string) (symbolDef, bool) {
+	var src string
+	if docURI, ok := s.findOpenDocURIByModule(module); ok {
+		src = s.docs[docURI].Text
+	} else {
+		candidates := modulePathCandidatesFromURI(originURI, module)
+		if len(candidates) == 0 {
+			return symbolDef{}, false
+		}
+		loaded := false
+		for _, path := range candidates {
+			b, err := os.ReadFile(path)
+			if err != nil {
+				continue
+			}
+			src = string(b)
+			loaded = true
+			break
+		}
+		if !loaded {
+			return symbolDef{}, false
+		}
+	}
+	syms := collectSymbols(src)
+	sigs := collectFunctionSignatures(src)
+	isFn := map[string]bool{}
+	for _, sig := range sigs {
+		if sig.ScopeDepth == 0 {
+			isFn[sig.Name] = true
+		}
+	}
+	best := symbolDef{}
+	found := false
+	for _, sym := range syms {
+		if sym.ScopeDepth != 0 || sym.Name != name {
+			continue
+		}
+		if !found || sym.Start < best.Start {
+			best = sym
+			found = true
+		}
+	}
+	if found {
+		if isFn[best.Name] {
+			best.Kind = "function"
+		}
+		return best, true
+	}
+	return symbolDef{}, false
 }
 
 func toDocumentSymbolKind(kind string) int {
