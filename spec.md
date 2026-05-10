@@ -1951,3 +1951,24 @@ Tests added:
 Validation performed:
 - `go test ./internal/lsp -count=1`
 - `go test ./... -count=1`
+
+### LSP Phase 29: import-aware hover doc enrichment
+
+- Extended hover to use the same import-aware symbol enrichment strategy as completion resolve.
+- When hovering an imported alias with no local doc detail, hover now resolves module export metadata (kind + docs) and renders it in markdown.
+- This keeps hover behavior consistent with completion docs and aligned with full-doc rendering conventions from `slug.doc.markdown`.
+
+Implementation updates:
+- `internal/lsp/server.go`
+  - `handleHover` now attempts import-based enrichment via existing `resolveCompletionImportedSymbol` when local symbol detail is empty or kind is generic `variable`.
+
+Tests added:
+- `internal/lsp/server_test.go`
+  - `TestServerHoverIncludesImportedAliasDocComment`
+  - Verifies imported `reduce` hover shows:
+    - function kind,
+    - doc text loaded from module source under `SLUG_HOME`.
+
+Validation performed:
+- `go test ./internal/lsp -count=1`
+- `go test ./... -count=1`

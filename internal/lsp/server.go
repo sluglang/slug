@@ -532,6 +532,16 @@ func (s *Server) handleHover(req rpcRequest) error {
 			Contents: lspMarkupContent{Kind: "markdown", Value: "`" + name + "`"},
 		})
 	}
+	if strings.TrimSpace(sym.Detail) == "" || sym.Kind == "variable" {
+		if imported, ok := s.resolveCompletionImportedSymbol(normURI, doc.Text, name); ok {
+			if strings.TrimSpace(sym.Detail) == "" {
+				sym.Detail = imported.Detail
+			}
+			if sym.Kind == "variable" && strings.TrimSpace(imported.Kind) != "" {
+				sym.Kind = imported.Kind
+			}
+		}
+	}
 	rng := offsetRangeToLSP(doc.Text, start, end)
 	return s.writeResult(req.ID, &lspHover{
 		Contents: lspMarkupContent{Kind: "markdown", Value: fmt.Sprintf("`%s` (%s)%s", sym.Name, sym.Kind, hoverDetail(sym.Detail))},
