@@ -30,6 +30,7 @@ var (
 	debugTxtAST    bool
 	typeCheck      bool
 	typeCheckTrace bool
+	lspMode        bool
 )
 
 func init() {
@@ -44,6 +45,8 @@ func init() {
 	flag.BoolVar(&debugTxtAST, "debug-txt-ast", false, "Render the AST as a TXT file")
 	flag.BoolVar(&typeCheck, "type-check", true, "Enable semantic inferred type checking (strict errors) during semantic analysis")
 	flag.BoolVar(&typeCheckTrace, "type-check-trace", false, "Emit semantic type-check trace events to stderr (debug)")
+	flag.BoolVar(&lspMode, "lsp", false, "Run as an LSP language server over stdio")
+	flag.BoolVar(&lspMode, "language-server", false, "Run as an LSP language server over stdio")
 	// log config
 	flag.StringVar(&logLevel, "log-level", "NONE", "Log level: trace, debug, info, warn, error, none")
 	flag.StringVar(&logFile, "log-file", "", "Log file path (if not set, logs to stderr)")
@@ -55,6 +58,15 @@ func main() {
 
 	if version {
 		fmt.Printf("Slug — No Shell. All Strength.\nversion 'v%s' %s %s\n", Version, BuildDate, Commit)
+		return
+	}
+
+	if lspMode {
+		setupLogging()
+		if err := runLanguageServer(typeCheck, typeCheckTrace); err != nil {
+			fmt.Fprintf(os.Stderr, "LSP Error: %v\n", err)
+			os.Exit(1)
+		}
 		return
 	}
 
@@ -262,5 +274,7 @@ Options:
   -debug-txt-ast     Render the AST as a TXT file.
   -type-check        Enable semantic inferred type checking (strict errors).
   -type-check-trace  Emit semantic type-check trace events to stderr (debug).
+  -lsp               Run as an LSP language server over stdio.
+  -language-server   Alias for -lsp.
 `)
 }

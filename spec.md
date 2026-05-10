@@ -1067,3 +1067,33 @@ Validation performed:
 
 Validation performed:
 - `go test ./internal/semantic ./internal/runtime ./internal/vm ./cmd/app -count=1`
+
+### LSP mode Phase 1: diagnostics-only stdio language server
+
+- Added CLI language server mode to `slug`:
+  - `-lsp`
+  - `--language-server` (alias)
+- LSP mode behavior:
+  - does not require positional script argument,
+  - runs over stdio using standard LSP framing (`Content-Length`),
+  - bypasses normal script execution path.
+- Implemented Go-native LSP server core in `internal/lsp` with lifecycle + diagnostics scope:
+  - requests/notifications: `initialize`, `initialized`, `shutdown`, `exit`,
+  - text sync (full): `textDocument/didOpen`, `textDocument/didChange`, `textDocument/didClose`,
+  - publishes `textDocument/publishDiagnostics` notifications.
+- Diagnostics pipeline reuses existing toolchain:
+  - parser diagnostics from `lexer/parser`,
+  - semantic/type-check diagnostics via `semantic.AnalyzeWithOptions` (honors `-type-check`, `-type-check-trace`).
+- Added protocol handling behavior:
+  - unknown request methods return JSON-RPC method-not-found,
+  - unknown notifications are ignored.
+
+Tests added:
+- `internal/lsp/server_test.go`
+  - initialize/shutdown/exit flow,
+  - diagnostics publishing on didOpen/didChange,
+  - diagnostic location parsing.
+
+Validation performed:
+- `go test ./internal/lsp ./cmd/app ./internal/semantic ./internal/runtime ./internal/vm -count=1`
+- `go test ./... -count=1`
