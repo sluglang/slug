@@ -776,6 +776,40 @@ func TestServerReferencesExcludeDeclaration(t *testing.T) {
 	t.Fatal("references response not found")
 }
 
+func TestServerReferencesIncludeOpenDocumentsForTopLevelSymbol(t *testing.T) {
+	srcA := "val answer = 42\\nanswer\\n"
+	srcB := "val answer = 100\\nanswer\\n"
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///a.slug","version":1,"text":"`+srcA+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///b.slug","version":1,"text":"`+srcB+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":22,"method":"textDocument/references","params":{"textDocument":{"uri":"file:///a.slug"},"position":{"line":1,"character":2},"context":{"includeDeclaration":true}}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok || int(id) != 22 {
+			continue
+		}
+		res, ok := m["result"].([]interface{})
+		if !ok {
+			t.Fatalf("references result missing: %#v", m)
+		}
+		if len(res) != 4 {
+			t.Fatalf("expected 4 references across two open docs, got %d (%#v)", len(res), res)
+		}
+		return
+	}
+	t.Fatal("references response not found")
+}
+
 func TestServerPrepareRenameReturnsRangeAndPlaceholder(t *testing.T) {
 	src := "val answer = 42\\nval use = answer\\n"
 	in := strings.NewReader(
@@ -843,6 +877,49 @@ func TestServerRenameReturnsScopedWorkspaceEdits(t *testing.T) {
 		}
 		if len(editsRaw) != 3 {
 			t.Fatalf("expected 3 rename edits, got %d (%#v)", len(editsRaw), editsRaw)
+		}
+		return
+	}
+	t.Fatal("rename response not found")
+}
+
+func TestServerRenameAppliesEditsAcrossOpenDocumentsForTopLevelSymbol(t *testing.T) {
+	srcA := "val answer = 42\\nanswer\\n"
+	srcB := "val answer = 100\\nanswer\\n"
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///a.slug","version":1,"text":"`+srcA+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///b.slug","version":1,"text":"`+srcB+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":23,"method":"textDocument/rename","params":{"textDocument":{"uri":"file:///a.slug"},"position":{"line":1,"character":2},"newName":"result"}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok || int(id) != 23 {
+			continue
+		}
+		res, ok := m["result"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("rename result missing: %#v", m)
+		}
+		changes, ok := res["changes"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("rename changes missing: %#v", res)
+		}
+		editsA, okA := changes["file:///a.slug"].([]interface{})
+		editsB, okB := changes["file:///b.slug"].([]interface{})
+		if !okA || !okB {
+			t.Fatalf("expected rename edits for both docs, got %#v", changes)
+		}
+		if len(editsA) != 2 || len(editsB) != 2 {
+			t.Fatalf("expected 2 edits per file, got a=%d b=%d", len(editsA), len(editsB))
 		}
 		return
 	}

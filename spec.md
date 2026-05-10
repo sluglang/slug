@@ -1370,3 +1370,25 @@ Tests added/updated in `internal/lsp/server_test.go`:
 Validation performed:
 - `go test ./internal/lsp -count=1`
 - `go test ./... -count=1`
+
+### LSP Phase 10: cross-open-document references and rename (top-level)
+
+- Extended references/rename from single-document to cross-open-document behavior in `internal/lsp/server.go`.
+- New cross-document strategy (conservative):
+  - always include scoped references in the origin document,
+  - for symbols resolved at top-level scope (`scopeDepth == 0`), also scan other currently open documents,
+  - include only occurrences resolving to top-level symbols with the same name and symbol kind,
+  - continue respecting `includeDeclaration` for references.
+- `textDocument/rename` now produces `WorkspaceEdit.changes` grouped by URI across affected open documents.
+
+Implementation notes:
+- Added helper `collectReferencesAcrossOpenDocs` for orchestration.
+- Added helper `collectTopLevelReferenceLocations` for per-document top-level reference collection.
+
+Tests added in `internal/lsp/server_test.go`:
+- `TestServerReferencesIncludeOpenDocumentsForTopLevelSymbol`.
+- `TestServerRenameAppliesEditsAcrossOpenDocumentsForTopLevelSymbol`.
+
+Validation performed:
+- `go test ./internal/lsp -count=1`
+- `go test ./... -count=1`

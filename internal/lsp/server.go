@@ -547,7 +547,7 @@ func (s *Server) handleReferences(req rpcRequest) error {
 		return s.writeResult(req.ID, []lspLocation{})
 	}
 	includeDecl := p.Context.IncludeDeclaration
-	refs := collectScopedReferenceLocations(doc.Text, normURI, name, target, syms, includeDecl)
+	refs := s.collectReferencesAcrossOpenDocs(normURI, name, target, includeDecl)
 	return s.writeResult(req.ID, refs)
 }
 
@@ -598,18 +598,16 @@ func (s *Server) handleRename(req rpcRequest) error {
 	if !found {
 		return s.writeError(idOrNil(req.ID), -32602, "Invalid params", "could not resolve symbol for rename")
 	}
-	refs := collectScopedReferenceLocations(doc.Text, normURI, name, target, syms, true)
-	edits := make([]lspTextEdit, 0, len(refs))
+	refs := s.collectReferencesAcrossOpenDocs(normURI, name, target, true)
+	changes := map[string][]lspTextEdit{}
 	for _, ref := range refs {
-		edits = append(edits, lspTextEdit{
+		changes[ref.URI] = append(changes[ref.URI], lspTextEdit{
 			Range:   ref.Range,
 			NewText: p.NewName,
 		})
 	}
 	return s.writeResult(req.ID, &lspWorkspaceEdit{
-		Changes: map[string][]lspTextEdit{
-			normURI: edits,
-		},
+		Changes: changes,
 	})
 }
 
@@ -1166,6 +1164,63 @@ func collectScopedReferenceLocations(src string, uri string, name string, target
 			continue
 		}
 		if !includeDeclaration && tok.Position == target.Start {
+			continue
+		}
+		rng := offsetRangeToLSP(src, tok.Position, tok.Position+len(tok.Literal))
+		key := fmt.Sprintf("%d:%d:%d:%d", rng.Start.Line, rng.Start.Character, rng.End.Line, rng.End.Character)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, lspLocation{
+			URI:   uri,
+			Range: rng,
+		})
+	}
+	return out
+}
+
+func (s *Server) collectReferencesAcrossOpenDocs(originURI string, name string, target symbolDef, includeDeclaration bool) []lspLocation {
+	originDoc, ok := s.docs[originURI]
+	if !ok {
+		return []lspLocation{}
+	}
+	originSyms := collectSymbols(originDoc.Text)
+	out := collectScopedReferenceLocations(originDoc.Text, originURI, name, target, originSyms, includeDeclaration)
+	if target.ScopeDepth != 0 {
+		return out
+	}
+	for uri, doc := range s.docs {
+		if uri == originURI {
+			continue
+		}
+		syms := collectSymbols(doc.Text)
+		refs := collectTopLevelReferenceLocations(doc.Text, uri, name, target.Kind, syms, includeDeclaration)
+		out = append(out, refs...)
+	}
+	return out
+}
+
+func collectTopLevelReferenceLocations(src string, uri string, name string, targetKind string, syms []symbolDef, includeDeclaration bool) []lspLocation {
+	if name == "" {
+		return []lspLocation{}
+	}
+	l := lexer.New(src)
+	out := make([]lspLocation, 0, 16)
+	seen := map[string]bool{}
+	for {
+		tok := l.NextToken()
+		if tok.Type == token.EOF || tok.Type == token.ILLEGAL {
+			break
+		}
+		if tok.Type != token.IDENT || tok.Literal != name {
+			continue
+		}
+		resolved, ok := resolveSymbolAt(name, tok.Position, syms)
+		if !ok || resolved.ScopeDepth != 0 || resolved.Kind != targetKind {
+			continue
+		}
+		if !includeDeclaration && tok.Position == resolved.Start {
 			continue
 		}
 		rng := offsetRangeToLSP(src, tok.Position, tok.Position+len(tok.Literal))
