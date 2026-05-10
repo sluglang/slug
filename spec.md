@@ -1175,3 +1175,45 @@ Tests expanded in `internal/lsp/server_test.go`:
 Validation performed:
 - `go test ./internal/lsp ./cmd/app ./internal/semantic ./internal/runtime ./internal/vm -count=1`
 - `go test ./... -count=1`
+
+### LSP mode Phase 4: read-only navigation APIs (hover, symbols, definition)
+
+- Added initial read-only language intelligence endpoints in `internal/lsp/server.go`:
+  - `textDocument/hover`
+  - `textDocument/documentSymbol`
+  - `textDocument/definition`
+
+Implementation details:
+- Extended handler dispatch map with the three new methods.
+- Added lightweight source indexing over open document text:
+  - top-level symbol collection (`val` and `fn`) with source ranges,
+  - local declaration lookup for definition resolution,
+  - identifier extraction at cursor offsets with UTF-8 safe position/offset conversion.
+- Hover now returns concise symbol details (kind/name/signature-style summary) when cursor is on a known symbol.
+- Document symbols now return top-level symbols with LSP symbol kinds and selection ranges.
+- Definition now resolves to the nearest in-file declaration location for the symbol under cursor.
+
+Tests added in `internal/lsp/server_test.go`:
+- `TestServerHoverReturnsSymbolInfo`
+- `TestServerDocumentSymbolReturnsTopLevel`
+- `TestServerDefinitionReturnsLocalDeclaration`
+
+Validation performed:
+- `go test ./internal/lsp -count=1`
+- `go test ./... -count=1`
+
+### LSP fix: prevent over-broad Cmd/Ctrl-click link behavior in IntelliJ
+
+- Tightened identifier resolution for navigation requests (`hover` / `definition`) in `internal/lsp/server.go`:
+  - only treat a position as symbol-bearing when the cursor is directly on an identifier rune,
+  - avoid resolving symbols from adjacent whitespace/punctuation positions.
+- Expanded initialize capabilities to explicitly advertise supported read-only features:
+  - `hoverProvider: true`
+  - `definitionProvider: true`
+  - `documentSymbolProvider: true`
+- Added regression test in `internal/lsp/server_test.go`:
+  - `TestServerDefinitionReturnsNilOutsideIdentifier`
+
+Validation performed:
+- `go test ./internal/lsp -count=1`
+- `go test ./... -count=1`

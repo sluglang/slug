@@ -10,9 +10,14 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slug/internal/ast"
+	"slug/internal/lexer"
+	"slug/internal/parser"
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 )
 
 type Analyzer func(path, src string) ([]string, []string)
@@ -66,7 +71,10 @@ type initializeResult struct {
 }
 
 type serverCapabilities struct {
-	TextDocumentSync textDocumentSyncOptions `json:"textDocumentSync"`
+	TextDocumentSync       textDocumentSyncOptions `json:"textDocumentSync"`
+	HoverProvider          bool                    `json:"hoverProvider,omitempty"`
+	DefinitionProvider     bool                    `json:"definitionProvider,omitempty"`
+	DocumentSymbolProvider bool                    `json:"documentSymbolProvider,omitempty"`
 }
 
 type textDocumentSyncOptions struct {
@@ -99,6 +107,13 @@ type didCloseParams struct {
 	} `json:"textDocument"`
 }
 
+type textDocumentPositionParams struct {
+	TextDocument struct {
+		URI string `json:"uri"`
+	} `json:"textDocument"`
+	Position lspPosition `json:"position"`
+}
+
 type cancelRequestParams struct {
 	ID json.RawMessage `json:"id"`
 }
@@ -106,6 +121,38 @@ type cancelRequestParams struct {
 type publishDiagnosticsParams struct {
 	URI         string          `json:"uri"`
 	Diagnostics []lspDiagnostic `json:"diagnostics"`
+}
+
+type lspHover struct {
+	Contents lspMarkupContent `json:"contents"`
+	Range    *lspRange        `json:"range,omitempty"`
+}
+
+type lspMarkupContent struct {
+	Kind  string `json:"kind"`
+	Value string `json:"value"`
+}
+
+type lspLocation struct {
+	URI   string   `json:"uri"`
+	Range lspRange `json:"range"`
+}
+
+type lspDocumentSymbol struct {
+	Name           string   `json:"name"`
+	Kind           int      `json:"kind"`
+	Range          lspRange `json:"range"`
+	SelectionRange lspRange `json:"selectionRange"`
+	Detail         string   `json:"detail,omitempty"`
+}
+
+type symbolDef struct {
+	Name       string
+	Kind       string
+	Detail     string
+	Start      int
+	End        int
+	ScopeDepth int
 }
 
 type lspDiagnostic struct {
@@ -138,14 +185,17 @@ func NewServer(in io.Reader, out io.Writer, analyze Analyzer) *Server {
 		canceledReqs:    map[string]bool{},
 	}
 	s.handlers = map[string]func(rpcRequest) error{
-		"initialize":             s.handleInitialize,
-		"initialized":            s.handleInitialized,
-		"shutdown":               s.handleShutdown,
-		"exit":                   s.handleExit,
-		"textDocument/didOpen":   s.handleDidOpen,
-		"textDocument/didChange": s.handleDidChange,
-		"textDocument/didClose":  s.handleDidClose,
-		"$/cancelRequest":        s.handleCancelRequest,
+		"initialize":                  s.handleInitialize,
+		"initialized":                 s.handleInitialized,
+		"shutdown":                    s.handleShutdown,
+		"exit":                        s.handleExit,
+		"textDocument/didOpen":        s.handleDidOpen,
+		"textDocument/didChange":      s.handleDidChange,
+		"textDocument/didClose":       s.handleDidClose,
+		"$/cancelRequest":             s.handleCancelRequest,
+		"textDocument/hover":          s.handleHover,
+		"textDocument/definition":     s.handleDefinition,
+		"textDocument/documentSymbol": s.handleDocumentSymbol,
 	}
 	return s
 }
@@ -213,7 +263,12 @@ func (s *Server) handle(req rpcRequest) error {
 
 func (s *Server) handleInitialize(req rpcRequest) error {
 	s.initialized = true
-	return s.writeResult(req.ID, initializeResult{Capabilities: serverCapabilities{TextDocumentSync: textDocumentSyncOptions{OpenClose: true, Change: 1}}})
+	return s.writeResult(req.ID, initializeResult{Capabilities: serverCapabilities{
+		TextDocumentSync:       textDocumentSyncOptions{OpenClose: true, Change: 1},
+		HoverProvider:          true,
+		DefinitionProvider:     true,
+		DocumentSymbolProvider: true,
+	}})
 }
 
 func (s *Server) handleInitialized(_ rpcRequest) error {
@@ -287,6 +342,109 @@ func (s *Server) handleCancelRequest(req rpcRequest) error {
 	id := string(bytes.TrimSpace(p.ID))
 	s.canceledReqs[id] = true
 	return nil
+}
+
+func (s *Server) handleHover(req rpcRequest) error {
+	var p textDocumentPositionParams
+	if err := json.Unmarshal(req.Params, &p); err != nil {
+		return s.writeError(idOrNil(req.ID), -32602, "Invalid params", err.Error())
+	}
+	normURI, _ := normalizeURI(p.TextDocument.URI)
+	doc, ok := s.docs[normURI]
+	if !ok {
+		return s.writeResult(req.ID, nil)
+	}
+	offset := offsetFromPosition(doc.Text, p.Position.Line, p.Position.Character)
+	name, start, end := identifierAtOffset(doc.Text, offset)
+	if name == "" {
+		return s.writeResult(req.ID, nil)
+	}
+	syms := collectSymbols(doc.Text)
+	sym, found := resolveSymbolAt(name, offset, syms)
+	if !found {
+		return s.writeResult(req.ID, &lspHover{
+			Contents: lspMarkupContent{Kind: "markdown", Value: "`" + name + "`"},
+		})
+	}
+	rng := offsetRangeToLSP(doc.Text, start, end)
+	return s.writeResult(req.ID, &lspHover{
+		Contents: lspMarkupContent{Kind: "markdown", Value: fmt.Sprintf("`%s` (%s)%s", sym.Name, sym.Kind, hoverDetail(sym.Detail))},
+		Range:    &rng,
+	})
+}
+
+func hoverDetail(d string) string {
+	if strings.TrimSpace(d) == "" {
+		return ""
+	}
+	return "\n\n" + d
+}
+
+func (s *Server) handleDefinition(req rpcRequest) error {
+	var p textDocumentPositionParams
+	if err := json.Unmarshal(req.Params, &p); err != nil {
+		return s.writeError(idOrNil(req.ID), -32602, "Invalid params", err.Error())
+	}
+	normURI, _ := normalizeURI(p.TextDocument.URI)
+	doc, ok := s.docs[normURI]
+	if !ok {
+		return s.writeResult(req.ID, nil)
+	}
+	offset := offsetFromPosition(doc.Text, p.Position.Line, p.Position.Character)
+	name, _, _ := identifierAtOffset(doc.Text, offset)
+	if name == "" {
+		return s.writeResult(req.ID, nil)
+	}
+	syms := collectSymbols(doc.Text)
+	sym, found := resolveSymbolAt(name, offset, syms)
+	if !found {
+		return s.writeResult(req.ID, nil)
+	}
+	loc := lspLocation{
+		URI:   normURI,
+		Range: offsetRangeToLSP(doc.Text, sym.Start, sym.End),
+	}
+	return s.writeResult(req.ID, []lspLocation{loc})
+}
+
+func (s *Server) handleDocumentSymbol(req rpcRequest) error {
+	var p struct {
+		TextDocument struct {
+			URI string `json:"uri"`
+		} `json:"textDocument"`
+	}
+	if err := json.Unmarshal(req.Params, &p); err != nil {
+		return s.writeError(idOrNil(req.ID), -32602, "Invalid params", err.Error())
+	}
+	normURI, _ := normalizeURI(p.TextDocument.URI)
+	doc, ok := s.docs[normURI]
+	if !ok {
+		return s.writeResult(req.ID, []lspDocumentSymbol{})
+	}
+	syms := collectTopLevelSymbols(doc.Text)
+	out := make([]lspDocumentSymbol, 0, len(syms))
+	for _, sym := range syms {
+		rng := offsetRangeToLSP(doc.Text, sym.Start, sym.End)
+		out = append(out, lspDocumentSymbol{
+			Name:           sym.Name,
+			Kind:           toDocumentSymbolKind(sym.Kind),
+			Range:          rng,
+			SelectionRange: rng,
+			Detail:         sym.Detail,
+		})
+	}
+	return s.writeResult(req.ID, out)
+}
+
+func toDocumentSymbolKind(kind string) int {
+	switch kind {
+	case "function":
+		return 12
+	case "struct":
+		return 23
+	default:
+		return 13
+	}
 }
 
 func (s *Server) flushDirtyDocs(force bool) error {
@@ -389,6 +547,348 @@ func normalizeDiagnosticMessage(msg string) string {
 		clean = strings.TrimSpace(clean[:j])
 	}
 	return clean
+}
+
+func collectSymbols(src string) []symbolDef {
+	l := lexer.New(src)
+	p := parser.New(l, "<lsp>", src)
+	program := p.ParseProgram()
+	syms := []symbolDef{}
+	scopeDepth := 0
+	var walkStmt func(ast.Statement)
+	var walkExpr func(ast.Expression)
+	var addPattern func(ast.MatchPattern, string, string)
+
+	addPattern = func(pat ast.MatchPattern, kind string, detail string) {
+		switch p := pat.(type) {
+		case *ast.IdentifierPattern:
+			if p != nil && p.Value != nil {
+				start := p.Value.Token.Position
+				end := start + len(p.Value.Token.Literal)
+				syms = append(syms, symbolDef{Name: p.Value.Value, Kind: kind, Detail: detail, Start: start, End: end, ScopeDepth: scopeDepth})
+			}
+		case *ast.BindingPattern:
+			if p.Name != nil {
+				start := p.Name.Token.Position
+				end := start + len(p.Name.Token.Literal)
+				syms = append(syms, symbolDef{Name: p.Name.Value, Kind: kind, Detail: detail, Start: start, End: end, ScopeDepth: scopeDepth})
+			}
+			if p.Pattern != nil {
+				addPattern(p.Pattern, kind, detail)
+			}
+		case *ast.ListPattern:
+			for _, el := range p.Elements {
+				addPattern(el, kind, detail)
+			}
+		case *ast.MapPattern:
+			for _, pair := range p.Pairs {
+				addPattern(pair.Pattern, kind, detail)
+			}
+			if p.Spread != nil {
+				addPattern(p.Spread, kind, detail)
+			}
+		case *ast.StructPattern:
+			for _, f := range p.Fields {
+				addPattern(f.Pattern, kind, detail)
+			}
+		case *ast.SpreadPattern:
+			if p.Value != nil {
+				start := p.Value.Token.Position
+				end := start + len(p.Value.Token.Literal)
+				syms = append(syms, symbolDef{Name: p.Value.Value, Kind: kind, Detail: detail, Start: start, End: end, ScopeDepth: scopeDepth})
+			}
+		case *ast.MultiPattern:
+			for _, sub := range p.Patterns {
+				addPattern(sub, kind, detail)
+			}
+		}
+	}
+
+	walkStmt = func(st ast.Statement) {
+		switch s := st.(type) {
+		case *ast.ExpressionStatement:
+			walkExpr(s.Expression)
+		case *ast.ReturnStatement:
+			walkExpr(s.ReturnValue)
+		case *ast.ThrowStatement:
+			walkExpr(s.Value)
+		case *ast.BlockStatement:
+			scopeDepth++
+			for _, ch := range s.Statements {
+				walkStmt(ch)
+			}
+			scopeDepth--
+		case *ast.DeferStatement:
+			if s.Call != nil {
+				walkStmt(s.Call)
+			}
+		}
+	}
+
+	walkExpr = func(ex ast.Expression) {
+		switch e := ex.(type) {
+		case *ast.VarExpression:
+			addPattern(e.Pattern, "variable", "")
+			walkExpr(e.Value)
+		case *ast.ValExpression:
+			detail := ""
+			if _, ok := e.Value.(*ast.FunctionLiteral); ok {
+				detail = "function"
+			}
+			addPattern(e.Pattern, "variable", detail)
+			walkExpr(e.Value)
+		case *ast.FunctionLiteral:
+			scopeDepth++
+			for _, p := range e.Parameters {
+				if p != nil && p.Name != nil {
+					start := p.Name.Token.Position
+					end := start + len(p.Name.Token.Literal)
+					syms = append(syms, symbolDef{Name: p.Name.Value, Kind: "parameter", Detail: "", Start: start, End: end, ScopeDepth: scopeDepth})
+				}
+			}
+			if e.Body != nil {
+				for _, st := range e.Body.Statements {
+					walkStmt(st)
+				}
+			}
+			scopeDepth--
+		case *ast.IfExpression:
+			walkExpr(e.Condition)
+			if e.ThenBranch != nil {
+				walkStmt(e.ThenBranch)
+			}
+			if e.ElseBranch != nil {
+				walkStmt(e.ElseBranch)
+			}
+		case *ast.InfixExpression:
+			walkExpr(e.Left)
+			walkExpr(e.Right)
+		case *ast.PrefixExpression:
+			walkExpr(e.Right)
+		case *ast.CallExpression:
+			walkExpr(e.Function)
+			for _, a := range e.Arguments {
+				walkExpr(a)
+			}
+		case *ast.MatchExpression:
+			walkExpr(e.Value)
+			for _, cs := range e.Cases {
+				if cs == nil {
+					continue
+				}
+				scopeDepth++
+				if cs.Pattern != nil {
+					addPattern(cs.Pattern, "variable", "match binding")
+				}
+				walkExpr(cs.Guard)
+				if cs.Body != nil {
+					for _, st := range cs.Body.Statements {
+						walkStmt(st)
+					}
+				}
+				scopeDepth--
+			}
+		case *ast.ListLiteral:
+			for _, it := range e.Elements {
+				walkExpr(it)
+			}
+		case *ast.MapLiteral:
+			for k, v := range e.Pairs {
+				walkExpr(k)
+				walkExpr(v)
+			}
+		case *ast.IndexExpression:
+			walkExpr(e.Left)
+			walkExpr(e.Index)
+		case *ast.StructInitExpression:
+			walkExpr(e.Schema)
+			for _, f := range e.Fields {
+				walkExpr(f.Value)
+			}
+		case *ast.StructCopyExpression:
+			walkExpr(e.Source)
+			walkExpr(e.Fields)
+		case *ast.SpawnExpression:
+			walkExpr(e.Body)
+		case *ast.BlockStatement:
+			walkStmt(e)
+		}
+	}
+
+	for _, st := range program.Statements {
+		walkStmt(st)
+	}
+	return syms
+}
+
+func collectTopLevelSymbols(src string) []symbolDef {
+	l := lexer.New(src)
+	p := parser.New(l, "<lsp>", src)
+	program := p.ParseProgram()
+	out := []symbolDef{}
+	addPatternTop := func(pat ast.MatchPattern, kind string, detail string) {
+		switch p := pat.(type) {
+		case *ast.IdentifierPattern:
+			if p != nil && p.Value != nil {
+				start := p.Value.Token.Position
+				end := start + len(p.Value.Token.Literal)
+				out = append(out, symbolDef{Name: p.Value.Value, Kind: kind, Detail: detail, Start: start, End: end})
+			}
+		case *ast.BindingPattern:
+			if p.Name != nil {
+				start := p.Name.Token.Position
+				end := start + len(p.Name.Token.Literal)
+				out = append(out, symbolDef{Name: p.Name.Value, Kind: kind, Detail: detail, Start: start, End: end})
+			}
+		}
+	}
+	for _, st := range program.Statements {
+		es, ok := st.(*ast.ExpressionStatement)
+		if !ok || es.Expression == nil {
+			continue
+		}
+		switch e := es.Expression.(type) {
+		case *ast.ValExpression:
+			detail := ""
+			kind := "variable"
+			switch e.Value.(type) {
+			case *ast.FunctionLiteral:
+				kind = "function"
+				detail = "fn"
+			case *ast.StructSchemaExpression:
+				kind = "struct"
+				detail = "struct"
+			}
+			addPatternTop(e.Pattern, kind, detail)
+		case *ast.VarExpression:
+			addPatternTop(e.Pattern, "variable", "var")
+		}
+	}
+	return out
+}
+
+func resolveSymbolAt(name string, useOffset int, syms []symbolDef) (symbolDef, bool) {
+	best := symbolDef{}
+	found := false
+	for _, s := range syms {
+		if s.Name != name {
+			continue
+		}
+		if s.Start > useOffset {
+			continue
+		}
+		if !found || s.ScopeDepth > best.ScopeDepth || (s.ScopeDepth == best.ScopeDepth && s.Start > best.Start) {
+			best = s
+			found = true
+		}
+	}
+	return best, found
+}
+
+func identifierAtOffset(src string, off int) (name string, start int, end int) {
+	if off < 0 {
+		return "", 0, 0
+	}
+	if off > len(src) {
+		off = len(src)
+	}
+	if off >= len(src) {
+		return "", 0, 0
+	}
+	ch, _ := utf8.DecodeRuneInString(src[off:])
+	if !isIdentRune(ch) {
+		return "", 0, 0
+	}
+	left := off
+	for left > 0 {
+		r, size := utf8.DecodeLastRuneInString(src[:left])
+		if !isIdentRune(r) {
+			break
+		}
+		left -= size
+	}
+	right := off
+	for right < len(src) {
+		r, size := utf8.DecodeRuneInString(src[right:])
+		if !isIdentRune(r) {
+			break
+		}
+		right += size
+	}
+	if right <= left {
+		return "", 0, 0
+	}
+	v := src[left:right]
+	if v == "" {
+		return "", 0, 0
+	}
+	r, _ := utf8.DecodeRuneInString(v)
+	if !(unicode.IsLetter(r) || r == '_') {
+		return "", 0, 0
+	}
+	return v, left, right
+}
+
+func isIdentRune(r rune) bool {
+	return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_'
+}
+
+func offsetFromPosition(src string, line int, col int) int {
+	if line < 0 {
+		return 0
+	}
+	curLine := 0
+	i := 0
+	for i < len(src) && curLine < line {
+		r, size := utf8.DecodeRuneInString(src[i:])
+		i += size
+		if r == '\n' {
+			curLine++
+		}
+	}
+	curCol := 0
+	for i < len(src) && curCol < col {
+		r, size := utf8.DecodeRuneInString(src[i:])
+		if r == '\n' {
+			break
+		}
+		i += size
+		curCol++
+	}
+	return i
+}
+
+func positionFromOffset(src string, off int) lspPosition {
+	if off < 0 {
+		off = 0
+	}
+	if off > len(src) {
+		off = len(src)
+	}
+	line := 0
+	col := 0
+	i := 0
+	for i < off {
+		r, size := utf8.DecodeRuneInString(src[i:])
+		i += size
+		if r == '\n' {
+			line++
+			col = 0
+			continue
+		}
+		col++
+	}
+	return lspPosition{Line: line, Character: col}
+}
+
+func offsetRangeToLSP(src string, start int, end int) lspRange {
+	if end < start {
+		end = start
+	}
+	return lspRange{
+		Start: positionFromOffset(src, start),
+		End:   positionFromOffset(src, end),
+	}
 }
 
 func dedupeDiagnostics(in []lspDiagnostic) []lspDiagnostic {

@@ -326,6 +326,137 @@ func TestDebounceWindowConstantIsSane(t *testing.T) {
 	}
 }
 
+func TestServerHoverReturnsSymbolInfo(t *testing.T) {
+	src := "val answer = 42\\nval use = answer\\n"
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///a.slug","version":1,"text":"`+src+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":7,"method":"textDocument/hover","params":{"textDocument":{"uri":"file:///a.slug"},"position":{"line":1,"character":11}}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok || int(id) != 7 {
+			continue
+		}
+		res, ok := m["result"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("hover result missing: %#v", m)
+		}
+		contents, ok := res["contents"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("hover contents missing: %#v", res)
+		}
+		v, _ := contents["value"].(string)
+		if !strings.Contains(v, "answer") {
+			t.Fatalf("unexpected hover value: %q", v)
+		}
+		return
+	}
+	t.Fatal("hover response not found")
+}
+
+func TestServerDocumentSymbolReturnsTopLevel(t *testing.T) {
+	src := "val f = fn(x){ x }\\nval A = struct { name, }\\nvar n = 1\\n"
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///a.slug","version":1,"text":"`+src+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":8,"method":"textDocument/documentSymbol","params":{"textDocument":{"uri":"file:///a.slug"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok || int(id) != 8 {
+			continue
+		}
+		res, ok := m["result"].([]interface{})
+		if !ok {
+			t.Fatalf("documentSymbol result missing: %#v", m)
+		}
+		if len(res) < 3 {
+			t.Fatalf("expected >=3 symbols, got %d", len(res))
+		}
+		return
+	}
+	t.Fatal("documentSymbol response not found")
+}
+
+func TestServerDefinitionReturnsLocalDeclaration(t *testing.T) {
+	src := "val answer = 42\\nval use = answer\\n"
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///a.slug","version":1,"text":"`+src+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":9,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///a.slug"},"position":{"line":1,"character":11}}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok || int(id) != 9 {
+			continue
+		}
+		res, ok := m["result"].([]interface{})
+		if !ok || len(res) == 0 {
+			t.Fatalf("definition result missing: %#v", m)
+		}
+		loc, _ := res[0].(map[string]interface{})
+		uri, _ := loc["uri"].(string)
+		if !strings.HasPrefix(uri, "file://") {
+			t.Fatalf("unexpected definition uri: %q", uri)
+		}
+		return
+	}
+	t.Fatal("definition response not found")
+}
+
+func TestServerDefinitionReturnsNilOutsideIdentifier(t *testing.T) {
+	src := "val alpha = 1\\nalpha\\n"
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///a.slug","version":1,"text":"`+src+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":10,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///a.slug"},"position":{"line":0,"character":3}}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok || int(id) != 10 {
+			continue
+		}
+		if m["result"] != nil {
+			t.Fatalf("expected nil definition result outside identifier, got %#v", m["result"])
+		}
+		return
+	}
+	t.Fatal("definition response not found")
+}
+
 func TestNormalizeURIFileScheme(t *testing.T) {
 	u, p := normalizeURI("file:///tmp/x.slug")
 	if !strings.HasPrefix(u, "file://") {
