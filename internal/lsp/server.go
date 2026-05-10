@@ -214,6 +214,18 @@ type symbolDef struct {
 	ScopeDepth int
 }
 
+type importBinding struct {
+	LocalName    string
+	SourceModule string
+	SourceName   string
+}
+
+type moduleSymbolIdentity struct {
+	Module string
+	Name   string
+	Kind   string
+}
+
 type lspDiagnostic struct {
 	Range    lspRange `json:"range"`
 	Severity int      `json:"severity"`
@@ -1187,52 +1199,315 @@ func (s *Server) collectReferencesAcrossOpenDocs(originURI string, name string, 
 	}
 	originSyms := collectSymbols(originDoc.Text)
 	out := collectScopedReferenceLocations(originDoc.Text, originURI, name, target, originSyms, includeDeclaration)
-	if target.ScopeDepth != 0 {
+	identity, ok := s.resolveModuleSymbolIdentity(originURI, target)
+	if !ok {
 		return out
 	}
+
 	for uri, doc := range s.docs {
 		if uri == originURI {
 			continue
 		}
 		syms := collectSymbols(doc.Text)
-		refs := collectTopLevelReferenceLocations(doc.Text, uri, name, target.Kind, syms, includeDeclaration)
-		out = append(out, refs...)
+		docModule := moduleNameFromURI(uri)
+		if docModule == identity.Module {
+			targets := findTopLevelSymbolsByNameAndKind(syms, identity.Name, identity.Kind)
+			for _, t := range targets {
+				refs := collectScopedReferenceLocations(doc.Text, uri, identity.Name, t, syms, includeDeclaration)
+				out = append(out, refs...)
+			}
+		}
+		bindings := collectImportBindingsForModule(doc.Text, identity.Module)
+		for _, b := range bindings {
+			if b.SourceName != identity.Name {
+				continue
+			}
+			aliasTargets := findTopLevelSymbolsByName(syms, b.LocalName)
+			for _, t := range aliasTargets {
+				refs := collectScopedReferenceLocations(doc.Text, uri, b.LocalName, t, syms, includeDeclaration)
+				out = append(out, refs...)
+			}
+		}
+	}
+	return dedupeLocations(out)
+}
+
+func (s *Server) resolveModuleSymbolIdentity(originURI string, target symbolDef) (moduleSymbolIdentity, bool) {
+	originDoc, ok := s.docs[originURI]
+	if !ok || target.ScopeDepth != 0 {
+		return moduleSymbolIdentity{}, false
+	}
+
+	module := moduleNameFromURI(originURI)
+	if module == "" {
+		return moduleSymbolIdentity{}, false
+	}
+
+	bindings := collectImportBindingsForModule(originDoc.Text, "")
+	for _, b := range bindings {
+		if b.LocalName == target.Name {
+			kind := target.Kind
+			if kind == "variable" {
+				kind = s.inferExportKindFromOpenDocs(b.SourceModule, b.SourceName, kind)
+			}
+			return moduleSymbolIdentity{Module: b.SourceModule, Name: b.SourceName, Kind: kind}, true
+		}
+	}
+	return moduleSymbolIdentity{Module: module, Name: target.Name, Kind: target.Kind}, true
+}
+
+func (s *Server) inferExportKindFromOpenDocs(module string, name string, fallback string) string {
+	for uri, doc := range s.docs {
+		if moduleNameFromURI(uri) != module {
+			continue
+		}
+		for _, exp := range collectExportedTopLevelSymbols(doc.Text) {
+			if exp.Name == name {
+				return exp.Kind
+			}
+		}
+	}
+	return fallback
+}
+
+func findTopLevelSymbolsByNameAndKind(syms []symbolDef, name string, kind string) []symbolDef {
+	out := make([]symbolDef, 0, 2)
+	for _, s := range syms {
+		if s.ScopeDepth != 0 || s.Name != name {
+			continue
+		}
+		if kind != "" && s.Kind != kind {
+			continue
+		}
+		out = append(out, s)
 	}
 	return out
 }
 
-func collectTopLevelReferenceLocations(src string, uri string, name string, targetKind string, syms []symbolDef, includeDeclaration bool) []lspLocation {
-	if name == "" {
-		return []lspLocation{}
+func findTopLevelSymbolsByName(syms []symbolDef, name string) []symbolDef {
+	out := make([]symbolDef, 0, 2)
+	for _, s := range syms {
+		if s.ScopeDepth == 0 && s.Name == name {
+			out = append(out, s)
+		}
 	}
+	return out
+}
+
+func collectExportedTopLevelSymbols(src string) []symbolDef {
 	l := lexer.New(src)
-	out := make([]lspLocation, 0, 16)
+	p := parser.New(l, "<lsp>", src)
+	program := p.ParseProgram()
+	out := []symbolDef{}
+
+	for _, st := range program.Statements {
+		if ff, ok := st.(*ast.ForeignFunctionDeclaration); ok {
+			if !hasTag(ff.Tags, "@export") || ff.Name == nil {
+				continue
+			}
+			start := ff.Name.Token.Position
+			end := start + len(ff.Name.Token.Literal)
+			out = append(out, symbolDef{Name: ff.Name.Value, Kind: "function", Start: start, End: end, ScopeDepth: 0})
+			continue
+		}
+
+		es, ok := st.(*ast.ExpressionStatement)
+		if !ok || es.Expression == nil {
+			continue
+		}
+		switch e := es.Expression.(type) {
+		case *ast.ValExpression:
+			if !hasTag(e.Tags, "@export") {
+				continue
+			}
+			kind := "variable"
+			if _, ok := e.Value.(*ast.FunctionLiteral); ok {
+				kind = "function"
+			}
+			for _, n := range topLevelPatternNames(e.Pattern) {
+				out = append(out, symbolDef{Name: n.Name, Kind: kind, Start: n.Start, End: n.End, ScopeDepth: 0})
+			}
+		case *ast.VarExpression:
+			if !hasTag(e.Tags, "@export") {
+				continue
+			}
+			for _, n := range topLevelPatternNames(e.Pattern) {
+				out = append(out, symbolDef{Name: n.Name, Kind: "variable", Start: n.Start, End: n.End, ScopeDepth: 0})
+			}
+		}
+	}
+	return out
+}
+
+func collectImportBindingsForModule(src string, onlyModule string) []importBinding {
+	l := lexer.New(src)
+	p := parser.New(l, "<lsp>", src)
+	program := p.ParseProgram()
+	out := []importBinding{}
+
+	for _, st := range program.Statements {
+		es, ok := st.(*ast.ExpressionStatement)
+		if !ok || es.Expression == nil {
+			continue
+		}
+		var pattern ast.MatchPattern
+		var value ast.Expression
+		switch e := es.Expression.(type) {
+		case *ast.ValExpression:
+			pattern, value = e.Pattern, e.Value
+		case *ast.VarExpression:
+			pattern, value = e.Pattern, e.Value
+		default:
+			continue
+		}
+		call, ok := value.(*ast.CallExpression)
+		if !ok {
+			continue
+		}
+		fn, ok := call.Function.(*ast.Identifier)
+		if !ok || fn.Value != "import" {
+			continue
+		}
+		modules := importModuleArgs(call.Arguments)
+		if len(modules) != 1 {
+			continue
+		}
+		module := modules[0]
+		if onlyModule != "" && module != onlyModule {
+			continue
+		}
+		bindings := importBindingsFromPattern(pattern, module)
+		out = append(out, bindings...)
+	}
+	return out
+}
+
+func importModuleArgs(args []ast.Expression) []string {
+	out := make([]string, 0, len(args))
+	for _, a := range args {
+		s, ok := a.(*ast.StringLiteral)
+		if !ok {
+			return nil
+		}
+		out = append(out, s.Value)
+	}
+	return out
+}
+
+func importBindingsFromPattern(pat ast.MatchPattern, module string) []importBinding {
+	mp, ok := pat.(*ast.MapPattern)
+	if !ok || mp == nil {
+		return nil
+	}
+	out := []importBinding{}
+	for _, entry := range mp.Pairs {
+		source := patternEntryKeyName(entry.Key)
+		local := patternBindingName(entry.Pattern)
+		if source == "" && local != "" {
+			source = local
+		}
+		if source == "" || local == "" {
+			continue
+		}
+		out = append(out, importBinding{
+			LocalName:    local,
+			SourceModule: module,
+			SourceName:   source,
+		})
+	}
+	return out
+}
+
+func patternEntryKeyName(key ast.Expression) string {
+	switch k := key.(type) {
+	case *ast.Identifier:
+		return k.Value
+	case *ast.StringLiteral:
+		return k.Value
+	case *ast.SymbolLiteral:
+		return k.Value
+	default:
+		return ""
+	}
+}
+
+func patternBindingName(pat ast.MatchPattern) string {
+	switch p := pat.(type) {
+	case *ast.IdentifierPattern:
+		if p != nil && p.Value != nil {
+			return p.Value.Value
+		}
+	case *ast.BindingPattern:
+		if p != nil && p.Name != nil {
+			return p.Name.Value
+		}
+	}
+	return ""
+}
+
+type patternNameRef struct {
+	Name  string
+	Start int
+	End   int
+}
+
+func topLevelPatternNames(pat ast.MatchPattern) []patternNameRef {
+	out := []patternNameRef{}
+	switch p := pat.(type) {
+	case *ast.IdentifierPattern:
+		if p != nil && p.Value != nil {
+			start := p.Value.Token.Position
+			end := start + len(p.Value.Token.Literal)
+			out = append(out, patternNameRef{Name: p.Value.Value, Start: start, End: end})
+		}
+	case *ast.BindingPattern:
+		if p != nil && p.Name != nil {
+			start := p.Name.Token.Position
+			end := start + len(p.Name.Token.Literal)
+			out = append(out, patternNameRef{Name: p.Name.Value, Start: start, End: end})
+		}
+	}
+	return out
+}
+
+func hasTag(tags []*ast.Tag, name string) bool {
+	for _, t := range tags {
+		if t != nil && t.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+func moduleNameFromURI(uri string) string {
+	_, local := normalizeURI(uri)
+	if local == "" {
+		return ""
+	}
+	p := filepath.ToSlash(local)
+	if strings.HasSuffix(p, ".slug") {
+		p = strings.TrimSuffix(p, ".slug")
+	}
+	if idx := strings.LastIndex(p, "/lib/"); idx >= 0 {
+		p = p[idx+len("/lib/"):]
+	}
+	p = strings.TrimPrefix(p, "/")
+	if p == "" {
+		return ""
+	}
+	return strings.ReplaceAll(p, "/", ".")
+}
+
+func dedupeLocations(in []lspLocation) []lspLocation {
 	seen := map[string]bool{}
-	for {
-		tok := l.NextToken()
-		if tok.Type == token.EOF || tok.Type == token.ILLEGAL {
-			break
-		}
-		if tok.Type != token.IDENT || tok.Literal != name {
-			continue
-		}
-		resolved, ok := resolveSymbolAt(name, tok.Position, syms)
-		if !ok || resolved.ScopeDepth != 0 || resolved.Kind != targetKind {
-			continue
-		}
-		if !includeDeclaration && tok.Position == resolved.Start {
-			continue
-		}
-		rng := offsetRangeToLSP(src, tok.Position, tok.Position+len(tok.Literal))
-		key := fmt.Sprintf("%d:%d:%d:%d", rng.Start.Line, rng.Start.Character, rng.End.Line, rng.End.Character)
+	out := make([]lspLocation, 0, len(in))
+	for _, loc := range in {
+		key := fmt.Sprintf("%s:%d:%d:%d:%d", loc.URI, loc.Range.Start.Line, loc.Range.Start.Character, loc.Range.End.Line, loc.Range.End.Character)
 		if seen[key] {
 			continue
 		}
 		seen[key] = true
-		out = append(out, lspLocation{
-			URI:   uri,
-			Range: rng,
-		})
+		out = append(out, loc)
 	}
 	return out
 }

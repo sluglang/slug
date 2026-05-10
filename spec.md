@@ -1392,3 +1392,42 @@ Tests added in `internal/lsp/server_test.go`:
 Validation performed:
 - `go test ./internal/lsp -count=1`
 - `go test ./... -count=1`
+
+### LSP Phase 11: module-aware cross-file references/rename (open-doc index)
+
+- Upgraded cross-file reference/rename logic from name+kind heuristics to a module-aware identity model in `internal/lsp/server.go`.
+
+Implemented module-aware identity/indexing:
+- Added module symbol identity type (`module`, `name`, `kind`).
+- Added import binding extraction from top-level destructured imports:
+  - supports patterns like `val { x } = import("mod")` / `var { x } = import("mod")`.
+- Added exported-symbol extraction from `@export` top-level declarations (`val`, `var`, `foreign`).
+- Added URI->module-name derivation helper based on `.slug` path with `/lib/` normalization.
+
+Behavior changes:
+- `textDocument/references` and `textDocument/rename` now use module-aware identity for cross-open-document resolution:
+  - same-module top-level references are resolved via declaration binding,
+  - importer aliases are resolved via parsed import bindings (`import("module")` destructuring),
+  - local scope references in the origin doc remain scope-safe as before.
+- `textDocument/rename` now emits multi-URI workspace edits based on module-aware matches.
+
+Safety/constraints:
+- Cross-document propagation is conservative and limited to currently open documents.
+- Cross-document local-scope symbols are not propagated; only top-level/module-identity paths are considered.
+
+New helpers introduced:
+- `resolveModuleSymbolIdentity`
+- `inferExportKindFromOpenDocs`
+- `collectExportedTopLevelSymbols`
+- `collectImportBindingsForModule`
+- `collectReferencesAcrossOpenDocs` (module-aware orchestration)
+- `dedupeLocations`
+
+Tests updated/added in `internal/lsp/server_test.go`:
+- Updated cross-open-document tests to module-aware importer/exporter scenario.
+- `TestServerReferencesIncludeOpenDocumentsForTopLevelSymbol`
+- `TestServerRenameAppliesEditsAcrossOpenDocumentsForTopLevelSymbol`
+
+Validation performed:
+- `go test ./internal/lsp -count=1`
+- `go test ./... -count=1`

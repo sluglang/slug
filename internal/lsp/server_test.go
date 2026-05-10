@@ -777,13 +777,13 @@ func TestServerReferencesExcludeDeclaration(t *testing.T) {
 }
 
 func TestServerReferencesIncludeOpenDocumentsForTopLevelSymbol(t *testing.T) {
-	srcA := "val answer = 42\\nanswer\\n"
-	srcB := "val answer = 100\\nanswer\\n"
+	srcA := "@export val answer = 42\\nanswer\\n"
+	srcB := "val { answer } = import(\\\"a\\\")\\nanswer\\n"
 	in := strings.NewReader(
 		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
-			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///a.slug","version":1,"text":"`+srcA+`"}}}`) +
-			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///b.slug","version":1,"text":"`+srcB+`"}}}`) +
-			frame(`{"jsonrpc":"2.0","id":22,"method":"textDocument/references","params":{"textDocument":{"uri":"file:///a.slug"},"position":{"line":1,"character":2},"context":{"includeDeclaration":true}}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///lib/a.slug","version":1,"text":"`+srcA+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///lib/b.slug","version":1,"text":"`+srcB+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":22,"method":"textDocument/references","params":{"textDocument":{"uri":"file:///lib/a.slug"},"position":{"line":1,"character":2},"context":{"includeDeclaration":true}}}`) +
 			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
 			frame(`{"jsonrpc":"2.0","method":"exit"}`),
 	)
@@ -803,7 +803,7 @@ func TestServerReferencesIncludeOpenDocumentsForTopLevelSymbol(t *testing.T) {
 			t.Fatalf("references result missing: %#v", m)
 		}
 		if len(res) != 4 {
-			t.Fatalf("expected 4 references across two open docs, got %d (%#v)", len(res), res)
+			t.Fatalf("expected 4 module-aware references across exporter/importer docs, got %d (%#v)", len(res), res)
 		}
 		return
 	}
@@ -884,13 +884,13 @@ func TestServerRenameReturnsScopedWorkspaceEdits(t *testing.T) {
 }
 
 func TestServerRenameAppliesEditsAcrossOpenDocumentsForTopLevelSymbol(t *testing.T) {
-	srcA := "val answer = 42\\nanswer\\n"
-	srcB := "val answer = 100\\nanswer\\n"
+	srcA := "@export val answer = 42\\nanswer\\n"
+	srcB := "val { answer } = import(\\\"a\\\")\\nanswer\\n"
 	in := strings.NewReader(
 		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
-			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///a.slug","version":1,"text":"`+srcA+`"}}}`) +
-			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///b.slug","version":1,"text":"`+srcB+`"}}}`) +
-			frame(`{"jsonrpc":"2.0","id":23,"method":"textDocument/rename","params":{"textDocument":{"uri":"file:///a.slug"},"position":{"line":1,"character":2},"newName":"result"}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///lib/a.slug","version":1,"text":"`+srcA+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///lib/b.slug","version":1,"text":"`+srcB+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":23,"method":"textDocument/rename","params":{"textDocument":{"uri":"file:///lib/a.slug"},"position":{"line":1,"character":2},"newName":"result"}}`) +
 			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
 			frame(`{"jsonrpc":"2.0","method":"exit"}`),
 	)
@@ -913,8 +913,8 @@ func TestServerRenameAppliesEditsAcrossOpenDocumentsForTopLevelSymbol(t *testing
 		if !ok {
 			t.Fatalf("rename changes missing: %#v", res)
 		}
-		editsA, okA := changes["file:///a.slug"].([]interface{})
-		editsB, okB := changes["file:///b.slug"].([]interface{})
+		editsA, okA := changes["file:///lib/a.slug"].([]interface{})
+		editsB, okB := changes["file:///lib/b.slug"].([]interface{})
 		if !okA || !okB {
 			t.Fatalf("expected rename edits for both docs, got %#v", changes)
 		}
