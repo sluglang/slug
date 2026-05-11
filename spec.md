@@ -2376,3 +2376,26 @@ Validation performed:
 - `SLUG_HOME=$(pwd) go run ./cmd/app/main.go doc --dir ./lib --out ./lib/MANIFEST.ai manifest`
 - `SLUG_HOME=$(pwd) go run ./cmd/app/main.go doc --dir ./lib --moduleToc --multiPage --out ./docs/_libraries markdown`
 - Verified generated signatures now show `chan<str>` for `slug.io.stdin#readLines`.
+
+### Type checking enhancement: enforce generic union container annotations
+
+- Added targeted enforcement for declared generic container annotations involving unions, including nilable members:
+  - `list<str|nil>`
+  - `map<str, num|nil>`
+- Root cause addressed:
+  - list/map literals are intentionally inferred as heterogeneous (`list<any>`, `map<any, any>`), which previously bypassed strict element/value checks for declared annotations.
+- Implemented declaration-site literal validation in semantic checker:
+  - For annotated `val`/`var` with list/map literals, each literal element/key/value is checked against declared generic member types using strict declared-compatibility logic.
+  - Ensures `num` does not satisfy `str|nil`, while `nil` still satisfies the `|nil` branch.
+- Preserved existing broader nil-flow behavior outside declaration-site literal checks.
+
+Files updated:
+- `internal/semantic/typecheck.go`
+- `internal/semantic/analyzer_test.go`
+
+Tests added:
+- `TestSemanticTypeCheckSupportsGenericUnionTypesListAndMap`
+- `TestSemanticTypeCheckRejectsGenericUnionTypeMismatchesListAndMap`
+
+Validation performed:
+- `go test ./internal/semantic -count=1`

@@ -317,6 +317,53 @@ y = nil
 	}
 }
 
+func TestSemanticTypeCheckSupportsGenericUnionTypesListAndMap(t *testing.T) {
+	input := `
+var names:list<str|nil> = ["a", nil, "b"]
+var scores:map<str, num|nil> = {"a": 1, "b": nil}
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
+	}
+	if len(errs) > 0 {
+		t.Fatalf("expected no strict type-check errors for generic union list/map declarations, got: %v", errs)
+	}
+}
+
+func TestSemanticTypeCheckRejectsGenericUnionTypeMismatchesListAndMap(t *testing.T) {
+	input := `
+var names:list<str|nil> = [1]
+var scores:map<str, num|nil> = {"a": true}
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
+	}
+	if len(errs) == 0 {
+		t.Fatal("expected strict type-check errors for generic union list/map mismatches, got none")
+	}
+	if !containsError(errs, "list element type") && !containsError(errs, "map value type") {
+		t.Fatalf("expected list/map type mismatch diagnostics, got: %v", errs)
+	}
+}
+
 func TestSemanticTypeCheckTraceEmitsEvents(t *testing.T) {
 	input := `
 val f = fn(flag, x) {

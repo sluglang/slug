@@ -921,6 +921,10 @@ func (c *typeChecker) inferExpr(expr ast.Expression) *tnode {
 		rhs := c.inferExpr(e.Value)
 		if tt := c.parseDeclaredType(e.Type); tt != nil {
 			c.addConstraint(rhs, tt, e.Token.Position, "var annotation")
+			if !c.isDeclaredCompatible(rhs, tt) {
+				c.addDiag(e.Token.Position, "inferred type mismatch (var annotation): %s vs %s", c.describe(rhs), c.describe(tt))
+			}
+			c.enforceDeclaredLiteralCompatibility(e.Value, tt, e.Token.Position)
 			c.bindPatternDeclared(e.Pattern, tt)
 			if c.typeMayBeNil(rhs) && !c.typeAllowsNil(tt) {
 				c.addDiag(e.Token.Position, "nilability mismatch (var annotation): expected %s, got %s", c.describe(tt), c.describe(rhs))
@@ -934,6 +938,10 @@ func (c *typeChecker) inferExpr(expr ast.Expression) *tnode {
 		rhs := c.inferExpr(e.Value)
 		if tt := c.parseDeclaredType(e.Type); tt != nil {
 			c.addConstraint(rhs, tt, e.Token.Position, "val annotation")
+			if !c.isDeclaredCompatible(rhs, tt) {
+				c.addDiag(e.Token.Position, "inferred type mismatch (val annotation): %s vs %s", c.describe(rhs), c.describe(tt))
+			}
+			c.enforceDeclaredLiteralCompatibility(e.Value, tt, e.Token.Position)
 			c.bindPatternDeclared(e.Pattern, tt)
 			if c.typeMayBeNil(rhs) && !c.typeAllowsNil(tt) {
 				c.addDiag(e.Token.Position, "nilability mismatch (val annotation): expected %s, got %s", c.describe(tt), c.describe(rhs))
@@ -2391,6 +2399,107 @@ func (c *typeChecker) isCompatible(got, expected *tnode) bool {
 	}
 }
 
+// isDeclaredCompatible applies stricter matching for declared type annotations.
+// In particular, nil only satisfies explicit nil branches (e.g. T|nil),
+// which lets generic container declarations enforce element/value unions.
+func (c *typeChecker) isDeclaredCompatible(got, expected *tnode) bool {
+	g := c.find(got)
+	e := c.find(expected)
+	if g == nil || e == nil {
+		return true
+	}
+	if g.kind == typeNever || e.kind == typeNever {
+		return true
+	}
+	if g == e {
+		return true
+	}
+	if g.kind == typeAny || e.kind == typeAny || g.kind == typeUnknown || e.kind == typeUnknown {
+		return true
+	}
+	if g.kind == typeUnion {
+		for _, opt := range g.options {
+			if !c.isDeclaredCompatible(opt, e) {
+				return false
+			}
+		}
+		return true
+	}
+	if e.kind == typeUnion {
+		for _, opt := range e.options {
+			if c.isDeclaredCompatible(g, opt) {
+				return true
+			}
+		}
+		return false
+	}
+	if g.kind == typeNil || e.kind == typeNil {
+		return g.kind == typeNil && e.kind == typeNil
+	}
+	if g.kind != e.kind {
+		return false
+	}
+	switch g.kind {
+	case typeList:
+		return c.isDeclaredCompatible(g.elem, e.elem)
+	case typeMap:
+		return c.isDeclaredCompatible(g.key, e.key) && c.isDeclaredCompatible(g.val, e.val)
+	case typeFn:
+		if (e.maxArgs == -1 && len(e.params) == 0) || (g.maxArgs == -1 && len(g.params) == 0) {
+			return true
+		}
+		if g.variadic != e.variadic || len(g.params) != len(e.params) {
+			return false
+		}
+		for i := range g.params {
+			if !c.isDeclaredCompatible(g.params[i], e.params[i]) {
+				return false
+			}
+		}
+		return c.isDeclaredCompatible(g.ret, e.ret)
+	case typeStruct:
+		if g.name != "" && e.name != "" && g.name != e.name {
+			return false
+		}
+		return true
+	default:
+		return true
+	}
+}
+
+func (c *typeChecker) enforceDeclaredLiteralCompatibility(expr ast.Expression, declared *tnode, pos int) {
+	d := c.find(declared)
+	if d == nil || expr == nil {
+		return
+	}
+	switch lit := expr.(type) {
+	case *ast.ListLiteral:
+		if d.kind != typeList {
+			return
+		}
+		for _, item := range lit.Elements {
+			it := c.inferExpr(item)
+			if !c.isDeclaredCompatible(it, d.elem) {
+				c.addDiag(pos, "inferred type mismatch (list element type): %s vs %s", c.describe(it), c.describe(d.elem))
+			}
+		}
+	case *ast.MapLiteral:
+		if d.kind != typeMap {
+			return
+		}
+		for k, v := range lit.Pairs {
+			kt := c.inferExpr(k)
+			vt := c.inferExpr(v)
+			if !c.isDeclaredCompatible(kt, d.key) {
+				c.addDiag(pos, "inferred type mismatch (map key type): %s vs %s", c.describe(kt), c.describe(d.key))
+			}
+			if !c.isDeclaredCompatible(vt, d.val) {
+				c.addDiag(pos, "inferred type mismatch (map value type): %s vs %s", c.describe(vt), c.describe(d.val))
+			}
+		}
+	}
+}
+
 func (c *typeChecker) isPlusCompatible(left, right *tnode) bool {
 	l := c.find(left)
 	r := c.find(right)
@@ -2586,11 +2695,6 @@ func (c *typeChecker) unify(a, b *tnode) bool {
 	if a == b {
 		return true
 	}
-	// Slug runtime/tag dispatch treats nil as admissible across typed positions.
-	// Keep semantic typing aligned by allowing nil to unify with any concrete type.
-	if a.kind == typeNil || b.kind == typeNil {
-		return true
-	}
 	if a.kind == typeAny || b.kind == typeAny {
 		return true
 	}
@@ -2609,6 +2713,11 @@ func (c *typeChecker) unify(a, b *tnode) bool {
 			}
 		}
 		return false
+	}
+	// Slug runtime/tag dispatch treats nil as admissible across typed positions.
+	// Keep semantic typing aligned by allowing nil to unify with any concrete type.
+	if a.kind == typeNil || b.kind == typeNil {
+		return true
 	}
 	if a.kind == typeUnknown {
 		return c.bindUnknown(a, b)
