@@ -73,9 +73,9 @@ val MODE_BLOCK_CMT = :block_cmt
  * Do not construct directly; use `extractArgs`.
  */
 val SqlQuery = struct {
-	@str sql,    // rewritten SQL with ? placeholders
-	@list args,   // ordered list of param symbols matching ? positions
-	@sym type,   // :query (SELECT/WITH) or :exec (all other statements)
+	sql:str,    // rewritten SQL with ? placeholders
+	args:list,   // ordered list of param symbols matching ? positions
+	type:sym,   // :query (SELECT/WITH) or :exec (all other statements)
 }
 
 /**

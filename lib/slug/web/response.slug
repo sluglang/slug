@@ -66,11 +66,11 @@ val json = import("slug.json")
  * Extra `headers` are merged into the final response.
  */
 @export val Reply = struct {
-	@str view,
-	@str fragment,
-	@map data    = {},
-	@num status  = 200,
-	@map headers = {},
+	view:str,
+	fragment:str,
+	data:map    = {},
+	status:num  = 200,
+	headers:map = {},
 }
 
 /**
@@ -79,13 +79,13 @@ val json = import("slug.json")
  * Header names are always normalised to lowercase.
  */
 @export val Response = struct {
-	@num status,
-	@map headers,
+	status:num,
+	headers:map,
 	body,
 }
 
 val FormattedResponse = struct {
-	@str head,
+	head:str,
 	body,
 }
 

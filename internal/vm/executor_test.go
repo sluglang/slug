@@ -341,7 +341,7 @@ func TestExecutorDispatchPrefersSpecificStructTagDeterministically(t *testing.T)
 	input := `
 val User = struct {
 	name,
-	@num age,
+	age:num,
 	active = true,
 }
 

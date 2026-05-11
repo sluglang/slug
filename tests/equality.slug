@@ -31,7 +31,7 @@ assert(:a != :b, "symbol :a != :b")
 // struct
 // ------
 var St = struct {
-	@num n = 1,
+	n:num = 1,
 }
 var instance = St{}
 assert(St == St, "struct St == St")

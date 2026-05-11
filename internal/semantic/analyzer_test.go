@@ -208,7 +208,7 @@ val x = "hello" - 1
 func TestSemanticTypeCheckChecksStructFieldTagsInInit(t *testing.T) {
 	input := `
 val User = struct {
-  @num age,
+  age:num,
 }
 
 val u = User { age: "bad" }
@@ -434,8 +434,8 @@ val assertThrows = fn(@fn f, expected, @str msg = nil) {
 func TestSemanticTypeCheckAllowsIfBranchWithThrowElse(t *testing.T) {
 	input := `
 val Error = struct {
-  @str type = "Error",
-  @str msg,
+  type:str = "Error",
+  msg:str,
 }
 
 val assert = fn(a, msg = nil) {
@@ -571,8 +571,8 @@ val NIL_TYPE = :nil
 val STRING_TYPE = :str
 
 val Error = struct {
-  @str type = "Error",
-  @str msg,
+  type:str = "Error",
+  msg:str,
 }
 
 val toBoolean = fn(v) {
@@ -767,7 +767,7 @@ func TestSemanticTypeCheckAllowsDynamicUntaggedStructField(t *testing.T) {
 	input := `
 val ParseResult = struct {
   value,
-  @num nextIdx,
+  nextIdx:num,
 }
 
 val a = ParseResult { value: "x", nextIdx: 1 }

@@ -31,15 +31,15 @@ val {*} = import(
 )
 
 @export val Request = struct {
-	@str method,
-	@str path,
-	@str version,
-	@map headers,
+	method:str,
+	path:str,
+	version:str,
+	headers:map,
 	body,
-	@map query,
-	@map form,
-	@list files,
-	@map params,
+	query:map,
+	form:map,
+	files:list,
+	params:map,
 	requestId,
 	traceId,
 	spanId,

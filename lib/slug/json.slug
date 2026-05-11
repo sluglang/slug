@@ -38,13 +38,13 @@ val {*} = import(
 )
 
 val Token = struct {
-	@str type,
+	type:str,
 	value = nil,
 }
 
 val ParseResult = struct {
 	value,
-	@num nextIdx,
+	nextIdx:num,
 }
 
 // ===========================

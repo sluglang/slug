@@ -2184,3 +2184,30 @@ Validation performed:
 Validation performed:
 - `go run ./cmd/app/main.go --root ./tests tests/functions-type-tags.slug`
 - `go test ./... -count=1`
+
+### Language break: struct field types now use colon syntax only
+
+- Introduced hard-break struct schema field syntax:
+  - New: `field:type` (for example `age:num`, `type:str = "Error"`)
+  - Removed: legacy tag-style struct field hints (`@num age`, `@str name`)
+- Parser now rejects legacy struct-field tag syntax with an explicit error.
+- Updated AST model for struct fields to store declared field type strings.
+- Updated semantic struct schema typing to read declared field types directly.
+- Migrated stdlib and tests to colon struct field syntax.
+
+Implementation updates:
+- `internal/ast/ast.go`
+  - `StructField` now stores `Type string` (removed `Tags`).
+- `internal/parser/parser.go`
+  - `parseStructSchemaField` now parses `name:type` and errors on `@type name`.
+- `internal/semantic/typecheck.go`
+  - struct schema registration now uses declared field type parsing rather than field tags.
+- `internal/vm/compiler.go`
+  - struct schema compilation now stores field declared type and derives runtime hint tags from that type.
+- `internal/object/object.go`
+  - `StructSchemaField` includes `Type string`; struct inspect output renders colon field types.
+- `internal/parser/debug_ast_text.go`, `internal/parser/debug_ast_json.go`
+  - debug renderers updated for struct field type representation.
+
+Validation performed:
+- `go test ./... -count=1`

@@ -613,18 +613,17 @@ func (hl *MapLiteral) String() string {
 type StructField struct {
 	Token   token.Token
 	Name    string
-	Tags    []*Tag
+	Type    string
 	Default Expression
 }
 
 func (sf *StructField) String() string {
 	var out bytes.Buffer
-	if sf.Tags != nil {
-		for _, tag := range sf.Tags {
-			out.WriteString(tag.String() + " ")
-		}
-	}
 	out.WriteString(sf.Name)
+	if strings.TrimSpace(sf.Type) != "" {
+		out.WriteString(":")
+		out.WriteString(sf.Type)
+	}
 	if sf.Default != nil {
 		out.WriteString(" = ")
 		out.WriteString(sf.Default.String())

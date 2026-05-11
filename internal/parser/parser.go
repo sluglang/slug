@@ -2132,18 +2132,20 @@ func (p *Parser) parseStructSchemaField() *ast.StructField {
 	field := &ast.StructField{Token: p.curToken}
 
 	if p.curTokenIs(token.AT) {
-		// Collect tags (e.g., @int, @str)
-		for p.curTokenIs(token.AT) {
-			tag := p.parseTag()
-			field.Tags = append(field.Tags, tag)
-			p.nextToken()
-		}
-	} else if !p.curTokenIs(token.IDENT) {
+		p.addErrorAt(p.curToken.Position, "struct field tag syntax is no longer supported; use field:type")
+		return nil
+	}
+	if !p.curTokenIs(token.IDENT) {
 		p.addErrorAt(p.curToken.Position, "expected identifier for struct field, got %s", p.curToken.Type)
 		return nil
 	}
 
 	field.Name = p.curToken.Literal
+	if p.peekTokenIs(token.COLON) {
+		p.nextToken() // consume field name
+		p.nextToken() // consume ':'
+		field.Type = p.parseTypeAnnotationLiteral(token.ASSIGN, token.COMMA, token.RBRACE)
+	}
 
 	if p.peekTokenIs(token.ASSIGN) {
 		p.nextToken()

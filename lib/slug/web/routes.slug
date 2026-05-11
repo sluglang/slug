@@ -73,13 +73,13 @@ val {*} = import(
 val err = import('slug.io.stderr')
 
 val Route = struct {
-	@str method,
-	@str pattern,
-	@fn handler,
+	method:str,
+	pattern:str,
+	handler:fn,
 }
 
 val Router = struct {
-	@list routes,
+	routes:list,
 }
 
 // --- constructors ---

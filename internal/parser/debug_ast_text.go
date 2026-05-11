@@ -176,11 +176,10 @@ func RenderASTAsText(node ast.Node, indent int) string {
 	case *ast.StructSchemaExpression:
 		fields := []string{}
 		for _, f := range n.Fields {
-			field := ""
-			if f.Tags != nil {
-				field = renderTags(f.Tags)
+			field := f.Name
+			if strings.TrimSpace(f.Type) != "" {
+				field += ":" + f.Type
 			}
-			field += f.Name
 			if f.Default != nil {
 				field += " = " + RenderASTAsText(f.Default, 0)
 			}

@@ -1687,16 +1687,13 @@ func (c *typeChecker) registerStructSchema(pattern ast.MatchPattern, value ast.E
 	fieldTypes := map[string]*tnode{}
 	for _, field := range schemaExpr.Fields {
 		ft := c.freshUnknown()
-		if len(field.Tags) == 0 && (field.Default == nil || isNilExpr(field.Default)) {
+		if strings.TrimSpace(field.Type) == "" && (field.Default == nil || isNilExpr(field.Default)) {
 			// Untagged open field: keep dynamic by default.
 			ft = c.scalar(typeAny)
 		}
-		for _, tag := range field.Tags {
-			if tag == nil {
-				continue
-			}
-			if tt := c.cloneScalarTagType(tag.Name); tt != nil {
-				c.addConstraint(ft, tt, field.Token.Position, fmt.Sprintf("struct schema tag %s.%s", name, field.Name))
+		if strings.TrimSpace(field.Type) != "" {
+			if tt := c.parseDeclaredType(field.Type); tt != nil {
+				c.addConstraint(ft, tt, field.Token.Position, fmt.Sprintf("struct schema type %s.%s", name, field.Name))
 			}
 		}
 		if field.Default != nil && !isNilExpr(field.Default) {

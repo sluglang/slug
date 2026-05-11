@@ -40,7 +40,7 @@ params[1][:vargs] /> assertEqual(false)
 
 val User = struct {
     name,
-    @num age = 0,
+    age:num = 0,
 }
 
 var u = User {

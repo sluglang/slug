@@ -212,7 +212,7 @@ func WalkAST(node ast.Node) interface{} {
 		for i, f := range n.Fields {
 			fields[i] = map[string]interface{}{
 				"name":    f.Name,
-				"hint":    f.Tags,
+				"type":    f.Type,
 				"default": WalkAST(f.Default),
 			}
 		}

@@ -86,13 +86,13 @@ val DefaultEnv  = cfg('environment', [])
  * represents a migration record as stored in the tracking table.
  */
 @export val Migration = struct {
-	@num id,
-	@str version,
-	@str environment,
-	@str filename,
-	@str checksum,
-	@bool success,
-	@str appliedAt,
+	id:num,
+	version:str,
+	environment:str,
+	filename:str,
+	checksum:str,
+	success:bool,
+	appliedAt:str,
 }
 
 /**

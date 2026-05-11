@@ -295,8 +295,9 @@ func (c *compiler) compileExpression(expr ast.Expression) error {
 			schema.FieldIndex[field.Name] = len(schema.Fields)
 			schema.Fields = append(schema.Fields, object.StructSchemaField{
 				Name:    field.Name,
+				Type:    field.Type,
 				Default: field.Default,
-				Tags:    field.Tags,
+				Tags:    structFieldTagsFromType(field.Type),
 			})
 		}
 		idx := c.addConstant(schema)
@@ -884,6 +885,49 @@ func (c *compiler) emitNumberConstant(pos int, n int) {
 
 func unsupportedNodeErr(kind string, node ast.Node) error {
 	return fmt.Errorf("vm compile error: unsupported %s node %T", kind, node)
+}
+
+func structFieldTagsFromType(raw string) []*ast.Tag {
+	decl := strings.TrimSpace(raw)
+	if decl == "" || strings.Contains(decl, "|") {
+		return nil
+	}
+	ident := decl
+	if i := strings.Index(ident, "<"); i >= 0 {
+		ident = strings.TrimSpace(ident[:i])
+	}
+	switch ident {
+	case "num", "str", "bool", "list", "map", "bytes", "sym", "fn", "chan", "task", "struct":
+		return []*ast.Tag{{Name: "@" + ident}}
+	}
+	if isSimpleTypeIdent(ident) {
+		return []*ast.Tag{{
+			Name: "@struct",
+			Args: []ast.Expression{
+				&ast.Identifier{
+					Token: token.Token{Type: token.IDENT, Literal: ident},
+					Value: ident,
+				},
+			},
+		}}
+	}
+	return nil
+}
+
+func isSimpleTypeIdent(s string) bool {
+	if s == "" {
+		return false
+	}
+	for i, r := range s {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || r == '_' {
+			continue
+		}
+		if i > 0 && r >= '0' && r <= '9' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func (c *compiler) compileShortCircuit(node *ast.InfixExpression) error {

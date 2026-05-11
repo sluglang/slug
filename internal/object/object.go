@@ -945,6 +945,7 @@ func (m *Map) SetTag(tag string, params List) {
 
 type StructSchemaField struct {
 	Name    string
+	Type    string
 	Default ast.Expression
 	Tags    []*ast.Tag
 }
@@ -977,6 +978,10 @@ func (s *StructSchema) Inspect() string {
 			}
 		}
 		b.WriteString(field.Name)
+		if strings.TrimSpace(field.Type) != "" {
+			b.WriteString(":")
+			b.WriteString(field.Type)
+		}
 		if field.Default != nil {
 			b.WriteString(" = ")
 			b.WriteString(field.Default.String())

@@ -29,7 +29,7 @@ classify([[12, 13, 14], 99])
 	"struct_copy": `
 val User = struct {
   name,
-  @num age,
+  age:num,
 }
 val mk = fn(n, age = 1, acc = User { name: "u0", age: 0 }) {
   if (n == 0) {

@@ -58,9 +58,9 @@ val response = import("slug.web.response")
 val { Reply, Response } = import("slug.web.response")
 
 val Views = struct {
-	@str root,
-	@bool dev,
-	@map cache,
+	root:str,
+	dev:bool,
+	cache:map,
 }
 
 /**

@@ -66,54 +66,54 @@ val DEFAULT_CTAG = '}}'
 //  BlockNode { name:"b", children:[...], raw:"...", standalone:true/false, indentLen:0, indentStr:"" }
 
 val TextNode = struct {
-	@str text,
+	text:str,
 }
 
 val VarNode = struct {
-	@str name,
-	@bool escape,
+	name:str,
+	escape:bool,
 }
 
 val SectionNode = struct {
-	@str name,
-	@bool inverted,
-	@list children,
-	@str raw,
-	@str otag,
-	@str ctag,
+	name:str,
+	inverted:bool,
+	children:list,
+	raw:str,
+	otag:str,
+	ctag:str,
 }
 
 val PartialNode = struct {
-	@str name,
-	@str indent,
+	name:str,
+	indent:str,
 }
 
 val SectionFrame = struct {
-	@str name,
-	@str kind,
-	@bool inverted,
-	@list nodes,
+	name:str,
+	kind:str,
+	inverted:bool,
+	nodes:list,
 	contentStart,
-	@str otag,
-	@str ctag,
-	@bool standalone,
-	@str indent,
+	otag:str,
+	ctag:str,
+	standalone:bool,
+	indent:str,
 }
 
 val ParentNode = struct {
-	@str name,
-	@str indent,
-	@list children,
+	name:str,
+	indent:str,
+	children:list,
 }
 
 val BlockNode = struct {
-	@str name,
-	@list children,
-	@str raw,
-	@bool standalone,
-	@num indentLen,
-	@str indentStr,
-	@bool trailingNl,
+	name:str,
+	children:list,
+	raw:str,
+	standalone:bool,
+	indentLen:num,
+	indentStr:str,
+	trailingNl:bool,
 }
 
 val isWs = fn(s:str) {
