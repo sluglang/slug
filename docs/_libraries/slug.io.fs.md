@@ -81,140 +81,88 @@ str slug.io.fs#WRITE_MODE
 
 #### `appendFile(contents, path)`
 ```slug
-fn slug.io.fs#appendFile(@str contents, @str path) -> @num
+fn slug.io.fs#appendFile(contents:str, path:str):num
 ```
-
-
-appends `contents` to the end of a file, creating it if absent.
-
-Returns the number of bytes written.
-
-@effects('fs')
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `contents` | @str  | — |
-| `path` | @str  | — |
+| `contents` | str | — |
+| `path` | str | — |
 
 ---
 
 #### `closeFile(handle)`
 ```slug
-fn slug.io.fs#closeFile(@num handle) -> nil
+fn slug.io.fs#closeFile(handle:num):nil
 ```
-
-
-closes an open file handle.
-
-@effects('fs')
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `handle` | @num  | — |
+| `handle` | num | — |
 
 ---
 
 #### `exists(path)`
 ```slug
-fn slug.io.fs#exists(@str path) -> @bool
+fn slug.io.fs#exists(path:str):bool
 ```
-
-
-returns true if `path` exists and is accessible.
-
-@effects('fs')
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `path` | @str  | — |
+| `path` | str | — |
 
 ---
 
 #### `info(path)`
 ```slug
-fn slug.io.fs#info(@str path) -> @map
+fn slug.io.fs#info(path:str):map
 ```
-
-
-returns metadata about a file or directory as a map.
-
-The map contains at minimum `name`, `size`, `isDir`, and `modTime` fields.
-
-@effects('fs')
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `path` | @str  | — |
+| `path` | str | — |
 
 ---
 
 #### `isDir(path)`
 ```slug
-fn slug.io.fs#isDir(@str path) -> @bool
+fn slug.io.fs#isDir(path:str):bool
 ```
-
-
-returns true if `path` is a directory.
-
-@effects('fs')
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `path` | @str  | — |
+| `path` | str | — |
 
 ---
 
 #### `listFilesRecursive(path, filter, acc)`
 ```slug
-fn slug.io.fs#listFilesRecursive(@list path, @fn filter = fn((s)) {true}, acc = []) -> @list
-```
-
-
-recursively collects all files under the given path(s) matching `filter`.
-
-`path` is a list of starting paths. Directories are expanded recursively.
-`filter` receives each file path and returns true to include it.
-
-```slug
-listFilesRecursive(["src"], fn(s) { endsWith(s, ".slug") })
-// => ["src/main.slug", "src/lib/util.slug", ...]
+fn slug.io.fs#listFilesRecursive(path:list, filter:fn = fn((s)) {true}, acc = []):list
 ```
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `path` | @list  | — |
-| `filter` | @fn  | `fn((s)) {true}` |
+| `path` | list | — |
+| `filter` | fn | `fn((s)) {true}` |
 | `acc` |  | `[]` |
 
 ---
 
 #### `ls(path)`
 ```slug
-fn slug.io.fs#ls(@str path) -> @list
+fn slug.io.fs#ls(path:str):list
 ```
-
-
-returns a list of filenames in a directory (non-recursive).
-
-@effects('fs')
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `path` | @str  | — |
+| `path` | str | — |
 
 ---
 
 #### `mkDirs(path)`
 ```slug
-fn slug.io.fs#mkDirs(...path) -> @bool
+fn slug.io.fs#mkDirs(...path):bool
 ```
-
-
-creates all directories in the given path(s), including intermediates.
-
-Returns true on success.
-
-@effects('fs')
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -224,123 +172,79 @@ Returns true on success.
 
 #### `openFile(path, mode)`
 ```slug
-fn slug.io.fs#openFile(@str path, @str mode) -> @num
+fn slug.io.fs#openFile(path:str, mode:str):num
 ```
-
-
-opens a file in the specified mode and returns a file handle.
-
-Always close the handle with `closeFile`. Use `defer closeFile(handle)`
-to ensure it is closed even if an error occurs.
-
-@effects('fs')
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `path` | @str  | — |
-| `mode` | @str  | — |
+| `path` | str | — |
+| `mode` | str | — |
 
 ---
 
 #### `readFile(path)`
 ```slug
-fn slug.io.fs#readFile(@str path) -> @str
+fn slug.io.fs#readFile(path:str):str
 ```
-
-
-reads the entire contents of a file and returns it as a string.
-
-@effects('fs')
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `path` | @str  | — |
+| `path` | str | — |
 
 ---
 
 #### `readLine(handle)`
 ```slug
-fn slug.io.fs#readLine(@num handle) -> @str
+fn slug.io.fs#readLine(handle:num):str
 ```
-
-
-reads the next line from an open file handle.
-
-Returns `nil` at end of file. The returned string includes the trailing
-newline — use `str[0:-1]` to strip it.
-
-@effects('fs')
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `handle` | @num  | — |
+| `handle` | num | — |
 
 ---
 
 #### `readLines(file, lines)`
 ```slug
-fn slug.io.fs#readLines(@num file, lines = []) -> @list
+fn slug.io.fs#readLines(file:num, lines = []):list
 ```
-
-
-reads all remaining lines from an open file handle into a list.
-
-Trailing newlines are stripped from each line. Returns an empty list
-if the file is already at EOF.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `file` | @num  | — |
+| `file` | num | — |
 | `lines` |  | `[]` |
 
 ---
 
 #### `rm(path)`
 ```slug
-fn slug.io.fs#rm(@str path) -> nil
+fn slug.io.fs#rm(path:str):nil
 ```
-
-
-removes a file or empty directory at `path`.
-
-@effects('fs')
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `path` | @str  | — |
+| `path` | str | — |
 
 ---
 
 #### `write(handle, content)`
 ```slug
-fn slug.io.fs#write(@num handle, @str content) -> @num
+fn slug.io.fs#write(handle:num, content:str):num
 ```
-
-
-writes `content` to an open file handle.
-
-Returns the number of bytes written.
-
-@effects('fs')
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `handle` | @num  | — |
-| `content` | @str  | — |
+| `handle` | num | — |
+| `content` | str | — |
 
 ---
 
 #### `writeFile(contents, path)`
 ```slug
-fn slug.io.fs#writeFile(@str contents, @str path) -> nil
+fn slug.io.fs#writeFile(contents:str, path:str):nil
 ```
-
-
-writes `contents` to a file, creating or truncating it.
-
-@effects('fs')
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `contents` | @str  | — |
-| `path` | @str  | — |
+| `contents` | str | — |
+| `path` | str | — |

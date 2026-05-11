@@ -2223,3 +2223,67 @@ Validation performed:
 Validation performed:
 - `go test ./internal/lsp -count=1`
 - `go test ./... -count=1`
+
+### Documentation migration: colon type syntax in generated docs
+
+- Updated documentation generators to render type annotations in colon-style syntax.
+  - Function params now render as `name:type` instead of `@type name`.
+  - Struct fields now render as `field:type`.
+  - Return/throw types are normalized for display (`@str` -> `str`, `@struct(User)` -> `User`).
+- Updated developer guide examples to use colon syntax for typed functions/structs.
+- Regenerated docs artifacts:
+  - `lib/MANIFEST.ai`
+  - `docs/_libraries/*.md`
+
+Implementation updates:
+- `lib/slug/doc/manifest.slug`
+  - Type normalization + colon rendering in params/returns/errors/field lines.
+- `lib/slug/doc/markdown.slug`
+  - Type normalization + colon rendering in signatures/param tables/throws blocks.
+- `docs/_developers-guide/*.md`
+  - Example syntax refresh to colon types.
+
+Validation performed:
+- `make manifest`
+- `make generate-docs`
+- `go test ./... -count=1`
+
+### Docs generator: benchmark function descriptions and formal return types
+
+- Fixed missing function prose for `slug.benchmark` docs by adding explicit `@desc('...')` tags to exported benchmark functions and using generator fallback logic when runtime `describe(...).docs` is empty.
+- Updated benchmark exports with explicit return annotations for doc output consistency:
+  - `printResult(res):nil`
+  - `printCompareReport(report):nil`
+  - `compare(...):map`
+- Updated markdown generator to render docs with fallback order:
+  - doc comment text
+  - `@desc` tag (if doc comment metadata is empty)
+- Updated manifest generator to use the same `@desc` fallback for `desc:` lines.
+- Regenerated artifacts:
+  - `docs/_libraries/slug.benchmark.md`
+  - `lib/MANIFEST.ai`
+
+Validation performed:
+- `SLUG_HOME=$(pwd) go run ./cmd/app/main.go doc --dir ./lib --out ./lib/MANIFEST.ai manifest`
+- `SLUG_HOME=$(pwd) go run ./cmd/app/main.go doc --dir ./lib --moduleToc --multiPage --out ./docs/_libraries markdown`
+
+### Type display update: use `any` instead of `?` in generated signatures
+
+- Introduced `any` as the canonical unknown/unspecified type name in documentation outputs.
+- Updated doc generators so missing function return annotations render as `any` instead of `?`.
+- Updated type normalization so explicit `@returns('?')` also renders as `any`.
+- Regenerated generated artifacts:
+  - `lib/MANIFEST.ai`
+  - `docs/_libraries/*.md`
+
+Implementation updates:
+- `lib/slug/doc/markdown.slug`
+  - default return type fallback `?` -> `any`
+  - normalize type expression maps `?` -> `any`
+- `lib/slug/doc/manifest.slug`
+  - default return type fallback `:?` -> `:any`
+  - normalize type expression maps `?` -> `any`
+
+Validation performed:
+- `SLUG_HOME=$(pwd) go run ./cmd/app/main.go doc --dir ./lib --out ./lib/MANIFEST.ai manifest`
+- `SLUG_HOME=$(pwd) go run ./cmd/app/main.go doc --dir ./lib --moduleToc --multiPage --out ./docs/_libraries markdown`

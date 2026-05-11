@@ -25,41 +25,23 @@ any standard markdown renderer.
 
 #### `pagePerModule(moduleNames, moduleToc)`
 ```slug
-fn slug.doc.markdown#pagePerModule(@list moduleNames, @bool moduleToc = false) -> @list
+fn slug.doc.markdown#pagePerModule(moduleNames:list, moduleToc:bool = false):list
 ```
-
-
-generates a multi-page markdown API reference for the given list of module names, returns [name, text].
-
-each module gets a level-2 section with subsections for Constants, Structs, and
-Functions. overloaded functions are grouped under a single heading. all doc
-comments are rendered in full.
-
-pass the full dotted module names as they would appear in an import statement.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `moduleNames` | @list  | — |
-| `moduleToc` | @bool  | `false` |
+| `moduleNames` | list | — |
+| `moduleToc` | bool | `false` |
 
 ---
 
 #### `singlePage(moduleNames, title, moduleToc)`
 ```slug
-fn slug.doc.markdown#singlePage(@list moduleNames, @str title = "Slug API Reference", @bool moduleToc = false) -> @str
+fn slug.doc.markdown#singlePage(moduleNames:list, title:str = "Slug API Reference", moduleToc:bool = false):str
 ```
-
-
-generates a single-page markdown API reference for the given list of module names.
-
-modules are sorted alphabetically. each module gets a level-2 section with
-subsections for Constants, Structs, and Functions. overloaded functions are
-grouped under a single heading. all doc comments are rendered in full.
-
-pass the full dotted module names as they would appear in an import statement.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `moduleNames` | @list  | — |
-| `title` | @str  | `"Slug API Reference"` |
-| `moduleToc` | @bool  | `false` |
+| `moduleNames` | list | — |
+| `title` | str | `"Slug API Reference"` |
+| `moduleToc` | bool | `false` |

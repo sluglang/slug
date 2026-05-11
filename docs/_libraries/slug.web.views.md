@@ -62,37 +62,18 @@ load. Toggle with `cfg("dev", false)`.
 
 #### `new(root)`
 ```slug
-fn slug.web.views#new(@str root = "views") -> @struct(Views)
+fn slug.web.views#new(root:str = "views"):Views
 ```
-
-
-creates a new `Views` instance with the given template root directory.
-
-In dev mode templates are reloaded on every request. In production they
-are cached after first load. Dev mode is enabled by default unless
-`cfg("dev", false)` is set.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `root` | @str  | `"views"` |
+| `root` | str | `"views"` |
 
 ---
 
 #### `render(v, name, data)`
 ```slug
-fn slug.web.views#render(v, name, data = {}) -> @str
-```
-
-
-renders a page template by name and returns the HTML string.
-
-`name` is the page name without the `.mustache` extension, resolved
-under `views/pages/`. Partials are loaded relative to `views/pages/<name>/`
-with fallback to `views/layouts/` and `views/partials/`.
-
-```slug
-val views = new()
-views /> render("home", { title: "Hello", user: currentUser })
+fn slug.web.views#render(v, name, data = {}):str
 ```
 
 | Parameter | Type | Default |
@@ -105,18 +86,8 @@ views /> render("home", { title: "Hello", user: currentUser })
 
 #### `renderReply(vx, req, reply)`
 ```slug
-fn slug.web.views#renderReply(vx, req, reply) -> @struct(Response)
+fn slug.web.views#renderReply(vx, req, reply):Response
 ```
-
-
-renders a `Reply` into an HTML `Response`, with HTMX fragment support.
-
-If the request has an `HX-Request` header, renders only the fragment
-specified by `Reply.fragment` (or `HX-Target` if `fragment` is nil).
-Otherwise renders the full page view.
-
-The response status and extra headers from the `Reply` are applied to
-the final `Response`.
 
 | Parameter | Type | Default |
 | --- | --- | --- |

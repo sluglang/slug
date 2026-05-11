@@ -46,20 +46,20 @@ Header names are always normalised to lowercase. Access headers as
 
 #### `Request`
 ```slug
-struct slug.web.request#Request{@str method, @str path, @str version, @map headers, body, @map query, @map form, @list files, @map params, requestId, traceId, spanId}
+struct slug.web.request#Request{method:str, path:str, version:str, headers:map, body, query:map, form:map, files:list, params:map, requestId, traceId, spanId}
 ```
 
 | Field | Type | Default | Description |
 | --- | --- | --- | --- |
-| `method` | @str  | — |  |
-| `path` | @str  | — |  |
-| `version` | @str  | — |  |
-| `headers` | @map  | — |  |
+| `method` | str | — |  |
+| `path` | str | — |  |
+| `version` | str | — |  |
+| `headers` | map | — |  |
 | `body` |  | — |  |
-| `query` | @map  | — |  |
-| `form` | @map  | — |  |
-| `files` | @list  | — |  |
-| `params` | @map  | — |  |
+| `query` | map | — |  |
+| `form` | map | — |  |
+| `files` | list | — |  |
+| `params` | map | — |  |
 | `requestId` |  | — |  |
 | `traceId` |  | — |  |
 | `spanId` |  | — |  |
@@ -68,11 +68,8 @@ struct slug.web.request#Request{@str method, @str path, @str version, @map heade
 
 #### `isRequest(x)`
 ```slug
-fn slug.web.request#isRequest(x) -> @bool
+fn slug.web.request#isRequest(x):bool
 ```
-
-
-returns true if `x` is a `Request` struct instance.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -82,40 +79,21 @@ returns true if `x` is a `Request` struct instance.
 
 #### `parseRequestHeaders(buf)`
 ```slug
-fn slug.web.request#parseRequestHeaders(buf) -> [@struct(Request), @str]
+fn slug.web.request#parseRequestHeaders(buf):[@struct(Request), @str]
 ```
-
-
-parses the headers section of a raw HTTP request buffer.
-
-Returns `[Request, remainingBuffer]` where `remainingBuffer` is the
-bytes after the `\r\n\r\n` header/body separator. The body is not
-read — the caller (the server) is responsible for reading it based
-on `content-length` and then calling `withBody`.
-
-Header names are normalised to lowercase. Query string parameters
-are parsed and attached to `req.query`.
-
-Throws `RequestError` if headers are incomplete or the request line is malformed.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `buf` |  | — |
 
-**Throws:** `@struct(Error{type:RequestError})`
+**Throws:** `Error{type:RequestError}`
 
 ---
 
 #### `request(method, path, version, headers, body)`
 ```slug
-fn slug.web.request#request(method, path, version = "HTTP/1.1", headers = {}, body = "") -> @struct(Request)
+fn slug.web.request#request(method, path, version = "HTTP/1.1", headers = {}, body = ""):Request
 ```
-
-
-constructs a new `Request` with the given method, path, and optional fields.
-
-All other fields default to empty/nil. This is the canonical way to
-create a request for testing or manual construction.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -129,14 +107,8 @@ create a request for testing or manual construction.
 
 #### `shouldKeepAlive(req)`
 ```slug
-fn slug.web.request#shouldKeepAlive(req) -> @bool
+fn slug.web.request#shouldKeepAlive(req):bool
 ```
-
-
-returns true if the connection should be kept alive after this request.
-
-For HTTP/1.0, keep-alive requires an explicit `Connection: keep-alive` header.
-For HTTP/1.1, keep-alive is the default unless `Connection: close` is set.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -146,14 +118,8 @@ For HTTP/1.1, keep-alive is the default unless `Connection: close` is set.
 
 #### `withBody(req, body)`
 ```slug
-fn slug.web.request#withBody(req, body) -> @struct(Request)
+fn slug.web.request#withBody(req, body):Request
 ```
-
-
-attaches a body to a request and parses form data if applicable.
-
-If the `content-type` is `application/x-www-form-urlencoded`, the body
-is parsed and the result is available as `req.form`.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -164,30 +130,20 @@ is parsed and the result is available as `req.form`.
 
 #### `withParams(request, params)`
 ```slug
-fn slug.web.request#withParams(request, @map params) -> @struct(Request)
+fn slug.web.request#withParams(request, params:map):Request
 ```
-
-
-returns a new request with path params map replaced.
-
-Used by the router to inject matched URL parameters (e.g. `:id`).
 
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `request` |  | — |
-| `params` | @map  | — |
+| `params` | map | — |
 
 ---
 
 #### `withPath(req, path)`
 ```slug
-fn slug.web.request#withPath(req, path) -> @struct(Request)
+fn slug.web.request#withPath(req, path):Request
 ```
-
-
-returns a new request with `path` replaced.
-
-Used by the router to strip path prefixes for subrouters.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -198,11 +154,8 @@ Used by the router to strip path prefixes for subrouters.
 
 #### `withQuery(req, query)`
 ```slug
-fn slug.web.request#withQuery(req, query) -> @struct(Request)
+fn slug.web.request#withQuery(req, query):Request
 ```
-
-
-returns a new request with `query` replaced.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -213,13 +166,8 @@ returns a new request with `query` replaced.
 
 #### `withoutParam(request, param)`
 ```slug
-fn slug.web.request#withoutParam(request, param) -> @struct(Request)
+fn slug.web.request#withoutParam(request, param):Request
 ```
-
-
-returns a new request with a single param key removed from `params`.
-
-Used by subrouters to remove the `"*"` wildcard param after consuming it.
 
 | Parameter | Type | Default |
 | --- | --- | --- |

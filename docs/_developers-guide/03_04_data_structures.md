@@ -43,8 +43,8 @@ Step-by-step:
 
 ```slug
 val User = struct {
-  @str name,
-  @num age,
+  name:str,
+  age:num,
   active = true,
 }
 

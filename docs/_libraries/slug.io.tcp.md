@@ -54,110 +54,68 @@ For HTTP use cases, prefer `slug.io.http`. For web servers, prefer
 
 #### `accept(listener)`
 ```slug
-fn slug.io.tcp#accept(@num listener) -> @num
+fn slug.io.tcp#accept(listener:num):num
 ```
-
-
-waits for an incoming connection on `listener` and returns a connection handle.
-
-Blocks until a client connects. Use in a `spawn` or `nursery` block
-for concurrent connection handling.
-
-@effects('io net')
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `listener` | @num  | — |
+| `listener` | num | — |
 
 ---
 
 #### `bind(addr, port)`
 ```slug
-fn slug.io.tcp#bind(@str addr, @num port) -> @num
+fn slug.io.tcp#bind(addr:str, port:num):num
 ```
-
-
-binds a TCP listener to `addr:port` and returns a listener handle.
-
-Use `accept` to wait for incoming connections.
-Use `defer close(listener)` to release the port when done.
-
-@effects('io net')
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `addr` | @str  | — |
-| `port` | @num  | — |
+| `addr` | str | — |
+| `port` | num | — |
 
 ---
 
 #### `close(handle)`
 ```slug
-fn slug.io.tcp#close(@num handle) -> @num
+fn slug.io.tcp#close(handle:num):num
 ```
-
-
-closes a TCP listener or connection handle.
-
-@effects('io net')
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `handle` | @num  | — |
+| `handle` | num | — |
 
 ---
 
 #### `connect(addr, port)`
 ```slug
-fn slug.io.tcp#connect(@str addr, @num port) -> @num
+fn slug.io.tcp#connect(addr:str, port:num):num
 ```
-
-
-connects to a TCP server at `addr:port` and returns a connection handle.
-
-Use `defer close(conn)` to release the connection.
-
-@effects('io net')
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `addr` | @str  | — |
-| `port` | @num  | — |
+| `addr` | str | — |
+| `port` | num | — |
 
 ---
 
 #### `read(stream, maxBytes)`
 ```slug
-fn slug.io.tcp#read(@num stream, @num maxBytes) -> @str
+fn slug.io.tcp#read(stream:num, maxBytes:num):str
 ```
-
-
-reads up to `maxBytes` from a TCP stream.
-
-Returns the data read as a string, or `nil` on EOF.
-
-@effects('io net')
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `stream` | @num  | — |
-| `maxBytes` | @num  | — |
+| `stream` | num | — |
+| `maxBytes` | num | — |
 
 ---
 
 #### `write(stream, data)`
 ```slug
-fn slug.io.tcp#write(@num stream, @str data) -> @num
+fn slug.io.tcp#write(stream:num, data:str):num
 ```
-
-
-sends `data` over a TCP stream.
-
-Returns the number of bytes written.
-
-@effects('io net')
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `stream` | @num  | — |
-| `data` | @str  | — |
+| `stream` | num | — |
+| `data` | str | — |

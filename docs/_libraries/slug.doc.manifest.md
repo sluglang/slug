@@ -33,13 +33,13 @@ Doc comments:
   Subsequent paragraphs are ignored in MANIFEST output.
 
 Output format example:
-  fn slug.repo#loadQueries(@str base = DefaultBase) -> @map
+  fn slug.repo#loadQueries(base:str = DefaultBase) -> @map
     desc: "scans base dir for .sql files; returns nested map of query functions"
     effects: fs
     errors:
       thrown: struct(Error) "unexpected filesystem failure"
 
-  struct slug.repo#SqlQuery{@str sql, @list args, @sym type}
+  struct slug.repo#SqlQuery{sql:str, args:list, type:sym}
     desc: "result of extractArgs; carries rewritten SQL and inferred statement type"
     field cause @str: "the original error that triggered this one"
 
@@ -47,19 +47,9 @@ Output format example:
 
 #### `manifest(moduleNames)`
 ```slug
-fn slug.doc.manifest#manifest(@list moduleNames) -> @str
+fn slug.doc.manifest#manifest(moduleNames:list):str
 ```
-
-
-generates a MANIFEST.ai file for the given list of module names.
-
-modules are sorted alphabetically. within each module, symbols are
-sorted alphabetically. the output contains two sections: @section modules
-lists all module names, @section symbols lists all exported symbols in
-the Option 3 block format with indented metadata sub-lines.
-
-pass the full dotted module names as they would appear in an import statement.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `moduleNames` | @list  | — |
+| `moduleNames` | list | — |

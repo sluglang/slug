@@ -56,30 +56,17 @@ All other statements call `exec()` (returns `@map`).
 
 #### `into(nil)`
 ```slug
-fn slug.db.repo#into(nil) -> @list
+fn slug.db.repo#into(nil):list
 ```
-
-
-maps a list of db result rows onto a struct or map target.
-
-Delegates each row to the `@map` variant. Column names are normalised
-from `snake_case` to `camelCase` by default.
 nil
 
 ---
 
 #### `loadQueries(base)`
 ```slug
-fn slug.db.repo#loadQueries(@str base = DefaultBase) -> @map
+fn slug.db.repo#loadQueries(base:str = DefaultBase):map
 ```
-
-
-scans `base` recursively for `.sql` files and returns a nested map of query functions.
-
-Each leaf is a `fn(conn, args)` that executes the query against `conn`.
-The map structure mirrors the directory structure under `base`.
-The default base directory is `db/queries` or the `base-directory` config key.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `base` | @str  | `DefaultBase` |
+| `base` | str | `DefaultBase` |

@@ -36,8 +36,8 @@ Expected output:
 
 ```slug
 val Error = struct {
-  @str type = "Error",
-  @str msg,
+  type:str = "Error",
+  msg:str,
 }
 
 val runSafe = fn(xs) {

@@ -22,35 +22,26 @@ Small helpers for path composition and normalization.
 
 #### `abs(path)`
 ```slug
-fn slug.path#abs(@str path) -> @str
+fn slug.path#abs(path:str):str
 ```
-
-
-Returns a normalized absolute path.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `path` | @str  | — |
+| `path` | str | — |
 
 ---
 
 #### `cwd()`
 ```slug
-fn slug.path#cwd() -> @str
+fn slug.path#cwd():str
 ```
-
-
-Returns the current process working directory.
 
 ---
 
 #### `join(parts)`
 ```slug
-fn slug.path#join(...parts) -> @str
+fn slug.path#join(...parts):str
 ```
-
-
-Joins path elements using the platform-specific separator.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -60,43 +51,30 @@ Joins path elements using the platform-specific separator.
 
 #### `libRoot()`
 ```slug
-fn slug.path#libRoot() -> @str
+fn slug.path#libRoot():str
 ```
-
-
-Returns the library root of the current module namespace.
 
 ---
 
 #### `localize(path)`
 ```slug
-fn slug.path#localize(@str path) -> @str
+fn slug.path#localize(path:str):str
 ```
-
-
-If path starts with '__project__/', '__library__/' or '__module__/' returns path new path with substitution,
-useful for config.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `path` | @str  | — |
+| `path` | str | — |
 
 ---
 
 #### `moduleDir()`
 ```slug
-fn slug.path#moduleDir() -> @str
+fn slug.path#moduleDir():str
 ```
-
-
-Returns the directory of the current module file.
 
 ---
 
 #### `projectRoot()`
 ```slug
-fn slug.path#projectRoot() -> @str
+fn slug.path#projectRoot():str
 ```
-
-
-Returns the entry module directory.

@@ -72,31 +72,22 @@ a single failure should not abort the rest.
 
 #### `assert(a, msg)`
 ```slug
-fn slug.test#assert(a, msg = nil) -> @bool
+fn slug.test#assert(a, msg = nil):bool
 ```
-
-
-asserts that `a` is `true`.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `a` |  | — |
 | `msg` |  | `nil` |
 
-**Throws:** `@struct(Error{type:AssertionError})`
+**Throws:** `Error{type:AssertionError}`
 
 ---
 
 #### `assertEqual(value, expected, msg)`
 ```slug
-fn slug.test#assertEqual(value, expected, msg = nil) -> ?
+fn slug.test#assertEqual(value, expected, msg = nil):any
 ```
-
-
-asserts that `value` equals `expected` using deep equality.
-
-Uses `equals` for lists and maps, `structEquals` for structs, and
-`==` for all other types. Returns `value` on success.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -104,55 +95,43 @@ Uses `equals` for lists and maps, `structEquals` for structs, and
 | `expected` |  | — |
 | `msg` |  | `nil` |
 
-**Throws:** `@struct(Error{type:AssertionError})`
+**Throws:** `Error{type:AssertionError}`
 
 ---
 
 #### `assertErrorType(f, expected, msg)`
 ```slug
-fn slug.test#assertErrorType(@fn f, expected, @str msg = nil) -> @bool
+fn slug.test#assertErrorType(f:fn, expected, msg:str = nil):bool
 ```
-
-
-asserts that calling `f` throws a value of type `expected`.
-
-Throws `AssertionError` if `f` does not throw, or if the thrown
-value's type does not match `expected`.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `f` | @fn  | — |
+| `f` | fn | — |
 | `expected` |  | — |
-| `msg` | @str  | `nil` |
+| `msg` | str | `nil` |
 
-**Throws:** `@struct(Error{type:AssertionError})`
+**Throws:** `Error{type:AssertionError}`
 
 ---
 
 #### `assertFalse(a, msg)`
 ```slug
-fn slug.test#assertFalse(a, msg = nil) -> @bool
+fn slug.test#assertFalse(a, msg = nil):bool
 ```
-
-
-asserts that `a` is falsey.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `a` |  | — |
 | `msg` |  | `nil` |
 
-**Throws:** `@struct(Error{type:AssertionError})`
+**Throws:** `Error{type:AssertionError}`
 
 ---
 
 #### `assertGreaterThan(value, expected, msg)`
 ```slug
-fn slug.test#assertGreaterThan(value, expected, msg = nil) -> ?
+fn slug.test#assertGreaterThan(value, expected, msg = nil):any
 ```
-
-
-asserts that `value > expected`. Returns `value` on success.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -160,17 +139,14 @@ asserts that `value > expected`. Returns `value` on success.
 | `expected` |  | — |
 | `msg` |  | `nil` |
 
-**Throws:** `@struct(Error{type:AssertionError})`
+**Throws:** `Error{type:AssertionError}`
 
 ---
 
 #### `assertGreaterThanOrEqual(value, expected, msg)`
 ```slug
-fn slug.test#assertGreaterThanOrEqual(value, expected, msg = nil) -> ?
+fn slug.test#assertGreaterThanOrEqual(value, expected, msg = nil):any
 ```
-
-
-asserts that `value >= expected`. Returns `value` on success.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -178,17 +154,14 @@ asserts that `value >= expected`. Returns `value` on success.
 | `expected` |  | — |
 | `msg` |  | `nil` |
 
-**Throws:** `@struct(Error{type:AssertionError})`
+**Throws:** `Error{type:AssertionError}`
 
 ---
 
 #### `assertLessThan(value, expected, msg)`
 ```slug
-fn slug.test#assertLessThan(value, expected, msg = nil) -> ?
+fn slug.test#assertLessThan(value, expected, msg = nil):any
 ```
-
-
-asserts that `value < expected`. Returns `value` on success.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -196,17 +169,14 @@ asserts that `value < expected`. Returns `value` on success.
 | `expected` |  | — |
 | `msg` |  | `nil` |
 
-**Throws:** `@struct(Error{type:AssertionError})`
+**Throws:** `Error{type:AssertionError}`
 
 ---
 
 #### `assertLessThanOrEqual(value, expected, msg)`
 ```slug
-fn slug.test#assertLessThanOrEqual(value, expected, msg = nil) -> ?
+fn slug.test#assertLessThanOrEqual(value, expected, msg = nil):any
 ```
-
-
-asserts that `value <= expected`. Returns `value` on success.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -214,34 +184,28 @@ asserts that `value <= expected`. Returns `value` on success.
 | `expected` |  | — |
 | `msg` |  | `nil` |
 
-**Throws:** `@struct(Error{type:AssertionError})`
+**Throws:** `Error{type:AssertionError}`
 
 ---
 
 #### `assertNil(value, msg)`
 ```slug
-fn slug.test#assertNil(value, msg = nil) -> ?
+fn slug.test#assertNil(value, msg = nil):any
 ```
-
-
-asserts that `value` is `nil`. Returns `value` on success.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `value` |  | — |
 | `msg` |  | `nil` |
 
-**Throws:** `@struct(Error{type:AssertionError})`
+**Throws:** `Error{type:AssertionError}`
 
 ---
 
 #### `assertNotEqual(value, expected, msg)`
 ```slug
-fn slug.test#assertNotEqual(value, expected, msg = nil) -> ?
+fn slug.test#assertNotEqual(value, expected, msg = nil):any
 ```
-
-
-asserts that `value` does not equal `expected`. Returns `value` on success.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -249,51 +213,42 @@ asserts that `value` does not equal `expected`. Returns `value` on success.
 | `expected` |  | — |
 | `msg` |  | `nil` |
 
-**Throws:** `@struct(Error{type:AssertionError})`
+**Throws:** `Error{type:AssertionError}`
 
 ---
 
 #### `assertNotNil(value, msg)`
 ```slug
-fn slug.test#assertNotNil(value, msg = nil) -> ?
+fn slug.test#assertNotNil(value, msg = nil):any
 ```
-
-
-asserts that `value` is not `nil`. Returns `value` on success.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `value` |  | — |
 | `msg` |  | `nil` |
 
-**Throws:** `@struct(Error{type:AssertionError})`
+**Throws:** `Error{type:AssertionError}`
 
 ---
 
 #### `assertThrows(f, expected, msg)`
 ```slug
-fn slug.test#assertThrows(@fn f, expected, @str msg = nil) -> @bool
+fn slug.test#assertThrows(f:fn, expected, msg:str = nil):bool
 ```
-
-
-asserts that calling `f` throws a value equal to `expected`.
-
-Throws `AssertionError` if `f` does not throw, or if the thrown
-value is not equal to `expected`.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `f` | @fn  | — |
+| `f` | fn | — |
 | `expected` |  | — |
-| `msg` | @str  | `nil` |
+| `msg` | str | `nil` |
 
-**Throws:** `@struct(Error{type:AssertionError})`
+**Throws:** `Error{type:AssertionError}`
 
 ---
 
 #### `assertTrue(a, msg)`
 ```slug
-fn slug.test#assertTrue(a, msg = nil) -> @bool
+fn slug.test#assertTrue(a, msg = nil):bool
 ```
 
 | Parameter | Type | Default |
@@ -301,13 +256,13 @@ fn slug.test#assertTrue(a, msg = nil) -> @bool
 | `a` |  | — |
 | `msg` |  | `nil` |
 
-**Throws:** `@struct(Error{type:AssertionError})`
+**Throws:** `Error{type:AssertionError}`
 
 ---
 
 #### `eq(value, expected, msg)`
 ```slug
-fn slug.test#eq(value, expected, msg = nil) -> ?
+fn slug.test#eq(value, expected, msg = nil):any
 ```
 
 | Parameter | Type | Default |
@@ -316,31 +271,26 @@ fn slug.test#eq(value, expected, msg = nil) -> ?
 | `expected` |  | — |
 | `msg` |  | `nil` |
 
-**Throws:** `@struct(Error{type:AssertionError})`
+**Throws:** `Error{type:AssertionError}`
 
 ---
 
 #### `fail(msg)`
 ```slug
-fn slug.test#fail(msg = nil) -> ?
+fn slug.test#fail(msg = nil):any
 ```
-
-
-unconditionally throws an `AssertionError` with an optional message.
-
-Useful as a catch-all in match arms or branches that should never be reached.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `msg` |  | `nil` |
 
-**Throws:** `@struct(Error{type:AssertionError})`
+**Throws:** `Error{type:AssertionError}`
 
 ---
 
 #### `gt(value, expected, msg)`
 ```slug
-fn slug.test#gt(value, expected, msg = nil) -> ?
+fn slug.test#gt(value, expected, msg = nil):any
 ```
 
 | Parameter | Type | Default |
@@ -349,13 +299,13 @@ fn slug.test#gt(value, expected, msg = nil) -> ?
 | `expected` |  | — |
 | `msg` |  | `nil` |
 
-**Throws:** `@struct(Error{type:AssertionError})`
+**Throws:** `Error{type:AssertionError}`
 
 ---
 
 #### `gteq(value, expected, msg)`
 ```slug
-fn slug.test#gteq(value, expected, msg = nil) -> ?
+fn slug.test#gteq(value, expected, msg = nil):any
 ```
 
 | Parameter | Type | Default |
@@ -364,17 +314,14 @@ fn slug.test#gteq(value, expected, msg = nil) -> ?
 | `expected` |  | — |
 | `msg` |  | `nil` |
 
-**Throws:** `@struct(Error{type:AssertionError})`
+**Throws:** `Error{type:AssertionError}`
 
 ---
 
 #### `isAssertError(v)`
 ```slug
-fn slug.test#isAssertError(v) -> @bool
+fn slug.test#isAssertError(v):bool
 ```
-
-
-returns true if `v` is an AssertionError thrown by this module.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -384,7 +331,7 @@ returns true if `v` is an AssertionError thrown by this module.
 
 #### `lt(value, expected, msg)`
 ```slug
-fn slug.test#lt(value, expected, msg = nil) -> ?
+fn slug.test#lt(value, expected, msg = nil):any
 ```
 
 | Parameter | Type | Default |
@@ -393,13 +340,13 @@ fn slug.test#lt(value, expected, msg = nil) -> ?
 | `expected` |  | — |
 | `msg` |  | `nil` |
 
-**Throws:** `@struct(Error{type:AssertionError})`
+**Throws:** `Error{type:AssertionError}`
 
 ---
 
 #### `lteq(value, expected, msg)`
 ```slug
-fn slug.test#lteq(value, expected, msg = nil) -> ?
+fn slug.test#lteq(value, expected, msg = nil):any
 ```
 
 | Parameter | Type | Default |
@@ -408,13 +355,13 @@ fn slug.test#lteq(value, expected, msg = nil) -> ?
 | `expected` |  | — |
 | `msg` |  | `nil` |
 
-**Throws:** `@struct(Error{type:AssertionError})`
+**Throws:** `Error{type:AssertionError}`
 
 ---
 
 #### `not(a, msg)`
 ```slug
-fn slug.test#not(a, msg = nil) -> @bool
+fn slug.test#not(a, msg = nil):bool
 ```
 
 | Parameter | Type | Default |
@@ -422,13 +369,13 @@ fn slug.test#not(a, msg = nil) -> @bool
 | `a` |  | — |
 | `msg` |  | `nil` |
 
-**Throws:** `@struct(Error{type:AssertionError})`
+**Throws:** `Error{type:AssertionError}`
 
 ---
 
 #### `ok(a, msg)`
 ```slug
-fn slug.test#ok(a, msg = nil) -> @bool
+fn slug.test#ok(a, msg = nil):bool
 ```
 
 | Parameter | Type | Default |
@@ -436,39 +383,30 @@ fn slug.test#ok(a, msg = nil) -> @bool
 | `a` |  | — |
 | `msg` |  | `nil` |
 
-**Throws:** `@struct(Error{type:AssertionError})`
+**Throws:** `Error{type:AssertionError}`
 
 ---
 
 #### `runSafe(f)`
 ```slug
-fn slug.test#runSafe(@fn f) -> @map
+fn slug.test#runSafe(f:fn):map
 ```
-
-
-executes `f()` and returns a result map without propagating errors.
-
-Returns `{"ok": value}` on normal return, or
-`{"error": thrownValue, "trace": stacktrace(thrownValue)}` on throw.
-
-Useful for testing that functions throw expected errors, or for running
-test suites where a single failure should not abort subsequent tests.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `f` | @fn  | — |
+| `f` | fn | — |
 
 ---
 
 #### `throws(f, expected, msg)`
 ```slug
-fn slug.test#throws(@fn f, expected, @str msg = nil) -> @bool
+fn slug.test#throws(f:fn, expected, msg:str = nil):bool
 ```
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `f` | @fn  | — |
+| `f` | fn | — |
 | `expected` |  | — |
-| `msg` | @str  | `nil` |
+| `msg` | str | `nil` |
 
-**Throws:** `@struct(Error{type:AssertionError})`
+**Throws:** `Error{type:AssertionError}`

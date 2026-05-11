@@ -28,14 +28,8 @@ If `dir` is `nil`, an empty list is returned.
 
 #### `discoverModules(dir)`
 ```slug
-fn slug.doc.discover#discoverModules(dir) -> @list
+fn slug.doc.discover#discoverModules(dir):list
 ```
-
-
-Scans a directory recursively for .slug files and derives dotted module
-names from their paths relative to the base directory.
-
-e.g. base="lib", path="lib/slug/io/fs.slug" => "slug.io.fs"
 
 | Parameter | Type | Default |
 | --- | --- | --- |

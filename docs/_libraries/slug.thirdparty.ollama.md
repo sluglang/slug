@@ -57,25 +57,13 @@ ollamaChat(history, systemPrompt: "You are a helpful Slug expert.")
 
 #### `ollamaChat(history, systemPrompt, model)`
 ```slug
-fn slug.thirdparty.ollama#ollamaChat(@list history, @str systemPrompt = nil, @str model = cfg(ollama-model, llama3)) -> ?
+fn slug.thirdparty.ollama#ollamaChat(history:list, systemPrompt:str = nil, model:str = cfg(ollama-model, llama3)):any
 ```
-
-
-sends a chat request to Ollama and returns the model's reply text.
-
-`history` is a list of `{ role, content }` maps representing the
-conversation so far. Roles are `"user"` and `"assistant"`. If
-`systemPrompt` is provided it is prepended as a `"system"` message
-on every call without being stored in `history`.
-
-Returns `nil` on error (details printed to stdout).
-
-@effects('net')
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `history` | @list  | — |
-| `systemPrompt` | @str  | `nil` |
-| `model` | @str  | `cfg(ollama-model, llama3)` |
+| `history` | list | — |
+| `systemPrompt` | str | `nil` |
+| `model` | str | `cfg(ollama-model, llama3)` |
 
 **Effects:** `net`

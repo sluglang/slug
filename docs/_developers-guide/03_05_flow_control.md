@@ -51,8 +51,8 @@ Common mistakes:
 
 ```slug
 val Error = struct {
-  @str type = "Error",
-  @str msg,
+  type:str = "Error",
+  msg:str,
   code = nil,
   data = nil,
   cause = nil,

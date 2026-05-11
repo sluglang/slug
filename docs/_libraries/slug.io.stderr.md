@@ -34,13 +34,8 @@ err.println("retrying after timeout")
 
 #### `print(args)`
 ```slug
-fn slug.io.stderr#print(...args) -> ?
+fn slug.io.stderr#print(...args):any
 ```
-
-
-writes args to stderr without a trailing newline.
-
-Behaves identically to the builtin `print` but writes to stderr.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -50,13 +45,8 @@ Behaves identically to the builtin `print` but writes to stderr.
 
 #### `println(args)`
 ```slug
-fn slug.io.stderr#println(...args) -> ?
+fn slug.io.stderr#println(...args):any
 ```
-
-
-writes args to stderr followed by a newline.
-
-Behaves identically to the builtin `println` but writes to stderr.
 
 | Parameter | Type | Default |
 | --- | --- | --- |

@@ -164,6 +164,7 @@ val sampleTimesPerIter = fn(workFn, iters, samples, overheadPerIter) {
  * @effects('time')
  */
 @export
+@desc('runs a single micro-benchmark and returns a result map with statistics.')
 @returns('@map')
 @effects('time')
 val micro = fn(
@@ -211,7 +212,10 @@ val micro = fn(
  *   iters/sample: 10000  samples: 20
  * ```
  */
-@export val printResult = fn(res) {
+@export
+@desc('prints a formatted summary of a micro result to stdout.')
+@returns('@nil')
+val printResult = fn(res) {
 	val s = res.stats
 	println(res.name)
 	fmt("  p50: {:d} {}  p90: {:d}  p99: {:d}", s.p50, res.unit, s.p90, s.p99) /> println
@@ -239,6 +243,8 @@ val micro = fn(
  * @effects('time')
  */
 @export
+@desc('benchmarks a list of named functions and returns results sorted by p50.')
+@returns('@map')
 @effects('time')
 val compare = fn(
 	benches:list,
@@ -282,7 +288,10 @@ val sortByP50 = fn(results) {
  *   fmt            : p50 91 ns  x2.4
  * ```
  */
-@export val printCompareReport = fn(report) {
+@export
+@desc('prints a formatted comparison report to stdout.')
+@returns('@nil')
+val printCompareReport = fn(report) {
 	println("Benchmark report")
 	report.results /> map(fn(r) {
 		fmt("  %{:<15s}: p50 {:d} {}  x{:.1f}", r.name, r.stats.p50, r.unit, r.ratio) /> println

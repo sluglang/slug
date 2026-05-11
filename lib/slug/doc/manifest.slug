@@ -94,6 +94,24 @@ val firstTag = fn(tags, name) {
 	}
 }
 
+val normalizeTypeExpr = fn(v) {
+	match v {
+		nil => nil
+		'?' => 'any'
+		_ => {
+			match startsWith(v, '@struct(') && endsWith(v, ')') {
+				true  => v[8:len(v)-1]
+				false => {
+					match startsWith(v, '@') {
+						true  => v[1:]
+						false => v
+					}
+				}
+			}
+		}
+	}
+}
+
 // --- indent helper ---
 
 val indent = fn(lines, prefix:str="  ") {
@@ -103,10 +121,30 @@ val indent = fn(lines, prefix:str="  ") {
 // --- param renderers (unchanged from original) ---
 
 val renderTags = fn(tags) {
-	tags
-	/> keys
-	/> map(fn(k) { k + ' ' })
-	/> join('')
+	match tags {
+		nil => nil
+		{} => nil
+		_  => {
+			val ks = tags /> keys /> sort
+			match ks {
+				[] => nil
+				[k, ...] => match k {
+				'@struct' => {
+					match tags[k] {
+						[v, ...] => {
+							match startsWith(v, '"') && endsWith(v, '"') {
+								true  => v[1:len(v)-1]
+								false => v
+							}
+						}
+						_ => 'struct'
+					}
+				}
+				_ => k[1:]
+				}
+			}
+		}
+	}
 }
 
 val renderVargs = fn(param) match {
@@ -121,7 +159,11 @@ val renderDefault = fn(param) match {
 
 val renderParams = fn(params:list) {
 	params
-	/> map(fn(v) { renderTags(v.tags) + renderVargs(v) + v.name + renderDefault(v) })
+	/> map(fn(v) {
+		val t = renderTags(v.tags)
+		val typePart = match t { nil => '' _ => ':' + t }
+		renderVargs(v) + v.name + typePart + renderDefault(v)
+	})
 	/> join(', ')
 }
 
@@ -130,9 +172,9 @@ val renderParams = fn(params:list) {
 
 val renderReturn = fn(details:map) {
 	match details.tags['@returns'] {
-		nil  => ' -> ?'
-		[v]  => " -> {{v}}"
-		v    => " -> ({{v /> join('|')}})"
+		nil  => ':any'
+		[v]  => ":{{normalizeTypeExpr(v)}}"
+		v    => ":({{v /> map(normalizeTypeExpr) /> join('|')}})"
 	}
 }
 
@@ -178,8 +220,12 @@ val extractFirstParagraph = fn(docs) {
 // --- block sub-line renderers ---
 // Each produces a list of lines to be indented under the parent entry.
 
-val renderDescLine = fn(docs) {
-	match extractFirstParagraph(docs) {
+val renderDescLine = fn(docs, tags = nil) {
+	val text = match extractFirstParagraph(docs) {
+		nil => firstTag(tags, '@desc')
+		v   => v
+	}
+	match text {
 		nil => []
 		v   => ["desc: \"{{v}}\""]
 	}
@@ -199,9 +245,10 @@ val renderErrorsBlock = fn(tags) {
 
 	val thrownLines = thrown
 		/> map(fn(v) {
+			val vt = normalizeTypeExpr(v)
 			match firstTag(tags, '@throwsDesc') {
-				nil  => "  thrown: {{v}}"
-				desc => "  thrown: {{v}} \"{{desc}}\""
+				nil  => "  thrown: {{vt}}"
+				desc => "  thrown: {{vt}} \"{{desc}}\""
 			}
 		})
 
@@ -216,7 +263,7 @@ val renderErrorsBlock = fn(tags) {
 // Combines all sub-lines for a fn or struct entry
 val renderBlock = fn(tags, docs) {
 	([]
-	+ renderDescLine(docs)
+	+ renderDescLine(docs, tags)
 	+ renderEffectsLine(tags)
 	+ renderErrorsBlock(tags))
 	/> indent
@@ -240,14 +287,14 @@ val renderFns = fn(groups:list, module:str, name:str) {
 // Produces struct line with field sub-lines
 
 val renderFieldLine = fn(field) {
-	val typeTag = firstTag(field.tags, '@type')
+	val typeTag = renderTags(field.tags)
 	val descTag = firstTag(field.tags, '@desc')
 	match [typeTag, descTag] {
 		[nil, nil] => nil       // nothing to add beyond what the signature already shows
 		_ => {
 			val typePart = match typeTag {
 				nil => ''
-				v   => ' {{v}}'
+				v   => ':' + v
 			}
 			val descPart = match descTag {
 				nil => ''

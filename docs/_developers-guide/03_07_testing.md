@@ -41,7 +41,7 @@ val addCases = fn(a, b) {
 ## Lesson 7.3: Testing errors
 
 ```slug
-val Error = struct { @str type = "Error", @str msg }
+val Error = struct { type:str = "Error", msg:str }
 
 val mustPositive = fn(n) {
   if (n <= 0) { throw Error { type: "ValidationError", msg: "n must be positive" } }

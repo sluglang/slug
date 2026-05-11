@@ -44,24 +44,14 @@ any string with this prefix is automatically decoded back to `@bytes`.
 
 #### `decode(jsonStr)`
 ```slug
-fn slug.json#decode(@str jsonStr) -> ?
+fn slug.json#decode(jsonStr:str):any
 ```
-
-
-decodes a JSON string into a Slug value.
-
-Object keys are always decoded as string keys. Use dot access (`m.name`)
-or string bracket access (`m["name"]`) to read fields — never symbol
-bracket access (`m[:name]`).
-
-Strings with the `b64:` prefix are decoded to `@bytes` values.
-Throws `JsonError` on malformed input.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `jsonStr` | @str  | — |
+| `jsonStr` | str | — |
 
-**Throws:** `@struct(Error{type:JsonError})`
+**Throws:** `Error{type:JsonError}`
 
 
 #### Examples
@@ -81,20 +71,14 @@ decode("{"name":"Alice","age":30}")  // => {name: Alice, age: 30}
 
 #### `encode(v)`
 ```slug
-fn slug.json#encode(v) -> @str
+fn slug.json#encode(v):str
 ```
-
-
-encodes a Slug value as a compact JSON string.
-
-Object keys are sorted alphabetically. Symbols are encoded as their label
-string. Bytes are encoded as `"b64:<base64>"`.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `v` |  | — |
 
-**Throws:** `@struct(Error{type:JsonError})`
+**Throws:** `Error{type:JsonError}`
 
 
 #### Examples
@@ -108,7 +92,7 @@ encode(nil)  // => "null"
 encode(0x"ff")  // => ""b64:/w==""
 encode([1, 2, 3])  // => "[1,2,3]"
 encode({:type: :fn, :age: 30})  // => "{"age":30,"type":"fn"}"
-encode({:age: 30, :name: Alice})  // => "{"age":30,"name":"Alice"}"
+encode({:name: Alice, :age: 30})  // => "{"age":30,"name":"Alice"}"
 encode({name: Alice, age: 30})  // => "{"age":30,"name":"Alice"}"
 ```
 
@@ -116,21 +100,15 @@ encode({name: Alice, age: 30})  // => "{"age":30,"name":"Alice"}"
 
 #### `pretty(v, indent)`
 ```slug
-fn slug.json#pretty(v, @num indent = 2) -> @str
+fn slug.json#pretty(v, indent:num = 2):str
 ```
-
-
-encodes a Slug value as a pretty-printed JSON string.
-
-The `indent` parameter controls the number of spaces per indentation
-level. Follows the same type mapping as `encode`.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `v` |  | — |
-| `indent` | @num  | `2` |
+| `indent` | num | `2` |
 
-**Throws:** `@struct(Error{type:JsonError})`
+**Throws:** `Error{type:JsonError}`
 
 
 #### Examples
@@ -143,7 +121,7 @@ pretty([1, 2, 3], 4)  // => "[
     3
 ]"
 pretty(0x"ff", 2)  // => ""b64:/w==""
-pretty({:age: 30, :type: :fn}, 2)  // => "{
+pretty({:type: :fn, :age: 30}, 2)  // => "{
   "age": 30,
   "type": "fn"
 }"

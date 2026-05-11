@@ -81,17 +81,8 @@ num slug.meta#BINDING_VALUE
 
 #### `describe(value)`
 ```slug
-fn slug.meta#describe(value) -> @map
+fn slug.meta#describe(value):map
 ```
-
-
-returns a metadata map describing the given value.
-
-See module doc for the full shape. The `type` field indicates the
-kind of value. Functions expose their parameter list and doc comment.
-Struct schemas expose their field list. Overloaded functions are
-represented as a `:grp` with a `groups` list of individual function
-descriptors.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -101,86 +92,57 @@ descriptors.
 
 #### `getTag(value, tag)`
 ```slug
-fn slug.meta#getTag(value, @str tag) -> @list
+fn slug.meta#getTag(value, tag:str):list
 ```
-
-
-returns the list of arguments for a tag on `value`.
-
-Returns an empty list if the tag is not present.
-Returns `[""]` for tags with no arguments (e.g. `@export`).
 
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `value` |  | — |
-| `tag` | @str  | — |
+| `tag` | str | — |
 
 ---
 
 #### `hasTag(value, tag)`
 ```slug
-fn slug.meta#hasTag(value, @str tag) -> @bool
+fn slug.meta#hasTag(value, tag:str):bool
 ```
-
-
-returns `true` if `value` has the given tag annotation.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `value` |  | — |
-| `tag` | @str  | — |
+| `tag` | str | — |
 
 ---
 
 #### `moduleDocs(module)`
 ```slug
-fn slug.meta#moduleDocs(@str module) -> @str
+fn slug.meta#moduleDocs(module:str):str
 ```
-
-
-returns the module-level doc comment for the given module name.
-
-Returns the raw comment text with markers stripped, or `nil` if the
-module has no doc comment. The first paragraph is suitable for use
-as a short description; subsequent paragraphs provide extended docs.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `module` | @str  | — |
+| `module` | str | — |
 
 ---
 
 #### `searchModuleTags(module, tag, includePrivate)`
 ```slug
-fn slug.meta#searchModuleTags(@str module, @str tag, @bool includePrivate = false) -> @map
+fn slug.meta#searchModuleTags(module:str, tag:str, includePrivate:bool = false):map
 ```
-
-
-searches all exported bindings in a module for a given tag.
-
-Returns a map of binding name → binding value for all exported
-symbols that have the specified tag. Pass `includePrivate: true`
-to include non-exported bindings.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `module` | @str  | — |
-| `tag` | @str  | — |
-| `includePrivate` | @bool  | `false` |
+| `module` | str | — |
+| `tag` | str | — |
+| `includePrivate` | bool | `false` |
 
 ---
 
 #### `searchScopeTags(tag)`
 ```slug
-fn slug.meta#searchScopeTags(@str tag) -> ?
+fn slug.meta#searchScopeTags(tag:str):any
 ```
-
-
-searches all bindings in the current scope for a given tag.
-
-Returns a list of binding tuples. Use `BINDING_NAME`, `BINDING_VALUE`,
-and `BINDING_PARAMS` as indices to access tuple elements.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `tag` | @str  | — |
+| `tag` | str | — |

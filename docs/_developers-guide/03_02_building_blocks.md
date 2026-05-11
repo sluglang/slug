@@ -174,14 +174,14 @@ Common mistakes:
 ## Lesson 2.12: Tagged dispatch
 
 ```slug
-fn add(@num a, @num b) { a + b }
-fn add(@str a, @str b) { a + b }
+fn add(a:num, b:num) { a + b }
+fn add(a:str, b:str) { a + b }
 
 println(add(1, 2))
 println(add("a", "b"))
 ```
 
-Common tags: `@num`, `@str`, `@bool`, `@list`, `@map`, `@bytes`, `@fn`, `@task`, `@sym`, `@chan`.
+Common type names: `num`, `str`, `bool`, `list`, `map`, `bytes`, `fn`, `task`, `sym`, `chan`.
 
 ### Try it
 

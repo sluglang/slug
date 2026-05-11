@@ -50,6 +50,24 @@ val getTag = fn(tags, name) {
 	}
 }
 
+val normalizeTypeExpr = fn(v) {
+	match v {
+		nil => nil
+		'?' => 'any'
+		_ => {
+			match startsWith(v, '@struct(') && endsWith(v, ')') {
+				true  => v[8:len(v)-1]
+				false => {
+					match startsWith(v, '@') {
+						true  => v[1:]
+						false => v
+					}
+				}
+			}
+		}
+	}
+}
+
 // --- doc comment rendering ---
 // slug.meta#describe returns clean text with comment markers stripped.
 // The full doc comment is treated as markdown and rendered verbatim.
@@ -60,6 +78,18 @@ val renderDocs = fn(docs) {
 		nil => ''
 		''  => ''
 		_   => "\n\n" + trim(docs)
+	}
+}
+
+val renderDocsWithFallback = fn(docs, tags) {
+	match trim(toString(docs)) {
+		'' => {
+			match firstTag(tags, '@desc') {
+				nil => ''
+				v   => "\n\n" + trim(v)
+			}
+		}
+		_ => renderDocs(docs)
 	}
 }
 
@@ -106,7 +136,30 @@ val renderTestWithExamples = fn(name, tags) {
 }
 
 val renderTags = fn(tags) {
-	tags /> keys /> map(fn(k) { k + ' ' }) /> join('')
+	match tags {
+		nil => nil
+		{} => nil
+		_  => {
+			val ks = tags /> keys /> sort
+			match ks {
+				[] => nil
+				[k, ...] => match k {
+				'@struct' => {
+					match tags[k] {
+						[v, ...] => {
+							match startsWith(v, '"') && endsWith(v, '"') {
+								true  => v[1:len(v)-1]
+								false => v
+							}
+						}
+						_ => 'struct'
+					}
+				}
+				_ => k[1:]
+				}
+			}
+		}
+	}
 }
 
 val renderVargs = fn(param) match {
@@ -121,15 +174,19 @@ val renderDefault = fn(param) match {
 
 val renderParams = fn(params:list) {
 	params
-	/> map(fn(v) { renderTags(v.tags) + renderVargs(v) + v.name + renderDefault(v) })
+	/> map(fn(v) {
+		val t = renderTags(v.tags)
+		val typePart = match t { nil => '' _ => ':' + t }
+		renderVargs(v) + v.name + typePart + renderDefault(v)
+	})
 	/> join(', ')
 }
 
 val renderReturnType = fn(details) {
 	match details.tags['@returns'] {
-		nil => '?'
-		[v] => v
-		v   => '(' + (v /> join('|')) + ')'
+		nil => 'any'
+		[v] => normalizeTypeExpr(v)
+		v   => '(' + (v /> map(normalizeTypeExpr) /> join('|')) + ')'
 	}
 }
 
@@ -184,7 +241,7 @@ val renderThrowsNote = fn(tags) {
 		[] => ''
 		_  => {
 			val throwDesc = firstTag(tags, '@throwsDesc')
-			val types     = thrown /> map(mdCode) /> join(', ')
+			val types     = thrown /> map(normalizeTypeExpr) /> map(mdCode) /> join(', ')
 			val descPart  = match throwDesc { nil => '' v => ' — ' + v }
 			"\n**Throws:** " + types + descPart
 		}
@@ -195,11 +252,11 @@ val renderThrowsNote = fn(tags) {
 
 val renderFnSignature = fn(module, name, h) {
 	val ret = renderReturnType(h)
-	"fn " + module + "#" + name + "(" + renderParams(h.details.params) + ") -> " + ret
+	"fn " + module + "#" + name + "(" + renderParams(h.details.params) + "):" + ret
 }
 
 // Renders all overloads of a function grouped under one heading
-val renderFnSection = fn(module, name, groups) {
+val renderFnSection = fn(module, name, groups, fallbackDocs = nil) {
 	val firstGroup = groups[0]
 	val paramNames = firstGroup.details.params /> map(fn(p) { p.name }) /> join(', ')
 	val heading    = "#### `" + name + "(" + paramNames + ")`"
@@ -212,7 +269,10 @@ val renderFnSection = fn(module, name, groups) {
 
 	// full doc comment from first overload that has one
 	val docsSource = groups /> find(fn(h) { h.docs != nil && h.docs != '' })
-	val docText    = match docsSource { nil => '' _ => renderDocs(docsSource.docs) }
+	val docText    = match docsSource {
+		nil => renderDocsWithFallback(fallbackDocs, firstGroup.tags)
+		_   => renderDocsWithFallback(docsSource.docs, docsSource.tags)
+	}
 
 	// param table, effects, throws
 	val paramTable = renderParamTable(firstGroup.details.params)
@@ -342,7 +402,7 @@ val renderModule = fn(mod:str, moduleToc:bool) {
 			val entries = fns /> map(fn(k) {
 				val desc   = module[k] /> describe
 				val groups = match desc { [{type}, ...] if type == :grp => desc.details.groups _ => [desc] }
-				renderFnSection(mod, label(k), groups)
+				renderFnSection(mod, label(k), groups, desc.docs)
 			})
 			"\n\n### Functions\n\n" + (entries /> join("\n\n---\n\n"))
 		}
