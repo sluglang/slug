@@ -2093,3 +2093,44 @@ Tests added/updated:
 Validation performed:
 - `go test ./internal/lsp -count=1`
 - `go test ./... -count=1`
+
+### Language: core colon type-annotation support (non-breaking rollout)
+
+- Implemented first-class optional colon type annotations in core syntax while preserving existing tag-based typing for compatibility.
+- Added parser + AST + semantic type-check integration for:
+  - variable/constant declarations: `var a:num = 1`, `val s:str = ""`
+  - function parameters: `fn(x:num, y:list<num>)`
+  - function return types: `fn(x:num):num { ... }`
+  - declared type forms in checker: scalars, unions (`num|str`), composites (`list<T>`, `map<K,V>`, `fn<A,B,R>`), and struct refs (`struct<User>` / bare identifiers as struct refs).
+
+Implementation updates:
+- `internal/ast/ast.go`
+  - Added optional type fields:
+    - `VarExpression.Type`
+    - `ValExpression.Type`
+    - `FunctionParameter.Type`
+    - `FunctionLiteral.ReturnType`
+  - String renderers now include these annotations when present.
+
+- `internal/parser/parser.go`
+  - Added annotation parsing after identifier bindings/params and after function parameter list for returns.
+  - Added `parseTypeAnnotationLiteral(...)` token-collector with nested generic depth handling.
+  - Preserved compatibility with keyword-shaped and underscore parameter names.
+
+- `internal/semantic/typecheck.go`
+  - Added declared-type parser and constraint bridge:
+    - `parseDeclaredType(...)`
+    - `splitTypeTopLevel(...)`
+    - `isSimpleTypeIdent(...)`
+  - Enforced declaration/parameter/return annotations as type constraints in inference.
+
+Tests added/updated:
+- `internal/parser/parser_test.go`
+  - Expanded parameter parsing cases for colon syntax.
+  - Added `TestDeclarationAndReturnTypeAnnotations`.
+
+- `internal/semantic/analyzer_test.go`
+  - Added `TestSemanticTypeCheckSupportsColonTypeAnnotations`.
+
+Validation performed:
+- `go test ./... -count=1`

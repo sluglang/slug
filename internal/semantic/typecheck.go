@@ -483,6 +483,161 @@ func (c *typeChecker) cloneScalarTagType(tag string) *tnode {
 	}
 }
 
+func (c *typeChecker) parseDeclaredType(raw string) *tnode {
+	s := strings.TrimSpace(raw)
+	if s == "" {
+		return nil
+	}
+	if parts := splitTypeTopLevel(s, '|'); len(parts) > 1 {
+		opts := make([]*tnode, 0, len(parts))
+		for _, p := range parts {
+			t := c.parseDeclaredType(p)
+			if t != nil {
+				opts = append(opts, t)
+			}
+		}
+		if len(opts) == 0 {
+			return nil
+		}
+		return c.unionType(opts...)
+	}
+	if strings.HasPrefix(s, "list<") && strings.HasSuffix(s, ">") {
+		inner := strings.TrimSpace(s[len("list<") : len(s)-1])
+		elem := c.parseDeclaredType(inner)
+		if elem == nil {
+			elem = c.freshUnknown()
+		}
+		return c.listType(elem)
+	}
+	if strings.HasPrefix(s, "map<") && strings.HasSuffix(s, ">") {
+		inner := strings.TrimSpace(s[len("map<") : len(s)-1])
+		parts := splitTypeTopLevel(inner, ',')
+		if len(parts) == 2 {
+			k := c.parseDeclaredType(parts[0])
+			v := c.parseDeclaredType(parts[1])
+			if k == nil {
+				k = c.freshUnknown()
+			}
+			if v == nil {
+				v = c.freshUnknown()
+			}
+			return c.mapType(k, v)
+		}
+		return c.mapType(c.freshUnknown(), c.freshUnknown())
+	}
+	if strings.HasPrefix(s, "fn<") && strings.HasSuffix(s, ">") {
+		inner := strings.TrimSpace(s[len("fn<") : len(s)-1])
+		parts := splitTypeTopLevel(inner, ',')
+		if len(parts) == 0 {
+			return c.fnType(nil, c.freshUnknown(), false, 0, -1)
+		}
+		if len(parts) == 1 {
+			return c.fnType(nil, c.parseDeclaredType(parts[0]), false, 0, -1)
+		}
+		params := make([]*tnode, 0, len(parts)-1)
+		for _, p := range parts[:len(parts)-1] {
+			pt := c.parseDeclaredType(p)
+			if pt == nil {
+				pt = c.freshUnknown()
+			}
+			params = append(params, pt)
+		}
+		ret := c.parseDeclaredType(parts[len(parts)-1])
+		if ret == nil {
+			ret = c.freshUnknown()
+		}
+		return c.fnType(params, ret, false, len(params), len(params))
+	}
+	if strings.HasPrefix(s, "struct<") && strings.HasSuffix(s, ">") {
+		name := strings.TrimSpace(s[len("struct<") : len(s)-1])
+		return &tnode{kind: typeStruct, name: name}
+	}
+	switch s {
+	case "num":
+		return c.scalar(typeNum)
+	case "str":
+		return c.scalar(typeStr)
+	case "bool":
+		return c.scalar(typeBool)
+	case "bytes":
+		return c.scalar(typeBytes)
+	case "sym", "symbol":
+		return c.scalar(typeSym)
+	case "list":
+		return c.listType(c.freshUnknown())
+	case "map":
+		return c.mapType(c.freshUnknown(), c.freshUnknown())
+	case "fn":
+		return c.fnType(nil, c.freshUnknown(), false, 0, -1)
+	case "task":
+		return c.scalar(typeTask)
+	case "chan":
+		return c.scalar(typeChan)
+	case "struct":
+		return &tnode{kind: typeStruct}
+	case "nil":
+		return c.scalar(typeNil)
+	case "any", "?":
+		return c.scalar(typeAny)
+	default:
+		// Treat unknown bare names as struct references.
+		if isSimpleTypeIdent(s) {
+			return &tnode{kind: typeStruct, name: s}
+		}
+		return nil
+	}
+}
+
+func splitTypeTopLevel(s string, sep rune) []string {
+	out := []string{}
+	start := 0
+	angles := 0
+	parens := 0
+	brackets := 0
+	for i, r := range s {
+		switch r {
+		case '<':
+			angles++
+		case '>':
+			if angles > 0 {
+				angles--
+			}
+		case '(':
+			parens++
+		case ')':
+			if parens > 0 {
+				parens--
+			}
+		case '[':
+			brackets++
+		case ']':
+			if brackets > 0 {
+				brackets--
+			}
+		default:
+			if r == sep && angles == 0 && parens == 0 && brackets == 0 {
+				out = append(out, strings.TrimSpace(s[start:i]))
+				start = i + 1
+			}
+		}
+	}
+	out = append(out, strings.TrimSpace(s[start:]))
+	return out
+}
+
+func isSimpleTypeIdent(s string) bool {
+	if s == "" {
+		return false
+	}
+	for i, r := range s {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || r == '_' || (i > 0 && r >= '0' && r <= '9') {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
 func (c *typeChecker) addConstraint(lhs, rhs *tnode, pos int, reason string) {
 	if lhs == nil || rhs == nil {
 		return
@@ -726,12 +881,18 @@ func (c *typeChecker) inferExpr(expr ast.Expression) *tnode {
 		return s
 	case *ast.VarExpression:
 		rhs := c.inferExpr(e.Value)
+		if tt := c.parseDeclaredType(e.Type); tt != nil {
+			c.addConstraint(rhs, tt, e.Token.Position, "var annotation")
+		}
 		c.enforceTags(rhs, e.Tags, e.Token.Position)
 		c.bindPattern(e.Pattern, rhs)
 		c.registerStructSchema(e.Pattern, e.Value)
 		return rhs
 	case *ast.ValExpression:
 		rhs := c.inferExpr(e.Value)
+		if tt := c.parseDeclaredType(e.Type); tt != nil {
+			c.addConstraint(rhs, tt, e.Token.Position, "val annotation")
+		}
 		c.enforceTags(rhs, e.Tags, e.Token.Position)
 		c.bindPattern(e.Pattern, rhs)
 		c.registerStructSchema(e.Pattern, e.Value)
@@ -826,6 +987,9 @@ func (c *typeChecker) inferFunctionLiteral(fn *ast.FunctionLiteral) *tnode {
 	c.pushOverride()
 	for _, p := range fn.Parameters {
 		pt := c.freshUnknown()
+		if tt := c.parseDeclaredType(p.Type); tt != nil {
+			c.addConstraint(pt, tt, p.Name.Token.Position, "parameter annotation constraint")
+		}
 		for _, tag := range p.Tags {
 			if tag == nil {
 				continue
@@ -855,6 +1019,9 @@ func (c *typeChecker) inferFunctionLiteral(fn *ast.FunctionLiteral) *tnode {
 				break
 			}
 		}
+	}
+	if tt := c.parseDeclaredType(fn.ReturnType); tt != nil {
+		c.addConstraint(ret, tt, fn.Token.Position, "function return annotation")
 	}
 	c.popOverride()
 	c.popScope()

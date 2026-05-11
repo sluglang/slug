@@ -975,8 +975,8 @@ func TestFunctionParameterParsing(t *testing.T) {
 		{input: "fn() {};", expectedParams: []string{}},
 		{input: "fn(x) {};", expectedParams: []string{"x"}},
 		{input: "fn(x, y, z) {};", expectedParams: []string{"x", "y", "z"}},
-		//{input: "fn(h:t) {};", expectedParams: []string{"x", "y"}},
-		//{input: "fn(h:t, a = 1) {};", expectedParams: []string{"x", "y"}},
+		{input: "fn(h:num) {};", expectedParams: []string{"h"}},
+		{input: "fn(h:list<num>, a:str = \"x\") {};", expectedParams: []string{"h", "a"}},
 		{input: "fn(a = 1) {};", expectedParams: []string{"a"}},
 		{input: "fn(...a) {};", expectedParams: []string{"a"}},
 	}
@@ -998,6 +998,40 @@ func TestFunctionParameterParsing(t *testing.T) {
 		for i, ident := range tt.expectedParams {
 			testFunctionParameter(t, function.Parameters[i], ident)
 		}
+	}
+}
+
+func TestDeclarationAndReturnTypeAnnotations(t *testing.T) {
+	input := `
+val a:str = ""
+var b:list<num>|nil = []
+val f = fn(x:num):num { x }
+`
+	l := lexer.New(input)
+	p := New(l, "", input)
+	program := p.ParseProgram()
+	checkParserErrors(t, p)
+	if len(program.Statements) != 3 {
+		t.Fatalf("expected 3 statements, got=%d", len(program.Statements))
+	}
+	s0 := program.Statements[0].(*ast.ExpressionStatement).Expression.(*ast.ValExpression)
+	if s0.Type != "str" {
+		t.Fatalf("expected val type str, got %q", s0.Type)
+	}
+	s1 := program.Statements[1].(*ast.ExpressionStatement).Expression.(*ast.VarExpression)
+	if s1.Type != "list<num>|nil" {
+		t.Fatalf("expected var type list<num>|nil, got %q", s1.Type)
+	}
+	s2 := program.Statements[2].(*ast.ExpressionStatement).Expression.(*ast.ValExpression)
+	fn, ok := s2.Value.(*ast.FunctionLiteral)
+	if !ok {
+		t.Fatalf("expected function literal, got %T", s2.Value)
+	}
+	if fn.ReturnType != "num" {
+		t.Fatalf("expected return type num, got %q", fn.ReturnType)
+	}
+	if len(fn.Parameters) != 1 || fn.Parameters[0].Type != "num" {
+		t.Fatalf("expected parameter type num, got %#v", fn.Parameters)
 	}
 }
 

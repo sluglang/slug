@@ -64,6 +64,7 @@ type VarExpression struct {
 	Tags    []*Tag
 	Token   token.Token // the token.VAR token
 	Pattern MatchPattern
+	Type    string
 	Value   Expression
 	Doc     string
 	HasDoc  bool
@@ -81,6 +82,10 @@ func (ls *VarExpression) String() string {
 
 	out.WriteString(ls.TokenLiteral() + " ")
 	out.WriteString(ls.Pattern.String())
+	if strings.TrimSpace(ls.Type) != "" {
+		out.WriteString(": ")
+		out.WriteString(ls.Type)
+	}
 
 	if ls.Value != nil {
 		out.WriteString(" = ")
@@ -96,7 +101,8 @@ type ValExpression struct {
 	Tags    []*Tag
 	Token   token.Token  // The token.VAL token
 	Pattern MatchPattern // Constant name
-	Value   Expression   // The assigned value
+	Type    string
+	Value   Expression // The assigned value
 	Doc     string
 	HasDoc  bool
 }
@@ -113,6 +119,10 @@ func (vs *ValExpression) String() string {
 
 	out.WriteString(vs.TokenLiteral() + " ")
 	out.WriteString(vs.Pattern.String())
+	if strings.TrimSpace(vs.Type) != "" {
+		out.WriteString(": ")
+		out.WriteString(vs.Type)
+	}
 	out.WriteString(" = ")
 	if vs.Value != nil {
 		out.WriteString(vs.Value.String())
@@ -338,6 +348,7 @@ type FunctionLiteral struct {
 	Token       token.Token // The 'fn' token
 	Signature   FSig
 	Parameters  []*FunctionParameter
+	ReturnType  string
 	Body        *BlockStatement
 	HasTailCall bool // Whether this function has tail calls
 }
@@ -356,6 +367,11 @@ func (fl *FunctionLiteral) String() string {
 	out.WriteString("(")
 	out.WriteString(strings.Join(params, ", "))
 	out.WriteString(") ")
+	if strings.TrimSpace(fl.ReturnType) != "" {
+		out.WriteString(": ")
+		out.WriteString(fl.ReturnType)
+		out.WriteString(" ")
+	}
 	out.WriteString(fl.Body.String())
 
 	return out.String()
@@ -453,8 +469,9 @@ func (na *NamedArgument) String() string {
 type FunctionParameter struct {
 	Tags       []*Tag
 	Name       *Identifier // Parameter name
-	Default    Expression  // Default value (optional)
-	IsVariadic bool        // Whether this is a variadic argument
+	Type       string
+	Default    Expression // Default value (optional)
+	IsVariadic bool       // Whether this is a variadic argument
 }
 
 func (p *FunctionParameter) expressionNode()      {}
@@ -470,6 +487,10 @@ func (p *FunctionParameter) String() string {
 		out.WriteString("...")
 	}
 	out.WriteString(p.Name.String())
+	if strings.TrimSpace(p.Type) != "" {
+		out.WriteString(":")
+		out.WriteString(p.Type)
+	}
 	if p.Default != nil {
 		out.WriteString("=")
 		out.WriteString(p.Default.String())

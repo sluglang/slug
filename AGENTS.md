@@ -5,6 +5,8 @@ Slug is a small, opinionated programming language implemented in Go with its sta
 - Set `SLUG_HOME` to the repository root when running CLI commands directly:
     - `export SLUG_HOME=$(pwd)`
 - Main entrypoint: `./cmd/app/main.go`
+- `make test` runs all tests.
+- `make manifest` to generate updated MANIFEST.ai
 
 ### Interaction Rules
 * Ask clarifying questions if input is unclear.
@@ -40,6 +42,7 @@ Slug is a small, opinionated programming language implemented in Go with its sta
 * Append changes to the bottom of `spec.md` after task (log changes).
 * Write and pass tests before finalizing.
 * Keep a `README.md` with setup/run info.
+* Ensure language changes are reflected in `typecheck.go`, `slug.ebnf`, `SLUG.ai`, Slug.sublime-package and Slug.tmLanguage.
 * Store all docs/specs in Markdown.
 
 ### Commit Strategy

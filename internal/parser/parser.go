@@ -395,9 +395,16 @@ func (p *Parser) parseVarStatement() ast.Expression {
 	p.nextToken()
 
 	varExp.Pattern = p.parseMatchPattern()
+	if id, ok := varExp.Pattern.(*ast.IdentifierPattern); ok && id != nil && p.peekTokenIs(token.COLON) {
+		p.nextToken() // consume identifier token
+		p.nextToken() // consume :
+		varExp.Type = p.parseTypeAnnotationLiteral(token.ASSIGN)
+	}
 
-	if !p.expectPeek(token.ASSIGN) {
-		return nil
+	if !p.curTokenIs(token.ASSIGN) {
+		if !p.expectPeek(token.ASSIGN) {
+			return nil
+		}
 	}
 
 	p.nextToken()
@@ -435,9 +442,16 @@ func (p *Parser) parseValStatement() ast.Expression {
 	p.nextToken()
 
 	valExp.Pattern = p.parseMatchPattern()
+	if id, ok := valExp.Pattern.(*ast.IdentifierPattern); ok && id != nil && p.peekTokenIs(token.COLON) {
+		p.nextToken() // consume identifier token
+		p.nextToken() // consume :
+		valExp.Type = p.parseTypeAnnotationLiteral(token.ASSIGN)
+	}
 
-	if !p.expectPeek(token.ASSIGN) {
-		return nil
+	if !p.curTokenIs(token.ASSIGN) {
+		if !p.expectPeek(token.ASSIGN) {
+			return nil
+		}
 	}
 
 	p.nextToken()
@@ -1443,9 +1457,16 @@ func (p *Parser) parseFunctionLiteral() ast.Expression {
 
 	lit.Parameters = p.parseFunctionParameters()
 	lit.Signature = p.generateSignature(lit.Parameters)
+	if p.curTokenIs(token.RPAREN) && p.peekTokenIs(token.COLON) {
+		p.nextToken() // consume ')'
+		p.nextToken() // consume ':'
+		lit.ReturnType = p.parseTypeAnnotationLiteral(token.LBRACE, token.MATCH)
+	}
 
-	if p.peekTokenIs(token.MATCH) {
-		p.nextToken() // consume 'match'
+	if p.curTokenIs(token.MATCH) || p.peekTokenIs(token.MATCH) {
+		if !p.curTokenIs(token.MATCH) {
+			p.nextToken() // consume 'match'
+		}
 		match := p.parseMatchExpression().(*ast.MatchExpression)
 
 		// Inject the parameter(s) as the value to match against
@@ -1471,8 +1492,10 @@ func (p *Parser) parseFunctionLiteral() ast.Expression {
 			},
 		}
 	} else {
-		if !p.expectPeek(token.LBRACE) {
-			return nil
+		if !p.curTokenIs(token.LBRACE) {
+			if !p.expectPeek(token.LBRACE) {
+				return nil
+			}
 		}
 		lit.Body = p.parseBlockStatement()
 	}
@@ -1506,18 +1529,29 @@ func (p *Parser) parseFunctionParameters() []*ast.FunctionParameter {
 			// Handle variadic parameter (e.g., ...b)
 			p.nextToken()
 			param.IsVariadic = true
-			param.Name = p.parseIdentifier().(*ast.Identifier)
+			if !(p.curTokenIsSymbolName() || p.curTokenIs(token.UNDERSCORE)) {
+				p.addErrorAt(p.curToken.Position, "expected identifier after ...")
+				return nil
+			}
+			param.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 			parameters = append(parameters, param)
 			break // Variadic must be the last parameter.
 		}
 
-		if p.peekTokenIs(token.ASSIGN) {
-			param.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+		if !(p.curTokenIsSymbolName() || p.curTokenIs(token.UNDERSCORE)) {
+			p.addErrorAt(p.curToken.Position, "expected parameter name, got %s", p.curToken.Literal)
+			return nil
+		}
+		param.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+		if p.peekTokenIs(token.COLON) {
 			p.nextToken() // consume identifier
+			p.nextToken() // consume :
+			param.Type = p.parseTypeAnnotationLiteral(token.ASSIGN, token.COMMA, token.RPAREN)
+		}
+		if p.peekTokenIs(token.ASSIGN) {
+			p.nextToken() // consume current token
 			p.nextToken() // consume =
 			param.Default = p.parseExpression(LOWEST)
-		} else {
-			param.Name = p.parseIdentifier().(*ast.Identifier)
 		}
 
 		parameters = append(parameters, param)
@@ -2360,6 +2394,51 @@ func (p *Parser) parseTag() *ast.Tag {
 	}
 
 	return annotation
+}
+
+func (p *Parser) parseTypeAnnotationLiteral(stop ...token.TokenType) string {
+	if len(stop) == 0 {
+		return ""
+	}
+	stops := map[token.TokenType]bool{}
+	for _, s := range stop {
+		stops[s] = true
+	}
+	parts := []string{}
+	depthAngles := 0
+	depthParens := 0
+	depthBrackets := 0
+	for {
+		if p.curTokenIs(token.EOF) {
+			break
+		}
+		switch p.curToken.Type {
+		case token.LT:
+			depthAngles++
+		case token.GT:
+			if depthAngles > 0 {
+				depthAngles--
+			}
+		case token.LPAREN:
+			depthParens++
+		case token.RPAREN:
+			if depthParens > 0 {
+				depthParens--
+			}
+		case token.LBRACKET:
+			depthBrackets++
+		case token.RBRACKET:
+			if depthBrackets > 0 {
+				depthBrackets--
+			}
+		}
+		parts = append(parts, p.curToken.Literal)
+		if depthAngles == 0 && depthParens == 0 && depthBrackets == 0 && stops[p.peekToken.Type] {
+			break
+		}
+		p.nextToken()
+	}
+	return strings.TrimSpace(strings.Join(parts, ""))
 }
 
 func (p *Parser) skipLeadingNewlines() {
