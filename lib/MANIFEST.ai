@@ -767,12 +767,12 @@ fn slug.std#then(m, f:fn):any
   desc: "applies `f` to `m` and returns the result. Useful for call-chain threading."
 
 fn slug.std#toBoolean(v):bool
-  desc: "converts a value to `@bool`."
+  desc: "converts a value to `bool`."
   errors:
     thrown: Error{type:TypeError}
 
 fn slug.std#toNumber(v):num|nil
-  desc: "converts a value to `@num`."
+  desc: "converts a value to `num`."
   errors:
     thrown: Error{type:TypeError}
 

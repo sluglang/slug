@@ -2629,3 +2629,9 @@ Validation performed:
   - parameter entries now include explicit `type` when declared.
 - Updated docs/manifests to consume explicit metadata types first (before fallback tag inference), enabling correct rendering of generic channel types.
 - Regenerated `lib/MANIFEST.ai` and `docs/_libraries/*.md` so channel signatures now render as `chan<any|nil>`.
+
+## 2026-05-11 — Type Migration Cleanup Sweep
+
+- Cleaned remaining user-facing library docs to replace legacy `@str`, `@map`, `@list`, `@bool`, `@num`, `@bytes`, `@fn`, and `@sym` prose examples with formal type names.
+- Updated `slug.doc.manifest` documentation examples to use formal syntax in the rendered MANIFEST docs instead of `@type` placeholder examples.
+- Regenerated `lib/MANIFEST.ai` and `docs/_libraries/*.md` after the cleanup.

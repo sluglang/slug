@@ -776,7 +776,7 @@ fn slug.std#toBoolean(v):bool
 ```
 
 
-converts a value to `@bool`.
+converts a value to `bool`.
 
 Numeric `1` → `true`, `0` → `false`. Strings `"true"`, `"yes"`, `"1"`,
 `"TRUE"`, `"YES"` → `true`; `"false"`, `"no"`, `"0"`, `"FALSE"`, `"NO"`
@@ -813,7 +813,7 @@ fn slug.std#toNumber(v):num|nil
 ```
 
 
-converts a value to `@num`.
+converts a value to `num`.
 
 Passes through numbers, parses numeric strings, returns `nil` for `nil`.
 Throws `TypeError` for other types.

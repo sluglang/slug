@@ -18,11 +18,11 @@ Supported tags
 On functions:
   @returns('type')       return type annotation; rendered on the signature line
   @effects('fs io ...')   space-separated effect labels; rendered as "effects: ..."
-  @throws('@type')        thrown error type; rendered under "errors:" block
+  @throws('Error{type}')  thrown error type; rendered under "errors:" block
   @throwsDesc('...')      cause description paired with @throws; appended to thrown line
 
 On struct fields:
-  @type('@type')          field type annotation; rendered on the field line
+  @type('type')           field type annotation; rendered on the field line
   @desc('...')            field description; rendered as ": ..." on the field line
                           field lines are omitted entirely when both tags are absent
 
@@ -33,15 +33,15 @@ Doc comments:
   Subsequent paragraphs are ignored in MANIFEST output.
 
 Output format example:
-  fn slug.repo#loadQueries(base:str = DefaultBase) -> @map
+  fn slug.repo#loadQueries(base:str = DefaultBase):map<any, any>
     desc: "scans base dir for .sql files; returns nested map of query functions"
     effects: fs
     errors:
       thrown: struct(Error) "unexpected filesystem failure"
 
-  struct slug.repo#SqlQuery{sql:str, args:list, type:sym}
+  struct slug.repo#SqlQuery{sql:str, args:list<any>, type:sym}
     desc: "result of extractArgs; carries rewritten SQL and inferred statement type"
-    field cause @str: "the original error that triggered this one"
+    field cause str: "the original error that triggered this one"
 
 ### Functions
 

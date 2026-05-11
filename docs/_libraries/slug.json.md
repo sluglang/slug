@@ -13,14 +13,14 @@ conforming to RFC 8259.
 
 | Slug type   | JSON type  | Notes                                      |
 |-------------|------------|--------------------------------------------|
-| `@str`      | string     |                                            |
-| `@num`      | number     |                                            |
-| `@bool`     | boolean    |                                            |
+| `str`       | string     |                                            |
+| `num`       | number     |                                            |
+| `bool`      | boolean    |                                            |
 | `nil`       | null       |                                            |
-| `@list`     | array      |                                            |
-| `@map`      | object     | keys serialised as strings; sorted         |
-| `@sym`      | string     | symbol label used as string value          |
-| `@bytes`    | string     | encoded as `"b64:<base64>"` prefix string  |
+| `list`      | array      |                                            |
+| `map`       | object     | keys serialised as strings; sorted         |
+| `sym`       | string     | symbol label used as string value          |
+| `bytes`     | string     | encoded as `"b64:<base64>"` prefix string  |
 
 ## Key handling
 
@@ -31,8 +31,8 @@ string bracket access (`m["name"]`) to read decoded values.
 
 ## Bytes encoding
 
-`@bytes` values are encoded as `"b64:<base64>"` strings. On decode,
-any string with this prefix is automatically decoded back to `@bytes`.
+`bytes` values are encoded as `"b64:<base64>"` strings. On decode,
+any string with this prefix is automatically decoded back to `bytes`.
 
 ### TOC
 
@@ -54,7 +54,7 @@ Object keys are always decoded as string keys. Use dot access (`m.name`)
 or string bracket access (`m["name"]`) to read fields — never symbol
 bracket access (`m[:name]`).
 
-Strings with the `b64:` prefix are decoded to `@bytes` values.
+Strings with the `b64:` prefix are decoded to `bytes` values.
 Throws `JsonError` on malformed input.
 
 | Parameter | Type | Default |

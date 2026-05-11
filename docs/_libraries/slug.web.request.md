@@ -13,15 +13,15 @@ accessor functions for working with incoming HTTP requests.
 
 | Field       | Type    | Description                                      |
 |-------------|---------|--------------------------------------------------|
-| `method`    | `@str`  | HTTP method (`"GET"`, `"POST"`, etc.)            |
-| `path`      | `@str`  | URL path (without query string)                  |
-| `version`   | `@str`  | HTTP version (`"HTTP/1.1"`)                      |
-| `headers`   | `@map`  | Lowercase header names → values                  |
+| `method`    | `str`   | HTTP method (`"GET"`, `"POST"`, etc.)            |
+| `path`      | `str`   | URL path (without query string)                  |
+| `version`   | `str`   | HTTP version (`"HTTP/1.1"`)                      |
+| `headers`   | `map`   | Lowercase header names → values                  |
 | `body`      | any     | Request body (string for small bodies)           |
-| `query`     | `@map`  | Parsed query string parameters                   |
-| `form`      | `@map`  | Parsed `application/x-www-form-urlencoded` body  |
-| `files`     | `@list` | Uploaded files (multipart, when supported)       |
-| `params`    | `@map`  | URL path parameters (populated by the router)    |
+| `query`     | `map`   | Parsed query string parameters                   |
+| `form`      | `map`   | Parsed `application/x-www-form-urlencoded` body  |
+| `files`     | `list`  | Uploaded files (multipart, when supported)       |
+| `params`    | `map`   | URL path parameters (populated by the router)    |
 | `requestId` | any     | Request ID (set by `withRequestId` middleware)   |
 | `traceId`   | any     | Trace ID (set by `withTraceContext` middleware)   |
 | `spanId`    | any     | Span ID (set by `withTraceContext` middleware)    |

@@ -5,7 +5,7 @@
  * to CSV strings. Handles quoted fields, embedded newlines, escaped quotes,
  * and configurable separators.
  *
- * Rows are represented as `@list` values. Columns are accessed by index:
+ * Rows are represented as `list` values. Columns are accessed by index:
  * `row[0]` for the first column, `row[1]` for the second, and so on.
  *
  * ## Example

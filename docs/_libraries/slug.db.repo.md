@@ -38,12 +38,12 @@ Use `:paramName` in SQL to define named parameters. They are rewritten
 to `?` placeholders and extracted in order. Parameters inside string
 literals and comments are safely ignored.
 
-Pass args as a map `{ age: 25 }`, a list `[25]`, or a struct.
+Pass args as a `map` (`{ age: 25 }`), a `list` (`[25]`), or a struct.
 
 ## Query type detection
 
-`SELECT`/`WITH` statements call `query()` (returns `@list`).
-All other statements call `exec()` (returns `@map`).
+`SELECT`/`WITH` statements call `query()` (returns `list`).
+All other statements call `exec()` (returns `map`).
 
 @effects('fs db')
 
@@ -63,7 +63,7 @@ fn slug.db.repo#into(data:map, target, columnToFieldName:fn = fn((s)) {camelCase
 
 maps a list of db result rows onto a struct or map target.
 
-Delegates each row to the `@map` variant. Column names are normalised
+Delegates each row to the `map` variant. Column names are normalised
 from `snake_case` to `camelCase` by default.
 
 | Parameter | Type | Default |

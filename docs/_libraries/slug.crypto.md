@@ -9,11 +9,11 @@ slug.crypto — cryptographic hash and HMAC functions
 Provides MD5, SHA-256, SHA-512, and HMAC variants. Each algorithm is
 available in two forms:
 
-- `@bytes` in → `@bytes` out — raw digest, useful for chaining or binary protocols
-- `@str` in → `@str` out — hex (for hashes) or base64 (for HMACs) encoded output
+- `bytes` in → `bytes` out — raw digest, useful for chaining or binary protocols
+- `str` in → `str` out — hex (for hashes) or base64 (for HMACs) encoded output
 
-The `@str` variants are the most common for web and API use cases.
-The `@bytes` variants are lower-level and intended for composition.
+The `str` variants are the most common for web and API use cases.
+The `bytes` variants are lower-level and intended for composition.
 
 ## Example
 

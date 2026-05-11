@@ -41,27 +41,27 @@ match result {
 
 `argsWith` always returns a map. The `ok` field is the primary discriminator:
 
-**Success:** `{ ok: true, action: :none, options: @map, positional: @list, errors: [] }`
+**Success:** `{ ok: true, action: :none, options: map, positional: list, errors: [] }`
 
-**Help/version:** `{ ok: false, action: :help | :version, text: @str, options: {}, positional: [], errors: [] }`
+**Help/version:** `{ ok: false, action: :help | :version, text: str, options: {}, positional: [], errors: [] }`
 
-**Validation failure:** `{ ok: false, action: :error, options: {}, positional: [], errors: @list }`
+**Validation failure:** `{ ok: false, action: :error, options: {}, positional: [], errors: list }`
 
 ## Spec fields
 
 | Field        | Type    | Description                                                        |
 |--------------|---------|--------------------------------------------------------------------|
-| `name`       | `@str`  | Program name; used in help and version output                      |
-| `version`    | `@str`  | Version string; enables `--version` / `-v`                         |
-| `summary`    | `@str`  | One-line description shown in help                                 |
-| `strict`     | `@bool` | Allow unrecognized parameters, true to treat as an error           |
-| `alias`      | `@map`  | Short name → canonical name; e.g. `{ u: "user" }`                  |
-| `required`   | `@list` | Canonical option names that must be present                        |
-| `defaults`   | `@map`  | Default values by canonical name                                   |
-| `types`      | `@map`  | Type hints: `"bool"`, `"str"`, `"num"`, `"list"` by canonical name |
-| `desc`       | `@map`  | Option descriptions by canonical name                              |
-| `allow`      | `@list` | Explicit allowlist; inferred from other fields if omitted          |
-| `positional` | `@map`  | `{ min, max?, name }` positional argument constraints              |
+| `name`       | `str`   | Program name; used in help and version output                      |
+| `version`    | `str`   | Version string; enables `--version` / `-v`                         |
+| `summary`    | `str`   | One-line description shown in help                                 |
+| `strict`     | `bool`  | Allow unrecognized parameters, true to treat as an error           |
+| `alias`      | `map`   | Short name → canonical name; e.g. `{ u: "user" }`                  |
+| `required`   | `list`  | Canonical option names that must be present                        |
+| `defaults`   | `map`   | Default values by canonical name                                   |
+| `types`      | `map`   | Type hints: `"bool"`, `"str"`, `"num"`, `"list"` by canonical name |
+| `desc`       | `map`   | Option descriptions by canonical name                              |
+| `allow`      | `list`  | Explicit allowlist; inferred from other fields if omitted          |
+| `positional` | `map`   | `{ min, max?, name }` positional argument constraints              |
 
 ## Error shapes
 

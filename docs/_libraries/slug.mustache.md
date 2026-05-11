@@ -110,7 +110,7 @@ fn slug.mustache#renderCached(templateOrAst, data, partials = nil, cache = {}):m
 
 renders a Mustache template with a partial cache for reuse across calls.
 
-Returns a map `{ html: @str, cache: @map }`. Pass the returned `cache`
+Returns a map `{ html: str, cache: map }`. Pass the returned `cache`
 back on subsequent calls to avoid re-parsing partials.
 
 `templateOrAst` may be a template string or a pre-parsed AST from `parse`.

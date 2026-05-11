@@ -16,13 +16,13 @@ to generate documentation from live module state.
 
 ```
 // function
-{ type: :fn, docs: @str, tags: @map, details: { params: @list } }
+{ type: :fn, docs: str, tags: map, details: { params: list } }
 
 // overloaded function group
-{ type: :grp, details: { groups: @list } }
+{ type: :grp, details: { groups: list } }
 
 // struct schema
-{ type: :struct, docs: @str, tags: @map, details: { fields: @list } }
+{ type: :struct, docs: str, tags: map, details: { fields: list } }
 
 // other (str, num, sym, map, ...)
 { type: :str | :num | :sym | :map | ... }
@@ -30,7 +30,7 @@ to generate documentation from live module state.
 
 Each param/field in `details.params` or `details.fields` is a map:
 ```
-{ name: @str, tags: @map, vargs: @bool, default: ? }
+{ name: str, tags: map, vargs: bool, default: any }
 ```
 
 ## Tag format

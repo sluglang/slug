@@ -6,7 +6,7 @@ title: bytes (slug)
 
 slug.bytes — byte buffer utilities
 
-Conversions between `@bytes`, `@str`, hex strings, base64, and numeric lists.
+Conversions between `bytes`, `str`, hex strings, base64, and numeric lists.
 All functions are pure and operate on immutable byte values.
 
 Byte literals use the `0x"<hex>"` syntax, e.g. `0x"ff0a"`.

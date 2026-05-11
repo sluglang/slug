@@ -406,7 +406,7 @@ val zip = fn(lst1:list, lst2:list, acc = []):list {
 // --- type conversions ---
 
 /**
- * converts a value to `@bool`.
+ * converts a value to `bool`.
  *
  * Numeric `1` → `true`, `0` → `false`. Strings `"true"`, `"yes"`, `"1"`,
  * `"TRUE"`, `"YES"` → `true`; `"false"`, `"no"`, `"0"`, `"FALSE"`, `"NO"`
@@ -454,7 +454,7 @@ val toBoolean = fn(v):bool {
 foreign parseNumber = fn(value:str):num
 
 /**
- * converts a value to `@num`.
+ * converts a value to `num`.
  *
  * Passes through numbers, parses numeric strings, returns `nil` for `nil`.
  * Throws `TypeError` for other types.

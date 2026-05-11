@@ -200,7 +200,7 @@ val mdCodeBlock = fn(s, lang) {
 }
 
 val mdCell = fn(s) {
-	toString(s) /> replaceAll('|', ' \| ')
+	toString(s) /> replaceAll('|', '&#124;')
 }
 
 val mdTable = fn(headers, rows) {

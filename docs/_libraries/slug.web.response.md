@@ -46,7 +46,7 @@ status code, and extra headers. Pass a `Reply` to `renderReply` in
 ## Cookie options
 
 The `cookie` function accepts an `opts` map with optional keys:
-`path`, `domain`, `maxAge`, `expires`, `secure` (@bool), `httpOnly` (@bool),
+`path`, `domain`, `maxAge`, `expires`, `secure` (bool), `httpOnly` (bool),
 `sameSite` (`"Lax"` | `"Strict"` | `"None"`).
 
 ## HTMX
@@ -256,7 +256,7 @@ fn slug.web.response#cookie(name:str, value:str, opts:map):str
 builds a `Set-Cookie` header value string.
 
 `opts` may contain: `path`, `domain`, `maxAge`, `expires`,
-`secure` (@bool), `httpOnly` (@bool), `sameSite` (`"Lax"|"Strict"|"None"`).
+`secure` (bool), `httpOnly` (bool), `sameSite` (`"Lax"|"Strict"|"None"`).
 
 | Parameter | Type | Default |
 | --- | --- | --- |

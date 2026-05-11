@@ -2,7 +2,7 @@
  * slug.list — list utilities
  *
  * Sorting, searching, flattening, shuffling, and character conversion
- * helpers for `@list` values. Complements the core list operations in
+ * helpers for `list` values. Complements the core list operations in
  * `slug.std` (`map`, `filter`, `reduce`, `find`, `flatMap`, etc.).
  */
 

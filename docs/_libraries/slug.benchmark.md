@@ -69,7 +69,7 @@ fn slug.benchmark#compare(a, b):num
 
 benchmarks a list of named functions and returns results sorted by p50.
 
-Each entry in `benches` must be a map with `name` (@str) and `fun` (@fn) fields.
+Each entry in `benches` must be a map with `name` (str) and `fun` (fn) fields.
 All benchmarks share the same timing parameters. Results include a `ratio`
 field showing performance relative to the fastest (lowest p50) entry.
 
