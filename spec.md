@@ -2211,3 +2211,15 @@ Implementation updates:
 
 Validation performed:
 - `go test ./... -count=1`
+
+### LSP: signature help supports colon type syntax
+
+- Updated LSP signature help rendering to include colon-declared parameter types in labels.
+  - Example: `sum(a:num, b:str)` instead of `sum(a, b)` when types are declared.
+- Uses parser AST parameter `Type` metadata directly for local and imported function signatures.
+- Added regression test for typed signature labels:
+  - `internal/lsp/server_test.go` `TestServerSignatureHelpShowsColonTypedParameters`.
+
+Validation performed:
+- `go test ./internal/lsp -count=1`
+- `go test ./... -count=1`

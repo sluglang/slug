@@ -2122,7 +2122,7 @@ func collectFunctionSignatures(src string) []functionSignature {
 			if p == nil || p.Name == nil {
 				continue
 			}
-			pn = append(pn, p.Name.Value)
+			pn = append(pn, formatSignatureParamLabel(p))
 			pdocs = append(pdocs, paramDocsByName[p.Name.Value])
 		}
 		out = append(out, functionSignature{Name: name, Params: pn, Detail: detail, ParamDocs: pdocs, ScopeDepth: scopeDepth, Start: start, End: end})
@@ -2366,6 +2366,20 @@ func parseParamDocs(doc string) map[string]string {
 		}
 	}
 	return out
+}
+
+func formatSignatureParamLabel(p *ast.FunctionParameter) string {
+	if p == nil || p.Name == nil {
+		return ""
+	}
+	name := p.Name.Value
+	if p.IsVariadic {
+		name = "..." + name
+	}
+	if strings.TrimSpace(p.Type) != "" {
+		return name + ":" + strings.TrimSpace(p.Type)
+	}
+	return name
 }
 
 func buildFunctionDocMarkdown(name string, doc string, hasDoc bool, tags []*ast.Tag) string {
