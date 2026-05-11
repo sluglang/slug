@@ -214,8 +214,13 @@ val renderParamTable = fn(params) {
 		[] => ''
 		[...]  => {
 			val rows = params /> map(fn(p) {
-				val typeTag  = renderTags(p.tags)
-				val typePart = match typeTag { nil => '' v => v }
+				val typePart = match p {
+					{type} => normalizeTypeExpr(type)
+					_ => {
+						val typeTag = renderTags(p.tags)
+						match typeTag { nil => '' v => v }
+					}
+				}
 				val defPart  = match p {
 					{default} => mdCode(toString(default))
 					_         => '—'

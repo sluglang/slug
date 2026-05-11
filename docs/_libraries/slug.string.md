@@ -427,7 +427,7 @@ Returns `nil` for `nil` input.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `str` |  | — |
+| `str` | str|nil | — |
 | `replace` | str | — |
 | `with` | str | — |
 

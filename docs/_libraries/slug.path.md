@@ -79,7 +79,7 @@ useful for config.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `path` |  | — |
+| `path` | str|nil | — |
 
 ---
 
