@@ -543,6 +543,84 @@ func TestServerHoverIncludesDocComment(t *testing.T) {
 	t.Fatal("hover response not found")
 }
 
+func TestServerHoverIncludesTypedVariableAnnotation(t *testing.T) {
+	src := "val answer:num = 42\nanswer\n"
+	srcJSON := strings.ReplaceAll(src, "\"", "\\\"")
+	srcJSON = strings.ReplaceAll(srcJSON, "\n", "\\n")
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///a.slug","version":1,"text":"`+srcJSON+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":57,"method":"textDocument/hover","params":{"textDocument":{"uri":"file:///a.slug"},"position":{"line":1,"character":0}}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok || int(id) != 57 {
+			continue
+		}
+		res, ok := m["result"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("hover result missing: %#v", m)
+		}
+		contents, ok := res["contents"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("hover contents missing: %#v", res)
+		}
+		v, _ := contents["value"].(string)
+		if !strings.Contains(v, ":num") {
+			t.Fatalf("expected hover to include declared type, got: %q", v)
+		}
+		return
+	}
+	t.Fatal("hover response not found")
+}
+
+func TestServerHoverIncludesTypedFunctionSignature(t *testing.T) {
+	src := "val sum = fn(a:num, b:str):str { a }\nsum(1, \"x\")\n"
+	srcJSON := strings.ReplaceAll(src, "\"", "\\\"")
+	srcJSON = strings.ReplaceAll(srcJSON, "\n", "\\n")
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///a.slug","version":1,"text":"`+srcJSON+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":58,"method":"textDocument/hover","params":{"textDocument":{"uri":"file:///a.slug"},"position":{"line":0,"character":4}}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok || int(id) != 58 {
+			continue
+		}
+		res, ok := m["result"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("hover result missing: %#v", m)
+		}
+		contents, ok := res["contents"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("hover contents missing: %#v", res)
+		}
+		v, _ := contents["value"].(string)
+		if !strings.Contains(v, "sum(a:num, b:str):str") {
+			t.Fatalf("expected hover to include full typed signature, got: %q", v)
+		}
+		return
+	}
+	t.Fatal("hover response not found")
+}
+
 func TestServerHoverIncludesImportedAliasDocComment(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("SLUG_HOME", tmp)
@@ -590,8 +668,8 @@ func TestServerHoverIncludesImportedAliasDocComment(t *testing.T) {
 			t.Fatalf("hover contents missing: %#v", res)
 		}
 		v, _ := contents["value"].(string)
-		if !strings.Contains(v, "`reduce` (function)") {
-			t.Fatalf("expected hover kind=function for imported alias, got: %q", v)
+		if !strings.Contains(v, "`reduce(vs, f, init)` (function)") {
+			t.Fatalf("expected hover signature for imported alias, got: %q", v)
 		}
 		if !strings.Contains(v, "Reduce docs from std hover.") {
 			t.Fatalf("expected hover to include imported doc comment, got: %q", v)
@@ -1149,6 +1227,46 @@ func TestServerSignatureHelpShowsColonTypedParameters(t *testing.T) {
 		lbl, _ := s0["label"].(string)
 		if !strings.Contains(lbl, "sum(a:num, b:str)") {
 			t.Fatalf("unexpected typed signature label: %q", lbl)
+		}
+		return
+	}
+	t.Fatal("signatureHelp response not found")
+}
+
+func TestServerSignatureHelpIncludesReturnTypeInLabel(t *testing.T) {
+	src := "val sum = fn(a:num, b:str):str { a }\nsum(1, \"x\")\n"
+	srcJSON := strings.ReplaceAll(src, "\"", "\\\"")
+	srcJSON = strings.ReplaceAll(srcJSON, "\n", "\\n")
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///a.slug","version":1,"text":"`+srcJSON+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":136,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":"file:///a.slug"},"position":{"line":1,"character":7}}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok || int(id) != 136 {
+			continue
+		}
+		res, ok := m["result"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("signatureHelp result missing: %#v", m)
+		}
+		sigs, _ := res["signatures"].([]interface{})
+		if len(sigs) == 0 {
+			t.Fatalf("expected signatures, got %#v", res)
+		}
+		s0, _ := sigs[0].(map[string]interface{})
+		lbl, _ := s0["label"].(string)
+		if !strings.Contains(lbl, "sum(a:num, b:str):str") {
+			t.Fatalf("unexpected signature label: %q", lbl)
 		}
 		return
 	}

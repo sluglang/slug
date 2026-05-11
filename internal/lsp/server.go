@@ -271,6 +271,7 @@ type symbolDef struct {
 	Name       string
 	Kind       string
 	Detail     string
+	Type       string
 	Start      int
 	End        int
 	ScopeDepth int
@@ -296,6 +297,7 @@ type moduleSymbolIdentity struct {
 type functionSignature struct {
 	Name       string
 	Params     []string
+	ReturnType string
 	Detail     string
 	ParamDocs  []string
 	ScopeDepth int
@@ -535,6 +537,21 @@ func (s *Server) handleHover(req rpcRequest) error {
 			Contents: lspMarkupContent{Kind: "markdown", Value: "`" + name + "`"},
 		})
 	}
+	if sig, ok := s.resolveSignatureForName(normURI, doc.Text, name, offset); ok {
+		kind := sym.Kind
+		if kind != "function" {
+			kind = "function"
+		}
+		detail := sig.Detail
+		if strings.TrimSpace(detail) == "" {
+			detail = sym.Detail
+		}
+		rng := offsetRangeToLSP(doc.Text, start, end)
+		return s.writeResult(req.ID, &lspHover{
+			Contents: lspMarkupContent{Kind: "markdown", Value: fmt.Sprintf("`%s` (%s)%s", formatSignatureLabel(sig), kind, hoverDetail(detail))},
+			Range:    &rng,
+		})
+	}
 	if strings.TrimSpace(sym.Detail) == "" || sym.Kind == "variable" || sym.Kind == "constant" {
 		if imported, ok := s.resolveCompletionImportedSymbol(normURI, doc.Text, name); ok {
 			if strings.TrimSpace(sym.Detail) == "" {
@@ -547,7 +564,7 @@ func (s *Server) handleHover(req rpcRequest) error {
 	}
 	rng := offsetRangeToLSP(doc.Text, start, end)
 	return s.writeResult(req.ID, &lspHover{
-		Contents: lspMarkupContent{Kind: "markdown", Value: fmt.Sprintf("`%s` (%s)%s", sym.Name, sym.Kind, hoverDetail(sym.Detail))},
+		Contents: lspMarkupContent{Kind: "markdown", Value: fmt.Sprintf("`%s` (%s)%s%s", sym.Name, sym.Kind, typeHoverSuffix(sym.Type), hoverDetail(sym.Detail))},
 		Range:    &rng,
 	})
 }
@@ -557,6 +574,13 @@ func hoverDetail(d string) string {
 		return ""
 	}
 	return "\n\n" + d
+}
+
+func typeHoverSuffix(t string) string {
+	if strings.TrimSpace(t) == "" {
+		return ""
+	}
+	return " :" + strings.TrimSpace(t)
 }
 
 func (s *Server) handleDefinition(req rpcRequest) error {
@@ -884,7 +908,7 @@ func (s *Server) handleSignatureHelp(req rpcRequest) error {
 	if !ok {
 		return s.writeResult(req.ID, nil)
 	}
-	label := sig.Name + "(" + strings.Join(sig.Params, ", ") + ")"
+	label := formatSignatureLabel(sig)
 	params := make([]lspParameterInformation, 0, len(sig.Params))
 	for i, pn := range sig.Params {
 		p := lspParameterInformation{Label: pn}
@@ -1045,6 +1069,48 @@ func (s *Server) resolveCompletionImportedSymbol(originURI string, src string, l
 		}
 	}
 	return symbolDef{}, false
+}
+
+func (s *Server) resolveSignatureForName(originURI string, src string, name string, useOffset int) (functionSignature, bool) {
+	defs := collectFunctionSignatures(src)
+	if sig, ok := resolveFunctionAt(name, useOffset, defs); ok {
+		if sig.ScopeDepth == 0 {
+			for _, b := range collectImportBindingsForModule(src, "") {
+				if b.LocalName == name {
+					if imp, ok := s.resolveModuleExportSignature(originURI, b.SourceModule, b.SourceName); ok {
+						return imp, true
+					}
+				}
+			}
+			for _, module := range collectWildcardImportModules(src) {
+				if imp, ok := s.resolveModuleExportSignature(originURI, module, name); ok {
+					return imp, true
+				}
+			}
+		}
+		return sig, true
+	}
+	for _, b := range collectImportBindingsForModule(src, "") {
+		if b.LocalName == name {
+			if imp, ok := s.resolveModuleExportSignature(originURI, b.SourceModule, b.SourceName); ok {
+				return imp, true
+			}
+		}
+	}
+	for _, module := range collectWildcardImportModules(src) {
+		if imp, ok := s.resolveModuleExportSignature(originURI, module, name); ok {
+			return imp, true
+		}
+	}
+	return functionSignature{}, false
+}
+
+func formatSignatureLabel(sig functionSignature) string {
+	label := sig.Name + "(" + strings.Join(sig.Params, ", ") + ")"
+	if rt := strings.TrimSpace(sig.ReturnType); rt != "" {
+		label += ":" + rt
+	}
+	return label
 }
 
 func (s *Server) resolveModuleExportSymbolInfo(originURI string, module string, name string) (symbolDef, bool) {
@@ -1314,7 +1380,7 @@ func collectSymbols(src string) []symbolDef {
 				start := s.Name.Token.Position
 				end := start + len(s.Name.Token.Literal)
 				detail := buildFunctionDocMarkdown(s.Name.Value, s.Doc, s.HasDoc, s.Tags)
-				syms = append(syms, symbolDef{Name: s.Name.Value, Kind: "function", Detail: detail, Start: start, End: end, ScopeDepth: scopeDepth})
+				syms = append(syms, symbolDef{Name: s.Name.Value, Kind: "function", Detail: detail, Type: strings.TrimSpace(s.ReturnType), Start: start, End: end, ScopeDepth: scopeDepth})
 			}
 		}
 	}
@@ -1323,33 +1389,49 @@ func collectSymbols(src string) []symbolDef {
 		switch e := ex.(type) {
 		case *ast.VarExpression:
 			detail := ""
+			typeName := strings.TrimSpace(e.Type)
 			if _, ok := e.Value.(*ast.FunctionLiteral); ok {
 				for _, n := range topLevelPatternNames(e.Pattern) {
 					detail = buildFunctionDocMarkdown(n.Name, e.Doc, e.HasDoc, e.Tags)
 					addPattern(e.Pattern, "function", detail)
-					goto walkVarValue
 				}
 			}
 			if e.HasDoc {
 				detail = strings.TrimSpace(e.Doc)
 			}
 			addPattern(e.Pattern, "variable", detail)
-		walkVarValue:
+			if typeName != "" {
+				for _, n := range topLevelPatternNames(e.Pattern) {
+					for i := range syms {
+						if syms[i].Name == n.Name && syms[i].Start == n.Start && syms[i].End == n.End {
+							syms[i].Type = typeName
+						}
+					}
+				}
+			}
 			walkExpr(e.Value)
 		case *ast.ValExpression:
 			detail := ""
+			typeName := strings.TrimSpace(e.Type)
 			if _, ok := e.Value.(*ast.FunctionLiteral); ok {
 				for _, n := range topLevelPatternNames(e.Pattern) {
 					detail = buildFunctionDocMarkdown(n.Name, e.Doc, e.HasDoc, e.Tags)
 					addPattern(e.Pattern, "function", detail)
-					goto walkValValue
 				}
 			}
 			if e.HasDoc {
 				detail = strings.TrimSpace(e.Doc)
 			}
 			addPattern(e.Pattern, "constant", detail)
-		walkValValue:
+			if typeName != "" {
+				for _, n := range topLevelPatternNames(e.Pattern) {
+					for i := range syms {
+						if syms[i].Name == n.Name && syms[i].Start == n.Start && syms[i].End == n.End {
+							syms[i].Type = typeName
+						}
+					}
+				}
+			}
 			walkExpr(e.Value)
 		case *ast.FunctionLiteral:
 			scopeDepth++
@@ -2114,19 +2196,6 @@ func collectFunctionSignatures(src string) []functionSignature {
 
 	var walkStmt func(ast.Statement)
 	var walkExpr func(ast.Expression)
-	add := func(name string, params []*ast.FunctionParameter, detail string, start int, end int) {
-		pn := make([]string, 0, len(params))
-		paramDocsByName := parseParamDocs(detail)
-		pdocs := make([]string, 0, len(params))
-		for _, p := range params {
-			if p == nil || p.Name == nil {
-				continue
-			}
-			pn = append(pn, formatSignatureParamLabel(p))
-			pdocs = append(pdocs, paramDocsByName[p.Name.Value])
-		}
-		out = append(out, functionSignature{Name: name, Params: pn, Detail: detail, ParamDocs: pdocs, ScopeDepth: scopeDepth, Start: start, End: end})
-	}
 
 	walkStmt = func(st ast.Statement) {
 		switch s := st.(type) {
@@ -2147,7 +2216,20 @@ func collectFunctionSignatures(src string) []functionSignature {
 				start := s.Name.Token.Position
 				end := start + len(s.Name.Token.Literal)
 				detail := buildFunctionDocMarkdown(s.Name.Value, s.Doc, s.HasDoc, s.Tags)
-				add(s.Name.Value, s.Parameters, detail, start, end)
+				sig := functionSignature{Name: s.Name.Value, Detail: detail, ReturnType: strings.TrimSpace(s.ReturnType), ScopeDepth: scopeDepth, Start: start, End: end}
+				pn := make([]string, 0, len(s.Parameters))
+				paramDocsByName := parseParamDocs(detail)
+				pdocs := make([]string, 0, len(s.Parameters))
+				for _, p := range s.Parameters {
+					if p == nil || p.Name == nil {
+						continue
+					}
+					pn = append(pn, formatSignatureParamLabel(p))
+					pdocs = append(pdocs, paramDocsByName[p.Name.Value])
+				}
+				sig.Params = pn
+				sig.ParamDocs = pdocs
+				out = append(out, sig)
 			}
 		}
 	}
@@ -2158,7 +2240,20 @@ func collectFunctionSignatures(src string) []functionSignature {
 			if fn, ok := e.Value.(*ast.FunctionLiteral); ok {
 				for _, n := range topLevelPatternNames(e.Pattern) {
 					detail := buildFunctionDocMarkdown(n.Name, e.Doc, e.HasDoc, e.Tags)
-					add(n.Name, fn.Parameters, detail, n.Start, n.End)
+					sig := functionSignature{Name: n.Name, Detail: detail, ReturnType: strings.TrimSpace(fn.ReturnType), ScopeDepth: scopeDepth, Start: n.Start, End: n.End}
+					pn := make([]string, 0, len(fn.Parameters))
+					paramDocsByName := parseParamDocs(detail)
+					pdocs := make([]string, 0, len(fn.Parameters))
+					for _, p := range fn.Parameters {
+						if p == nil || p.Name == nil {
+							continue
+						}
+						pn = append(pn, formatSignatureParamLabel(p))
+						pdocs = append(pdocs, paramDocsByName[p.Name.Value])
+					}
+					sig.Params = pn
+					sig.ParamDocs = pdocs
+					out = append(out, sig)
 				}
 			}
 			walkExpr(e.Value)
@@ -2166,7 +2261,20 @@ func collectFunctionSignatures(src string) []functionSignature {
 			if fn, ok := e.Value.(*ast.FunctionLiteral); ok {
 				for _, n := range topLevelPatternNames(e.Pattern) {
 					detail := buildFunctionDocMarkdown(n.Name, e.Doc, e.HasDoc, e.Tags)
-					add(n.Name, fn.Parameters, detail, n.Start, n.End)
+					sig := functionSignature{Name: n.Name, Detail: detail, ReturnType: strings.TrimSpace(fn.ReturnType), ScopeDepth: scopeDepth, Start: n.Start, End: n.End}
+					pn := make([]string, 0, len(fn.Parameters))
+					paramDocsByName := parseParamDocs(detail)
+					pdocs := make([]string, 0, len(fn.Parameters))
+					for _, p := range fn.Parameters {
+						if p == nil || p.Name == nil {
+							continue
+						}
+						pn = append(pn, formatSignatureParamLabel(p))
+						pdocs = append(pdocs, paramDocsByName[p.Name.Value])
+					}
+					sig.Params = pn
+					sig.ParamDocs = pdocs
+					out = append(out, sig)
 				}
 			}
 			walkExpr(e.Value)
