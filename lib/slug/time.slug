@@ -13,7 +13,7 @@
  */
 @export
 @effects('time')
-@returns('@num')
+@returns('num')
 foreign clock = fn()
 
 /**
@@ -26,7 +26,7 @@ foreign clock = fn()
  */
 @export
 @effects('time')
-@returns('@num')
+@returns('num')
 foreign clockNanos = fn()
 
 /**
@@ -35,7 +35,7 @@ foreign clockNanos = fn()
  * Format follows standard Go time layout conventions.
  */
 @export
-@returns('@str')
+@returns('str')
 foreign fmtClock = fn(millis:num, fmt:str)
 
 /**
@@ -64,7 +64,7 @@ foreign sleep = fn(millis:num)
  * ```
  */
 @export
-@returns('@fn')
+@returns('fn')
 val delta = fn(f) {
 	val start = f()
 	fn() { f() - start }
@@ -77,7 +77,7 @@ val delta = fn(f) {
 	[1], 1000
 )
 @export
-@returns('@num')
+@returns('num')
 val secsToMillis = fn(secs:num) {
 	secs * 1000
 }
@@ -89,7 +89,7 @@ val secsToMillis = fn(secs:num) {
 	[1], 60000
 )
 @export
-@returns('@num')
+@returns('num')
 val minsToMillis = fn(mins:num) {
 	mins * 60 * 1000
 }

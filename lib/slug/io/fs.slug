@@ -46,7 +46,7 @@ val {*} = import(
  * @effects('fs')
  */
 @export
-@returns('@str')
+@returns('str')
 foreign readFile = fn(path:str)
 
 /**
@@ -66,7 +66,7 @@ foreign writeFile = fn(contents:str, path:str)
  * @effects('fs')
  */
 @export
-@returns('@num')
+@returns('num')
 foreign appendFile = fn(contents:str, path:str)
 
 /**
@@ -77,7 +77,7 @@ foreign appendFile = fn(contents:str, path:str)
  * @effects('fs')
  */
 @export
-@returns('@map')
+@returns('map')
 foreign info = fn(path:str)
 
 /**
@@ -86,7 +86,7 @@ foreign info = fn(path:str)
  * @effects('fs')
  */
 @export
-@returns('@bool')
+@returns('bool')
 foreign exists = fn(path:str)
 
 /**
@@ -97,7 +97,7 @@ foreign exists = fn(path:str)
  * @effects('fs')
  */
 @export
-@returns('@bool')
+@returns('bool')
 foreign mkDirs = fn(...path)
 
 /**
@@ -106,7 +106,7 @@ foreign mkDirs = fn(...path)
  * @effects('fs')
  */
 @export
-@returns('@bool')
+@returns('bool')
 foreign isDir = fn(path:str)
 
 /**
@@ -115,7 +115,7 @@ foreign isDir = fn(path:str)
  * @effects('fs')
  */
 @export
-@returns('@list')
+@returns('list')
 foreign ls = fn(path:str)
 
 /**
@@ -136,7 +136,7 @@ foreign rm = fn(path:str)
  * @effects('fs')
  */
 @export
-@returns('@num')
+@returns('num')
 foreign openFile = fn(path:str, mode:str)
 
 /**
@@ -148,7 +148,7 @@ foreign openFile = fn(path:str, mode:str)
  * @effects('fs')
  */
 @export
-@returns('@str')
+@returns('str')
 foreign readLine = fn(handle:num)
 
 /**
@@ -159,7 +159,7 @@ foreign readLine = fn(handle:num)
  * @effects('fs')
  */
 @export
-@returns('@num')
+@returns('num')
 foreign write = fn(handle:num, content:str)
 
 /**
@@ -178,7 +178,7 @@ foreign closeFile = fn(handle:num)
  * if the file is already at EOF.
  */
 @export
-@returns('@list')
+@returns('list')
 val readLines = fn(file:num, lines = []) {
 	match file /> readLine {
 		nil => lines
@@ -198,7 +198,7 @@ val readLines = fn(file:num, lines = []) {
  * ```
  */
 @export
-@returns('@list')
+@returns('list')
 val listFilesRecursive = fn(path:list, filter:fn = fn(s) { true }, acc = []) {
 	match path {
 		[] => acc

@@ -95,7 +95,7 @@ val FormattedResponse = struct {
  * constructs a `Response` with the given status and body.
  */
 @export
-@returns('@struct(Response)')
+@returns('Response')
 val response = fn(status:num, body:str) {
 	Response { status: status, headers: {}, body: body }
 }
@@ -104,70 +104,70 @@ val response = fn(status:num, body:str) {
  * 200 OK response.
  */
 @export
-@returns('@struct(Response)')
+@returns('Response')
 val ok = fn(body:str) { response(200, body) }
 
 /**
  * 201 Created response.
  */
 @export
-@returns('@struct(Response)')
+@returns('Response')
 val created = fn(body:str) { response(201, body) }
 
 /**
  * 202 Accepted response.
  */
 @export
-@returns('@struct(Response)')
+@returns('Response')
 val accepted = fn(body:str) { response(202, body) }
 
 /**
  * 204 No Content response.
  */
 @export
-@returns('@struct(Response)')
+@returns('Response')
 val noContent = fn() { response(204, "") }
 
 /**
  * 400 Bad Request response.
  */
 @export
-@returns('@struct(Response)')
+@returns('Response')
 val badRequest = fn(body:str) { response(400, body) }
 
 /**
  * 401 Unauthorized response.
  */
 @export
-@returns('@struct(Response)')
+@returns('Response')
 val unauthorized = fn(body:str) { response(401, body) }
 
 /**
  * 403 Forbidden response.
  */
 @export
-@returns('@struct(Response)')
+@returns('Response')
 val forbidden = fn(body:str) { response(403, body) }
 
 /**
  * 404 Not Found response.
  */
 @export
-@returns('@struct(Response)')
+@returns('Response')
 val notFound = fn(body:str = "404 Not Found") { response(404, body) }
 
 /**
  * 409 Conflict response.
  */
 @export
-@returns('@struct(Response)')
+@returns('Response')
 val conflict = fn(body:str) { response(409, body) }
 
 /**
  * 413 Payload Too Large response. Also sets `Connection: close`.
  */
 @export
-@returns('@struct(Response)')
+@returns('Response')
 val payloadTooLarge = fn(body:str = "413 Payload Too Large") {
 	response(413, body) /> withHeader("Connection", "close")
 }
@@ -176,7 +176,7 @@ val payloadTooLarge = fn(body:str = "413 Payload Too Large") {
  * 500 Internal Server Error response.
  */
 @export
-@returns('@struct(Response)')
+@returns('Response')
 val serverError = fn(body:str = "500 Server Error") { response(500, body) }
 
 // --- basic modifiers ---
@@ -185,7 +185,7 @@ val serverError = fn(body:str = "500 Server Error") { response(500, body) }
  * returns a new response with `status` replaced.
  */
 @export
-@returns('@struct(Response)')
+@returns('Response')
 val withStatus = fn(res, status:num) {
 	res copy { status: status }
 }
@@ -194,7 +194,7 @@ val withStatus = fn(res, status:num) {
  * returns a new response with `body` replaced.
  */
 @export
-@returns('@struct(Response)')
+@returns('Response')
 val withBody = fn(res, body:str) {
 	res copy { body: body }
 }
@@ -205,7 +205,7 @@ val withBody = fn(res, body:str) {
  * Key comparison is case-insensitive.
  */
 @export
-@returns('@bool')
+@returns('bool')
 val hasHeader = fn(res, key) {
 	res.headers[normKey(key)] != nil
 }
@@ -216,7 +216,7 @@ val hasHeader = fn(res, key) {
  * Header keys are normalised to lowercase.
  */
 @export
-@returns('@struct(Response)')
+@returns('Response')
 val withHeader = fn(res, key:str, value:str) {
 	val k  = normKey(key)
 	val hs = res.headers /> put(k, value)
@@ -230,7 +230,7 @@ val withHeader = fn(res, key:str, value:str) {
  * key are replaced.
  */
 @export
-@returns('@struct(Response)')
+@returns('Response')
 val withHeaders = fn(res, headersMap:map) {
 	headersMap /> keys /> reduce(res, fn(acc, rawKey) {
 		acc /> withHeader(rawKey, headersMap[rawKey])
@@ -241,7 +241,7 @@ val withHeaders = fn(res, headersMap:map) {
  * returns a new response with `key` removed from headers.
  */
 @export
-@returns('@struct(Response)')
+@returns('Response')
 val withoutHeader = fn(res, key:str) {
 	res copy { headers: remove(res.headers, normKey(key)) }
 }
@@ -253,7 +253,7 @@ val withoutHeader = fn(res, key:str) {
  * This is the correct way to set multiple `Set-Cookie` headers.
  */
 @export
-@returns('@struct(Response)')
+@returns('Response')
 val addHeader = fn(res, key:str, value:str) {
 	val k    = normKey(key)
 	val cur  = res.headers /> get(k)
@@ -267,7 +267,7 @@ val addHeader = fn(res, key:str, value:str) {
  * sets the `content-type` header.
  */
 @export
-@returns('@struct(Response)')
+@returns('Response')
 val withContentType = fn(res, ct:str) {
 	withHeader(res, "content-type", ct)
 }
@@ -276,7 +276,7 @@ val withContentType = fn(res, ct:str) {
  * 200 OK response with `Content-Type: text/html; charset=utf-8`.
  */
 @export
-@returns('@struct(Response)')
+@returns('Response')
 val html = fn(markup:str) {
 	ok(markup) /> withContentType("text/html; charset=utf-8")
 }
@@ -285,7 +285,7 @@ val html = fn(markup:str) {
  * 200 OK response with `Content-Type: text/plain; charset=utf-8`.
  */
 @export
-@returns('@struct(Response)')
+@returns('Response')
 val text = fn(txt:str) {
 	ok(txt) /> withContentType("text/plain; charset=utf-8")
 }
@@ -294,7 +294,7 @@ val text = fn(txt:str) {
  * 200 OK response with JSON-encoded `value` and `Content-Type: application/json`.
  */
 @export
-@returns('@struct(Response)')
+@returns('Response')
 val jsonOk = fn(value) {
 	ok(json.encode(value)) /> withContentType("application/json; charset=utf-8")
 }
@@ -305,7 +305,7 @@ val jsonOk = fn(value) {
  * 302 Found redirect to `location`.
  */
 @export
-@returns('@struct(Response)')
+@returns('Response')
 val redirect = fn(location:str) {
 	response(302, "") /> withHeader("location", location)
 }
@@ -314,7 +314,7 @@ val redirect = fn(location:str) {
  * 301 Moved Permanently redirect to `location`.
  */
 @export
-@returns('@struct(Response)')
+@returns('Response')
 val redirectPermanent = fn(location:str) {
 	response(301, "") /> withHeader("location", location)
 }
@@ -325,7 +325,7 @@ val redirectPermanent = fn(location:str) {
  * sets headers to prevent all caching.
  */
 @export
-@returns('@struct(Response)')
+@returns('Response')
 val noCache = fn(res) {
 	res
 	/> withHeader("cache-control", "no-store, no-cache, must-revalidate")
@@ -337,7 +337,7 @@ val noCache = fn(res) {
  * sets `Cache-Control: public, max-age=<seconds>`.
  */
 @export
-@returns('@struct(Response)')
+@returns('Response')
 val cacheSeconds = fn(res, seconds:num) {
 	withHeader(res, "cache-control", "public, max-age=" + seconds)
 }
@@ -348,7 +348,7 @@ val cacheSeconds = fn(res, seconds:num) {
  * sets `Connection: close`.
  */
 @export
-@returns('@struct(Response)')
+@returns('Response')
 val withConnClose = fn(res) {
 	res /> withHeader("Connection", "close")
 }
@@ -357,7 +357,7 @@ val withConnClose = fn(res) {
  * sets `Connection: keep-alive`.
  */
 @export
-@returns('@struct(Response)')
+@returns('Response')
 val withConnKeepAlive = fn(res) {
 	res /> withHeader("Connection", "keep-alive")
 }
@@ -368,7 +368,7 @@ val withConnKeepAlive = fn(res) {
  * sets the `HX-Trigger` response header to trigger a client-side event.
  */
 @export
-@returns('@struct(Response)')
+@returns('Response')
 val hxTrigger = fn(res, eventName:str) {
 	withHeader(res, "hx-trigger", eventName)
 }
@@ -377,7 +377,7 @@ val hxTrigger = fn(res, eventName:str) {
  * sets the `HX-Redirect` response header for a client-side redirect.
  */
 @export
-@returns('@struct(Response)')
+@returns('Response')
 val hxRedirect = fn(res, location:str) {
 	withHeader(res, "hx-redirect", location)
 }
@@ -386,7 +386,7 @@ val hxRedirect = fn(res, location:str) {
  * sets the `HX-Retarget` response header to override the HTMX swap target.
  */
 @export
-@returns('@struct(Response)')
+@returns('Response')
 val hxRetarget = fn(res, selector:str) {
 	withHeader(res, "hx-retarget", selector)
 }
@@ -400,7 +400,7 @@ val hxRetarget = fn(res, selector:str) {
  * `secure` (@bool), `httpOnly` (@bool), `sameSite` (`"Lax"|"Strict"|"None"`).
  */
 @export
-@returns('@str')
+@returns('str')
 val cookie = fn(name:str, value:str, opts:map) {
 	var parts = [name + "=" + value]
 	if (get(opts, "path")     != nil)   { parts = parts :+ "Path="     + get(opts, "path") }
@@ -420,7 +420,7 @@ val cookie = fn(name:str, value:str, opts:map) {
  * `addHeader` semantics ensure values are not clobbered.
  */
 @export
-@returns('@struct(Response)')
+@returns('Response')
 val setCookie = fn(res, name:str, value:str, opts:map) {
 	addHeader(res, "set-cookie", cookie(name, value, opts))
 }
@@ -429,7 +429,7 @@ val setCookie = fn(res, name:str, value:str, opts:map) {
  * expires a cookie immediately by setting `Max-Age=0`.
  */
 @export
-@returns('@struct(Response)')
+@returns('Response')
 val clearCookie = fn(res, name:str, opts:map) {
 	setCookie(res, name, "", put(opts, "maxAge", 0))
 }
@@ -440,7 +440,7 @@ val clearCookie = fn(res, name:str, opts:map) {
  * returns true if `x` is a `Response` struct instance.
  */
 @export
-@returns('@bool')
+@returns('bool')
 val isResponse = fn(x) match {
 	Response { status, headers, body } => true
 	_ => false
@@ -450,7 +450,7 @@ val isResponse = fn(x) match {
  * returns true if `x` is a `FormattedResponse` struct instance.
  */
 @export
-@returns('@bool')
+@returns('bool')
 val isFormattedResponse = fn(x) match {
 	FormattedResponse { head, body } => true
 	_ => false
@@ -460,14 +460,14 @@ val isFormattedResponse = fn(x) match {
  * returns the status code of a response.
  */
 @export
-@returns('@num')
+@returns('num')
 val status = fn(res) { res.status }
 
 /**
  * returns the headers map of a response.
  */
 @export
-@returns('@map')
+@returns('map')
 val headers = fn(res) { res.headers }
 
 /**
@@ -483,7 +483,7 @@ val headers = fn(res) { res.headers }
  * Automatically adds `Content-Length` if not already present.
  */
 @export
-@returns('@str')
+@returns('str')
 val formatHead = fn(res) {
 	val r          = ensureContentLength(res)
 	val statusLine = "HTTP/1.1 " + r.status + " " + reasonPhrase(r.status) + "\r\n"
@@ -497,7 +497,7 @@ val formatHead = fn(res) {
  * Automatically adds `Content-Length` if not already present.
  */
 @export
-@returns('@struct(FormattedResponse)')
+@returns('FormattedResponse')
 val formatResponse = fn(res) {
 	val r = ensureContentLength(res)
 	FormattedResponse { head: formatHead(r), body: r.body }
@@ -507,7 +507,7 @@ val formatResponse = fn(res) {
  * renders a response to a complete HTTP/1.1 wire-format string (head + body).
  */
 @export
-@returns('@str')
+@returns('str')
 val renderResponse = fn(res) {
 	res /> formatResponse /> match {
 		FormattedResponse { head, body } => head + body

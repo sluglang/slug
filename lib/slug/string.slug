@@ -24,7 +24,7 @@ val {*} = import(
 	[" slug "],  "slug",
 )
 @export
-@returns('@str')
+@returns('str')
 foreign trim = fn(str:str)
 
 /**
@@ -41,7 +41,7 @@ foreign trim = fn(str:str)
 	['abxxx', 'xx'],  'abx',
 )
 @export
-@returns('@str')
+@returns('str')
 val trim = fn(s:str, prefix:str) {
 	match s {
 		nil => nil
@@ -64,7 +64,7 @@ val trim = fn(s:str, prefix:str) {
 	["éé|éé", "|"],             2,
 )
 @export
-@returns('@num')
+@returns('num')
 foreign indexOf = fn(str:str, seq:str, index:num = 0)
 
 /**
@@ -78,7 +78,7 @@ foreign indexOf = fn(str:str, seq:str, index:num = 0)
 	["hello slug", "g"], 9,
 )
 @export
-@returns('@num')
+@returns('num')
 val lastIndexOf = fn(str:str, seq:str, index:num = 0, prev = -1) {
 	val i = indexOf(str, seq, index)
 	if (i == -1) { prev } else { recur(str, seq, i + 1, i) }
@@ -93,7 +93,7 @@ val lastIndexOf = fn(str:str, seq:str, index:num = 0, prev = -1) {
 	["slug"], "SLUG",
 )
 @export
-@returns('@str')
+@returns('str')
 foreign toUpper = fn(str:str)
 
 /**
@@ -105,7 +105,7 @@ foreign toUpper = fn(str:str)
 	["SLUG"], "slug",
 )
 @export
-@returns('@str')
+@returns('str')
 foreign toLower = fn(str:str)
 
 /**
@@ -116,7 +116,7 @@ foreign toLower = fn(str:str)
 	[129315], "🤣",
 )
 @export
-@returns('@str')
+@returns('str')
 foreign fromCodePoint = fn(codePoint:num)
 
 /**
@@ -127,7 +127,7 @@ foreign fromCodePoint = fn(codePoint:num)
 	["hello slug", "snail"], false,
 )
 @export
-@returns('@bool')
+@returns('bool')
 val contains = fn(str:str, seq:str) {
 	str /> indexOf(seq) >= 0
 }
@@ -140,7 +140,7 @@ val contains = fn(str:str, seq:str) {
 	["hello slug", "snail", "fish"], false,
 )
 @export
-@returns('@bool')
+@returns('bool')
 val containsAny = fn(str:str, ...seq) {
 	fn(i:num) {
 		match contains(str, seq[i]) {
@@ -159,7 +159,7 @@ val containsAny = fn(str:str, ...seq) {
 	["hello slug", "hello"], true,
 )
 @export
-@returns('@bool')
+@returns('bool')
 val startsWith = fn(str:str, start:str) {
 	str[0:len(start)] == start
 }
@@ -172,7 +172,7 @@ val startsWith = fn(str:str, start:str) {
 	["hello slug", "hello"], false,
 )
 @export
-@returns('@bool')
+@returns('bool')
 val endsWith = fn(str:str, end:str) {
 	str[len(str) - len(end):] == end
 }
@@ -187,7 +187,7 @@ val endsWith = fn(str:str, end:str) {
 	["SLUG"], true,
 )
 @export
-@returns('@bool')
+@returns('bool')
 val isUpper = fn(str:str) {
 	str != nil && len(str) > 0 && str == str /> toUpper()
 }
@@ -202,7 +202,7 @@ val isUpper = fn(str:str) {
 	["SLUG"], false,
 )
 @export
-@returns('@bool')
+@returns('bool')
 val isLower = fn(str:str) {
 	str != nil && len(str) > 0 && str == str /> toLower()
 }
@@ -221,7 +221,7 @@ val isLower = fn(str:str) {
 	["a|b|c", "|", 2],    ["a", "b|c"],
 )
 @export
-@returns('@list')
+@returns('list')
 val split = fn(str:str, delimiter:str, max:num = -1, count:num = 1, strs:list = []) {
 	match str /> indexOf(delimiter) {
 		n if n >= 0 && (max < 0 || count < max) => {
@@ -243,7 +243,7 @@ val split = fn(str:str, delimiter:str, max:num = -1, count:num = 1, strs:list = 
 	[["slug","test"], "."], "slug.test",
 )
 @export
-@returns('@str')
+@returns('str')
 val join = fn(strs:list, delimiter:str = "", str:str = nil) match {
 	[[], ...] if str == nil => ""
 	[[], ...]               => str
@@ -263,7 +263,7 @@ val join = fn(strs:list, delimiter:str = "", str:str = nil) match {
 	["E &amp; S", "&amp;", "&"], "E & S",
 )
 @export
-@returns('@str')
+@returns('str')
 val replaceAll = fn(str:str, replace:str, with:str) match {
 	[nil, ...] => nil
 	[...]      => str /> split(replace) /> join(with)
@@ -275,7 +275,7 @@ val replaceAll = fn(str:str, replace:str, with:str) match {
  * Returns `str` unchanged if already at or above `length`.
  */
 @export
-@returns('@str')
+@returns('str')
 val padRight = fn(str:str, with:str, length:num) {
 	if (length <= len(str)) { str } else { recur(str + with, with, length) }
 }
@@ -286,7 +286,7 @@ val padRight = fn(str:str, with:str, length:num) {
  * Returns `str` unchanged if already at or above `length`.
  */
 @export
-@returns('@str')
+@returns('str')
 val padLeft = fn(str:str, with:str, length:num) {
 	if (length <= len(str)) { str } else { recur(with + str, with, length) }
 }
@@ -298,7 +298,7 @@ val padLeft = fn(str:str, with:str, length:num) {
  */
 @export
 @effects('random')
-@returns('@str')
+@returns('str')
 val randomString = fn(length:num, chars:str, acc:str = "") match {
 	[0, ...] => acc
 	_        => recur(length - 1, chars, acc + chars[rndRange(0, len(chars))])
@@ -311,7 +311,7 @@ val randomString = fn(length:num, chars:str, acc:str = "") match {
  */
 @export
 @effects('random')
-@returns('@str')
+@returns('str')
 val randomHexString = fn(length:num) {
 	randomString(length, "0123456789abcdef")
 }
@@ -331,7 +331,7 @@ val randomHexString = fn(length:num) {
 	['l   n'],                'l___n',
 )
 @export
-@returns('@str')
+@returns('str')
 val snakeCase = fn(s:str, sep:str = ' ', screaming = false) {
 	s
 	/> fn(s) { if (screaming) { toUpper(s) } else { s } }
@@ -350,7 +350,7 @@ val snakeCase = fn(s:str, sep:str = ' ', screaming = false) {
 	['l   n'],     'l---n',
 )
 @export
-@returns('@str')
+@returns('str')
 val kebabCase = fn(s:str, sep:str = ' ') {
 	s /> split(sep) /> join("-")
 }
@@ -366,7 +366,7 @@ val kebabCase = fn(s:str, sep:str = ' ') {
 	['l   n'],     'LN',
 )
 @export
-@returns('@str')
+@returns('str')
 val pascalCase = fn(s:str, sep:str = ' ') {
 	s
 	/> toLower
@@ -388,7 +388,7 @@ val pascalCase = fn(s:str, sep:str = ' ') {
 	['l   n'],     'lN',
 )
 @export
-@returns('@str')
+@returns('str')
 val camelCase = fn(s:str, sep:str = ' ') {
 	s
 	/> toLower

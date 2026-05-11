@@ -8,42 +8,42 @@
  * Joins path elements using the platform-specific separator.
  */
 @export
-@returns('@str')
+@returns('str')
 foreign join = fn(...parts)
 
 /**
  * Returns a normalized absolute path.
  */
 @export
-@returns('@str')
+@returns('str')
 foreign abs = fn(path:str)
 
 /**
  * Returns the current process working directory.
  */
 @export
-@returns('@str')
+@returns('str')
 foreign cwd = fn()
 
 /**
  * Returns the entry module directory.
  */
 @export
-@returns('@str')
+@returns('str')
 foreign projectRoot = fn()
 
 /**
  * Returns the library root of the current module namespace.
  */
 @export
-@returns('@str')
+@returns('str')
 foreign libRoot = fn()
 
 /**
  * Returns the directory of the current module file.
  */
 @export
-@returns('@str')
+@returns('str')
 foreign moduleDir = fn()
 
 /**
@@ -51,7 +51,7 @@ foreign moduleDir = fn()
  * useful for config.
  */
 @export
-@returns('@str')
+@returns('str')
 val localize = fn(path:str) match {
 	nil => path
 	_ if path[0:12] == '__project__/' => join(projectRoot(), path[12:])

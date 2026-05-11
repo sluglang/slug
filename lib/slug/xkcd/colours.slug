@@ -17,7 +17,7 @@
  */
 
 @export
-@returns('@map')
+@returns('map')
 val XkcdColourIndex = {
 	cloudyBlue: "#acc2d9",
 	darkPastelGreen: "#56ae57",

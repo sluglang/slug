@@ -164,7 +164,7 @@ val sampleTimesPerIter = fn(workFn, iters, samples, overheadPerIter) {
  * @effects('time')
  */
 @export
-@returns('@map')
+@returns('map')
 @effects('time')
 val micro = fn(
 	name:str,
@@ -212,7 +212,7 @@ val micro = fn(
  * ```
  */
 @export
-@returns('@nil')
+@returns('nil')
 val printResult = fn(res) {
 	val s = res.stats
 	println(res.name)
@@ -241,7 +241,7 @@ val printResult = fn(res) {
  * @effects('time')
  */
 @export
-@returns('@map')
+@returns('map')
 @effects('time')
 val compare = fn(
 	benches:list,
@@ -286,7 +286,7 @@ val sortByP50 = fn(results) {
  * ```
  */
 @export
-@returns('@nil')
+@returns('nil')
 val printCompareReport = fn(report) {
 	println("Benchmark report")
 	report.results /> map(fn(r) {

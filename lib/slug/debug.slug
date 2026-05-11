@@ -13,5 +13,5 @@
  * where their string representation would collide.
  */
 @export
-@returns('@str')
+@returns('str')
 foreign ident = fn(value)

@@ -52,7 +52,7 @@ val {*} = import(
  * create a request for testing or manual construction.
  */
 @export
-@returns('@struct(Request)')
+@returns('Request')
 val request = fn(method, path, version = "HTTP/1.1", headers = {}, body = "") {
 	Request {
 		method:    method,
@@ -84,7 +84,7 @@ val request = fn(method, path, version = "HTTP/1.1", headers = {}, body = "") {
  * Throws `RequestError` if headers are incomplete or the request line is malformed.
  */
 @export
-@returns('[@struct(Request), @str]')
+@returns('[Request, str]')
 @throws('@struct(Error{type:RequestError})')
 val parseRequestHeaders = fn(buf) {
 	val i = buf /> indexOf("\r\n\r\n")
@@ -112,7 +112,7 @@ val parseRequestHeaders = fn(buf) {
  * is parsed and the result is available as `req.form`.
  */
 @export
-@returns('@struct(Request)')
+@returns('Request')
 val withBody = fn(req, body) {
 	req copy { body: body } /> parseForm
 }
@@ -123,7 +123,7 @@ val withBody = fn(req, body) {
  * Used by the router to strip path prefixes for subrouters.
  */
 @export
-@returns('@struct(Request)')
+@returns('Request')
 val withPath = fn(req, path) {
 	req copy { path: path }
 }
@@ -132,7 +132,7 @@ val withPath = fn(req, path) {
  * returns a new request with `query` replaced.
  */
 @export
-@returns('@struct(Request)')
+@returns('Request')
 val withQuery = fn(req, query) {
 	req copy { query: query }
 }
@@ -143,7 +143,7 @@ val withQuery = fn(req, query) {
  * Used by the router to inject matched URL parameters (e.g. `:id`).
  */
 @export
-@returns('@struct(Request)')
+@returns('Request')
 val withParams = fn(request, params:map) {
 	request copy { params: params }
 }
@@ -154,7 +154,7 @@ val withParams = fn(request, params:map) {
  * Used by subrouters to remove the `"*"` wildcard param after consuming it.
  */
 @export
-@returns('@struct(Request)')
+@returns('Request')
 val withoutParam = fn(request, param) {
 	request copy { params: request.params /> remove(param) }
 }
@@ -166,7 +166,7 @@ val withoutParam = fn(request, param) {
  * For HTTP/1.1, keep-alive is the default unless `Connection: close` is set.
  */
 @export
-@returns('@bool')
+@returns('bool')
 val shouldKeepAlive = fn(req) {
 	val c = req.headers["connection"]
 	match req.version {
@@ -179,7 +179,7 @@ val shouldKeepAlive = fn(req) {
  * returns true if `x` is a `Request` struct instance.
  */
 @export
-@returns('@bool')
+@returns('bool')
 val isRequest = fn(x) match {
 	Request { method, path } => true
 	_ => false

@@ -2317,3 +2317,40 @@ Validation performed:
 Validation performed:
 - `SLUG_HOME=$(pwd) go run ./cmd/app/main.go doc --dir ./lib --out ./lib/MANIFEST.ai manifest`
 - `SLUG_HOME=$(pwd) go run ./cmd/app/main.go doc --dir ./lib --moduleToc --multiPage --out ./docs/_libraries markdown`
+
+### Type migration follow-up: normalize composite `@returns(...)` expressions
+
+- Extended docs-generator type normalization to recursively convert legacy `@`-prefixed type expressions inside composite return annotations.
+- This now normalizes patterns such as:
+  - `[@num, @str]` -> `[num, str]`
+  - `@chan(@str)` -> `chan(str)`
+  - `@struct(Request)` -> `Request`
+  - `?` -> `any`
+- Updated both generators:
+  - `lib/slug/doc/markdown.slug`
+  - `lib/slug/doc/manifest.slug`
+- Updated remaining legacy unknown return tags in test helpers:
+  - `lib/slug/test.slug` (`@returns('?')` -> `@returns('any')`)
+- Regenerated artifacts:
+  - `lib/MANIFEST.ai`
+  - `docs/_libraries/*.md`
+
+Validation performed:
+- `SLUG_HOME=$(pwd) go run ./cmd/app/main.go doc --dir ./lib --out ./lib/MANIFEST.ai manifest`
+- `SLUG_HOME=$(pwd) go run ./cmd/app/main.go doc --dir ./lib --moduleToc --multiPage --out ./docs/_libraries markdown`
+- Verified no generated signatures contain `:[@...` or `chan(@...)`.
+
+### Source-level returns migration: formal type payloads in `@returns(...)`
+
+- Migrated `@returns('...')` payloads in library source from legacy `@`-prefixed type expressions to formal type expressions.
+- This includes scalar, container, tuple, and struct forms, e.g.:
+  - `@returns('[@num, @str]')` -> `@returns('[num, str]')`
+  - `@returns('@chan(@str)')` -> `@returns('chan(str)')`
+  - `@returns('@struct(Request)')` -> `@returns('Request')`
+  - `@returns('@str|nil')` -> `@returns('str|nil')`
+- Kept tag names (`@returns`, `@throws`, `@export`, etc.) intact; only the type-expression payloads were migrated.
+
+Validation performed:
+- `SLUG_HOME=$(pwd) go run ./cmd/app/main.go doc --dir ./lib --out ./lib/MANIFEST.ai manifest`
+- `SLUG_HOME=$(pwd) go run ./cmd/app/main.go doc --dir ./lib --moduleToc --multiPage --out ./docs/_libraries markdown`
+- Verified generated signatures now reflect formal type payloads (e.g. `[num, str]`, `chan(str)`, `[Request, str]`).

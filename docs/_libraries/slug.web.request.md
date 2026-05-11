@@ -82,7 +82,7 @@ returns true if `x` is a `Request` struct instance.
 
 #### `parseRequestHeaders(buf)`
 ```slug
-fn slug.web.request#parseRequestHeaders(buf):[@struct(Request), @str]
+fn slug.web.request#parseRequestHeaders(buf):[Request, str]
 ```
 
 

@@ -49,7 +49,7 @@
  * returns `true` if `value` has the given tag annotation.
  */
 @export
-@returns('@bool')
+@returns('bool')
 foreign hasTag = fn(value, tag:str)
 
 /**
@@ -59,7 +59,7 @@ foreign hasTag = fn(value, tag:str)
  * Returns `[""]` for tags with no arguments (e.g. `@export`).
  */
 @export
-@returns('@list')
+@returns('list')
 foreign getTag = fn(value, tag:str)
 
 /**
@@ -70,7 +70,7 @@ foreign getTag = fn(value, tag:str)
  * to include non-exported bindings.
  */
 @export
-@returns('@map')
+@returns('map')
 foreign searchModuleTags = fn(module:str, tag:str, includePrivate:bool = false)
 
 /**
@@ -91,7 +91,7 @@ foreign searchModuleTags = fn(module:str, tag:str, includePrivate:bool = false)
  * descriptors.
  */
 @export
-@returns('@map')
+@returns('map')
 foreign describe = fn(value)
 
 /**
@@ -102,7 +102,7 @@ foreign describe = fn(value)
  * preserved when symbols are imported via maps.
  */
 @export
-@returns('@map')
+@returns('map')
 foreign describeSymbol = fn(module:str, symbol:str)
 
 /**
@@ -113,5 +113,5 @@ foreign describeSymbol = fn(module:str, symbol:str)
  * as a short description; subsequent paragraphs provide extended docs.
  */
 @export
-@returns('@str')
+@returns('str')
 foreign moduleDocs = fn(module:str)

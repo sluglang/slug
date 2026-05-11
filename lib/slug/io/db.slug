@@ -70,7 +70,7 @@
  * @effects('db')
  */
 @export
-@returns('@num')
+@returns('num')
 foreign connect = fn(connectionString:str, driver:str)
 
 /**
@@ -82,7 +82,7 @@ foreign connect = fn(connectionString:str, driver:str)
  * @effects('db')
  */
 @export
-@returns('@list')
+@returns('list')
 foreign query = fn(connection:num, sql:str, ...params)
 
 /**
@@ -94,7 +94,7 @@ foreign query = fn(connection:num, sql:str, ...params)
  * @effects('db')
  */
 @export
-@returns('@map')
+@returns('map')
 foreign exec = fn(connection:num, sql:str, ...params)
 
 /**
@@ -106,7 +106,7 @@ foreign exec = fn(connection:num, sql:str, ...params)
  * @effects('db')
  */
 @export
-@returns('@num')
+@returns('num')
 foreign begin = fn(connection:num)
 
 /**
@@ -115,7 +115,7 @@ foreign begin = fn(connection:num)
  * @effects('db')
  */
 @export
-@returns('@num')
+@returns('num')
 foreign commit = fn(connection:num)
 
 /**
@@ -124,7 +124,7 @@ foreign commit = fn(connection:num)
  * @effects('db')
  */
 @export
-@returns('@num')
+@returns('num')
 foreign rollback = fn(connection:num)
 
 /**

@@ -30,15 +30,15 @@ val {*} = import(
 // --- raw variants:bytes (foreign) ---
 
 @export
-@returns('@bytes')
+@returns('bytes')
 foreign md5 = fn(bytes:bytes);
 
 @export
-@returns('@bytes')
+@returns('bytes')
 foreign sha256 = fn(bytes:bytes);
 
 @export
-@returns('@bytes')
+@returns('bytes')
 foreign sha512 = fn(bytes:bytes);
 
 // --- convenience:str variants ---
@@ -54,7 +54,7 @@ foreign sha512 = fn(bytes:bytes);
 	[""], "d41d8cd98f00b204e9800998ecf8427e",
 )
 @export
-@returns('@str')
+@returns('str')
 val md5 = fn(str:str) {
 	str /> strToBytes /> md5 /> bytesToHexStr
 }
@@ -67,7 +67,7 @@ val md5 = fn(str:str) {
 	[""], "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
 )
 @export
-@returns('@str')
+@returns('str')
 val sha256 = fn(str:str) {
 	str /> strToBytes /> sha256 /> bytesToHexStr
 }
@@ -80,7 +80,7 @@ val sha256 = fn(str:str) {
 	[""], "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e",
 )
 @export
-@returns('@str')
+@returns('str')
 val sha512 = fn(str:str) {
 	str /> strToBytes /> sha512 /> bytesToHexStr
 }
@@ -92,7 +92,7 @@ val sha512 = fn(str:str) {
 	["hello", "slug"], "NB9NMraxEE8IBLRWWoBShv99Pclb8b2Qqt6KxykFxx0=",
 )
 @export
-@returns('@str')
+@returns('str')
 val hmacSha256 = fn(message:str, secret:str) {
 	message /> strToBytes /> hmacSha256(strToBytes(secret)) /> base64Encode
 }
@@ -104,7 +104,7 @@ val hmacSha256 = fn(message:str, secret:str) {
 	["hello", "slug"], "341f4d32b6b1104f0804b4565a805286ff7d3dc95bf1bd90aade8ac72905c71d",
 )
 @export
-@returns('@str')
+@returns('str')
 val hmacSha256Hex = fn(message:str, secret:str) {
 	message /> strToBytes /> hmacSha256(strToBytes(secret)) /> bytesToHexStr
 }
@@ -113,7 +113,7 @@ val hmacSha256Hex = fn(message:str, secret:str) {
  * returns the HMAC-SHA256 of a raw byte message using a raw byte key.
  */
 @export
-@returns('@bytes')
+@returns('bytes')
 val hmacSha256 = fn(message:bytes, secret:bytes) {
 	calculateHmacSignature(message, secret, 64, sha256)
 }
@@ -125,7 +125,7 @@ val hmacSha256 = fn(message:bytes, secret:bytes) {
 	["hello", "slug"], "Yddv60iFAaAuAgusykYLW2fFE1LP8t14xw2ghx0VseQJAwANJ+OkKzRhoZltwUs8LqpdmtPR4lBbsW+5M+Ugkw==",
 )
 @export
-@returns('@str')
+@returns('str')
 val hmacSha512 = fn(message:str, secret:str) {
 	message /> strToBytes /> hmacSha512(strToBytes(secret)) /> base64Encode
 }
@@ -137,7 +137,7 @@ val hmacSha512 = fn(message:str, secret:str) {
 	["hello", "slug"], "61d76feb488501a02e020bacca460b5b67c51352cff2dd78c70da0871d15b1e40903000d27e3a42b3461a1996dc14b3c2eaa5d9ad3d1e2505bb16fb933e52093",
 )
 @export
-@returns('@str')
+@returns('str')
 val hmacSha512Hex = fn(message:str, secret:str) {
 	message /> strToBytes /> hmacSha512(strToBytes(secret)) /> bytesToHexStr
 }
@@ -146,7 +146,7 @@ val hmacSha512Hex = fn(message:str, secret:str) {
  * returns the HMAC-SHA512 of a raw byte message using a raw byte key.
  */
 @export
-@returns('@bytes')
+@returns('bytes')
 val hmacSha512 = fn(message:bytes, secret:bytes) {
 	calculateHmacSignature(message, secret, 128, sha512)
 }

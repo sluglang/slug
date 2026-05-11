@@ -73,7 +73,7 @@ findAllGroups("<a href="foo">bar</a>", "<a href="(.*?)">(.*?)</a>")  // => [["<a
 
 #### `indexOf(str, pattern, index)`
 ```slug
-fn slug.regex#indexOf(str:str, pattern:str, index:num = 0):[@list, @list]
+fn slug.regex#indexOf(str:str, pattern:str, index:num = 0):[list, list]
 ```
 
 

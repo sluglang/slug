@@ -16,7 +16,7 @@ absent tags produce no output.
 Supported tags
 
 On functions:
-  @returns('@type')       return type annotation; rendered on the signature line
+  @returns('type')       return type annotation; rendered on the signature line
   @effects('fs io ...')   space-separated effect labels; rendered as "effects: ..."
   @throws('@type')        thrown error type; rendered under "errors:" block
   @throwsDesc('...')      cause description paired with @throws; appended to thrown line

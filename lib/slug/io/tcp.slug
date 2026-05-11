@@ -46,7 +46,7 @@
  * @effects('io net')
  */
 @export
-@returns('@num')
+@returns('num')
 foreign bind = fn(addr:str, port:num)
 
 /**
@@ -58,7 +58,7 @@ foreign bind = fn(addr:str, port:num)
  * @effects('io net')
  */
 @export
-@returns('@num')
+@returns('num')
 foreign accept = fn(listener:num)
 
 /**
@@ -69,7 +69,7 @@ foreign accept = fn(listener:num)
  * @effects('io net')
  */
 @export
-@returns('@num')
+@returns('num')
 foreign connect = fn(addr:str, port:num)
 
 /**
@@ -80,7 +80,7 @@ foreign connect = fn(addr:str, port:num)
  * @effects('io net')
  */
 @export
-@returns('@str')
+@returns('str')
 foreign read = fn(stream:num, maxBytes:num)
 
 /**
@@ -91,7 +91,7 @@ foreign read = fn(stream:num, maxBytes:num)
  * @effects('io net')
  */
 @export
-@returns('@num')
+@returns('num')
 foreign write = fn(stream:num, data:str)
 
 /**
@@ -100,5 +100,5 @@ foreign write = fn(stream:num, data:str)
  * @effects('io net')
  */
 @export
-@returns('@num')
+@returns('num')
 foreign close = fn(handle:num)

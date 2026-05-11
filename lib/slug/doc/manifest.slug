@@ -11,7 +11,7 @@
  * Supported tags
  *
  * On functions:
- *   @returns('@type')       return type annotation; rendered on the signature line
+ *   @returns('type')       return type annotation; rendered on the signature line
  *   @effects('fs io ...')   space-separated effect labels; rendered as "effects: ..."
  *   @throws('@type')        thrown error type; rendered under "errors:" block
  *   @throwsDesc('...')      cause description paired with @throws; appended to thrown line
@@ -60,7 +60,7 @@ val { describeSymbol } = import("slug.meta",)
  * pass the full dotted module names as they would appear in an import statement.
  */
 @export
-@returns('@str')
+@returns('str')
 val manifest = fn(moduleNames:list) {
 	val sortedMods = moduleNames /> sort
 
@@ -99,14 +99,23 @@ val normalizeTypeExpr = fn(v) {
 		nil => nil
 		'?' => 'any'
 		_ => {
-			match startsWith(v, '@struct(') && endsWith(v, ')') {
-				true  => v[8:len(v)-1]
-				false => {
-					match startsWith(v, '@') {
-						true  => v[1:]
-						false => v
-					}
-				}
+			val s = trim(v)
+			if (startsWith(s, '[') && endsWith(s, ']')) {
+				val inner = s[1:len(s)-1]
+				'[' + (inner /> split(',') /> map(fn(x) { normalizeTypeExpr(trim(x)) }) /> join(', ')) + ']'
+			} else if (indexOf(s, '|') >= 0) {
+				s /> split('|') /> map(fn(x) { normalizeTypeExpr(trim(x)) }) /> join('|')
+			} else if (startsWith(s, '@chan(') && endsWith(s, ')')) {
+				'chan(' + normalizeTypeExpr(s[6:len(s)-1]) + ')'
+			} else if (startsWith(s, 'chan(') && endsWith(s, ')')) {
+				'chan(' + normalizeTypeExpr(s[5:len(s)-1]) + ')'
+			} else if (startsWith(s, '@struct(') && endsWith(s, ')')) {
+				val inner = trim(s[8:len(s)-1])
+				if (startsWith(inner, '"') && endsWith(inner, '"')) { inner[1:len(inner)-1] } else { inner }
+			} else if (startsWith(s, '@')) {
+				s[1:]
+			} else {
+				s
 			}
 		}
 	}

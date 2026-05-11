@@ -43,7 +43,7 @@ val {*} = import(
  * queued before blocking.
  */
 @export
-@returns('@chan')
+@returns('chan')
 foreign chan = fn(capacity:num = 0)
 
 /**

@@ -15,7 +15,7 @@
     ["hello slug"], 0x"68656c6c6f20736c7567",
 )
 @export
-@returns('@bytes')
+@returns('bytes')
 foreign strToBytes = fn(s:str)
 
 
@@ -27,7 +27,7 @@ foreign strToBytes = fn(s:str)
     [0x"68656c6c6f20736c7567"], "hello slug",
 )
 @export
-@returns('@str')
+@returns('str')
 foreign bytesToStr = fn(b:bytes)
 
 
@@ -40,7 +40,7 @@ foreign bytesToStr = fn(b:bytes)
     ["a8ff04"], 0x"a8ff04",
 )
 @export
-@returns('@bytes')
+@returns('bytes')
 foreign hexStrToBytes = fn(hex:str)
 
 
@@ -52,7 +52,7 @@ foreign hexStrToBytes = fn(hex:str)
     [0x"68656c6c6f20736c7567"], "68656c6c6f20736c7567",
 )
 @export
-@returns('@str')
+@returns('str')
 foreign bytesToHexStr = fn(b:bytes)
 
 
@@ -64,7 +64,7 @@ foreign bytesToHexStr = fn(b:bytes)
     ["aGVsbG8gc2x1Zw=="], 0x"68656c6c6f20736c7567",
 )
 @export
-@returns('@bytes')
+@returns('bytes')
 foreign base64Decode = fn(s:str)
 
 
@@ -76,7 +76,7 @@ foreign base64Decode = fn(s:str)
     [0x"68656c6c6f20736c7567"], "aGVsbG8gc2x1Zw==",
 )
 @export
-@returns('@str')
+@returns('str')
 foreign base64Encode = fn(b:bytes)
 
 
@@ -87,7 +87,7 @@ foreign base64Encode = fn(b:bytes)
     [0x"ff", 3], 0x"ffffff",
 )
 @export
-@returns('@bytes')
+@returns('bytes')
 val repeat = fn(b:bytes, count:num, acc:bytes = 0x"") match {
     [_, 0, ...] => acc
     [...] => recur(b, count - 1, acc + b)
@@ -101,7 +101,7 @@ val repeat = fn(b:bytes, count:num, acc:bytes = 0x"") match {
     [0x"a8ff04"], [168, 255, 4],
 )
 @export
-@returns('@list')
+@returns('list')
 val bytesToNumbers = fn(b:bytes, i = 0, acc = []) match {
     [b, ...] if len(b) == i => acc
     [b, ...]                => recur(b, i + 1, acc :+ b[i])

@@ -17,7 +17,7 @@
 	["123", "\d+"], true
 )
 @export
-@returns('@bool')
+@returns('bool')
 foreign matches = fn(str:str, pattern:str)
 
 /**
@@ -29,7 +29,7 @@ foreign matches = fn(str:str, pattern:str)
  * for capture groups.
  */
 @export
-@returns('[@list, @list]')
+@returns('[list, list]')
 foreign indexOf = fn(str:str, pattern:str, index:num = 0)
 
 /**
@@ -39,7 +39,7 @@ foreign indexOf = fn(str:str, pattern:str, index:num = 0)
 	["1|2|3", "\|"], ["1", "2", "3"]
 )
 @export
-@returns('@list')
+@returns('list')
 foreign split = fn(str:str, pattern:str)
 
 /**
@@ -50,7 +50,7 @@ foreign split = fn(str:str, pattern:str)
 	["(foo)", "[a-z]+"], ["foo"]
 )
 @export
-@returns('@list')
+@returns('list')
 foreign findAll = fn(str:str, pattern:str)
 
 /**
@@ -63,7 +63,7 @@ foreign findAll = fn(str:str, pattern:str)
 	["<a href=\"foo\">bar</a>", "<a href=\"(.*?)\">(.*?)</a>"], [["<a href=\"foo\">bar</a>", "foo", "bar"]]
 )
 @export
-@returns('@list')
+@returns('list')
 foreign findAllGroups = fn(str:str, pattern:str)
 
 /**
@@ -75,5 +75,5 @@ foreign findAllGroups = fn(str:str, pattern:str)
 	["1|2|3", "\d+", "x"], "x|x|x"
 )
 @export
-@returns('@str')
+@returns('str')
 foreign replaceAll = fn(str:str, pattern:str, repl:str)

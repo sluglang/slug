@@ -50,7 +50,7 @@ Returns `nil` if the variable is not set.
 
 #### `exec(cmd, timeout)`
 ```slug
-fn slug.sys#exec(cmd:str, timeout:num = 0):[@str, @str]
+fn slug.sys#exec(cmd:str, timeout:num = 0):[str, str]
 ```
 
 

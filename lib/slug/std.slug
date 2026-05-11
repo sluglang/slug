@@ -82,14 +82,14 @@
 	[fn(a){a}],     FUNCTION_TYPE,
 )
 @export
-@returns('@sym')
+@returns('sym')
 foreign type = fn(val)
 
 /**
  * returns true if `v` is an instance of a struct (not a struct schema).
  */
 @export
-@returns('@bool')
+@returns('bool')
 var isStructInstance = fn(v) {
 	match type(v) {
 		v if type(v) == STRUCT_TYPE => true
@@ -105,14 +105,14 @@ var isStructInstance = fn(v) {
 	["__not_defined__"], false
 )
 @export
-@returns('@bool')
+@returns('bool')
 foreign isDefined = fn(varName:str)
 
 /**
  * returns the full name of the current module.
  */
 @export
-@returns('@str')
+@returns('str')
 foreign moduleName = fn()
 
 /**
@@ -143,7 +143,7 @@ foreign moduleName = fn()
 	["|{:^10s}|", "Slug"],            "|   Slug   |",
 )
 @export
-@returns('@str')
+@returns('str')
 foreign fmt = fn(str:str, ...args)
 
 /**
@@ -156,7 +156,7 @@ foreign fmt = fn(str:str, ...args)
 	[{k:1}], [:k]
 )
 @export
-@returns('@list')
+@returns('list')
 foreign keys = fn(map)
 
 /**
@@ -168,7 +168,7 @@ foreign keys = fn(map)
 	["Content-Type"], :"Content-Type"
 )
 @export
-@returns('@sym')
+@returns('sym')
 foreign sym = fn(name:str)
 
 /**
@@ -179,7 +179,7 @@ foreign sym = fn(name:str)
 	[sym("a b")],    "a b"
 )
 @export
-@returns('@str')
+@returns('str')
 foreign label = fn(symbol)
 
 /**
@@ -198,7 +198,7 @@ foreign label = fn(symbol)
 	[{}, :k, "v"], {k:"v"}
 )
 @export
-@returns('@map')
+@returns('map')
 foreign put = fn(map:map, key, value)
 
 /**
@@ -210,7 +210,7 @@ foreign put = fn(map:map, key, value)
 	[{k:1}, :j], {k:1}
 )
 @export
-@returns('@map')
+@returns('map')
 foreign remove = fn(map:map, key)
 
 /**
@@ -220,7 +220,7 @@ foreign remove = fn(map:map, key)
 	[[1,2,3], 1, 99], [1,99,3]
 )
 @export
-@returns('@list')
+@returns('list')
 foreign update = fn(list:list, index:num, value)
 
 /**
@@ -230,7 +230,7 @@ foreign update = fn(list:list, index:num, value)
 	[[1,2], 0, 1], [2,1]
 )
 @export
-@returns('@list')
+@returns('list')
 foreign swap = fn(list:list, index1:num, index2:num)
 
 /**
@@ -243,7 +243,7 @@ foreign swap = fn(list:list, index1:num, index2:num)
 	[{}, :k, fn(k, v) { v == nil }],    {k:true}
 )
 @export
-@returns('@map')
+@returns('map')
 val compute = fn(map:map, key, f) {
 	map /> put(key, f(key, map[key]))
 }
@@ -257,7 +257,7 @@ val compute = fn(map:map, key, f) {
 	[[1,2], fn(n) {n * 2}], [2,4]
 )
 @export
-@returns('@list')
+@returns('list')
 val map = fn(vs:list, f:fn, acc = []) match {
 	[[], ...] => acc
 	[[h, ...t], ...] => recur(t, f, acc :+ h /> f())
@@ -273,7 +273,7 @@ val map = fn(vs:list, f:fn, acc = []) match {
 	[[1, 2, 3], fn(n) { if (n % 2 == 0) { [n] } else { [] } }], [2]
 )
 @export
-@returns('@list')
+@returns('list')
 val flatMap = fn(vs:list, f:fn) {
 	vs /> reduce([], fn(acc, v) {
 		match f(v) {
@@ -290,7 +290,7 @@ val flatMap = fn(vs:list, f:fn) {
 	[[1,2,3,4], fn(v) { v % 2 == 0 }], [2,4]
 )
 @export
-@returns('@list')
+@returns('list')
 val filter = fn(vs:list, f:fn, acc:list = []) match {
 	[[], ...] => acc
 	[[h, ...t], ...] if h /> f() => recur(t, f, acc :+ h)
@@ -346,7 +346,7 @@ val filter = fn(vs:list, f:fn, acc:list = []) match {
 	[6, 0, -2],  [6, 4, 2]
 )
 @export
-@returns('@list')
+@returns('list')
 val range = fn(start:num, end:num, step:num = 1, acc:list = []) {
 	if ((start < end && step > 0) || (start > end && step < 0)) {
 		recur(start + step, end, step, acc :+ start)
@@ -368,7 +368,7 @@ val range = fn(start:num, end:num, step:num = 1, acc:list = []) {
  * ```
  */
 @export
-@returns('@fn')
+@returns('fn')
 val counter = fn(start:num = 0) {
 	var count = start - 1
 	fn() { count = count + 1 }
@@ -383,7 +383,7 @@ val counter = fn(start:num = 0) {
 	[["a", "b"], fn(){1}], [["a", 1], ["b", 1]]
 )
 @export
-@returns('@list')
+@returns('list')
 val zipWith = fn(lst:list, f) {
 	lst /> map(fn(v) { [v, f()] })
 }
@@ -398,7 +398,7 @@ val zipWith = fn(lst:list, f) {
 	[["a", "b"]], [["a", 0], ["b", 1]]
 )
 @export
-@returns('@list')
+@returns('list')
 val zipWithIndex = fn(lst:list) {
 	lst /> zipWith(counter(0))
 }
@@ -415,7 +415,7 @@ val zipWithIndex = fn(lst:list) {
 	[[1], [2]],  [[1, 2]]
 )
 @export
-@returns('@list')
+@returns('list')
 val zip = fn(lst1:list, lst2:list, acc = []) {
 	if (len(lst1) == 0 || len(lst2) == 0) {
 		acc
@@ -447,7 +447,7 @@ val zip = fn(lst1:list, lst2:list, acc = []) {
 	["0"],     false
 )
 @export
-@returns('@bool')
+@returns('bool')
 @throws('@struct(Error{type:TypeError})')
 val toBoolean = fn(v) {
 	match v /> type() {
@@ -473,7 +473,7 @@ val toBoolean = fn(v) {
 	["1.1"], 1.1
 )
 @export
-@returns('@num')
+@returns('num')
 foreign parseNumber = fn(value:str)
 
 /**
@@ -490,7 +490,7 @@ foreign parseNumber = fn(value:str)
 	["1.1"], 1.1
 )
 @export
-@returns('@num')
+@returns('num')
 @throws('@struct(Error{type:TypeError})')
 val toNumber = fn(v) {
 	match v /> type() {
@@ -514,7 +514,7 @@ val toNumber = fn(v) {
 	[true],  "true"
 )
 @export
-@returns('@str')
+@returns('str')
 val toString = fn(v) {
 	match v /> type() {
 		^NIL_TYPE    => nil
@@ -537,7 +537,7 @@ val toString = fn(v) {
 	[[[1], [2]], [[1], [2]]], true
 )
 @export
-@returns('@bool')
+@returns('bool')
 val equals = fn(a:list, b:list, idx:num = 0) {
 	if (a == nil || b == nil) {
 		false
@@ -565,7 +565,7 @@ val equals = fn(a:list, b:list, idx:num = 0) {
 	[true, true],  true,
 	[false, true], false,
 )
-@returns('@bool')
+@returns('bool')
 val equals = fn(v1, v2) {
 	v1 == v2
 }
@@ -583,7 +583,7 @@ val equals = fn(v1, v2) {
 	[{k1:1}, {k2:2}],  false
 )
 @export
-@returns('@bool')
+@returns('bool')
 val equals = fn(m1:map, m2:map) {
 	if (m1 == nil || m2 == nil) {
 		return false
@@ -607,7 +607,7 @@ val equals = fn(m1:map, m2:map) {
  * if neither is a struct instance or struct schema.
  */
 @export
-@returns('@bool')
+@returns('bool')
 val structEquals = fn(m1, m2) {
 	if (m1 == nil || m2 == nil) { return false }
 	if (type(m1) != type(m2)) { return false }
@@ -657,7 +657,7 @@ val structEquals = fn(m1, m2) {
  * Compatible with sort comparator contracts.
  */
 @export
-@returns('@num')
+@returns('num')
 val compare = fn(a, b) {
 	if (a < b) { -1 } else if (a > b) { 1 } else { 0 }
 }
@@ -671,7 +671,7 @@ val compare = fn(a, b) {
 	[2, 1], 0
 )
 @export
-@returns('@num')
+@returns('num')
 val zeroIfAbove = fn(a:num, b:num) {
 	if (a < b) { a } else { 0 }
 }

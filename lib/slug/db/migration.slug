@@ -105,7 +105,7 @@ val DefaultEnv  = cfg('environment', [])
  * Returns the connection handle for chaining.
  */
 @export
-@returns('@num')
+@returns('num')
 @throws('@struct(Error{type:MigrationError})')
 val status = fn(conn:num, env:list = DefaultEnv, base:str = DefaultBase) {
 	checkTrackingTable(conn)
@@ -135,7 +135,7 @@ val status = fn(conn:num, env:list = DefaultEnv, base:str = DefaultBase) {
  * Returns the connection handle for chaining.
  */
 @export
-@returns('@num')
+@returns('num')
 @throws('@struct(Error{type:MigrationError})')
 val up = fn(conn:num, env:list = DefaultEnv, base:str = DefaultBase) {
 	checkTrackingTable(conn)
@@ -167,7 +167,7 @@ val up = fn(conn:num, env:list = DefaultEnv, base:str = DefaultBase) {
  * Returns the connection handle for chaining.
  */
 @export
-@returns('@num')
+@returns('num')
 val down = fn(conn:num, step:num = 1, base:str = DefaultBase) {
 	checkTrackingTable(conn)
 	findLatestMigrations(conn, step)

@@ -50,7 +50,7 @@ fn slug.io.stdin#readLine():any
 
 #### `readLines()`
 ```slug
-fn slug.io.stdin#readLines():chan(@str)
+fn slug.io.stdin#readLines():chan(str)
 ```
 
 

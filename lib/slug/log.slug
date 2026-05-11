@@ -180,7 +180,7 @@ val logMsg = fn(logLvl:num, level:num, msg:str, args:list) {
  * ```
  */
 @export
-@returns('@map')
+@returns('map')
 val logger = fn(src:str) {
 	val source = src + ": "
     val lvl    = indexOf(
@@ -216,7 +216,7 @@ val logger = fn(src:str) {
  * @effects('io')
  */
 @export
-@returns('@str|nil')
+@returns('str|nil')
 val trace = fn(message:str, ...args) { logMsg(LogLevel, Trace, message, args) }
 
 /**
@@ -225,7 +225,7 @@ val trace = fn(message:str, ...args) { logMsg(LogLevel, Trace, message, args) }
  * @effects('io')
  */
 @export
-@returns('@str|nil')
+@returns('str|nil')
 val debug = fn(message:str, ...args) { logMsg(LogLevel, Debug, message, args) }
 
 /**
@@ -234,7 +234,7 @@ val debug = fn(message:str, ...args) { logMsg(LogLevel, Debug, message, args) }
  * @effects('io')
  */
 @export
-@returns('@str|nil')
+@returns('str|nil')
 val info = fn(message:str, ...args) { logMsg(LogLevel, Info, message, args) }
 
 /**
@@ -243,7 +243,7 @@ val info = fn(message:str, ...args) { logMsg(LogLevel, Info, message, args) }
  * @effects('io')
  */
 @export
-@returns('@str|nil')
+@returns('str|nil')
 val warn = fn(message:str, ...args) { logMsg(LogLevel, Warn, message, args) }
 
 /**
@@ -252,7 +252,7 @@ val warn = fn(message:str, ...args) { logMsg(LogLevel, Warn, message, args) }
  * @effects('io')
  */
 @export
-@returns('@str|nil')
+@returns('str|nil')
 val error = fn(message:str, ...args) { logMsg(LogLevel, Error, message, args) }
 
 /**

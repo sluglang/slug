@@ -307,22 +307,22 @@ fn slug.io.fs#write(handle:num, content:str):num
 fn slug.io.fs#writeFile(contents:str, path:str):nil
   desc: "writes `contents` to a file, creating or truncating it."
 
-fn slug.io.http#delete(url:str, headers:map = {}):[@num, @str]
+fn slug.io.http#delete(url:str, headers:map = {}):[num, str]
   desc: "makes a DELETE request and returns `[status, body]`."
 
-fn slug.io.http#get(url:str, headers:map = {}):[@num, @str]
+fn slug.io.http#get(url:str, headers:map = {}):[num, str]
   desc: "makes a GET request and returns `[status, body]`."
 
-fn slug.io.http#patch(body:str, url:str, headers:map = {}):[@num, @str]
+fn slug.io.http#patch(body:str, url:str, headers:map = {}):[num, str]
   desc: "makes a PATCH request and returns `[status, body]`."
 
-fn slug.io.http#post(body:str, url:str, headers:map = {}):[@num, @str]
+fn slug.io.http#post(body:str, url:str, headers:map = {}):[num, str]
   desc: "makes a POST request and returns `[status, body]`."
 
-fn slug.io.http#put(body:str, url:str, headers:map = {}):[@num, @str]
+fn slug.io.http#put(body:str, url:str, headers:map = {}):[num, str]
   desc: "makes a PUT request and returns `[status, body]`."
 
-fn slug.io.http#request(method:str, url:str, body:str = "", headers:map = {}, timeout:num = 30000):[@num, @str]
+fn slug.io.http#request(method:str, url:str, body:str = "", headers:map = {}, timeout:num = 30000):[num, str]
   desc: "makes an HTTP request and returns `[status, body]`."
 
 fn slug.io.http#urlDecode(str:str):any
@@ -340,7 +340,7 @@ fn slug.io.stdin#prompt(prompt:str):str
 
 fn slug.io.stdin#readLine():any
 
-fn slug.io.stdin#readLines():chan(@str)
+fn slug.io.stdin#readLines():chan(str)
   desc: "Returns a shared singleton channel of stdin line events."
 
 fn slug.io.tcp#accept(listener:num):num
@@ -639,7 +639,7 @@ fn slug.regex#findAll(str:str, pattern:str):list
 fn slug.regex#findAllGroups(str:str, pattern:str):list
   desc: "returns a list of all matches including capture groups."
 
-fn slug.regex#indexOf(str:str, pattern:str, index:num = 0):[@list, @list]
+fn slug.regex#indexOf(str:str, pattern:str, index:num = 0):[list, list]
   desc: "returns the byte index range of the first match of `pattern` in `str` starting from `index`, as `[start_end:list, group_ranges:list]`."
 
 fn slug.regex#matches(str:str, pattern:str):bool
@@ -874,7 +874,7 @@ fn slug.sys#env(str:str):str
   desc: "reads an environment variable by name."
   effects: io
 
-fn slug.sys#exec(cmd:str, timeout:num = 0):[@str, @str]
+fn slug.sys#exec(cmd:str, timeout:num = 0):[str, str]
   desc: "runs a shell command synchronously and returns `[stdout, stderr]`."
   effects: io
 
@@ -1211,7 +1211,7 @@ struct slug.web.request#Request{method:str, path:str, version:str, headers:map, 
 fn slug.web.request#isRequest(x):bool
   desc: "returns true if `x` is a `Request` struct instance."
 
-fn slug.web.request#parseRequestHeaders(buf):[@struct(Request), @str]
+fn slug.web.request#parseRequestHeaders(buf):[Request, str]
   desc: "parses the headers section of a raw HTTP request buffer."
   errors:
     thrown: Error{type:RequestError}

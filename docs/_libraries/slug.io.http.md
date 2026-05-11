@@ -50,7 +50,7 @@ encode(payload) /> post("https://api.example.com/data")
 
 #### `delete(url, headers)`
 ```slug
-fn slug.io.http#delete(url:str, headers:map = {}):[@num, @str]
+fn slug.io.http#delete(url:str, headers:map = {}):[num, str]
 ```
 
 
@@ -67,7 +67,7 @@ makes a DELETE request and returns `[status, body]`.
 
 #### `get(url, headers)`
 ```slug
-fn slug.io.http#get(url:str, headers:map = {}):[@num, @str]
+fn slug.io.http#get(url:str, headers:map = {}):[num, str]
 ```
 
 
@@ -84,7 +84,7 @@ makes a GET request and returns `[status, body]`.
 
 #### `patch(body, url, headers)`
 ```slug
-fn slug.io.http#patch(body:str, url:str, headers:map = {}):[@num, @str]
+fn slug.io.http#patch(body:str, url:str, headers:map = {}):[num, str]
 ```
 
 
@@ -104,7 +104,7 @@ Note: `body` is the first argument to support call-chain style.
 
 #### `post(body, url, headers)`
 ```slug
-fn slug.io.http#post(body:str, url:str, headers:map = {}):[@num, @str]
+fn slug.io.http#post(body:str, url:str, headers:map = {}):[num, str]
 ```
 
 
@@ -125,7 +125,7 @@ Note: `body` is the first argument to support call-chain style:
 
 #### `put(body, url, headers)`
 ```slug
-fn slug.io.http#put(body:str, url:str, headers:map = {}):[@num, @str]
+fn slug.io.http#put(body:str, url:str, headers:map = {}):[num, str]
 ```
 
 
@@ -145,7 +145,7 @@ Note: `body` is the first argument to support call-chain style.
 
 #### `request(method, url, body, headers, timeout)`
 ```slug
-fn slug.io.http#request(method:str, url:str, body:str = "", headers:map = {}, timeout:num = 30000):[@num, @str]
+fn slug.io.http#request(method:str, url:str, body:str = "", headers:map = {}, timeout:num = 30000):[num, str]
 ```
 
 

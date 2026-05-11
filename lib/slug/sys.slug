@@ -21,7 +21,7 @@
  */
 @export
 @effects('io')
-@returns('@str')
+@returns('str')
 foreign env = fn(str:str)
 
 /**
@@ -33,7 +33,7 @@ foreign env = fn(str:str)
  */
 @export
 @effects('io')
-@returns('@str')
+@returns('str')
 foreign setEnv = fn(key:str, value:str)
 
 /**
@@ -57,7 +57,7 @@ foreign exit = fn(exitCode:num)
  */
 @export
 @effects('io')
-@returns('[@str, @str]')
+@returns('[str, str]')
 foreign exec = fn(cmd:str, timeout:num = 0)
 
 /**
@@ -71,7 +71,7 @@ foreign exec = fn(cmd:str, timeout:num = 0)
  */
 @export
 @effects('io')
-@returns('@num')
+@returns('num')
 foreign spawnProc = fn(cmd:list)
 
 /**
@@ -84,7 +84,7 @@ foreign spawnProc = fn(cmd:list)
  */
 @export
 @effects('io')
-@returns('@num')
+@returns('num')
 foreign waitProc = fn(handle:num, timeout:num = 0)
 
 /**
@@ -96,5 +96,5 @@ foreign waitProc = fn(handle:num, timeout:num = 0)
  */
 @export
 @effects('io')
-@returns('@bool')
+@returns('bool')
 foreign killProc = fn(handle:num)

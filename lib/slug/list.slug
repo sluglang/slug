@@ -26,7 +26,7 @@ val {*} = import(
 	[["c","a","b"], compare], ["a","b","c"]
 )
 @export
-@returns('@list')
+@returns('list')
 foreign sortWithComparator = fn(lst:list, comparator:fn)
 
 /**
@@ -37,7 +37,7 @@ foreign sortWithComparator = fn(lst:list, comparator:fn)
  * `sortWithComparator` instead.
  */
 @export
-@returns('@list')
+@returns('list')
 val sort = fn(lst:list) {
 	sortWithComparator(lst, compare)
 }
@@ -55,7 +55,7 @@ val sort = fn(lst:list) {
 	[[[1, 2], [3], [4, 5]]], [1, 2, 3, 4, 5],
 )
 @export
-@returns('@list')
+@returns('list')
 val flatten = fn(lsts:list) {
 	val f = fn(a, b) {
 		match b {
@@ -77,7 +77,7 @@ val flatten = fn(lsts:list) {
 	[[1, 2], 9], -1
 )
 @export
-@returns('@num')
+@returns('num')
 val indexOf = fn(list:list, value, idx:num = 0) {
 	if (idx >= len(list)) {
 		-1
@@ -98,7 +98,7 @@ val indexOf = fn(list:list, value, idx:num = 0) {
 	[[1,2,3], 5], [1,2,3]
 )
 @export
-@returns('@list')
+@returns('list')
 val removeValue = fn(list:list, value) {
 	match indexOf(list, value) {
 		i if i >= 0 => list[0:i] + list[i + 1:]
@@ -115,7 +115,7 @@ val removeValue = fn(list:list, value) {
  */
 @export
 @effects('random')
-@returns('@list')
+@returns('list')
 val shuffle = fn(list:list) {
 	val step = fn(list, i) {
 		if (i == 0) {
@@ -139,7 +139,7 @@ val shuffle = fn(list:list) {
 	["123"], ["1", "2", "3"]
 )
 @export
-@returns('@list')
+@returns('list')
 val asList = fn(chars:str, i:num = 0, acc:list = []) {
 	if (chars == nil) {
 		[]
