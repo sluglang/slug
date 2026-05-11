@@ -1741,3 +1741,29 @@ val a = ~0x"00ff"
 		t.Fatalf("expected no semantic errors for bytes bit-not operator, got: %v", errs)
 	}
 }
+
+func TestSemanticRejectsMalformedListTypeAnnotation(t *testing.T) {
+	input := `
+val zipWithIndex = fn(lst:list):list<any, str> {
+  lst /> zipWith(counter(0))
+}
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+	})
+	if len(warns) > 0 {
+		t.Fatalf("expected no warnings, got: %v", warns)
+	}
+	if len(errs) == 0 {
+		t.Fatal("expected malformed list annotation error, got none")
+	}
+	if !containsError(errs, "list expects exactly one type argument") {
+		t.Fatalf("expected list arity diagnostic, got: %v", errs)
+	}
+}

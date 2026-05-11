@@ -365,7 +365,7 @@ val counter = fn(start:num = 0):fn {
 	[["a", "b"], fn(){1}], [["a", 1], ["b", 1]]
 )
 @export
-val zipWith = fn(lst:list, f):list {
+val zipWith = fn(lst:list, f):list<[any, any]> {
 	lst /> map(fn(v) { [v, f()] })
 }
 
@@ -379,7 +379,7 @@ val zipWith = fn(lst:list, f):list {
 	[["a", "b"]], [["a", 0], ["b", 1]]
 )
 @export
-val zipWithIndex = fn(lst:list):list {
+val zipWithIndex = fn(lst:list):list<[any, num]> {
 	lst /> zipWith(counter(0))
 }
 
@@ -395,7 +395,7 @@ val zipWithIndex = fn(lst:list):list {
 	[[1], [2]],  [[1, 2]]
 )
 @export
-val zip = fn(lst1:list, lst2:list, acc = []):list {
+val zip = fn(lst1:list, lst2:list, acc = []):list<[any, any]> {
 	if (len(lst1) == 0 || len(lst2) == 0) {
 		acc
 	} else {

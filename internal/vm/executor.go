@@ -1611,7 +1611,7 @@ func (e *Executor) evalCall(argCount int, plan []CallArgSpec, pos int) object.Ob
 		if f, ok := callee.(*object.Foreign); ok && strings.TrimSpace(f.ReturnType) != "" {
 			rt := parseRuntimeDeclaredType(f.ReturnType)
 			if rt != nil && !runtimeObjectMatchesDeclaredType(result, rt) {
-				rtErr := e.returnTypeRuntimeError(pos, "foreign return type mismatch: expected %s, got %s", f.ReturnType, result.Type())
+				rtErr := e.returnTypeRuntimeError(pos, "foreign return type mismatch: expected %s, got %s", f.ReturnType, describeRuntimeObjectType(result))
 				return e.unwindDeferredScopes(rtErr)
 			}
 		}
@@ -1911,7 +1911,7 @@ func (e *Executor) invokeVMFunction(fn *VMFunction, positional []object.Object, 
 		if strings.TrimSpace(fn.ReturnType) != "" {
 			rt := parseRuntimeDeclaredType(fn.ReturnType)
 			if rt != nil && !runtimeObjectMatchesDeclaredType(result, rt) {
-				return e.returnTypeRuntimeError(pos, "function return type mismatch: expected %s, got %s", fn.ReturnType, result.Type())
+				return e.returnTypeRuntimeError(pos, "function return type mismatch: expected %s, got %s", fn.ReturnType, describeRuntimeObjectType(result))
 			}
 		}
 		return result

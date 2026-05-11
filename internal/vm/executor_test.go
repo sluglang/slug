@@ -98,6 +98,21 @@ func TestExecutorRuntimeChecksAnnotatedReturnType(t *testing.T) {
 	}
 }
 
+func TestExecutorRuntimeChecksAnnotatedListReturnTypeUsesFormalShape(t *testing.T) {
+	got := runVM(t, `
+val zipWithIndex = fn():list<[any, str]> {
+  [[1, 0], [2, 1]]
+}
+zipWithIndex()
+`)
+	if got.Type() != object.ERROR_OBJ {
+		t.Fatalf("expected error object, got %T (%s)", got, got.Inspect())
+	}
+	if got.Inspect() == "" || !strings.Contains(got.Inspect(), "got list<[num, num]>") {
+		t.Fatalf("expected formal list type description in error, got %s", got.Inspect())
+	}
+}
+
 func TestExecutorClosureCapture(t *testing.T) {
 	got := runVM(t, "val base = 10\nval addBase = fn(x) { x + base }\naddBase(5)")
 	num, ok := got.(*object.Number)

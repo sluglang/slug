@@ -536,6 +536,10 @@ func (c *typeChecker) parseDeclaredType(raw string) *tnode {
 	}
 	if strings.HasPrefix(s, "list<") && strings.HasSuffix(s, ">") {
 		inner := strings.TrimSpace(s[len("list<") : len(s)-1])
+		parts := splitTypeTopLevel(inner, ',')
+		if len(parts) != 1 {
+			return nil
+		}
 		elem := c.parseDeclaredType(inner)
 		if elem == nil {
 			elem = c.freshUnknown()
@@ -561,18 +565,18 @@ func (c *typeChecker) parseDeclaredType(raw string) *tnode {
 	if strings.HasPrefix(s, "map<") && strings.HasSuffix(s, ">") {
 		inner := strings.TrimSpace(s[len("map<") : len(s)-1])
 		parts := splitTypeTopLevel(inner, ',')
-		if len(parts) == 2 {
-			k := c.parseDeclaredType(parts[0])
-			v := c.parseDeclaredType(parts[1])
-			if k == nil {
-				k = c.freshUnknown()
-			}
-			if v == nil {
-				v = c.freshUnknown()
-			}
-			return c.mapType(k, v)
+		if len(parts) != 2 {
+			return nil
 		}
-		return c.mapType(c.freshUnknown(), c.freshUnknown())
+		k := c.parseDeclaredType(parts[0])
+		v := c.parseDeclaredType(parts[1])
+		if k == nil {
+			k = c.freshUnknown()
+		}
+		if v == nil {
+			v = c.freshUnknown()
+		}
+		return c.mapType(k, v)
 	}
 	if strings.HasPrefix(s, "chan<") && strings.HasSuffix(s, ">") {
 		inner := strings.TrimSpace(s[len("chan<") : len(s)-1])
@@ -672,6 +676,25 @@ func (c *typeChecker) validateSpecialDeclaredType(raw string, pos int, context s
 	}
 	if !c.typeAllowsNil(payload) {
 		c.addDiag(pos, "invalid %s type annotation: channel payload must include nil (use chan<...|nil>)", context)
+	}
+}
+
+func (c *typeChecker) validateDeclaredTypeShape(raw string, pos int, context string) {
+	s := strings.TrimSpace(raw)
+	if s == "" {
+		return
+	}
+	switch {
+	case strings.HasPrefix(s, "list<") && strings.HasSuffix(s, ">"):
+		inner := strings.TrimSpace(s[len("list<") : len(s)-1])
+		if len(splitTypeTopLevel(inner, ',')) != 1 {
+			c.addDiag(pos, "invalid %s type annotation: list expects exactly one type argument", context)
+		}
+	case strings.HasPrefix(s, "map<") && strings.HasSuffix(s, ">"):
+		inner := strings.TrimSpace(s[len("map<") : len(s)-1])
+		if len(splitTypeTopLevel(inner, ',')) != 2 {
+			c.addDiag(pos, "invalid %s type annotation: map expects exactly two type arguments", context)
+		}
 	}
 }
 
@@ -776,6 +799,7 @@ func (c *typeChecker) inferStatement(stmt ast.Statement) *tnode {
 		params := make([]*tnode, 0, len(s.Parameters))
 		for _, p := range s.Parameters {
 			pt := c.freshUnknown()
+			c.validateDeclaredTypeShape(p.Type, s.Token.Position, "parameter")
 			c.validateSpecialDeclaredType(p.Type, s.Token.Position, "parameter")
 			if tt := c.parseDeclaredType(p.Type); tt != nil {
 				pt = tt
@@ -796,6 +820,7 @@ func (c *typeChecker) inferStatement(stmt ast.Statement) *tnode {
 			params = append(params, pt)
 		}
 		ret := c.freshUnknown()
+		c.validateDeclaredTypeShape(s.ReturnType, s.Token.Position, "function return")
 		c.validateSpecialDeclaredType(s.ReturnType, s.Token.Position, "function return")
 		if tt := c.parseDeclaredType(s.ReturnType); tt != nil {
 			c.addConstraint(ret, tt, s.Token.Position, "function return annotation")
@@ -1012,6 +1037,7 @@ func (c *typeChecker) inferExpr(expr ast.Expression) *tnode {
 		return s
 	case *ast.VarExpression:
 		rhs := c.inferExpr(e.Value)
+		c.validateDeclaredTypeShape(e.Type, e.Token.Position, "var")
 		c.validateSpecialDeclaredType(e.Type, e.Token.Position, "var")
 		if tt := c.parseDeclaredType(e.Type); tt != nil {
 			c.addConstraint(rhs, tt, e.Token.Position, "var annotation")
@@ -1030,6 +1056,7 @@ func (c *typeChecker) inferExpr(expr ast.Expression) *tnode {
 		return rhs
 	case *ast.ValExpression:
 		rhs := c.inferExpr(e.Value)
+		c.validateDeclaredTypeShape(e.Type, e.Token.Position, "val")
 		c.validateSpecialDeclaredType(e.Type, e.Token.Position, "val")
 		if tt := c.parseDeclaredType(e.Type); tt != nil {
 			c.addConstraint(rhs, tt, e.Token.Position, "val annotation")
@@ -1136,6 +1163,7 @@ func (c *typeChecker) inferFunctionLiteral(fn *ast.FunctionLiteral) *tnode {
 	c.pushOverride()
 	for _, p := range fn.Parameters {
 		pt := c.freshUnknown()
+		c.validateDeclaredTypeShape(p.Type, p.Name.Token.Position, "parameter")
 		c.validateSpecialDeclaredType(p.Type, p.Name.Token.Position, "parameter")
 		if tt := c.parseDeclaredType(p.Type); tt != nil {
 			pt = tt
@@ -1171,6 +1199,7 @@ func (c *typeChecker) inferFunctionLiteral(fn *ast.FunctionLiteral) *tnode {
 			}
 		}
 	}
+	c.validateDeclaredTypeShape(fn.ReturnType, fn.Token.Position, "function return")
 	c.validateSpecialDeclaredType(fn.ReturnType, fn.Token.Position, "function return")
 	if tt := c.parseDeclaredType(fn.ReturnType); tt != nil {
 		c.addConstraint(ret, tt, fn.Token.Position, "function return annotation")
@@ -1847,6 +1876,7 @@ func (c *typeChecker) registerStructSchema(pattern ast.MatchPattern, value ast.E
 			ft = c.scalar(typeAny)
 		}
 		if strings.TrimSpace(field.Type) != "" {
+			c.validateDeclaredTypeShape(field.Type, field.Token.Position, "struct field")
 			c.validateSpecialDeclaredType(field.Type, field.Token.Position, "struct field")
 			if tt := c.parseDeclaredType(field.Type); tt != nil {
 				c.addConstraint(ft, tt, field.Token.Position, fmt.Sprintf("struct schema type %s.%s", name, field.Name))

@@ -2,6 +2,7 @@ package vm
 
 import (
 	"slug/internal/object"
+	"sort"
 	"strings"
 )
 
@@ -267,4 +268,137 @@ func runtimeObjectMatchesDeclaredType(v object.Object, t *rtType) bool {
 	default:
 		return true
 	}
+}
+
+func describeRuntimeObjectType(v object.Object) string {
+	if v == nil {
+		return "nil"
+	}
+	switch obj := v.(type) {
+	case *object.Nil:
+		return "nil"
+	case *object.Boolean:
+		return "bool"
+	case *object.Number:
+		return "num"
+	case *object.String:
+		return "str"
+	case *object.Bytes:
+		return "bytes"
+	case *object.Symbol:
+		return "sym"
+	case *object.List:
+		return describeRuntimeListType(obj)
+	case *object.Map:
+		return describeRuntimeMapType(obj)
+	case *object.StructValue:
+		if obj.Schema != nil && obj.Schema.Name != "" {
+			return "struct(" + obj.Schema.Name + ")"
+		}
+		return "struct"
+	case *object.StructSchema:
+		if obj.Name != "" {
+			return "struct(" + obj.Name + ")"
+		}
+		return "struct"
+	case *object.Channel:
+		return "chan"
+	case *VMTaskHandle:
+		return "task"
+	case *object.Foreign:
+		return "fn"
+	case *object.FunctionGroup:
+		return "fn"
+	default:
+		switch v.Type() {
+		case object.NIL_OBJ:
+			return "nil"
+		case object.BOOLEAN_OBJ:
+			return "bool"
+		case object.NUMBER_OBJ:
+			return "num"
+		case object.STRING_OBJ:
+			return "str"
+		case object.BYTE_OBJ:
+			return "bytes"
+		case object.SYMBOL_OBJ:
+			return "sym"
+		case object.LIST_OBJ:
+			return "list"
+		case object.MAP_OBJ:
+			return "map"
+		case object.STRUCT_OBJ, object.STRUCT_SCHEMA_OBJ:
+			return "struct"
+		case object.CHANNEL_OBJ:
+			return "chan"
+		case object.TASK_HANDLE_OBJ:
+			return "task"
+		case object.FUNCTION_OBJ, object.FUNCTION_GROUP_OBJ, object.FOREIGN_OBJ:
+			return "fn"
+		default:
+			return strings.ToLower(string(v.Type()))
+		}
+	}
+}
+
+func describeRuntimeListType(list *object.List) string {
+	if list == nil || len(list.Elements) == 0 {
+		return "list<any>"
+	}
+	parts := make([]string, 0, len(list.Elements))
+	for _, el := range list.Elements {
+		parts = append(parts, describeRuntimeObjectType(el))
+	}
+	if allEqualStrings(parts) {
+		if strings.HasPrefix(parts[0], "[") {
+			return "list<" + parts[0] + ">"
+		}
+		if len(parts) <= 4 {
+			return "[" + strings.Join(parts, ", ") + "]"
+		}
+		return "list<" + parts[0] + ">"
+	}
+	if len(parts) <= 4 {
+		return "[" + strings.Join(parts, ", ") + "]"
+	}
+	return "list<any>"
+}
+
+func describeRuntimeMapType(m *object.Map) string {
+	if m == nil || m.Len() == 0 {
+		return "map<any, any>"
+	}
+	keyTypes := map[string]struct{}{}
+	valTypes := map[string]struct{}{}
+	m.ForEach(func(_ object.MapKey, p object.MapPair) bool {
+		keyTypes[describeRuntimeObjectType(p.Key)] = struct{}{}
+		valTypes[describeRuntimeObjectType(p.Value)] = struct{}{}
+		return true
+	})
+	return "map<" + joinTypeSet(keyTypes) + ", " + joinTypeSet(valTypes) + ">"
+}
+
+func joinTypeSet(set map[string]struct{}) string {
+	if len(set) == 0 {
+		return "any"
+	}
+	parts := make([]string, 0, len(set))
+	for k := range set {
+		parts = append(parts, k)
+	}
+	sort.Strings(parts)
+	return strings.Join(parts, "|")
+}
+
+func allEqualStrings(parts []string) bool {
+	if len(parts) == 0 {
+		return true
+	}
+	first := parts[0]
+	for _, part := range parts[1:] {
+		if part != first {
+			return false
+		}
+	}
+	return true
 }

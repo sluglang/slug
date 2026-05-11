@@ -2635,3 +2635,15 @@ Validation performed:
 - Cleaned remaining user-facing library docs to replace legacy `@str`, `@map`, `@list`, `@bool`, `@num`, `@bytes`, `@fn`, and `@sym` prose examples with formal type names.
 - Updated `slug.doc.manifest` documentation examples to use formal syntax in the rendered MANIFEST docs instead of `@type` placeholder examples.
 - Regenerated `lib/MANIFEST.ai` and `docs/_libraries/*.md` after the cleanup.
+
+## 2026-05-11 — Strict List/Map Type-Annotation Arity
+
+- Hardened declared type parsing so `list<...>` annotations accept exactly one type argument and `map<...>` annotations accept exactly two type arguments.
+- Added semantic diagnostics for malformed generic annotations so invalid shapes like `list<any, str>` now fail type checking instead of being treated as loosely-typed lists.
+- Added a semantic regression test covering malformed list annotations under inferred type checking.
+
+## 2026-05-11 — Runtime Return-Type Diagnostic Formatting
+
+- Replaced raw uppercase runtime object tags in return-type mismatch messages with formal runtime type descriptions.
+- Nested list values now render as tuple-like formal shapes when appropriate, so errors report `list<[num, num]>` instead of `LIST`.
+- Added a VM regression test to verify annotated list return-type failures surface the formal runtime shape in the diagnostic.
