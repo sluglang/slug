@@ -2474,3 +2474,54 @@ Validation performed:
 
 Validation performed:
 - `go test ./...`
+
+### Type system enhancement: fixed-length list tuple types `[T1, T2, ...]`
+
+- Added declared-type support for fixed-length list tuples using bracket syntax:
+  - Example: `fn(cmd:str, timeout:num = 0):[str, str]`
+- Semantic checker now parses tuple annotations as a dedicated type shape and validates:
+  - tuple-to-tuple compatibility (length + per-index type)
+  - tuple/list compatibility where applicable for broader flow checks
+  - declared tuple literals for exact length and per-element type
+- Added tuple diagnostics:
+  - `inferred type mismatch (tuple length): expected N, got M`
+  - `inferred type mismatch (tuple element type): A vs B`
+- Parser declared-tag inference now treats bracket tuple declarations as list-like (`@list`) for legacy tag interop.
+
+Files updated:
+- `internal/semantic/typecheck.go`
+- `internal/parser/parser.go`
+- `internal/semantic/analyzer_test.go`
+
+Tests added:
+- `TestSemanticTypeCheckSupportsTupleReturnAnnotation`
+- `TestSemanticTypeCheckRejectsTupleLengthMismatch`
+- `TestSemanticTypeCheckRejectsTupleElementTypeMismatch`
+
+Validation performed:
+- `go test ./internal/semantic ./internal/parser -count=1`
+- `go test ./...`
+
+### Follow-up: tuple return types also enforced on `foreign` functions
+
+- Extended AST and parser support so foreign declarations retain return annotations:
+  - `foreign exec = fn(cmd:str, timeout:num = 0):[str, str]`
+- Parser now captures `ForeignFunctionDeclaration.ReturnType` and supports return-type parsing terminated by either `;` or newline.
+- Semantic type checker now type-binds foreign declarations as callable `fn` values using:
+  - typed parameters (including defaults/tags)
+  - typed return annotations (including tuple returns)
+- This enables tuple return types on foreign functions to participate in normal call-site and annotation checks.
+
+Files updated:
+- `internal/ast/ast.go`
+- `internal/parser/parser.go`
+- `internal/parser/debug_ast_text.go`
+- `internal/parser/debug_ast_json.go`
+- `internal/semantic/typecheck.go`
+- `internal/parser/parser_test.go`
+- `internal/semantic/analyzer_test.go`
+- semantic conformance golden snapshot updated
+
+Validation performed:
+- `go test ./internal/parser ./internal/semantic ./internal/runtime -count=1`
+- `go test ./...`

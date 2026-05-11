@@ -30,7 +30,7 @@
     "errors": 0,
     "warnings": 0,
     "trace_events": {
-      "merge": 584,
+      "merge": 806,
       "refine": 23,
       "union-normalize": 66,
       "widen": 1

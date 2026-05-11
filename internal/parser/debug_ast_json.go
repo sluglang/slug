@@ -372,6 +372,7 @@ func WalkAST(node ast.Node) interface{} {
 			"token":      safeTokenLiteral(n),
 			"name":       WalkAST(n.Name),
 			"parameters": params,
+			"returnType": n.ReturnType,
 		}
 
 	case *ast.SpreadExpression:

@@ -23,6 +23,7 @@ const (
 	typeBytes   typeKind = "bytes"
 	typeSym     typeKind = "sym"
 	typeList    typeKind = "list"
+	typeTuple   typeKind = "tuple"
 	typeMap     typeKind = "map"
 	typeFn      typeKind = "fn"
 	typeTask    typeKind = "task"
@@ -534,6 +535,22 @@ func (c *typeChecker) parseDeclaredType(raw string) *tnode {
 		}
 		return c.listType(elem)
 	}
+	if strings.HasPrefix(s, "[") && strings.HasSuffix(s, "]") {
+		inner := strings.TrimSpace(s[1 : len(s)-1])
+		if inner == "" {
+			return &tnode{kind: typeTuple, params: []*tnode{}}
+		}
+		parts := splitTypeTopLevel(inner, ',')
+		elems := make([]*tnode, 0, len(parts))
+		for _, p := range parts {
+			et := c.parseDeclaredType(p)
+			if et == nil {
+				et = c.freshUnknown()
+			}
+			elems = append(elems, et)
+		}
+		return &tnode{kind: typeTuple, params: elems}
+	}
 	if strings.HasPrefix(s, "map<") && strings.HasSuffix(s, ">") {
 		inner := strings.TrimSpace(s[len("map<") : len(s)-1])
 		parts := splitTypeTopLevel(inner, ',')
@@ -736,6 +753,36 @@ func (c *typeChecker) inferStatement(stmt ast.Statement) *tnode {
 			c.inferStatement(s.Call)
 		}
 		return c.scalar(typeNil)
+	case *ast.ForeignFunctionDeclaration:
+		params := make([]*tnode, 0, len(s.Parameters))
+		for _, p := range s.Parameters {
+			pt := c.freshUnknown()
+			c.validateSpecialDeclaredType(p.Type, s.Token.Position, "parameter")
+			if tt := c.parseDeclaredType(p.Type); tt != nil {
+				c.addConstraint(pt, tt, s.Token.Position, "parameter annotation constraint")
+			}
+			for _, tag := range p.Tags {
+				if tag == nil {
+					continue
+				}
+				if tt := c.cloneScalarTagType(tag.Name); tt != nil {
+					c.addConstraint(pt, tt, s.Token.Position, "parameter tag constraint")
+				}
+			}
+			if p.Default != nil {
+				dt := c.inferExpr(p.Default)
+				c.addConstraint(pt, dt, s.Token.Position, "default argument type")
+			}
+			params = append(params, pt)
+		}
+		ret := c.freshUnknown()
+		c.validateSpecialDeclaredType(s.ReturnType, s.Token.Position, "function return")
+		if tt := c.parseDeclaredType(s.ReturnType); tt != nil {
+			c.addConstraint(ret, tt, s.Token.Position, "function return annotation")
+		}
+		fnType := c.fnType(params, ret, len(s.Parameters) > 0 && s.Parameters[len(s.Parameters)-1].IsVariadic, s.Signature.Min, s.Signature.Max)
+		c.bind(s.Name.Value, fnType)
+		return fnType
 	default:
 		return c.freshUnknown()
 	}
@@ -2266,6 +2313,25 @@ func (c *typeChecker) matchesRefinementTarget(candidate, target *tnode) bool {
 			return true
 		}
 		return c.matchesRefinementTarget(cf.elem, tf.elem)
+	case typeTuple:
+		// Tuple types refine list-like values.
+		if cf.kind == typeList {
+			for _, et := range tf.params {
+				if !c.matchesRefinementTarget(cf.elem, et) {
+					return false
+				}
+			}
+			return true
+		}
+		if cf.kind != typeTuple || len(cf.params) != len(tf.params) {
+			return false
+		}
+		for i := range tf.params {
+			if !c.matchesRefinementTarget(cf.params[i], tf.params[i]) {
+				return false
+			}
+		}
+		return true
 	case typeMap:
 		keyOK := true
 		valOK := true
@@ -2300,6 +2366,16 @@ func (c *typeChecker) sameConcreteType(a, b *tnode) bool {
 		return true
 	case typeList:
 		return c.sameConcreteType(af.elem, bf.elem)
+	case typeTuple:
+		if len(af.params) != len(bf.params) {
+			return false
+		}
+		for i := range af.params {
+			if !c.sameConcreteType(af.params[i], bf.params[i]) {
+				return false
+			}
+		}
+		return true
 	case typeMap:
 		return c.sameConcreteType(af.key, bf.key) && c.sameConcreteType(af.val, bf.val)
 	case typeFn:
@@ -2368,6 +2444,15 @@ func (c *typeChecker) typeSig(t *tnode) string {
 	switch t.kind {
 	case typeList:
 		return "list<" + c.typeSig(t.elem) + ">"
+	case typeTuple:
+		out := "["
+		for i, p := range t.params {
+			if i > 0 {
+				out += ","
+			}
+			out += c.typeSig(p)
+		}
+		return out + "]"
 	case typeMap:
 		return "map<" + c.typeSig(t.key) + "," + c.typeSig(t.val) + ">"
 	case typeFn:
@@ -2426,11 +2511,37 @@ func (c *typeChecker) isCompatible(got, expected *tnode) bool {
 		return true
 	}
 	if g.kind != e.kind {
+		if g.kind == typeTuple && e.kind == typeList {
+			for _, et := range g.params {
+				if !c.isCompatible(et, e.elem) {
+					return false
+				}
+			}
+			return true
+		}
+		if g.kind == typeList && e.kind == typeTuple {
+			for _, et := range e.params {
+				if !c.isCompatible(g.elem, et) {
+					return false
+				}
+			}
+			return true
+		}
 		return false
 	}
 	switch g.kind {
 	case typeList:
 		return c.isCompatible(g.elem, e.elem)
+	case typeTuple:
+		if len(g.params) != len(e.params) {
+			return false
+		}
+		for i := range g.params {
+			if !c.isCompatible(g.params[i], e.params[i]) {
+				return false
+			}
+		}
+		return true
 	case typeMap:
 		return c.isCompatible(g.key, e.key) && c.isCompatible(g.val, e.val)
 	case typeFn:
@@ -2497,11 +2608,29 @@ func (c *typeChecker) isDeclaredCompatible(got, expected *tnode) bool {
 		return g.kind == typeNil && e.kind == typeNil
 	}
 	if g.kind != e.kind {
+		if g.kind == typeTuple && e.kind == typeList {
+			for _, et := range g.params {
+				if !c.isDeclaredCompatible(et, e.elem) {
+					return false
+				}
+			}
+			return true
+		}
 		return false
 	}
 	switch g.kind {
 	case typeList:
 		return c.isDeclaredCompatible(g.elem, e.elem)
+	case typeTuple:
+		if len(g.params) != len(e.params) {
+			return false
+		}
+		for i := range g.params {
+			if !c.isDeclaredCompatible(g.params[i], e.params[i]) {
+				return false
+			}
+		}
+		return true
 	case typeMap:
 		return c.isDeclaredCompatible(g.key, e.key) && c.isDeclaredCompatible(g.val, e.val)
 	case typeFn:
@@ -2535,6 +2664,19 @@ func (c *typeChecker) enforceDeclaredLiteralCompatibility(expr ast.Expression, d
 	switch lit := expr.(type) {
 	case *ast.ListLiteral:
 		if d.kind != typeList {
+			if d.kind != typeTuple {
+				return
+			}
+			if len(lit.Elements) != len(d.params) {
+				c.addDiag(pos, "inferred type mismatch (tuple length): expected %d, got %d", len(d.params), len(lit.Elements))
+				return
+			}
+			for i, item := range lit.Elements {
+				it := c.inferExpr(item)
+				if !c.isDeclaredCompatible(it, d.params[i]) {
+					c.addDiag(pos, "inferred type mismatch (tuple element type): %s vs %s", c.describe(it), c.describe(d.params[i]))
+				}
+			}
 			return
 		}
 		for _, item := range lit.Elements {
@@ -2786,11 +2928,37 @@ func (c *typeChecker) unify(a, b *tnode) bool {
 		return c.bindUnknown(b, a)
 	}
 	if a.kind != b.kind {
+		if a.kind == typeTuple && b.kind == typeList {
+			for _, et := range a.params {
+				if !c.unify(et, b.elem) {
+					return false
+				}
+			}
+			return true
+		}
+		if a.kind == typeList && b.kind == typeTuple {
+			for _, et := range b.params {
+				if !c.unify(a.elem, et) {
+					return false
+				}
+			}
+			return true
+		}
 		return false
 	}
 	switch a.kind {
 	case typeList:
 		return c.unify(a.elem, b.elem)
+	case typeTuple:
+		if len(a.params) != len(b.params) {
+			return false
+		}
+		for i := range a.params {
+			if !c.unify(a.params[i], b.params[i]) {
+				return false
+			}
+		}
+		return true
 	case typeMap:
 		return c.unify(a.key, b.key) && c.unify(a.val, b.val)
 	case typeFn:
@@ -2831,6 +2999,15 @@ func (c *typeChecker) describe(t *tnode) string {
 		return fmt.Sprintf("t%d", t.id)
 	case typeList:
 		return "list<" + c.describe(t.elem) + ">"
+	case typeTuple:
+		out := "["
+		for i, p := range t.params {
+			if i > 0 {
+				out += ", "
+			}
+			out += c.describe(p)
+		}
+		return out + "]"
 	case typeMap:
 		return "map<" + c.describe(t.key) + ", " + c.describe(t.val) + ">"
 	case typeFn:

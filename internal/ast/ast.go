@@ -136,6 +136,7 @@ type ForeignFunctionDeclaration struct {
 	Token      token.Token // The `FOREIGN` token
 	Name       *Identifier // Name of the foreign function
 	Parameters []*FunctionParameter
+	ReturnType string
 	Signature  FSig
 	Doc        string
 	HasDoc     bool
@@ -163,7 +164,12 @@ func (ffd *ForeignFunctionDeclaration) String() string {
 	out.WriteString(ffd.TokenLiteral())
 	out.WriteString("(")
 	out.WriteString(strings.Join(params, ", "))
-	out.WriteString(") ")
+	out.WriteString(")")
+	if strings.TrimSpace(ffd.ReturnType) != "" {
+		out.WriteString(":")
+		out.WriteString(ffd.ReturnType)
+	}
+	out.WriteString(" ")
 
 	out.WriteString(";")
 	return out.String()

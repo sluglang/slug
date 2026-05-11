@@ -410,6 +410,99 @@ val q:chan<str> = chan()
 	}
 }
 
+func TestSemanticTypeCheckSupportsTupleReturnAnnotation(t *testing.T) {
+	input := `
+val execLike = fn(cmd:str, timeout:num = 0):[str, str] {
+  ["ok", ""]
+}
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
+	}
+	if len(errs) > 0 {
+		t.Fatalf("expected no semantic errors for tuple return annotation, got: %v", errs)
+	}
+}
+
+func TestSemanticTypeCheckRejectsTupleLengthMismatch(t *testing.T) {
+	input := `
+val pair:[str, str] = ["a"]
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
+	}
+	if len(errs) == 0 {
+		t.Fatal("expected tuple length mismatch error, got none")
+	}
+	if !containsError(errs, "tuple length") {
+		t.Fatalf("expected tuple length diagnostic, got: %v", errs)
+	}
+}
+
+func TestSemanticTypeCheckRejectsTupleElementTypeMismatch(t *testing.T) {
+	input := `
+val pair:[str, str] = ["a", 1]
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
+	}
+	if len(errs) == 0 {
+		t.Fatal("expected tuple element mismatch error, got none")
+	}
+	if !containsError(errs, "tuple element type") {
+		t.Fatalf("expected tuple element type diagnostic, got: %v", errs)
+	}
+}
+
+func TestSemanticTypeCheckSupportsForeignTupleReturnType(t *testing.T) {
+	input := `
+foreign exec = fn(cmd:str, timeout:num = 0):[str, str];
+val out:[str, str] = exec("echo hi")
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
+	}
+	if len(errs) > 0 {
+		t.Fatalf("expected no semantic errors for foreign tuple return type, got: %v", errs)
+	}
+}
+
 func TestSemanticTypeCheckTraceEmitsEvents(t *testing.T) {
 	input := `
 val f = fn(flag, x) {

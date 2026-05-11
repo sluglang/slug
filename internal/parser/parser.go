@@ -2309,6 +2309,11 @@ func (p *Parser) parseForeignFunctionDeclaration() *ast.ForeignFunctionDeclarati
 
 	foreignFunction.Parameters = p.parseFunctionParameters()
 	foreignFunction.Signature = p.generateSignature(foreignFunction.Parameters)
+	if p.peekTokenIs(token.COLON) {
+		p.nextToken() // consume ')'
+		p.nextToken() // consume ':'
+		foreignFunction.ReturnType = p.parseTypeAnnotationLiteral(token.SEMICOLON, token.NEWLINE)
+	}
 
 	if p.peekTokenIs(token.SEMICOLON) {
 		p.nextToken()
@@ -2454,6 +2459,9 @@ func inferredTagsFromDeclaredType(raw string) []*ast.Tag {
 		return nil
 	}
 	ident := decl
+	if strings.HasPrefix(ident, "[") && strings.HasSuffix(ident, "]") {
+		return []*ast.Tag{{Name: "@list"}}
+	}
 	if i := strings.Index(ident, "<"); i >= 0 {
 		ident = strings.TrimSpace(ident[:i])
 	}

@@ -1006,13 +1006,14 @@ func TestDeclarationAndReturnTypeAnnotations(t *testing.T) {
 val a:str = ""
 var b:list<num>|nil = []
 val f = fn(x:num):num { x }
+foreign exec = fn(cmd:str, timeout:num = 0):[str, str];
 `
 	l := lexer.New(input)
 	p := New(l, "", input)
 	program := p.ParseProgram()
 	checkParserErrors(t, p)
-	if len(program.Statements) != 3 {
-		t.Fatalf("expected 3 statements, got=%d", len(program.Statements))
+	if len(program.Statements) != 4 {
+		t.Fatalf("expected 4 statements, got=%d", len(program.Statements))
 	}
 	s0 := program.Statements[0].(*ast.ExpressionStatement).Expression.(*ast.ValExpression)
 	if s0.Type != "str" {
@@ -1032,6 +1033,16 @@ val f = fn(x:num):num { x }
 	}
 	if len(fn.Parameters) != 1 || fn.Parameters[0].Type != "num" {
 		t.Fatalf("expected parameter type num, got %#v", fn.Parameters)
+	}
+	s3, ok := program.Statements[3].(*ast.ForeignFunctionDeclaration)
+	if !ok {
+		t.Fatalf("expected foreign function declaration, got %T", program.Statements[3])
+	}
+	if s3.ReturnType != "[str,str]" {
+		t.Fatalf("expected foreign return type [str,str], got %q", s3.ReturnType)
+	}
+	if len(s3.Parameters) != 2 || s3.Parameters[0].Type != "str" || s3.Parameters[1].Type != "num" {
+		t.Fatalf("unexpected foreign parameter types: %#v", s3.Parameters)
 	}
 }
 

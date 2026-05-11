@@ -266,7 +266,11 @@ func RenderASTAsText(node ast.Node, indent int) string {
 		for _, p := range n.Parameters {
 			params = append(params, RenderASTAsText(p, 0))
 		}
-		return fmt.Sprintf("%s%sforeign %s = fn(%s)", sp, renderTags(n.Tags), RenderASTAsText(n.Name, 0), strings.Join(params, ", "))
+		ret := ""
+		if strings.TrimSpace(n.ReturnType) != "" {
+			ret = ":" + n.ReturnType
+		}
+		return fmt.Sprintf("%s%sforeign %s = fn(%s)%s", sp, renderTags(n.Tags), RenderASTAsText(n.Name, 0), strings.Join(params, ", "), ret)
 
 	case *ast.SpreadExpression:
 		return "..." + RenderASTAsText(n.Value, 0)
