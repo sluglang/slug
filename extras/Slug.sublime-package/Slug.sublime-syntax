@@ -78,6 +78,7 @@ contexts:
     # Keywords
     - match: \b(var|val)\b
       scope: storage.type.slug
+      push: var_val_declaration
 
     - match: \b(true|false)\b
       scope: constant.language.boolean.slug
@@ -94,6 +95,11 @@ contexts:
       scope: keyword.control.slug
       push: match_after_keyword
 
+    - match: \b(struct)\b\s*(\{)
+      captures:
+        1: keyword.control.slug
+        2: punctuation.section.braces.begin.slug
+      push: struct_schema
     - match: \b(fn|foreign|struct|copy)\b
       scope: keyword.control.slug
     - match: \b(if)\b
@@ -321,6 +327,11 @@ contexts:
 
   function_params:
     - meta_scope: meta.function.parameters.slug
+    - match: \)(\s*:)
+      captures:
+        1: punctuation.section.parens.end.slug
+        2: punctuation.separator.return-type.slug
+      push: type_expression
     - match: \)
       scope: punctuation.section.parens.end.slug
       pop: true
@@ -332,7 +343,134 @@ contexts:
       scope: keyword.operator.variadic.slug
     - match: ':'
       scope: punctuation.separator.parameter.slug
+      push: type_expression
     - include: main
+
+  var_val_declaration:
+    - meta_scope: meta.declaration.slug
+    - match: =
+      scope: keyword.operator.assignment.slug
+      pop: true
+    - match: \b[_\p{L}\p{M}][_\p{L}\p{M}\p{Nd}]*\b
+      scope: variable.other.slug
+    - match: ':'
+      scope: punctuation.separator.type.annotation.slug
+      push: type_expression
+    - match: ','
+      scope: punctuation.separator.comma.slug
+    - include: main
+
+  struct_schema:
+    - meta_scope: meta.struct.schema.slug
+    - match: \}
+      scope: punctuation.section.braces.end.slug
+      pop: true
+    - match: \b[_\p{L}\p{M}][_\p{L}\p{M}\p{Nd}]*\b
+      scope: entity.name.variable.field.slug
+    - match: ':'
+      scope: punctuation.separator.type.annotation.slug
+      push: type_expression
+    - match: ','
+      scope: punctuation.separator.comma.slug
+    - include: main
+
+  type_expression:
+    - meta_scope: meta.type.annotation.slug
+    - match: \]
+      scope: punctuation.section.brackets.end.slug
+      pop: true
+    - match: \}
+      scope: punctuation.section.braces.end.slug
+      pop: true
+    - match: \)
+      scope: punctuation.section.parens.end.slug
+      pop: true
+    - match: '>'
+      scope: punctuation.definition.type.generic.end.slug
+      pop: true
+    - match: ','
+      scope: punctuation.separator.comma.slug
+    - match: '\|'
+      scope: keyword.operator.logical.slug
+    - match: '\['
+      scope: punctuation.section.brackets.begin.slug
+      push: type_list_expression
+    - match: '<'
+      scope: punctuation.definition.type.generic.begin.slug
+      push: type_generic_expression
+    - match: \b(any|bool|bytes|chan|fn|list|map|num|str|sym|task|struct|nil)\b
+      scope: storage.type.annotation.slug
+    - match: \b[_\p{L}\p{M}][_\p{L}\p{M}\p{Nd}]*\b
+      scope: support.type.slug
+
+  type_list_expression:
+    - meta_scope: meta.type.list.slug
+    - match: '\]'
+      scope: punctuation.section.brackets.end.slug
+      pop: true
+    - match: '<'
+      scope: punctuation.definition.type.generic.begin.slug
+      push: type_generic_expression
+    - match: '\['
+      scope: punctuation.section.brackets.begin.slug
+      push: type_list_expression
+    - match: '\('
+      scope: punctuation.section.parens.begin.slug
+      push: type_paren_expression
+    - match: ','
+      scope: punctuation.separator.comma.slug
+    - match: '\|'
+      scope: keyword.operator.logical.slug
+    - match: \b(any|bool|bytes|chan|fn|list|map|num|str|sym|task|struct|nil)\b
+      scope: storage.type.annotation.slug
+    - match: \b[_\p{L}\p{M}][_\p{L}\p{M}\p{Nd}]*\b
+      scope: support.type.slug
+
+  type_generic_expression:
+    - meta_scope: meta.type.generic.slug
+    - match: '>'
+      scope: punctuation.definition.type.generic.end.slug
+      pop: true
+    - match: '<'
+      scope: punctuation.definition.type.generic.begin.slug
+      push: type_generic_expression
+    - match: '\['
+      scope: punctuation.section.brackets.begin.slug
+      push: type_list_expression
+    - match: '\('
+      scope: punctuation.section.parens.begin.slug
+      push: type_paren_expression
+    - match: ','
+      scope: punctuation.separator.comma.slug
+    - match: '\|'
+      scope: keyword.operator.logical.slug
+    - match: \b(any|bool|bytes|chan|fn|list|map|num|str|sym|task|struct|nil)\b
+      scope: storage.type.annotation.slug
+    - match: \b[_\p{L}\p{M}][_\p{L}\p{M}\p{Nd}]*\b
+      scope: support.type.slug
+
+  type_paren_expression:
+    - meta_scope: meta.type.fn.slug
+    - match: '\)'
+      scope: punctuation.section.parens.end.slug
+      pop: true
+    - match: '\['
+      scope: punctuation.section.brackets.begin.slug
+      push: type_list_expression
+    - match: '<'
+      scope: punctuation.definition.type.generic.begin.slug
+      push: type_generic_expression
+    - match: '\('
+      scope: punctuation.section.parens.begin.slug
+      push: type_paren_expression
+    - match: ','
+      scope: punctuation.separator.comma.slug
+    - match: '\|'
+      scope: keyword.operator.logical.slug
+    - match: \b(any|bool|bytes|chan|fn|list|map|num|str|sym|task|struct|nil)\b
+      scope: storage.type.annotation.slug
+    - match: \b[_\p{L}\p{M}][_\p{L}\p{M}\p{Nd}]*\b
+      scope: support.type.slug
 
   pattern_matching:
     - meta_scope: meta.pattern-matching.slug

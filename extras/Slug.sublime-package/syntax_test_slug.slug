@@ -43,10 +43,59 @@ val annot = fn(@sym s, @chan c) { s }
 //             ^^^^ storage.type.annotation.slug
 //                     ^^^^^ storage.type.annotation.slug
 
+var answer:num = 42
+//^^^ storage.type.slug
+//          ^ punctuation.separator.type.annotation.slug
+//           ^^^ storage.type.annotation.slug
+
+val pair:[str, str] = ["a", "b"]
+//        ^ punctuation.separator.type.annotation.slug
+//         ^ punctuation.section.brackets.begin.slug
+//          ^^^ storage.type.annotation.slug
+//               ^ punctuation.separator.comma.slug
+//                 ^^^ storage.type.annotation.slug
+//                   ^ punctuation.section.brackets.end.slug
+
+val build = fn(input:list<str|nil>):chan<any|nil> { input }
+//             ^ punctuation.separator.parameter.slug
+//              ^^^^ variable.parameter.slug
+//                    ^^^^ storage.type.annotation.slug
+//                        ^ punctuation.definition.type.generic.begin.slug
+//                         ^^^ storage.type.annotation.slug
+//                            ^ keyword.operator.logical.slug
+//                             ^^^ storage.type.annotation.slug
+//                                 ^ punctuation.definition.type.generic.end.slug
+//                                  ^ punctuation.separator.return-type.slug
+//                                   ^^^ storage.type.annotation.slug
+//                                       ^ punctuation.definition.type.generic.begin.slug
+//                                        ^^^ storage.type.annotation.slug
+//                                           ^ keyword.operator.logical.slug
+//                                            ^^^ storage.type.annotation.slug
+//                                                ^ punctuation.definition.type.generic.end.slug
+
 var person = Person{ name: "a" }
 //^^^ storage.type.slug
 //                ^ punctuation.section.braces.begin.slug
 //                          ^ punctuation.section.braces.end.slug
+
+struct {
+  name:str,
+  tags:list<str|nil>,
+}
+//^^^^^^ keyword.control.slug
+//      ^ punctuation.section.braces.begin.slug
+//        ^^^^ entity.name.variable.field.slug
+//            ^ punctuation.separator.type.annotation.slug
+//             ^^^ storage.type.annotation.slug
+//              ^ punctuation.separator.comma.slug
+//        ^^^^ entity.name.variable.field.slug
+//            ^ punctuation.separator.type.annotation.slug
+//             ^^^^ storage.type.annotation.slug
+//                 ^ punctuation.definition.type.generic.begin.slug
+//                  ^^^ storage.type.annotation.slug
+//                     ^ keyword.operator.logical.slug
+//                      ^^^ storage.type.annotation.slug
+//                         ^ punctuation.definition.type.generic.end.slug
 
 var updated = person copy { name: "b" }
 //                     ^^^^ keyword.control.slug

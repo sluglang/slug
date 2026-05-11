@@ -86,7 +86,8 @@
           "match": "\\b(nursery|spawn|select)\\b"
         },
         {"name": "constant.language.boolean.slug", "match": "\\b(true|false)\\b"},
-        {"name": "constant.language.nil.slug", "match": "\\bnil\\b"}
+        {"name": "constant.language.nil.slug", "match": "\\bnil\\b"},
+        {"name": "storage.type.annotation.slug", "match": "\\b(any|bool|bytes|chan|fn|list|map|num|str|sym|task|struct|nil)\\b"}
       ]
     },
     "select_block": {
