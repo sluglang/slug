@@ -772,6 +772,7 @@ type Foreign struct {
 	Tags       map[string]List
 	Parameters []*ast.FunctionParameter
 	ParamIndex map[string]int
+	ReturnType string
 	Fn         ForeignFunction
 	Name       string
 }

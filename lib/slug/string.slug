@@ -24,7 +24,7 @@ val {*} = import(
 	[" slug "],  "slug",
 )
 @export
-foreign trim = fn(str:str):str
+foreign trim = fn(str:str):str|nil
 
 /**
  * removes all leading and trailing occurrences of `prefix` from `s`.
@@ -40,7 +40,7 @@ foreign trim = fn(str:str):str
 	['abxxx', 'xx'],  'abx',
 )
 @export
-val trim = fn(s:str, prefix:str):str {
+val trim = fn(s:str|nil, prefix:str):str|nil {
 	match s {
 		nil => nil
 		_ if s[0:len(prefix)] == prefix           => recur(s[len(prefix):], prefix)
@@ -89,7 +89,7 @@ val lastIndexOf = fn(str:str, seq:str, index:num = 0, prev = -1):num {
 	["slug"], "SLUG",
 )
 @export
-foreign toUpper = fn(str:str):str
+foreign toUpper = fn(str:str):str|nil
 
 /**
  * converts a string to lowercase.
@@ -100,7 +100,7 @@ foreign toUpper = fn(str:str):str
 	["SLUG"], "slug",
 )
 @export
-foreign toLower = fn(str:str):str
+foreign toLower = fn(str:str):str|nil
 
 /**
  * returns the string corresponding to a Unicode code point.
@@ -248,7 +248,7 @@ val join = fn(strs:list, delimiter:str = "", str:str = nil):str match {
 	["E &amp; S", "&amp;", "&"], "E & S",
 )
 @export
-val replaceAll = fn(str:str, replace:str, with:str):str match {
+val replaceAll = fn(str:str|nil, replace:str, with:str):str|nil match {
 	[nil, ...] => nil
 	[...]      => str /> split(replace) /> join(with)
 }

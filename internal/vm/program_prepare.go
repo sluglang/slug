@@ -44,6 +44,7 @@ func PrepareProgram(
 		foreignFn.Tags = make(map[string]object.List)
 		foreignFn.Parameters = ff.Parameters
 		foreignFn.ParamIndex = buildParamIndex(ff.Parameters)
+		foreignFn.ReturnType = ff.ReturnType
 		foreignFn.Name = functionName
 		foreignFn.Signature = ff.Signature
 		isExported := hasExportTag(ff.Tags)

@@ -1174,6 +1174,7 @@ func (c *typeChecker) inferFunctionLiteral(fn *ast.FunctionLiteral) *tnode {
 	c.validateSpecialDeclaredType(fn.ReturnType, fn.Token.Position, "function return")
 	if tt := c.parseDeclaredType(fn.ReturnType); tt != nil {
 		c.addConstraint(ret, tt, fn.Token.Position, "function return annotation")
+		c.enforceFunctionReturnLiteralCompatibility(fn.Body, tt)
 		c.retChecks = append(c.retChecks, declaredReturnCheck{pos: fn.Token.Position, got: ret, expected: tt})
 	}
 	c.popOverride()
@@ -2761,6 +2762,24 @@ func (c *typeChecker) enforceDeclaredLiteralCompatibility(expr ast.Expression, d
 			if !c.isDeclaredCompatible(vt, d.val) {
 				c.addDiag(pos, "inferred type mismatch (map value type): %s vs %s", c.describe(vt), c.describe(d.val))
 			}
+		}
+	}
+}
+
+func (c *typeChecker) enforceFunctionReturnLiteralCompatibility(body *ast.BlockStatement, declared *tnode) {
+	if body == nil || declared == nil {
+		return
+	}
+	for i, stmt := range body.Statements {
+		switch s := stmt.(type) {
+		case *ast.ReturnStatement:
+			c.enforceDeclaredLiteralCompatibility(s.ReturnValue, declared, s.Token.Position)
+		case *ast.ExpressionStatement:
+			if i == len(body.Statements)-1 {
+				c.enforceDeclaredLiteralCompatibility(s.Expression, declared, s.Token.Position)
+			}
+		case *ast.BlockStatement:
+			c.enforceFunctionReturnLiteralCompatibility(s, declared)
 		}
 	}
 }

@@ -2605,3 +2605,13 @@ Validation performed:
 - `go test ./internal/semantic -count=1`
 - `SLUG_HOME=$(pwd) go run ./cmd/app/main.go -log-level error --root ./lib lib/test.slug`
 - `go test ./...`
+## 2026-05-11 — Runtime Return-Type Enforcement Follow-up
+
+- Added runtime declared return-type enforcement for VM and foreign function calls (as a backstop to semantic checking).
+- Added semantic literal return compatibility checks for declared function returns.
+- Fixed library annotation mismatches surfaced by strict return checks:
+  - `slug.mustache#renderCached` now returns `map<any, any>`.
+  - `slug.string#trim`, `slug.string#toUpper`, `slug.string#toLower`, and `slug.string#replaceAll` now declare `...|nil` return types.
+  - `slug.path#localize` now accepts and returns `str|nil`.
+  - `slug.std#toNumber` and `slug.std#toString` now declare `...|nil` return types.
+- Updated semantic conformance golden snapshot after type-flow changes.

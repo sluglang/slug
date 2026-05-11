@@ -45,7 +45,7 @@ foreign moduleDir = fn():str
  * useful for config.
  */
 @export
-val localize = fn(path:str):str match {
+val localize = fn(path:str|nil):str|nil match {
 	nil => path
 	_ if path[0:12] == '__project__/' => join(projectRoot(), path[12:])
 	_ if path[0:12] == '__library__/' => join(libRoot(), path[12:])

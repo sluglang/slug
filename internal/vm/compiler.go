@@ -995,6 +995,7 @@ func (c *compiler) compileFunctionLiteral(node *ast.FunctionLiteral) (*VMFunctio
 	return &VMFunction{
 		Params:     params,
 		ParamIndex: paramIndex,
+		ReturnType: node.ReturnType,
 		Chunk:      child.chunk,
 		Signature:  node.Signature,
 		Parameters: node.Parameters,

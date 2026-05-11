@@ -468,7 +468,7 @@ foreign parseNumber = fn(value:str):num
 )
 @export
 @throws('@struct(Error{type:TypeError})')
-val toNumber = fn(v):num {
+val toNumber = fn(v):num|nil {
 	match v /> type() {
 		^NIL_TYPE    => nil
 		^NUMBER_TYPE => v
@@ -490,7 +490,7 @@ val toNumber = fn(v):num {
 	[true],  "true"
 )
 @export
-val toString = fn(v):str {
+val toString = fn(v):str|nil {
 	match v /> type() {
 		^NIL_TYPE    => nil
 		^STRING_TYPE => v

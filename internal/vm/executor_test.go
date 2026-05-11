@@ -5,6 +5,7 @@ import (
 	"slug/internal/object"
 	"slug/internal/parser"
 	"slug/internal/semantic"
+	"strings"
 	"testing"
 )
 
@@ -84,6 +85,16 @@ func TestExecutorFunctionCall(t *testing.T) {
 	}
 	if num.Value.String() != "42" {
 		t.Fatalf("expected 42, got %s", num.Value.String())
+	}
+}
+
+func TestExecutorRuntimeChecksAnnotatedReturnType(t *testing.T) {
+	got := runVM(t, "val id = fn(x):num { x }\nid(\"oops\")")
+	if got.Type() != object.ERROR_OBJ {
+		t.Fatalf("expected error object, got %T (%s)", got, got.Inspect())
+	}
+	if got.Inspect() == "" || !strings.Contains(got.Inspect(), "function return type mismatch") {
+		t.Fatalf("expected function return type mismatch error, got %s", got.Inspect())
 	}
 }
 

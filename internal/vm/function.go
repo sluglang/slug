@@ -13,6 +13,7 @@ type VMFunction struct {
 	Tags       map[string]object.List
 	Params     []VMParam
 	ParamIndex map[string]int
+	ReturnType string
 	Chunk      *Chunk
 	Closure    *object.Environment
 	Signature  ast.FSig

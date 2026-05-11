@@ -552,6 +552,32 @@ val sum = fn(a:num, b:num):num {
 	}
 }
 
+func TestSemanticTypeCheckRejectsFunctionMapReturnAnnotationMismatch(t *testing.T) {
+	input := `
+val sum = fn(a:num, b:num):map<str, str> {
+  {a: a, b: b}
+}
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
+	}
+	if len(errs) == 0 {
+		t.Fatal("expected map return annotation mismatch error, got none")
+	}
+	if !containsError(errs, "map key type") && !containsError(errs, "map value type") {
+		t.Fatalf("expected map return literal mismatch diagnostic, got: %v", errs)
+	}
+}
+
 func TestSemanticTypeCheckAllowsDeferOnErrorBindingShadow(t *testing.T) {
 	input := `
 val applyTest = fn(err:str) {

@@ -32,7 +32,7 @@
     "trace_events": {
       "merge": 765,
       "refine": 15,
-      "union-normalize": 54,
+      "union-normalize": 56,
       "widen": 1
     }
   },

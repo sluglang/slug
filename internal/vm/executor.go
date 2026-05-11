@@ -1547,6 +1547,7 @@ func (e *Executor) bindClosureIfNeeded(obj object.Object) object.Object {
 			Tags:       fn.Tags,
 			Params:     append([]VMParam(nil), fn.Params...),
 			ParamIndex: fn.ParamIndex,
+			ReturnType: fn.ReturnType,
 			Chunk:      fn.Chunk,
 			Closure:    e.env,
 			Signature:  fn.Signature,
@@ -1605,6 +1606,13 @@ func (e *Executor) evalCall(argCount int, plan []CallArgSpec, pos int) object.Ob
 		}
 		if result.Type() == object.ERROR_OBJ {
 			return e.unwindDeferredScopes(result)
+		}
+		if f, ok := callee.(*object.Foreign); ok && strings.TrimSpace(f.ReturnType) != "" {
+			rt := parseRuntimeDeclaredType(f.ReturnType)
+			if rt != nil && !runtimeObjectMatchesDeclaredType(result, rt) {
+				rtErr := e.returnTypeRuntimeError(pos, "foreign return type mismatch: expected %s, got %s", f.ReturnType, result.Type())
+				return e.unwindDeferredScopes(rtErr)
+			}
 		}
 		e.push(result)
 		return nil
@@ -1896,6 +1904,15 @@ func (e *Executor) invokeVMFunction(fn *VMFunction, positional []object.Object, 
 		if result == nil {
 			return object.NIL
 		}
+		if result.Type() == object.ERROR_OBJ {
+			return result
+		}
+		if strings.TrimSpace(fn.ReturnType) != "" {
+			rt := parseRuntimeDeclaredType(fn.ReturnType)
+			if rt != nil && !runtimeObjectMatchesDeclaredType(result, rt) {
+				return e.returnTypeRuntimeError(pos, "function return type mismatch: expected %s, got %s", fn.ReturnType, result.Type())
+			}
+		}
 		return result
 	}
 }
@@ -2045,6 +2062,14 @@ func (e *Executor) errorAt(pos int, format string, args ...interface{}) *object.
 		return &object.Error{Message: fmt.Sprintf("vm runtime error at pos %d: %s", pos, msg)}
 	}
 	return &object.Error{Message: "vm runtime error: " + msg}
+}
+
+func (e *Executor) returnTypeRuntimeError(_ int, format string, args ...interface{}) *object.RuntimeError {
+	msg := fmt.Sprintf(format, args...)
+	payload := (&object.Map{}).
+		Put(&object.String{Value: "type"}, &object.String{Value: "TypeError"}).
+		Put(&object.String{Value: "msg"}, &object.String{Value: msg})
+	return &object.RuntimeError{Payload: payload}
 }
 
 func isTruthy(obj object.Object) bool {
