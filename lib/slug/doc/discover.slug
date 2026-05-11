@@ -49,8 +49,7 @@ val pathToModuleName = fn(base, path) {
  * e.g. base="lib", path="lib/slug/io/fs.slug" => "slug.io.fs"
  */
 @export
-@returns("@list")
-val discoverModules = fn(dir) match {
+val discoverModules = fn(dir):list match {
 	nil => []
 	_ => {
 		val base = match endsWith(dir, '/') {

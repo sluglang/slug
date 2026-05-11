@@ -29,8 +29,7 @@ val {*} = import(
  * builds a JSON-RPC request object.
  */
 @export
-@returns('map')
-val request = fn(id, method:str, params = nil) {
+val request = fn(id, method:str, params = nil):map {
 	assertValidMethod(method)
 	assertValidId(id)
 	assertValidParams(params)
@@ -47,8 +46,7 @@ val request = fn(id, method:str, params = nil) {
  * builds a JSON-RPC notification object (request without `id`).
  */
 @export
-@returns('map')
-val notification = fn(method:str, params = nil) {
+val notification = fn(method:str, params = nil):map {
 	assertValidMethod(method)
 	assertValidParams(params)
 
@@ -65,8 +63,7 @@ val notification = fn(method:str, params = nil) {
  * The `result` member is always present (it may be `nil`).
  */
 @export
-@returns('map')
-val success = fn(id, result = nil) {
+val success = fn(id, result = nil):map {
 	assertValidId(id)
 	{
 		"jsonrpc": VERSION,
@@ -79,8 +76,7 @@ val success = fn(id, result = nil) {
  * builds a JSON-RPC error object.
  */
 @export
-@returns('map')
-val errorObject = fn(code:num, message:str, data = nil) {
+val errorObject = fn(code:num, message:str, data = nil):map {
 	assertInteger(code, "error code must be an integer")
 	val base = {
 		"code": code,
@@ -96,8 +92,7 @@ val errorObject = fn(code:num, message:str, data = nil) {
  * builds a JSON-RPC error response object.
  */
 @export
-@returns('map')
-val failure = fn(id, code:num, message:str, data = nil) {
+val failure = fn(id, code:num, message:str, data = nil):map {
 	assertValidId(id)
 	{
 		"jsonrpc": VERSION,
@@ -112,8 +107,7 @@ val failure = fn(id, code:num, message:str, data = nil) {
  * encodes a JSON-RPC message or batch to JSON.
  */
 @export
-@returns('str')
-val encode = fn(message) {
+val encode = fn(message):str {
 	validate(message)
 	json.encode(message)
 }
@@ -166,8 +160,7 @@ val validate = fn(message) {
  * returns true when `v` is a valid single JSON-RPC message object.
  */
 @export
-@returns('bool')
-val isMessage = fn(v) {
+val isMessage = fn(v):bool {
 	val r = runValidation(fn() { validateMessageObject(v) })
 	r.ok != nil
 }
@@ -176,8 +169,7 @@ val isMessage = fn(v) {
  * returns true when `v` is a JSON-RPC batch payload.
  */
 @export
-@returns('bool')
-val isBatch = fn(v) {
+val isBatch = fn(v):bool {
 	val r = runValidation(fn() { validateBatch(v) })
 	r.ok != nil
 }
@@ -186,8 +178,7 @@ val isBatch = fn(v) {
  * returns true when `v` is a request object (includes notifications).
  */
 @export
-@returns('bool')
-val isRequest = fn(v) {
+val isRequest = fn(v):bool {
 	val r = runValidation(fn() { validateRequest(v) })
 	r.ok != nil
 }
@@ -196,8 +187,7 @@ val isRequest = fn(v) {
  * returns true when `v` is a notification object.
  */
 @export
-@returns('bool')
-val isNotification = fn(v) {
+val isNotification = fn(v):bool {
 	isRequest(v) && !hasField(v, "id")
 }
 
@@ -205,8 +195,7 @@ val isNotification = fn(v) {
  * returns true when `v` is a response object.
  */
 @export
-@returns('bool')
-val isResponse = fn(v) {
+val isResponse = fn(v):bool {
 	val r = runValidation(fn() { validateResponse(v) })
 	r.ok != nil
 }
@@ -215,8 +204,7 @@ val isResponse = fn(v) {
  * returns true when `v` is a success response.
  */
 @export
-@returns('bool')
-val isSuccessResponse = fn(v) {
+val isSuccessResponse = fn(v):bool {
 	isResponse(v) && hasField(v, "result")
 }
 
@@ -224,8 +212,7 @@ val isSuccessResponse = fn(v) {
  * returns true when `v` is an error response.
  */
 @export
-@returns('bool')
-val isErrorResponse = fn(v) {
+val isErrorResponse = fn(v):bool {
 	isResponse(v) && hasField(v, "error")
 }
 

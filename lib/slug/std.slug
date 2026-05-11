@@ -82,15 +82,13 @@
 	[fn(a){a}],     FUNCTION_TYPE,
 )
 @export
-@returns('sym')
-foreign type = fn(val)
+foreign type = fn(val):sym
 
 /**
  * returns true if `v` is an instance of a struct (not a struct schema).
  */
 @export
-@returns('bool')
-var isStructInstance = fn(v) {
+var isStructInstance = fn(v):bool {
 	match type(v) {
 		v if type(v) == STRUCT_TYPE => true
 		_ => false
@@ -105,15 +103,13 @@ var isStructInstance = fn(v) {
 	["__not_defined__"], false
 )
 @export
-@returns('bool')
-foreign isDefined = fn(varName:str)
+foreign isDefined = fn(varName:str):bool
 
 /**
  * returns the full name of the current module.
  */
 @export
-@returns('str')
-foreign moduleName = fn()
+foreign moduleName = fn():str
 
 /**
  * formats a string using `{}` placeholders and optional format specifiers.
@@ -143,8 +139,7 @@ foreign moduleName = fn()
 	["|{:^10s}|", "Slug"],            "|   Slug   |",
 )
 @export
-@returns('str')
-foreign fmt = fn(str:str, ...args)
+foreign fmt = fn(str:str, ...args):str
 
 /**
  * returns a list of all keys in a map.
@@ -156,8 +151,7 @@ foreign fmt = fn(str:str, ...args)
 	[{k:1}], [:k]
 )
 @export
-@returns('list')
-foreign keys = fn(map)
+foreign keys = fn(map):list
 
 /**
  * converts a string to a symbol.
@@ -168,8 +162,7 @@ foreign keys = fn(map)
 	["Content-Type"], :"Content-Type"
 )
 @export
-@returns('sym')
-foreign sym = fn(name:str)
+foreign sym = fn(name:str):sym
 
 /**
  * returns the string label of a symbol.
@@ -179,8 +172,7 @@ foreign sym = fn(name:str)
 	[sym("a b")],    "a b"
 )
 @export
-@returns('str')
-foreign label = fn(symbol)
+foreign label = fn(symbol):str
 
 /**
  * returns the value for `key` in `map`, or `nil` if absent.
@@ -198,8 +190,7 @@ foreign label = fn(symbol)
 	[{}, :k, "v"], {k:"v"}
 )
 @export
-@returns('map')
-foreign put = fn(map:map, key, value)
+foreign put = fn(map:map, key, value):map
 
 /**
  * returns a new map with `key` removed. No-op if key is absent.
@@ -210,8 +201,7 @@ foreign put = fn(map:map, key, value)
 	[{k:1}, :j], {k:1}
 )
 @export
-@returns('map')
-foreign remove = fn(map:map, key)
+foreign remove = fn(map:map, key):map
 
 /**
  * returns a new list with the element at `index` replaced by `value`.
@@ -220,8 +210,7 @@ foreign remove = fn(map:map, key)
 	[[1,2,3], 1, 99], [1,99,3]
 )
 @export
-@returns('list')
-foreign update = fn(list:list, index:num, value)
+foreign update = fn(list:list, index:num, value):list
 
 /**
  * returns a new list with elements at `index1` and `index2` swapped.
@@ -230,8 +219,7 @@ foreign update = fn(list:list, index:num, value)
 	[[1,2], 0, 1], [2,1]
 )
 @export
-@returns('list')
-foreign swap = fn(list:list, index1:num, index2:num)
+foreign swap = fn(list:list, index1:num, index2:num):list
 
 /**
  * applies `f(key, currentValue)` to the value at `key` and returns the updated map.
@@ -243,8 +231,7 @@ foreign swap = fn(list:list, index1:num, index2:num)
 	[{}, :k, fn(k, v) { v == nil }],    {k:true}
 )
 @export
-@returns('map')
-val compute = fn(map:map, key, f) {
+val compute = fn(map:map, key, f):map {
 	map /> put(key, f(key, map[key]))
 }
 
@@ -257,8 +244,7 @@ val compute = fn(map:map, key, f) {
 	[[1,2], fn(n) {n * 2}], [2,4]
 )
 @export
-@returns('list')
-val map = fn(vs:list, f:fn, acc = []) match {
+val map = fn(vs:list, f:fn, acc = []):list match {
 	[[], ...] => acc
 	[[h, ...t], ...] => recur(t, f, acc :+ h /> f())
 }
@@ -273,8 +259,7 @@ val map = fn(vs:list, f:fn, acc = []) match {
 	[[1, 2, 3], fn(n) { if (n % 2 == 0) { [n] } else { [] } }], [2]
 )
 @export
-@returns('list')
-val flatMap = fn(vs:list, f:fn) {
+val flatMap = fn(vs:list, f:fn):list {
 	vs /> reduce([], fn(acc, v) {
 		match f(v) {
 			[...items] => acc + items
@@ -290,8 +275,7 @@ val flatMap = fn(vs:list, f:fn) {
 	[[1,2,3,4], fn(v) { v % 2 == 0 }], [2,4]
 )
 @export
-@returns('list')
-val filter = fn(vs:list, f:fn, acc:list = []) match {
+val filter = fn(vs:list, f:fn, acc:list = []):list match {
 	[[], ...] => acc
 	[[h, ...t], ...] if h /> f() => recur(t, f, acc :+ h)
 	[[h, ...t], ...] => recur(t, f, acc)
@@ -346,8 +330,7 @@ val filter = fn(vs:list, f:fn, acc:list = []) match {
 	[6, 0, -2],  [6, 4, 2]
 )
 @export
-@returns('list')
-val range = fn(start:num, end:num, step:num = 1, acc:list = []) {
+val range = fn(start:num, end:num, step:num = 1, acc:list = []):list {
 	if ((start < end && step > 0) || (start > end && step < 0)) {
 		recur(start + step, end, step, acc :+ start)
 	} else {
@@ -368,8 +351,7 @@ val range = fn(start:num, end:num, step:num = 1, acc:list = []) {
  * ```
  */
 @export
-@returns('fn')
-val counter = fn(start:num = 0) {
+val counter = fn(start:num = 0):fn {
 	var count = start - 1
 	fn() { count = count + 1 }
 }
@@ -383,8 +365,7 @@ val counter = fn(start:num = 0) {
 	[["a", "b"], fn(){1}], [["a", 1], ["b", 1]]
 )
 @export
-@returns('list')
-val zipWith = fn(lst:list, f) {
+val zipWith = fn(lst:list, f):list {
 	lst /> map(fn(v) { [v, f()] })
 }
 
@@ -398,8 +379,7 @@ val zipWith = fn(lst:list, f) {
 	[["a", "b"]], [["a", 0], ["b", 1]]
 )
 @export
-@returns('list')
-val zipWithIndex = fn(lst:list) {
+val zipWithIndex = fn(lst:list):list {
 	lst /> zipWith(counter(0))
 }
 
@@ -415,8 +395,7 @@ val zipWithIndex = fn(lst:list) {
 	[[1], [2]],  [[1, 2]]
 )
 @export
-@returns('list')
-val zip = fn(lst1:list, lst2:list, acc = []) {
+val zip = fn(lst1:list, lst2:list, acc = []):list {
 	if (len(lst1) == 0 || len(lst2) == 0) {
 		acc
 	} else {
@@ -447,9 +426,8 @@ val zip = fn(lst1:list, lst2:list, acc = []) {
 	["0"],     false
 )
 @export
-@returns('bool')
 @throws('@struct(Error{type:TypeError})')
-val toBoolean = fn(v) {
+val toBoolean = fn(v):bool {
 	match v /> type() {
 		^BOOLEAN_TYPE => v
 		^NUMBER_TYPE  => v == 1
@@ -473,8 +451,7 @@ val toBoolean = fn(v) {
 	["1.1"], 1.1
 )
 @export
-@returns('num')
-foreign parseNumber = fn(value:str)
+foreign parseNumber = fn(value:str):num
 
 /**
  * converts a value to `@num`.
@@ -490,9 +467,8 @@ foreign parseNumber = fn(value:str)
 	["1.1"], 1.1
 )
 @export
-@returns('num')
 @throws('@struct(Error{type:TypeError})')
-val toNumber = fn(v) {
+val toNumber = fn(v):num {
 	match v /> type() {
 		^NIL_TYPE    => nil
 		^NUMBER_TYPE => v
@@ -514,8 +490,7 @@ val toNumber = fn(v) {
 	[true],  "true"
 )
 @export
-@returns('str')
-val toString = fn(v) {
+val toString = fn(v):str {
 	match v /> type() {
 		^NIL_TYPE    => nil
 		^STRING_TYPE => v
@@ -537,8 +512,7 @@ val toString = fn(v) {
 	[[[1], [2]], [[1], [2]]], true
 )
 @export
-@returns('bool')
-val equals = fn(a:list, b:list, idx:num = 0) {
+val equals = fn(a:list, b:list, idx:num = 0):bool {
 	if (a == nil || b == nil) {
 		false
 	} else if (idx >= len(a) && len(a) == len(b)) {
@@ -565,8 +539,7 @@ val equals = fn(a:list, b:list, idx:num = 0) {
 	[true, true],  true,
 	[false, true], false,
 )
-@returns('bool')
-val equals = fn(v1, v2) {
+val equals = fn(v1, v2):bool {
 	v1 == v2
 }
 
@@ -583,8 +556,7 @@ val equals = fn(v1, v2) {
 	[{k1:1}, {k2:2}],  false
 )
 @export
-@returns('bool')
-val equals = fn(m1:map, m2:map) {
+val equals = fn(m1:map, m2:map):bool {
 	if (m1 == nil || m2 == nil) {
 		return false
 	}
@@ -607,8 +579,7 @@ val equals = fn(m1:map, m2:map) {
  * if neither is a struct instance or struct schema.
  */
 @export
-@returns('bool')
-val structEquals = fn(m1, m2) {
+val structEquals = fn(m1, m2):bool {
 	if (m1 == nil || m2 == nil) { return false }
 	if (type(m1) != type(m2)) { return false }
 	if (!(isStructInstance(m1) || type(m2) == STRUCT_TYPE)) { return false }
@@ -657,8 +628,7 @@ val structEquals = fn(m1, m2) {
  * Compatible with sort comparator contracts.
  */
 @export
-@returns('num')
-val compare = fn(a, b) {
+val compare = fn(a, b):num {
 	if (a < b) { -1 } else if (a > b) { 1 } else { 0 }
 }
 
@@ -671,7 +641,6 @@ val compare = fn(a, b) {
 	[2, 1], 0
 )
 @export
-@returns('num')
-val zeroIfAbove = fn(a:num, b:num) {
+val zeroIfAbove = fn(a:num, b:num):num {
 	if (a < b) { a } else { 0 }
 }

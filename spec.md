@@ -2442,3 +2442,35 @@ Files updated:
 
 Validation performed:
 - `go test ./internal/semantic ./internal/parser -count=1`
+
+### Migration: function `@returns(...)` tags to inline return types
+
+- Migrated library function return annotations from tag form to function-signature form:
+  - from `@returns('T')` + `fn(...)`
+  - to `fn(...):T`
+- Applied across `lib/**/*.slug` for function bindings and foreign function declarations.
+- Replaced function alias-with-returns usage in `slug.test` with an explicit forwarding function so return type is carried in the signature (`assertTrue`).
+- Left non-function `@returns(...)` entries unchanged:
+  - `lib/slug/xkcd/colours.slug` (`XkcdColourIndex` map constant)
+  - doc text in `lib/slug/doc/manifest.slug`
+
+Validation performed:
+- `go test ./...`
+- Verified no function-level `@returns(...)` tags remain in `lib/**/*.slug`.
+
+### Fixup: return type placement for migrated function signatures
+
+- Corrected migration artifacts where return types were attached to default callback implementations instead of the declared exported function.
+- Updated:
+  - `lib/slug/db/repo.slug`
+    - `into(data:map, ...)` now declares `:any` on the outer function.
+    - `into(data:list, ...)` now declares `:list` on the outer function.
+  - `lib/slug/io/fs.slug`
+    - `listFilesRecursive(...)` now declares `:list` on the outer function.
+    - default `filter` callback now has explicit `:bool` return.
+  - `lib/slug/web/routes.slug`
+    - `withRequestId(...)` now declares `:fn` on the outer function.
+    - default `newRequestId` callback now has explicit `:str` return.
+
+Validation performed:
+- `go test ./...`

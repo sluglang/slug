@@ -43,8 +43,7 @@ val {*} = import(
  * queued before blocking.
  */
 @export
-@returns('chan')
-foreign chan = fn(capacity:num = 0)
+foreign chan = fn(capacity:num = 0):chan
 
 /**
  * closes a channel, signalling that no more values will be sent.
@@ -53,8 +52,7 @@ foreign chan = fn(capacity:num = 0)
  * is a runtime error.
  */
 @export
-@returns('nil')
-foreign close = fn(channel:chan)
+foreign close = fn(channel:chan):nil
 
 /**
  * sends a value to a channel, blocking until a receiver is ready.

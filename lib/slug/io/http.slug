@@ -41,8 +41,7 @@
  * @effects('net')
  */
 @export
-@returns('[num, str]')
-foreign request = fn(method:str, url:str, body:str = "", headers:map = {}, timeout:num = 30000)
+foreign request = fn(method:str, url:str, body:str = "", headers:map = {}, timeout:num = 30000):[num, str]
 
 /**
  * makes a GET request and returns `[status, body]`.
@@ -50,8 +49,7 @@ foreign request = fn(method:str, url:str, body:str = "", headers:map = {}, timeo
  * @effects('net')
  */
 @export
-@returns('[num, str]')
-val get = fn(url:str, headers:map = {}) {
+val get = fn(url:str, headers:map = {}):[num, str] {
 	request("GET", url, "", headers)
 }
 
@@ -64,8 +62,7 @@ val get = fn(url:str, headers:map = {}) {
  * @effects('net')
  */
 @export
-@returns('[num, str]')
-val post = fn(body:str, url:str, headers:map = {}) {
+val post = fn(body:str, url:str, headers:map = {}):[num, str] {
 	request("POST", url, body, headers)
 }
 
@@ -77,8 +74,7 @@ val post = fn(body:str, url:str, headers:map = {}) {
  * @effects('net')
  */
 @export
-@returns('[num, str]')
-val put = fn(body:str, url:str, headers:map = {}) {
+val put = fn(body:str, url:str, headers:map = {}):[num, str] {
 	request("PUT", url, body, headers)
 }
 
@@ -90,8 +86,7 @@ val put = fn(body:str, url:str, headers:map = {}) {
  * @effects('net')
  */
 @export
-@returns('[num, str]')
-val patch = fn(body:str, url:str, headers:map = {}) {
+val patch = fn(body:str, url:str, headers:map = {}):[num, str] {
 	request("PATCH", url, body, headers)
 }
 
@@ -101,8 +96,7 @@ val patch = fn(body:str, url:str, headers:map = {}) {
  * @effects('net')
  */
 @export
-@returns('[num, str]')
-val delete = fn(url:str, headers:map = {}) {
+val delete = fn(url:str, headers:map = {}):[num, str] {
 	request("DELETE", url, "", headers)
 }
 

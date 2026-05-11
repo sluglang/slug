@@ -71,8 +71,7 @@ val Views = struct {
  * `cfg("dev", false)` is set.
  */
 @export
-@returns('Views')
-val new = fn(root:str = "views") {
+val new = fn(root:str = "views"):Views {
 	Views{
 		root:  root,
 		dev:   cfg("dev", cfg('dev', true)),
@@ -93,8 +92,7 @@ val new = fn(root:str = "views") {
  * ```
  */
 @export
-@returns('str')
-val render = fn(v, name, data = {}) {
+val render = fn(v, name, data = {}):str {
 	val tpl    = getTemplate(v, 'pages/', name)
 	val loader = partialsLoader(v, "pages/{{name}}/")
 	mustache.render(tpl, data, loader)
@@ -111,8 +109,7 @@ val render = fn(v, name, data = {}) {
  * the final `Response`.
  */
 @export
-@returns('Response')
-val renderReply = fn(vx, req, reply) {
+val renderReply = fn(vx, req, reply):Response {
 	val data = reply.data
 
 	val html = if (req.headers['hx-request']) {

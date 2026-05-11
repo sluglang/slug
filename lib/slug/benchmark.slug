@@ -164,7 +164,6 @@ val sampleTimesPerIter = fn(workFn, iters, samples, overheadPerIter) {
  * @effects('time')
  */
 @export
-@returns('map')
 @effects('time')
 val micro = fn(
 	name:str,
@@ -176,7 +175,7 @@ val micro = fn(
 	maxIters:num = 10_000_000,
 	subtractOverhead:bool = true,
 	unit:str = UnitNs
-) {
+):map {
 	val warmupNs = msToNs(warmupMs)
 	val sampleNs = msToNs(sampleMs)
 
@@ -212,8 +211,7 @@ val micro = fn(
  * ```
  */
 @export
-@returns('nil')
-val printResult = fn(res) {
+val printResult = fn(res):nil {
 	val s = res.stats
 	println(res.name)
 	fmt("  p50: {:d} {}  p90: {:d}  p99: {:d}", s.p50, res.unit, s.p90, s.p99) /> println
@@ -241,7 +239,6 @@ val printResult = fn(res) {
  * @effects('time')
  */
 @export
-@returns('map')
 @effects('time')
 val compare = fn(
 	benches:list,
@@ -252,7 +249,7 @@ val compare = fn(
 	maxIters:num = 10_000_000,
 	subtractOverhead:bool = true,
 	unit:str = UnitNs
-) {
+):map {
 	val results =
 		benches /> map(fn(b) {
 			micro(b.name, b.fun, warmupMs, sampleMs, samples, minIters, maxIters, subtractOverhead, unit)
@@ -286,8 +283,7 @@ val sortByP50 = fn(results) {
  * ```
  */
 @export
-@returns('nil')
-val printCompareReport = fn(report) {
+val printCompareReport = fn(report):nil {
 	println("Benchmark report")
 	report.results /> map(fn(r) {
 		fmt("  %{:<15s}: p50 {:d} {}  x{:.1f}", r.name, r.stats.p50, r.unit, r.ratio) /> println

@@ -60,8 +60,7 @@ val { describeSymbol } = import("slug.meta",)
  * pass the full dotted module names as they would appear in an import statement.
  */
 @export
-@returns('str')
-val manifest = fn(moduleNames:list) {
+val manifest = fn(moduleNames:list):str {
 	val sortedMods = moduleNames /> sort
 
 	val symbolsList = sortedMods /> flatMap(symbols)

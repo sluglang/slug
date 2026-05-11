@@ -432,8 +432,7 @@ val renderModule = fn(mod:str, moduleToc:bool) {
  * pass the full dotted module names as they would appear in an import statement.
  */
 @export
-@returns('str')
-val singlePage = fn(moduleNames:list, title:str = 'Slug API Reference', moduleToc:bool = false) {
+val singlePage = fn(moduleNames:list, title:str = 'Slug API Reference', moduleToc:bool = false):str {
 	val sortedMods = moduleNames /> sort
 
 	val header = [
@@ -465,8 +464,7 @@ val singlePage = fn(moduleNames:list, title:str = 'Slug API Reference', moduleTo
  * pass the full dotted module names as they would appear in an import statement.
  */
 @export
-@returns('list')
-val pagePerModule = fn(moduleNames:list, moduleToc:bool = false) {
+val pagePerModule = fn(moduleNames:list, moduleToc:bool = false):list {
 	moduleNames
 		/> sort
 		/> map(fn(m) {

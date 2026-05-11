@@ -20,15 +20,13 @@ val {*} = import(
 	[4, 5, 3], 5
 )
 @export
-@returns('num')
-val max = fn(a:num, ...b) {
+val max = fn(a:num, ...b):num {
 	val _max = fn(x, y) { if (x > y) { x } else { y } }
 	searchList(b, a, _max)
 }
 
 @export
-@returns('num')
-val max = fn(a:num, b:num) {
+val max = fn(a:num, b:num):num {
 	if (a > b) { a } else { b }
 }
 
@@ -41,8 +39,7 @@ val max = fn(a:num, b:num) {
 	[6, 5, 4], 4
 )
 @export
-@returns('num')
-val min = fn(a:num, ...b) {
+val min = fn(a:num, ...b):num {
 	val _min = fn(x, y) { if (x < y) { x } else { y } }
 	searchList(b, a, _min)
 }
@@ -53,8 +50,7 @@ val min = fn(a:num, ...b) {
  * Useful for ensuring subtracted values never go negative.
  */
 @export
-@returns('num')
-val clampZero = fn(n:num) {
+val clampZero = fn(n:num):num {
 	if (n < 0) { 0 } else { n }
 }
 
@@ -67,8 +63,7 @@ val clampZero = fn(n:num) {
 	[-1.2], -2,
 )
 @export
-@returns('num')
-foreign floor = fn(n:num)
+foreign floor = fn(n:num):num
 
 /**
  * returns the least integer greater than or equal to `n`.
@@ -79,8 +74,7 @@ foreign floor = fn(n:num)
 	[-1.2], -1,
 )
 @export
-@returns('num')
-foreign ceil = fn(n:num)
+foreign ceil = fn(n:num):num
 
 /**
  * returns the square root of `n`.
@@ -93,8 +87,7 @@ foreign ceil = fn(n:num)
 	[9], 3,
 )
 @export
-@returns('num')
-foreign sqrt = fn(n:num)
+foreign sqrt = fn(n:num):num
 
 /**
  * returns a random integer in the range `[min, max)` (exclusive upper bound).
@@ -103,8 +96,7 @@ foreign sqrt = fn(n:num)
  */
 @export
 @effects('random')
-@returns('num')
-foreign rndRange = fn(min:num, max:num)
+foreign rndRange = fn(min:num, max:num):num
 
 /**
  * returns the arithmetic mean of a list of numbers.
@@ -112,8 +104,7 @@ foreign rndRange = fn(min:num, max:num)
  * Returns `0` for an empty list.
  */
 @export
-@returns('num')
-val mean = fn(xs) match {
+val mean = fn(xs):num match {
 	[] => 0
 	_  => (xs /> reduce(0, fn(a, x) { a + x })) / len(xs)
 }
@@ -126,8 +117,7 @@ val mean = fn(xs) match {
  * second argument to avoid recomputing it internally.
  */
 @export
-@returns('num')
-val stdev = fn(xs, mean) match {
+val stdev = fn(xs, mean):num match {
 	[]  => 0
 	[_] => 0
 	_   => {
@@ -150,8 +140,7 @@ val stdev = fn(xs, mean) match {
  * Returns `0` for an empty list and the single element for a one-element list.
  */
 @export
-@returns('num')
-val percentileSorted = fn(xs, p) match {
+val percentileSorted = fn(xs, p):num match {
 	[[], ...] => 0
 	[[x], ...] => x
 	_ => {

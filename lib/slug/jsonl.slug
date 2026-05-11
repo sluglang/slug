@@ -30,8 +30,7 @@ val { split, join, replaceAll } = import(
 	[[1, true, nil], "\n", true], "1\ntrue\nnull\n",
 )
 @export
-@returns('str')
-val encode = fn(values:list, eol:str = "\n", trailingEol:bool = false) {
+val encode = fn(values:list, eol:str = "\n", trailingEol:bool = false):str {
 	val out = encodeLines(values, eol, [])
 	val body = out /> join(eol)
 	if (trailingEol && len(values) > 0) { body + eol } else { body }
@@ -49,8 +48,7 @@ val encode = fn(values:list, eol:str = "\n", trailingEol:bool = false) {
 	["{\"a\":1}\n\n{\"b\":2}"], [{"a": 1}, {"b": 2}],
 )
 @export
-@returns('list')
-val decode = fn(jsonl:str, skipEmpty:bool = true) {
+val decode = fn(jsonl:str, skipEmpty:bool = true):list {
 	if (len(jsonl) == 0) {
 		[]
 	} else {

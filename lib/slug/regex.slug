@@ -17,8 +17,7 @@
 	["123", "\d+"], true
 )
 @export
-@returns('bool')
-foreign matches = fn(str:str, pattern:str)
+foreign matches = fn(str:str, pattern:str):bool
 
 /**
  * returns the byte index range of the first match of `pattern` in `str`
@@ -29,8 +28,7 @@ foreign matches = fn(str:str, pattern:str)
  * for capture groups.
  */
 @export
-@returns('[list, list]')
-foreign indexOf = fn(str:str, pattern:str, index:num = 0)
+foreign indexOf = fn(str:str, pattern:str, index:num = 0):[list, list]
 
 /**
  * splits `str` into a list of substrings divided by matches of `pattern`.
@@ -39,8 +37,7 @@ foreign indexOf = fn(str:str, pattern:str, index:num = 0)
 	["1|2|3", "\|"], ["1", "2", "3"]
 )
 @export
-@returns('list')
-foreign split = fn(str:str, pattern:str)
+foreign split = fn(str:str, pattern:str):list
 
 /**
  * returns a list of all non-overlapping matches of `pattern` in `str`.
@@ -50,8 +47,7 @@ foreign split = fn(str:str, pattern:str)
 	["(foo)", "[a-z]+"], ["foo"]
 )
 @export
-@returns('list')
-foreign findAll = fn(str:str, pattern:str)
+foreign findAll = fn(str:str, pattern:str):list
 
 /**
  * returns a list of all matches including capture groups.
@@ -63,8 +59,7 @@ foreign findAll = fn(str:str, pattern:str)
 	["<a href=\"foo\">bar</a>", "<a href=\"(.*?)\">(.*?)</a>"], [["<a href=\"foo\">bar</a>", "foo", "bar"]]
 )
 @export
-@returns('list')
-foreign findAllGroups = fn(str:str, pattern:str)
+foreign findAllGroups = fn(str:str, pattern:str):list
 
 /**
  * replaces all matches of `pattern` in `str` with `repl`.
@@ -75,5 +70,4 @@ foreign findAllGroups = fn(str:str, pattern:str)
 	["1|2|3", "\d+", "x"], "x|x|x"
 )
 @export
-@returns('str')
-foreign replaceAll = fn(str:str, pattern:str, repl:str)
+foreign replaceAll = fn(str:str, pattern:str, repl:str):str

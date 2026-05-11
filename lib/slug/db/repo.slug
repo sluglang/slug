@@ -86,8 +86,7 @@ val SqlQuery = struct {
  * The default base directory is `db/queries` or the `base-directory` config key.
  */
 @export
-@returns("@map")
-val loadQueries = fn(base:str = DefaultBase) {
+val loadQueries = fn(base:str = DefaultBase):map {
 	val baseLen = len(base)
 	listFilesRecursive([base], fn(s) { s[-4:] == '.sql' })
 	/> reduce({}, fn(repos, path) {
@@ -111,8 +110,7 @@ val loadQueries = fn(base:str = DefaultBase) {
  * If `target` is a map or struct instance, merges into it.
  */
 @export
-@returns("?")
-val into = fn(data:map, target, columnToFieldName:fn = fn(s) { camelCase(s, '_') }) {
+val into = fn(data:map, target, columnToFieldName:fn = fn(s) { camelCase(s, '_') }):any {
 	val mapped = data /> keys /> reduce({}, fn(m, k) {
 		put(m, sym(columnToFieldName(k)), data[k])
 	})
@@ -130,8 +128,7 @@ val into = fn(data:map, target, columnToFieldName:fn = fn(s) { camelCase(s, '_')
  * from `snake_case` to `camelCase` by default.
  */
 @export
-@returns("@list")
-val into = fn(data:list, toType, columnToFieldName:fn = fn(s) { camelCase(s, '_') }) {
+val into = fn(data:list, toType, columnToFieldName:fn = fn(s) { camelCase(s, '_') }):list {
 	data /> map(fn(v) { into(v, toType, columnToFieldName) })
 }
 

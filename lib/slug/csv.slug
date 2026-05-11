@@ -45,8 +45,7 @@ val {*} = import(
 	[[["a\n", "qu\"ote"]]], "\"a\n\",\"qu\"\"ote\"\r\n",
 )
 @export
-@returns('str')
-val toCsv = fn(rows:list, sep:str = ",", quote:str = "\"", eol:str = "\r\n", acc:str = "") match {
+val toCsv = fn(rows:list, sep:str = ",", quote:str = "\"", eol:str = "\r\n", acc:str = ""):str match {
 	[[], ...] => acc
 	[[h, ...t], ...] => recur(t, sep, quote, eol, acc + rowToCsv(h, sep, quote, eol))
 }
@@ -63,8 +62,7 @@ val toCsv = fn(rows:list, sep:str = ",", quote:str = "\"", eol:str = "\r\n", acc
 	["a,b,c\r\nd,\"e\n f\",g"], [["a", "b", "c"], ["d", "e\n f", "g"]],
 )
 @export
-@returns('list')
-val fromCsvString = fn(csvStr:str, sep:str = ",", quote:str = "\"") {
+val fromCsvString = fn(csvStr:str, sep:str = ",", quote:str = "\""):list {
 	parseCsv(csvStr, sep, quote, 0, len(csvStr), [], [], false)
 }
 

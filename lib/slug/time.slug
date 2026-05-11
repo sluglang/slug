@@ -13,8 +13,7 @@
  */
 @export
 @effects('time')
-@returns('num')
-foreign clock = fn()
+foreign clock = fn():num
 
 /**
  * returns the current time as a nanosecond counter.
@@ -26,8 +25,7 @@ foreign clock = fn()
  */
 @export
 @effects('time')
-@returns('num')
-foreign clockNanos = fn()
+foreign clockNanos = fn():num
 
 /**
  * formats a millisecond timestamp using a format string.
@@ -35,8 +33,7 @@ foreign clockNanos = fn()
  * Format follows standard Go time layout conventions.
  */
 @export
-@returns('str')
-foreign fmtClock = fn(millis:num, fmt:str)
+foreign fmtClock = fn(millis:num, fmt:str):str
 
 /**
  * suspends execution for `millis` milliseconds.
@@ -45,8 +42,7 @@ foreign fmtClock = fn(millis:num, fmt:str)
  */
 @export
 @effects('time')
-@returns('nil')
-foreign sleep = fn(millis:num)
+foreign sleep = fn(millis:num):nil
 
 /**
  * returns a function that measures elapsed time since it was created.
@@ -64,8 +60,7 @@ foreign sleep = fn(millis:num)
  * ```
  */
 @export
-@returns('fn')
-val delta = fn(f) {
+val delta = fn(f):fn {
 	val start = f()
 	fn() { f() - start }
 }
@@ -77,8 +72,7 @@ val delta = fn(f) {
 	[1], 1000
 )
 @export
-@returns('num')
-val secsToMillis = fn(secs:num) {
+val secsToMillis = fn(secs:num):num {
 	secs * 1000
 }
 
@@ -89,7 +83,6 @@ val secsToMillis = fn(secs:num) {
 	[1], 60000
 )
 @export
-@returns('num')
-val minsToMillis = fn(mins:num) {
+val minsToMillis = fn(mins:num):num {
 	mins * 60 * 1000
 }

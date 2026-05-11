@@ -180,8 +180,7 @@ val logMsg = fn(logLvl:num, level:num, msg:str, args:list) {
  * ```
  */
 @export
-@returns('map')
-val logger = fn(src:str) {
+val logger = fn(src:str):map {
 	val source = src + ": "
     val lvl    = indexOf(
         Levels,
@@ -216,8 +215,7 @@ val logger = fn(src:str) {
  * @effects('io')
  */
 @export
-@returns('str|nil')
-val trace = fn(message:str, ...args) { logMsg(LogLevel, Trace, message, args) }
+val trace = fn(message:str, ...args):str|nil { logMsg(LogLevel, Trace, message, args) }
 
 /**
  * logs a debug-level message using the global log level.
@@ -225,8 +223,7 @@ val trace = fn(message:str, ...args) { logMsg(LogLevel, Trace, message, args) }
  * @effects('io')
  */
 @export
-@returns('str|nil')
-val debug = fn(message:str, ...args) { logMsg(LogLevel, Debug, message, args) }
+val debug = fn(message:str, ...args):str|nil { logMsg(LogLevel, Debug, message, args) }
 
 /**
  * logs an info-level message using the global log level.
@@ -234,8 +231,7 @@ val debug = fn(message:str, ...args) { logMsg(LogLevel, Debug, message, args) }
  * @effects('io')
  */
 @export
-@returns('str|nil')
-val info = fn(message:str, ...args) { logMsg(LogLevel, Info, message, args) }
+val info = fn(message:str, ...args):str|nil { logMsg(LogLevel, Info, message, args) }
 
 /**
  * logs a warn-level message using the global log level.
@@ -243,8 +239,7 @@ val info = fn(message:str, ...args) { logMsg(LogLevel, Info, message, args) }
  * @effects('io')
  */
 @export
-@returns('str|nil')
-val warn = fn(message:str, ...args) { logMsg(LogLevel, Warn, message, args) }
+val warn = fn(message:str, ...args):str|nil { logMsg(LogLevel, Warn, message, args) }
 
 /**
  * logs an error-level message using the global log level.
@@ -252,8 +247,7 @@ val warn = fn(message:str, ...args) { logMsg(LogLevel, Warn, message, args) }
  * @effects('io')
  */
 @export
-@returns('str|nil')
-val error = fn(message:str, ...args) { logMsg(LogLevel, Error, message, args) }
+val error = fn(message:str, ...args):str|nil { logMsg(LogLevel, Error, message, args) }
 
 /**
  * logs at the `none` level.
@@ -265,8 +259,7 @@ val error = fn(message:str, ...args) { logMsg(LogLevel, Error, message, args) }
  * @effects('io')
  */
 @export
-@returns('nil')
-val none = fn(message:str, ...args) { logMsg(LogLevel, None, message, args) }
+val none = fn(message:str, ...args):nil { logMsg(LogLevel, None, message, args) }
 
 // ============================================================
 // module-level chainable variants

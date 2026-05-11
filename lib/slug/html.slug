@@ -21,8 +21,7 @@ val {*} = import(
 	["E &amp; S"], "E & S"
 )
 @export
-@returns('str')
-val htmlUnescape = fn(str) {
+val htmlUnescape = fn(str):str {
 	str /> replaceAll("&amp;", "&")
 		/> replaceAll("&lt;", "<")
 		/> replaceAll("&gt;", ">")
@@ -56,8 +55,7 @@ val htmlUnescape = fn(str) {
 	["<a><a href='h'>hi</a></a>", "a"], "<a href='h'>hi</a>"
 )
 @export
-@returns('str')
-val extractInnerText = fn(html, tag, start = 0) {
+val extractInnerText = fn(html, tag, start = 0):str {
 	if (start < 0) {
 		""
 	} else {

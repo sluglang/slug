@@ -52,8 +52,7 @@ val {*} = import(
  * create a request for testing or manual construction.
  */
 @export
-@returns('Request')
-val request = fn(method, path, version = "HTTP/1.1", headers = {}, body = "") {
+val request = fn(method, path, version = "HTTP/1.1", headers = {}, body = ""):Request {
 	Request {
 		method:    method,
 		path:      path,
@@ -84,9 +83,8 @@ val request = fn(method, path, version = "HTTP/1.1", headers = {}, body = "") {
  * Throws `RequestError` if headers are incomplete or the request line is malformed.
  */
 @export
-@returns('[Request, str]')
 @throws('@struct(Error{type:RequestError})')
-val parseRequestHeaders = fn(buf) {
+val parseRequestHeaders = fn(buf):[Request, str] {
 	val i = buf /> indexOf("\r\n\r\n")
 	if (i < 0) { throw Error { type: "RequestError", msg: "Incomplete headers" } }
 
@@ -112,8 +110,7 @@ val parseRequestHeaders = fn(buf) {
  * is parsed and the result is available as `req.form`.
  */
 @export
-@returns('Request')
-val withBody = fn(req, body) {
+val withBody = fn(req, body):Request {
 	req copy { body: body } /> parseForm
 }
 
@@ -123,8 +120,7 @@ val withBody = fn(req, body) {
  * Used by the router to strip path prefixes for subrouters.
  */
 @export
-@returns('Request')
-val withPath = fn(req, path) {
+val withPath = fn(req, path):Request {
 	req copy { path: path }
 }
 
@@ -132,8 +128,7 @@ val withPath = fn(req, path) {
  * returns a new request with `query` replaced.
  */
 @export
-@returns('Request')
-val withQuery = fn(req, query) {
+val withQuery = fn(req, query):Request {
 	req copy { query: query }
 }
 
@@ -143,8 +138,7 @@ val withQuery = fn(req, query) {
  * Used by the router to inject matched URL parameters (e.g. `:id`).
  */
 @export
-@returns('Request')
-val withParams = fn(request, params:map) {
+val withParams = fn(request, params:map):Request {
 	request copy { params: params }
 }
 
@@ -154,8 +148,7 @@ val withParams = fn(request, params:map) {
  * Used by subrouters to remove the `"*"` wildcard param after consuming it.
  */
 @export
-@returns('Request')
-val withoutParam = fn(request, param) {
+val withoutParam = fn(request, param):Request {
 	request copy { params: request.params /> remove(param) }
 }
 
@@ -166,8 +159,7 @@ val withoutParam = fn(request, param) {
  * For HTTP/1.1, keep-alive is the default unless `Connection: close` is set.
  */
 @export
-@returns('bool')
-val shouldKeepAlive = fn(req) {
+val shouldKeepAlive = fn(req):bool {
 	val c = req.headers["connection"]
 	match req.version {
 		"HTTP/1.0" => c == "keep-alive"
@@ -179,8 +171,7 @@ val shouldKeepAlive = fn(req) {
  * returns true if `x` is a `Request` struct instance.
  */
 @export
-@returns('bool')
-val isRequest = fn(x) match {
+val isRequest = fn(x):bool match {
 	Request { method, path } => true
 	_ => false
 }

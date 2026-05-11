@@ -46,8 +46,7 @@ val {*} = import(
  * @effects('fs')
  */
 @export
-@returns('str')
-foreign readFile = fn(path:str)
+foreign readFile = fn(path:str):str
 
 /**
  * writes `contents` to a file, creating or truncating it.
@@ -55,8 +54,7 @@ foreign readFile = fn(path:str)
  * @effects('fs')
  */
 @export
-@returns('nil')
-foreign writeFile = fn(contents:str, path:str)
+foreign writeFile = fn(contents:str, path:str):nil
 
 /**
  * appends `contents` to the end of a file, creating it if absent.
@@ -66,8 +64,7 @@ foreign writeFile = fn(contents:str, path:str)
  * @effects('fs')
  */
 @export
-@returns('num')
-foreign appendFile = fn(contents:str, path:str)
+foreign appendFile = fn(contents:str, path:str):num
 
 /**
  * returns metadata about a file or directory as a map.
@@ -77,8 +74,7 @@ foreign appendFile = fn(contents:str, path:str)
  * @effects('fs')
  */
 @export
-@returns('map')
-foreign info = fn(path:str)
+foreign info = fn(path:str):map
 
 /**
  * returns true if `path` exists and is accessible.
@@ -86,8 +82,7 @@ foreign info = fn(path:str)
  * @effects('fs')
  */
 @export
-@returns('bool')
-foreign exists = fn(path:str)
+foreign exists = fn(path:str):bool
 
 /**
  * creates all directories in the given path(s), including intermediates.
@@ -97,8 +92,7 @@ foreign exists = fn(path:str)
  * @effects('fs')
  */
 @export
-@returns('bool')
-foreign mkDirs = fn(...path)
+foreign mkDirs = fn(...path):bool
 
 /**
  * returns true if `path` is a directory.
@@ -106,8 +100,7 @@ foreign mkDirs = fn(...path)
  * @effects('fs')
  */
 @export
-@returns('bool')
-foreign isDir = fn(path:str)
+foreign isDir = fn(path:str):bool
 
 /**
  * returns a list of filenames in a directory (non-recursive).
@@ -115,8 +108,7 @@ foreign isDir = fn(path:str)
  * @effects('fs')
  */
 @export
-@returns('list')
-foreign ls = fn(path:str)
+foreign ls = fn(path:str):list
 
 /**
  * removes a file or empty directory at `path`.
@@ -124,8 +116,7 @@ foreign ls = fn(path:str)
  * @effects('fs')
  */
 @export
-@returns('nil')
-foreign rm = fn(path:str)
+foreign rm = fn(path:str):nil
 
 /**
  * opens a file in the specified mode and returns a file handle.
@@ -136,8 +127,7 @@ foreign rm = fn(path:str)
  * @effects('fs')
  */
 @export
-@returns('num')
-foreign openFile = fn(path:str, mode:str)
+foreign openFile = fn(path:str, mode:str):num
 
 /**
  * reads the next line from an open file handle.
@@ -148,8 +138,7 @@ foreign openFile = fn(path:str, mode:str)
  * @effects('fs')
  */
 @export
-@returns('str')
-foreign readLine = fn(handle:num)
+foreign readLine = fn(handle:num):str
 
 /**
  * writes `content` to an open file handle.
@@ -159,8 +148,7 @@ foreign readLine = fn(handle:num)
  * @effects('fs')
  */
 @export
-@returns('num')
-foreign write = fn(handle:num, content:str)
+foreign write = fn(handle:num, content:str):num
 
 /**
  * closes an open file handle.
@@ -168,8 +156,7 @@ foreign write = fn(handle:num, content:str)
  * @effects('fs')
  */
 @export
-@returns('nil')
-foreign closeFile = fn(handle:num)
+foreign closeFile = fn(handle:num):nil
 
 /**
  * reads all remaining lines from an open file handle into a list.
@@ -178,8 +165,7 @@ foreign closeFile = fn(handle:num)
  * if the file is already at EOF.
  */
 @export
-@returns('list')
-val readLines = fn(file:num, lines = []) {
+val readLines = fn(file:num, lines = []):list {
 	match file /> readLine {
 		nil => lines
 		str => readLines(file, lines :+ str[0:-1])
@@ -198,8 +184,7 @@ val readLines = fn(file:num, lines = []) {
  * ```
  */
 @export
-@returns('list')
-val listFilesRecursive = fn(path:list, filter:fn = fn(s) { true }, acc = []) {
+val listFilesRecursive = fn(path:list, filter:fn = fn(s):bool { true }, acc = []):list {
 	match path {
 		[] => acc
 		[h, ...t] => {

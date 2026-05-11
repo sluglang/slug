@@ -46,8 +46,7 @@
  * @effects('io net')
  */
 @export
-@returns('num')
-foreign bind = fn(addr:str, port:num)
+foreign bind = fn(addr:str, port:num):num
 
 /**
  * waits for an incoming connection on `listener` and returns a connection handle.
@@ -58,8 +57,7 @@ foreign bind = fn(addr:str, port:num)
  * @effects('io net')
  */
 @export
-@returns('num')
-foreign accept = fn(listener:num)
+foreign accept = fn(listener:num):num
 
 /**
  * connects to a TCP server at `addr:port` and returns a connection handle.
@@ -69,8 +67,7 @@ foreign accept = fn(listener:num)
  * @effects('io net')
  */
 @export
-@returns('num')
-foreign connect = fn(addr:str, port:num)
+foreign connect = fn(addr:str, port:num):num
 
 /**
  * reads up to `maxBytes` from a TCP stream.
@@ -80,8 +77,7 @@ foreign connect = fn(addr:str, port:num)
  * @effects('io net')
  */
 @export
-@returns('str')
-foreign read = fn(stream:num, maxBytes:num)
+foreign read = fn(stream:num, maxBytes:num):str
 
 /**
  * sends `data` over a TCP stream.
@@ -91,8 +87,7 @@ foreign read = fn(stream:num, maxBytes:num)
  * @effects('io net')
  */
 @export
-@returns('num')
-foreign write = fn(stream:num, data:str)
+foreign write = fn(stream:num, data:str):num
 
 /**
  * closes a TCP listener or connection handle.
@@ -100,5 +95,4 @@ foreign write = fn(stream:num, data:str)
  * @effects('io net')
  */
 @export
-@returns('num')
-foreign close = fn(handle:num)
+foreign close = fn(handle:num):num

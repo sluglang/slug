@@ -70,9 +70,8 @@ val ParseResult = struct {
 	[{"name": "Alice", "age": 30}], "{\"age\":30,\"name\":\"Alice\"}",
 )
 @export
-@returns('str')
 @throws('@struct(Error{type:JsonError})')
-val encode = fn(v) {
+val encode = fn(v):str {
 	if (isStructInstance(v)) {
 		encodeObject(v)
 	} else {
@@ -105,9 +104,8 @@ val encode = fn(v) {
 	[{"name": "Alice", "age": 30}, 2], "{\n  \"age\": 30,\n  \"name\": \"Alice\"\n}",
 )
 @export
-@returns('str')
 @throws('@struct(Error{type:JsonError})')
-val pretty = fn(v, indent:num = 2) {
+val pretty = fn(v, indent:num = 2):str {
 	prettyPrint(v, indent, 0)
 }
 

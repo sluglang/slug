@@ -105,9 +105,8 @@ val DefaultEnv  = cfg('environment', [])
  * Returns the connection handle for chaining.
  */
 @export
-@returns('num')
 @throws('@struct(Error{type:MigrationError})')
-val status = fn(conn:num, env:list = DefaultEnv, base:str = DefaultBase) {
+val status = fn(conn:num, env:list = DefaultEnv, base:str = DefaultBase):num {
 	checkTrackingTable(conn)
 	listMigrationFiles(base, fn(m, sql) {
 		defer onerror(err) println(fmtError(m, err))
@@ -135,9 +134,8 @@ val status = fn(conn:num, env:list = DefaultEnv, base:str = DefaultBase) {
  * Returns the connection handle for chaining.
  */
 @export
-@returns('num')
 @throws('@struct(Error{type:MigrationError})')
-val up = fn(conn:num, env:list = DefaultEnv, base:str = DefaultBase) {
+val up = fn(conn:num, env:list = DefaultEnv, base:str = DefaultBase):num {
 	checkTrackingTable(conn)
 	listMigrationFiles(base, fn(m, sql) {
 		defer onerror(err) {
@@ -167,8 +165,7 @@ val up = fn(conn:num, env:list = DefaultEnv, base:str = DefaultBase) {
  * Returns the connection handle for chaining.
  */
 @export
-@returns('num')
-val down = fn(conn:num, step:num = 1, base:str = DefaultBase) {
+val down = fn(conn:num, step:num = 1, base:str = DefaultBase):num {
 	checkTrackingTable(conn)
 	findLatestMigrations(conn, step)
 	/> map(fn(m) {

@@ -49,8 +49,7 @@
  * returns `true` if `value` has the given tag annotation.
  */
 @export
-@returns('bool')
-foreign hasTag = fn(value, tag:str)
+foreign hasTag = fn(value, tag:str):bool
 
 /**
  * returns the list of arguments for a tag on `value`.
@@ -59,8 +58,7 @@ foreign hasTag = fn(value, tag:str)
  * Returns `[""]` for tags with no arguments (e.g. `@export`).
  */
 @export
-@returns('list')
-foreign getTag = fn(value, tag:str)
+foreign getTag = fn(value, tag:str):list
 
 /**
  * searches all exported bindings in a module for a given tag.
@@ -70,8 +68,7 @@ foreign getTag = fn(value, tag:str)
  * to include non-exported bindings.
  */
 @export
-@returns('map')
-foreign searchModuleTags = fn(module:str, tag:str, includePrivate:bool = false)
+foreign searchModuleTags = fn(module:str, tag:str, includePrivate:bool = false):map
 
 /**
  * searches all bindings in the current scope for a given tag.
@@ -91,8 +88,7 @@ foreign searchModuleTags = fn(module:str, tag:str, includePrivate:bool = false)
  * descriptors.
  */
 @export
-@returns('map')
-foreign describe = fn(value)
+foreign describe = fn(value):map
 
 /**
  * returns metadata for a specific symbol in a module by binding name.
@@ -102,8 +98,7 @@ foreign describe = fn(value)
  * preserved when symbols are imported via maps.
  */
 @export
-@returns('map')
-foreign describeSymbol = fn(module:str, symbol:str)
+foreign describeSymbol = fn(module:str, symbol:str):map
 
 /**
  * returns the module-level doc comment for the given module name.
@@ -113,5 +108,4 @@ foreign describeSymbol = fn(module:str, symbol:str)
  * as a short description; subsequent paragraphs provide extended docs.
  */
 @export
-@returns('str')
-foreign moduleDocs = fn(module:str)
+foreign moduleDocs = fn(module:str):str

@@ -22,19 +22,16 @@
  * With `slug.channel#recv`, closure is observed as `nil`.
  */
 @export
-@returns('chan<str>')
-foreign readLines = fn()
+foreign readLines = fn():chan<str>
 
 @export
-@returns('str')
-val prompt = fn(prompt:str) {
+val prompt = fn(prompt:str):str {
 	print(prompt)
 	readLine()
 }
 
 @export
-@returns('bool')
-val confirm = fn(message:str, default:bool = false) {
+val confirm = fn(message:str, default:bool = false):bool {
 	print(message + ' [y/N]: ')
 	defer onerror(err) default
 	readLine() /> match {

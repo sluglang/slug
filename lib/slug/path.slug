@@ -8,51 +8,44 @@
  * Joins path elements using the platform-specific separator.
  */
 @export
-@returns('str')
-foreign join = fn(...parts)
+foreign join = fn(...parts):str
 
 /**
  * Returns a normalized absolute path.
  */
 @export
-@returns('str')
-foreign abs = fn(path:str)
+foreign abs = fn(path:str):str
 
 /**
  * Returns the current process working directory.
  */
 @export
-@returns('str')
-foreign cwd = fn()
+foreign cwd = fn():str
 
 /**
  * Returns the entry module directory.
  */
 @export
-@returns('str')
-foreign projectRoot = fn()
+foreign projectRoot = fn():str
 
 /**
  * Returns the library root of the current module namespace.
  */
 @export
-@returns('str')
-foreign libRoot = fn()
+foreign libRoot = fn():str
 
 /**
  * Returns the directory of the current module file.
  */
 @export
-@returns('str')
-foreign moduleDir = fn()
+foreign moduleDir = fn():str
 
 /**
  * If path starts with '__project__/', '__library__/' or '__module__/' returns path new path with substitution,
  * useful for config.
  */
 @export
-@returns('str')
-val localize = fn(path:str) match {
+val localize = fn(path:str):str match {
 	nil => path
 	_ if path[0:12] == '__project__/' => join(projectRoot(), path[12:])
 	_ if path[0:12] == '__library__/' => join(libRoot(), path[12:])

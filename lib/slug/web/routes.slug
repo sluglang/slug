@@ -88,8 +88,7 @@ val Router = struct {
  * creates an empty `Router`.
  */
 @export
-@returns('Router')
-val router = fn() {
+val router = fn():Router {
 	Router { routes: [] }
 }
 
@@ -97,8 +96,7 @@ val router = fn() {
  * returns true if `x` is a `Router` struct instance.
  */
 @export
-@returns('bool')
-val isRouter = fn(x) match {
+val isRouter = fn(x):bool match {
 	Router { routes } => true
 	_ => false
 }
@@ -113,22 +111,19 @@ val addRoute = fn(r, method:str, pattern:str, handler:fn) {
  * registers a `HEAD` route on `r` and returns the updated router.
  */
 @export
-@returns('Router')
-val head = fn(r, pattern:str, handler:fn) { addRoute(r, "HEAD", pattern, handler) }
+val head = fn(r, pattern:str, handler:fn):Router { addRoute(r, "HEAD", pattern, handler) }
 
 /**
  * registers a `GET` route on `r` and returns the updated router.
  */
 @export
-@returns('Router')
-val get = fn(r, pattern:str, handler:fn) { addRoute(r, "GET", pattern, handler) }
+val get = fn(r, pattern:str, handler:fn):Router { addRoute(r, "GET", pattern, handler) }
 
 /**
  * registers a `POST` route on `r` and returns the updated router.
  */
 @export
-@returns('Router')
-val post = fn(r, pattern:str, handler:fn) { addRoute(r, "POST", pattern, handler) }
+val post = fn(r, pattern:str, handler:fn):Router { addRoute(r, "POST", pattern, handler) }
 
 /**
  * mounts `handler` at `prefix/*`, matching any method.
@@ -136,8 +131,7 @@ val post = fn(r, pattern:str, handler:fn) { addRoute(r, "POST", pattern, handler
  * The path remainder after the prefix is available as `req.params["*"]`.
  */
 @export
-@returns('Router')
-val mount = fn(r, prefix:str, handler:fn) {
+val mount = fn(r, prefix:str, handler:fn):Router {
 	addRoute(r, "*", prefix + "/*", handler)
 }
 
@@ -147,8 +141,7 @@ val mount = fn(r, prefix:str, handler:fn) {
  * Equivalent to `mount(r, prefix, subrouter(childRouter))`.
  */
 @export
-@returns('Router')
-val mountRouter = fn(r, prefix:str, childRouter) {
+val mountRouter = fn(r, prefix:str, childRouter):Router {
 	mount(r, prefix, subrouter(childRouter))
 }
 
@@ -161,8 +154,7 @@ val mountRouter = fn(r, prefix:str, childRouter) {
  * Route handlers receive the request with `params` populated from URL pattern segments.
  */
 @export
-@returns('Response')
-val handle = fn(request, r) {
+val handle = fn(request, r):Response {
 	match handleRequest(r.routes, request) {
 		nil      => notFound()
 		response => response
@@ -227,8 +219,7 @@ val matchRoutePattern = fn(pattern, path) {
  * before dispatching to the inner router.
  */
 @export
-@returns('fn')
-val subrouter = fn(router) {
+val subrouter = fn(router):fn {
 	fn(req) {
 		var rest = req.params["*"]
 		if (rest == nil || rest == "") { rest = "/" }
@@ -253,8 +244,7 @@ val subrouter = fn(router) {
  * non-GET/HEAD requests. `HEAD` requests return headers without a body.
  */
 @export
-@returns('fn')
-val static = fn(dir, cacheTimeSeconds = 3600) {
+val static = fn(dir, cacheTimeSeconds = 3600):fn {
 	fn(req) {
 		defer onerror(err) notFound()
 
@@ -317,8 +307,7 @@ val joinPath = fn(dir, rel) {
  * any request ID / trace ID / span ID present on the request.
  */
 @export
-@returns('fn')
-val withLog = fn(handler) {
+val withLog = fn(handler):fn {
 	fn(req) {
 		val d   = delta(clock)
 		val res = handler(req)
@@ -339,8 +328,7 @@ val withLog = fn(handler) {
  * If the handler does not return within the timeout, a `TimeoutError` is thrown.
  */
 @export
-@returns('fn')
-val withTimeout = fn(h, ms) {
+val withTimeout = fn(h, ms):fn {
 	fn(req) {
 		val task = spawn { h(req) }
 		await(task, ms)
@@ -354,8 +342,7 @@ val withTimeout = fn(h, ms) {
  * crashing the connection.
  */
 @export
-@returns('fn')
-val withRecover = fn(h) {
+val withRecover = fn(h):fn {
 	fn(req) {
 		defer onerror(err) { serverError() }
 		h(req)
@@ -366,8 +353,7 @@ val withRecover = fn(h) {
  * wraps `handler` to add a fixed response header to every response.
  */
 @export
-@returns('fn')
-val withHeader = fn(handler:fn, header:str, value:str) {
+val withHeader = fn(handler:fn, header:str, value:str):fn {
 	fn(req) {
 		req /> handler /> withHeader(header, value)
 	}
@@ -381,8 +367,7 @@ val withHeader = fn(handler:fn, header:str, value:str) {
  * as the `X-Request-Id` response header.
  */
 @export
-@returns('fn')
-val withRequestId = fn(handler:fn, newRequestId:fn = fn() { randomHexString(32) }) {
+val withRequestId = fn(handler:fn, newRequestId:fn = fn():str { randomHexString(32) }):fn {
 	fn(req) {
 		var rid = req.headers["x-request-id"]
 		if (rid == nil) { rid = newRequestId() }
@@ -407,12 +392,11 @@ val withRequestId = fn(handler:fn, newRequestId:fn = fn() { randomHexString(32) 
  * Format: `00-<traceId>-<spanId>-01`
  */
 @export
-@returns('fn')
 val withTraceContext = fn(
 	handler,
 	newTraceId:fn = fn() { randomHexString(32) },
 	newSpanId:fn  = fn() { randomHexString(16) }
-) {
+):fn {
 	fn(req) {
 		val tp = req.headers["traceparent"]
 		var traceId  = ""
@@ -448,8 +432,7 @@ val withTraceContext = fn(
  * Default limit is 1MB (1_048_576 bytes).
  */
 @export
-@returns('fn')
-val withMaxBody = fn(h, maxBytes = 1_048_576) {
+val withMaxBody = fn(h, maxBytes = 1_048_576):fn {
 	fn(req) {
 		if (req.method == "POST" || req.method == "PUT" || req.method == "PATCH") {
 			val cl = req.headers["content-length"]
