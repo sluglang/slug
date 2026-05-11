@@ -42,7 +42,7 @@ hmacSha256("hello", "slug")
 #### `hmacSha256(message, secret)`
 ```slug
 fn slug.crypto#hmacSha256(message:bytes, secret:bytes):bytes
-fn slug.crypto#hmacSha256(message:str, secret:str):bytes
+fn slug.crypto#hmacSha256(message:str, secret:str):str
 ```
 
 
@@ -87,7 +87,7 @@ hmacSha256Hex("hello", "slug")  // => "341f4d32b6b1104f0804b4565a805286ff7d3dc95
 #### `hmacSha512(message, secret)`
 ```slug
 fn slug.crypto#hmacSha512(message:bytes, secret:bytes):bytes
-fn slug.crypto#hmacSha512(message:str, secret:str):bytes
+fn slug.crypto#hmacSha512(message:str, secret:str):str
 ```
 
 
@@ -131,7 +131,7 @@ hmacSha512Hex("hello", "slug")  // => "61d76feb488501a02e020bacca460b5b67c51352c
 
 #### `md5(bytes)`
 ```slug
-fn slug.crypto#md5(bytes:bytes):str
+fn slug.crypto#md5(bytes:bytes):bytes
 fn slug.crypto#md5(str:str):str
 ```
 
@@ -157,7 +157,7 @@ md5("")  // => "d41d8cd98f00b204e9800998ecf8427e"
 
 #### `sha256(bytes)`
 ```slug
-fn slug.crypto#sha256(bytes:bytes):str
+fn slug.crypto#sha256(bytes:bytes):bytes
 fn slug.crypto#sha256(str:str):str
 ```
 
@@ -180,7 +180,7 @@ sha256("")  // => "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b
 
 #### `sha512(bytes)`
 ```slug
-fn slug.crypto#sha512(bytes:bytes):str
+fn slug.crypto#sha512(bytes:bytes):bytes
 fn slug.crypto#sha512(str:str):str
 ```
 

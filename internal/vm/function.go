@@ -82,3 +82,7 @@ func (f *VMFunction) GetSignature() ast.FSig {
 func (f *VMFunction) GetParameters() []*ast.FunctionParameter {
 	return f.Parameters
 }
+
+func (f *VMFunction) GetReturnType() string {
+	return f.ReturnType
+}

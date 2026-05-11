@@ -149,6 +149,7 @@ func adaptVMObjectForForeignBridge(obj object.Object, env *object.Environment) o
 			Tags:       v.Tags,
 			Parameters: v.Parameters,
 			ParamIndex: buildParamIndexForVMBridge(v.Parameters),
+			ReturnType: v.ReturnType,
 			Env:        env,
 			Body:       &ast.BlockStatement{},
 		}

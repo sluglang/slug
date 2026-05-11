@@ -166,7 +166,7 @@ returns true if `path` is a directory.
 
 #### `listFilesRecursive(path, filter, acc)`
 ```slug
-fn slug.io.fs#listFilesRecursive(path:list, filter:fn = fn((s)) {true}, acc = []):list
+fn slug.io.fs#listFilesRecursive(path:list, filter:fn = fn((s)) : bool {true}, acc = []):list
 ```
 
 
@@ -183,7 +183,7 @@ listFilesRecursive(["src"], fn(s) { endsWith(s, ".slug") })
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `path` | list | — |
-| `filter` | fn | `fn((s)) {true}` |
+| `filter` | fn | `fn((s)) : bool {true}` |
 | `acc` |  | `[]` |
 
 ---

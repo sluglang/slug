@@ -417,7 +417,7 @@ generates a random string of `length` characters drawn from `chars`.
 
 #### `replaceAll(str, replace, with)`
 ```slug
-fn slug.string#replaceAll(str:str, replace:str, with:str):str
+fn slug.string#replaceAll(str:str|nil, replace:str, with:str):str|nil
 ```
 
 
@@ -427,7 +427,7 @@ Returns `nil` for `nil` input.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `str` | str | — |
+| `str` |  | — |
 | `replace` | str | — |
 | `with` | str | — |
 
@@ -531,7 +531,7 @@ startsWith("hello slug", "hello")  // => true
 
 #### `toLower(str)`
 ```slug
-fn slug.string#toLower(str:str):str
+fn slug.string#toLower(str:str):str|nil
 ```
 
 
@@ -554,7 +554,7 @@ toLower("SLUG")  // => "slug"
 
 #### `toUpper(str)`
 ```slug
-fn slug.string#toUpper(str:str):str
+fn slug.string#toUpper(str:str):str|nil
 ```
 
 
@@ -577,8 +577,8 @@ toUpper("slug")  // => "SLUG"
 
 #### `trim(str)`
 ```slug
-fn slug.string#trim(str:str):str
-fn slug.string#trim(s:str, prefix:str):str
+fn slug.string#trim(str:str):str|nil
+fn slug.string#trim(s:str|nil, prefix:str):str|nil
 ```
 
 

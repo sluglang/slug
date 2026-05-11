@@ -63,7 +63,7 @@ str slug.benchmark#UnitUs
 #### `compare(benches, warmupMs, sampleMs, samples, minIters, maxIters, subtractOverhead, unit)`
 ```slug
 fn slug.benchmark#compare(benches:list, warmupMs:num = 100, sampleMs:num = 200, samples:num = 20, minIters:num = 1, maxIters:num = 10000000, subtractOverhead:bool = true, unit:str = UnitNs):map
-fn slug.benchmark#compare(a, b):map
+fn slug.benchmark#compare(a, b):num
 ```
 
 

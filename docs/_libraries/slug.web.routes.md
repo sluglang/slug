@@ -88,7 +88,7 @@ val r = router()
 
 #### `get(map, key)`
 ```slug
-fn slug.web.routes#get(map:map, key):Router
+fn slug.web.routes#get(map:map, key):any
 fn slug.web.routes#get(r, pattern:str, handler:fn):Router
 ```
 
@@ -262,7 +262,7 @@ before dispatching to the inner router.
 #### `withHeader(handler, header, value)`
 ```slug
 fn slug.web.routes#withHeader(handler:fn, header:str, value:str):fn
-fn slug.web.routes#withHeader(res, key:str, value:str):fn
+fn slug.web.routes#withHeader(res, key:str, value:str):Response
 ```
 
 
@@ -331,7 +331,7 @@ crashing the connection.
 
 #### `withRequestId(handler, newRequestId)`
 ```slug
-fn slug.web.routes#withRequestId(handler:fn, newRequestId:fn = fn() {randomHexString(32)}):fn
+fn slug.web.routes#withRequestId(handler:fn, newRequestId:fn = fn() : str {randomHexString(32)}):fn
 ```
 
 
@@ -344,7 +344,7 @@ as the `X-Request-Id` response header.
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `handler` | fn | — |
-| `newRequestId` | fn | `fn() {randomHexString(32)}` |
+| `newRequestId` | fn | `fn() : str {randomHexString(32)}` |
 
 ---
 

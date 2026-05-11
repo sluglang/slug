@@ -275,7 +275,7 @@ logs an error-level message using the global log level.
 
 #### `info(path)`
 ```slug
-fn slug.log#info(path:str):str|nil
+fn slug.log#info(path:str):map
 fn slug.log#info(message:str, ...args):str|nil
 ```
 

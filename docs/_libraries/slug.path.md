@@ -70,7 +70,7 @@ Returns the library root of the current module namespace.
 
 #### `localize(path)`
 ```slug
-fn slug.path#localize(path:str):str
+fn slug.path#localize(path:str|nil):str|nil
 ```
 
 
@@ -79,7 +79,7 @@ useful for config.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `path` | str | — |
+| `path` |  | — |
 
 ---
 

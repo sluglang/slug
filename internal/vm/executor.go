@@ -1562,6 +1562,7 @@ func (e *Executor) bindClosureIfNeeded(obj object.Object) object.Object {
 			Tags:        fn.Tags,
 			Parameters:  fn.Parameters,
 			ParamIndex:  fn.ParamIndex,
+			ReturnType:  fn.ReturnType,
 			Body:        fn.Body,
 			Env:         e.env,
 			HasTailCall: fn.HasTailCall,

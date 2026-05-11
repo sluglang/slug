@@ -60,7 +60,7 @@ str slug.benchmark#UnitUs
 fn slug.benchmark#compare(benches:list, warmupMs:num = 100, sampleMs:num = 200, samples:num = 20, minIters:num = 1, maxIters:num = 10000000, subtractOverhead:bool = true, unit:str = UnitNs):map
   desc: "benchmarks a list of named functions and returns results sorted by p50."
   effects: time
-fn slug.benchmark#compare(a, b):map
+fn slug.benchmark#compare(a, b):num
   desc: "benchmarks a list of named functions and returns results sorted by p50."
   effects: time
 
@@ -103,24 +103,24 @@ fn slug.channel#await(handle:task, timeout:num = 0):any
   errors:
     thrown: Error{type:TimeoutError}
 
-fn slug.channel#chan(capacity:num = 0):chan
+fn slug.channel#chan(capacity:num = 0):chan<any|nil>
   desc: "creates a new channel with an optional buffer capacity."
 
-fn slug.channel#close(channel:chan):nil
+fn slug.channel#close(channel:chan<any|nil>):nil
   desc: "closes a channel, signalling that no more values will be sent."
 
-fn slug.channel#recv(channel:chan, timeout:num = 0):any
+fn slug.channel#recv(channel:chan<any|nil>, timeout:num = 0):any
   desc: "receives a value from a channel, blocking until one is available."
   errors:
     thrown: Error{type:TimeoutError}
 
-fn slug.channel#send(channel:chan, payload):any
+fn slug.channel#send(channel:chan<any|nil>, payload):any
   desc: "sends a value to a channel, blocking until a receiver is ready."
 
-fn slug.channel#tryRecv(channel:chan):any
+fn slug.channel#tryRecv(channel:chan<any|nil>):any
   desc: "attempts to receive a value from a channel without blocking."
 
-fn slug.channel#trySend(channel:chan, payload):any
+fn slug.channel#trySend(channel:chan<any|nil>, payload):any
   desc: "attempts to send a value to a channel without blocking."
 
 fn slug.cli#argsWith(raw, spec):any
@@ -139,7 +139,7 @@ fn slug.cli#versionText(spec):any
 
 fn slug.crypto#hmacSha256(message:bytes, secret:bytes):bytes
   desc: "returns the HMAC-SHA256 of a raw byte message using a raw byte key."
-fn slug.crypto#hmacSha256(message:str, secret:str):bytes
+fn slug.crypto#hmacSha256(message:str, secret:str):str
   desc: "returns the HMAC-SHA256 of a raw byte message using a raw byte key."
 
 fn slug.crypto#hmacSha256Hex(message:str, secret:str):str
@@ -147,23 +147,23 @@ fn slug.crypto#hmacSha256Hex(message:str, secret:str):str
 
 fn slug.crypto#hmacSha512(message:bytes, secret:bytes):bytes
   desc: "returns the HMAC-SHA512 of a raw byte message using a raw byte key."
-fn slug.crypto#hmacSha512(message:str, secret:str):bytes
+fn slug.crypto#hmacSha512(message:str, secret:str):str
   desc: "returns the HMAC-SHA512 of a raw byte message using a raw byte key."
 
 fn slug.crypto#hmacSha512Hex(message:str, secret:str):str
   desc: "returns the HMAC-SHA512 of a message using a secret key, as a hex string."
 
-fn slug.crypto#md5(bytes:bytes):str
+fn slug.crypto#md5(bytes:bytes):bytes
   desc: "returns the MD5 hex digest of a string."
 fn slug.crypto#md5(str:str):str
   desc: "returns the MD5 hex digest of a string."
 
-fn slug.crypto#sha256(bytes:bytes):str
+fn slug.crypto#sha256(bytes:bytes):bytes
   desc: "returns the SHA-256 hex digest of a string."
 fn slug.crypto#sha256(str:str):str
   desc: "returns the SHA-256 hex digest of a string."
 
-fn slug.crypto#sha512(bytes:bytes):str
+fn slug.crypto#sha512(bytes:bytes):bytes
   desc: "returns the SHA-512 hex digest of a string."
 fn slug.crypto#sha512(str:str):str
   desc: "returns the SHA-512 hex digest of a string."
@@ -199,7 +199,7 @@ fn slug.db.migration#up(conn:num, env:list = DefaultEnv, base:str = DefaultBase)
 
 fn slug.db.repo#into(data:list, toType, columnToFieldName:fn = fn((s)) {camelCase(s, _)}):list
   desc: "maps a list of db result rows onto a struct or map target."
-fn slug.db.repo#into(data:map, target, columnToFieldName:fn = fn((s)) {camelCase(s, _)}):list
+fn slug.db.repo#into(data:map, target, columnToFieldName:fn = fn((s)) {camelCase(s, _)}):any
   desc: "maps a list of db result rows onto a struct or map target."
 
 fn slug.db.repo#loadQueries(base:str = DefaultBase):map
@@ -277,7 +277,7 @@ fn slug.io.fs#info(path:str):map
 fn slug.io.fs#isDir(path:str):bool
   desc: "returns true if `path` is a directory."
 
-fn slug.io.fs#listFilesRecursive(path:list, filter:fn = fn((s)) {true}, acc = []):list
+fn slug.io.fs#listFilesRecursive(path:list, filter:fn = fn((s)) : bool {true}, acc = []):list
   desc: "recursively collects all files under the given path(s) matching `filter`."
 
 fn slug.io.fs#ls(path:str):list
@@ -340,7 +340,7 @@ fn slug.io.stdin#prompt(prompt:str):str
 
 fn slug.io.stdin#readLine():any
 
-fn slug.io.stdin#readLines():chan<str>
+fn slug.io.stdin#readLines():chan<str|nil>
   desc: "Returns a shared singleton channel of stdin line events."
 
 fn slug.io.tcp#accept(listener:num):num
@@ -504,7 +504,7 @@ fn slug.log#debug(message:str, ...args):str|nil
 fn slug.log#error(message:str, ...args):str|nil
   desc: "logs an error-level message using the global log level."
 
-fn slug.log#info(path:str):str|nil
+fn slug.log#info(path:str):map
   desc: "logs an info-level message using the global log level."
 fn slug.log#info(message:str, ...args):str|nil
   desc: "logs an info-level message using the global log level."
@@ -607,7 +607,7 @@ fn slug.mustache#render(templateOrAst, data, partials = nil):str
   errors:
     thrown: Error{type:MustacheError}
 
-fn slug.mustache#renderCached(templateOrAst, data, partials = nil, cache = {}):str
+fn slug.mustache#renderCached(templateOrAst, data, partials = nil, cache = {}):map<any,any>
   desc: "renders a Mustache template with a partial cache for reuse across calls."
   errors:
     thrown: Error{type:MustacheError}
@@ -624,7 +624,7 @@ fn slug.path#join(...parts):str
 fn slug.path#libRoot():str
   desc: "Returns the library root of the current module namespace."
 
-fn slug.path#localize(path:str):str
+fn slug.path#localize(path:str|nil):str|nil
   desc: "If path starts with '__project__/', '__library__/' or '__module__/' returns path new path with substitution, useful for config."
 
 fn slug.path#moduleDir():str
@@ -681,7 +681,7 @@ sym slug.std#SYMBOL_TYPE
 
 sym slug.std#TASK_TYPE
 
-fn slug.std#compare(a, b):map
+fn slug.std#compare(a, b):num
   desc: "returns -1 if `a < b`, 1 if `a > b`, 0 if equal."
   effects: time
 
@@ -727,7 +727,7 @@ fn slug.std#isStructInstance(v):bool
 fn slug.std#keys(map):list
   desc: "returns a list of all keys in a map."
 
-fn slug.std#label(symbol):str
+fn slug.std#label(symbol:sym):str
   desc: "returns the string label of a symbol."
 
 fn slug.std#map(vs:list, f:fn, acc = []):list
@@ -771,12 +771,12 @@ fn slug.std#toBoolean(v):bool
   errors:
     thrown: Error{type:TypeError}
 
-fn slug.std#toNumber(v):num
+fn slug.std#toNumber(v):num|nil
   desc: "converts a value to `@num`."
   errors:
     thrown: Error{type:TypeError}
 
-fn slug.std#toString(v):str
+fn slug.std#toString(v):str|nil
   desc: "converts a value to a string representation."
 
 fn slug.std#type(val):sym
@@ -847,7 +847,7 @@ fn slug.string#randomString(length:num, chars:str, acc:str = ""):str
   desc: "generates a random string of `length` characters drawn from `chars`."
   effects: random
 
-fn slug.string#replaceAll(str:str, replace:str, with:str):str
+fn slug.string#replaceAll(str:str|nil, replace:str, with:str):str|nil
   desc: "replaces all occurrences of `replace` in `str` with `with`."
 
 fn slug.string#snakeCase(s:str, sep:str = " ", screaming = false):str
@@ -859,15 +859,15 @@ fn slug.string#split(str:str, delimiter:str, max:num = (-1), count:num = 1, strs
 fn slug.string#startsWith(str:str, start:str):bool
   desc: "returns true if `str` begins with `start`."
 
-fn slug.string#toLower(str:str):str
+fn slug.string#toLower(str:str):str|nil
   desc: "converts a string to lowercase."
 
-fn slug.string#toUpper(str:str):str
+fn slug.string#toUpper(str:str):str|nil
   desc: "converts a string to uppercase."
 
-fn slug.string#trim(str:str):str
+fn slug.string#trim(str:str):str|nil
   desc: "removes all leading and trailing occurrences of `prefix` from `s`."
-fn slug.string#trim(s:str, prefix:str):str
+fn slug.string#trim(s:str|nil, prefix:str):str|nil
   desc: "removes all leading and trailing occurrences of `prefix` from `s`."
 
 fn slug.sys#env(str:str):str
@@ -1379,7 +1379,7 @@ fn slug.web.response#withStatus(res, status:num):Response
 fn slug.web.response#withoutHeader(res, key:str):Response
   desc: "returns a new response with `key` removed from headers."
 
-fn slug.web.routes#get(map:map, key):Router
+fn slug.web.routes#get(map:map, key):any
   desc: "registers a `GET` route on `r` and returns the updated router."
 fn slug.web.routes#get(r, pattern:str, handler:fn):Router
   desc: "registers a `GET` route on `r` and returns the updated router."
@@ -1413,7 +1413,7 @@ fn slug.web.routes#subrouter(router):fn
 
 fn slug.web.routes#withHeader(handler:fn, header:str, value:str):fn
   desc: "wraps `handler` to add a fixed response header to every response."
-fn slug.web.routes#withHeader(res, key:str, value:str):fn
+fn slug.web.routes#withHeader(res, key:str, value:str):Response
   desc: "wraps `handler` to add a fixed response header to every response."
 
 fn slug.web.routes#withLog(handler):fn
@@ -1425,7 +1425,7 @@ fn slug.web.routes#withMaxBody(h, maxBytes = 1048576):fn
 fn slug.web.routes#withRecover(h):fn
   desc: "wraps `handler` so that any thrown error returns a 500 Server Error response."
 
-fn slug.web.routes#withRequestId(handler:fn, newRequestId:fn = fn() {randomHexString(32)}):fn
+fn slug.web.routes#withRequestId(handler:fn, newRequestId:fn = fn() : str {randomHexString(32)}):fn
   desc: "wraps `handler` to attach a request ID to every request and response."
 
 fn slug.web.routes#withTimeout(h, ms):fn

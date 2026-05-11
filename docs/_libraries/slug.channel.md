@@ -69,7 +69,7 @@ that many milliseconds, a `TimeoutError` is thrown.
 
 #### `chan(capacity)`
 ```slug
-fn slug.channel#chan(capacity:num = 0):chan
+fn slug.channel#chan(capacity:num = 0):chan<any|nil>
 ```
 
 
@@ -87,7 +87,7 @@ queued before blocking.
 
 #### `close(channel)`
 ```slug
-fn slug.channel#close(channel:chan):nil
+fn slug.channel#close(channel:chan<any|nil>):nil
 ```
 
 
@@ -98,13 +98,13 @@ is a runtime error.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `channel` | chan | — |
+| `channel` |  | — |
 
 ---
 
 #### `recv(channel, timeout)`
 ```slug
-fn slug.channel#recv(channel:chan, timeout:num = 0):any
+fn slug.channel#recv(channel:chan<any|nil>, timeout:num = 0):any
 ```
 
 
@@ -115,7 +115,7 @@ milliseconds, a `TimeoutError` is thrown.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `channel` | chan | — |
+| `channel` |  | — |
 | `timeout` | num | `0` |
 
 **Throws:** `Error{type:TimeoutError}`
@@ -124,7 +124,7 @@ milliseconds, a `TimeoutError` is thrown.
 
 #### `send(channel, payload)`
 ```slug
-fn slug.channel#send(channel:chan, payload):any
+fn slug.channel#send(channel:chan<any|nil>, payload):any
 ```
 
 
@@ -136,14 +136,14 @@ Returns the channel, allowing chains: `ch /> send("a") /> send("b")`
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `channel` | chan | — |
+| `channel` |  | — |
 | `payload` |  | — |
 
 ---
 
 #### `tryRecv(channel)`
 ```slug
-fn slug.channel#tryRecv(channel:chan):any
+fn slug.channel#tryRecv(channel:chan<any|nil>):any
 ```
 
 
@@ -153,13 +153,13 @@ Returns the next value if one is immediately available, nil otherwise.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `channel` | chan | — |
+| `channel` |  | — |
 
 ---
 
 #### `trySend(channel, payload)`
 ```slug
-fn slug.channel#trySend(channel:chan, payload):any
+fn slug.channel#trySend(channel:chan<any|nil>, payload):any
 ```
 
 
@@ -171,5 +171,5 @@ Returns the channel if the send succeeded, nil if the channel was full.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `channel` | chan | — |
+| `channel` |  | — |
 | `payload` |  | — |

@@ -57,7 +57,7 @@ All other statements call `exec()` (returns `@map`).
 #### `into(data, toType, columnToFieldName)`
 ```slug
 fn slug.db.repo#into(data:list, toType, columnToFieldName:fn = fn((s)) {camelCase(s, _)}):list
-fn slug.db.repo#into(data:map, target, columnToFieldName:fn = fn((s)) {camelCase(s, _)}):list
+fn slug.db.repo#into(data:map, target, columnToFieldName:fn = fn((s)) {camelCase(s, _)}):any
 ```
 
 

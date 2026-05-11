@@ -185,7 +185,7 @@ Always set `type` to a stable PascalCase string identifying the error kind
 
 #### `compare(a, b)`
 ```slug
-fn slug.std#compare(a, b):map
+fn slug.std#compare(a, b):num
 ```
 
 
@@ -488,7 +488,7 @@ keys({:k: 1})  // => [:k]
 
 #### `label(symbol)`
 ```slug
-fn slug.std#label(symbol):str
+fn slug.std#label(symbol:sym):str
 ```
 
 
@@ -496,7 +496,7 @@ returns the string label of a symbol.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `symbol` |  | — |
+| `symbol` | sym | — |
 
 
 #### Examples
@@ -809,7 +809,7 @@ toBoolean("0")  // => false
 
 #### `toNumber(v)`
 ```slug
-fn slug.std#toNumber(v):num
+fn slug.std#toNumber(v):num|nil
 ```
 
 
@@ -839,7 +839,7 @@ toNumber("1.1")  // => 1.1
 
 #### `toString(v)`
 ```slug
-fn slug.std#toString(v):str
+fn slug.std#toString(v):str|nil
 ```
 
 

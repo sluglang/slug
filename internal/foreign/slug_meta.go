@@ -376,14 +376,20 @@ func describeDetails(value object.Object) *object.Map {
 	case *object.StructSchema:
 		return describeStructSchemaDetails(v)
 	case *object.Function:
-		return describeFunctionDetails(false, v.Signature, v.Parameters)
+		return describeFunctionDetails(false, v.Signature, v.Parameters, "")
 	case *object.Foreign:
-		return describeFunctionDetails(true, v.Signature, v.Parameters)
+		return describeFunctionDetails(true, v.Signature, v.Parameters, v.ReturnType)
+	case interface {
+		GetSignature() ast.FSig
+		GetParameters() []*ast.FunctionParameter
+		GetReturnType() string
+	}:
+		return describeFunctionDetails(false, v.GetSignature(), v.GetParameters(), v.GetReturnType())
 	case interface {
 		GetSignature() ast.FSig
 		GetParameters() []*ast.FunctionParameter
 	}:
-		return describeFunctionDetails(false, v.GetSignature(), v.GetParameters())
+		return describeFunctionDetails(false, v.GetSignature(), v.GetParameters(), "")
 	case *object.FunctionGroup:
 		return describeFunctionGroupDetails(v)
 	case *object.Module:
@@ -458,13 +464,13 @@ func describeStructSchemaDetails(schema *object.StructSchema) *object.Map {
 
 func describeFunctionGroupDetails(group *object.FunctionGroup) *object.Map {
 	if group == nil || len(group.Functions) == 0 {
-		return describeFunctionDetails(false, ast.FSig{}, nil)
+		return describeFunctionDetails(false, ast.FSig{}, nil, "")
 	}
 
 	entries := collectFunctionEntries(group.Functions)
 	if len(entries) == 1 {
 		entry := entries[0]
-		return describeFunctionDetails(isForeignFunction(entry.fn), entry.sig, paramsFromFunctionObject(entry.fn))
+		return describeFunctionDetails(isForeignFunction(entry.fn), entry.sig, paramsFromFunctionObject(entry.fn), returnTypeFromFunctionObject(entry.fn))
 	}
 
 	groups := make([]object.Object, 0, len(entries))
@@ -477,7 +483,7 @@ func describeFunctionGroupDetails(group *object.FunctionGroup) *object.Map {
 			fnMap.Put(object.InternSymbol("docs"), &object.String{Value: ""})
 		}
 		fnMap.Put(object.InternSymbol("tags"), describeTags(entry.fn))
-		fnMap.Put(object.InternSymbol("details"), describeFunctionDetails(isForeignFunction(entry.fn), entry.sig, paramsFromFunctionObject(entry.fn)))
+		fnMap.Put(object.InternSymbol("details"), describeFunctionDetails(isForeignFunction(entry.fn), entry.sig, paramsFromFunctionObject(entry.fn), returnTypeFromFunctionObject(entry.fn)))
 		groups = append(groups, fnMap)
 	}
 
@@ -524,16 +530,32 @@ func paramsFromFunctionObject(fn object.Object) []*ast.FunctionParameter {
 	return nil
 }
 
+func returnTypeFromFunctionObject(fn object.Object) string {
+	switch f := fn.(type) {
+	case *object.Foreign:
+		return f.ReturnType
+	case interface {
+		GetReturnType() string
+	}:
+		return f.GetReturnType()
+	default:
+		return ""
+	}
+}
+
 func isForeignFunction(fn object.Object) bool {
 	_, ok := fn.(*object.Foreign)
 	return ok
 }
 
-func describeFunctionDetails(isForeign bool, sig ast.FSig, params []*ast.FunctionParameter) *object.Map {
+func describeFunctionDetails(isForeign bool, sig ast.FSig, params []*ast.FunctionParameter, returnType string) *object.Map {
 	details := &object.Map{}
 	details.Put(object.InternSymbol("foreign"), boolObject(isForeign))
 	details.Put(object.InternSymbol("arityMin"), &object.Number{Value: dec64.FromInt(sig.Min)})
 	details.Put(object.InternSymbol("arityMax"), &object.Number{Value: dec64.FromInt(sig.Max)})
+	if strings.TrimSpace(returnType) != "" {
+		details.Put(object.InternSymbol("returnType"), &object.String{Value: returnType})
+	}
 
 	paramList := &object.List{Elements: []object.Object{}}
 	if len(params) > 0 {
@@ -545,6 +567,9 @@ func describeFunctionDetails(isForeign bool, sig ast.FSig, params []*ast.Functio
 			paramMap := &object.Map{}
 			paramMap.Put(object.InternSymbol("name"), &object.String{Value: param.Name.Value})
 			paramMap.Put(object.InternSymbol("tags"), tagsFromAstTags(param.Tags))
+			if strings.TrimSpace(param.Type) != "" {
+				paramMap.Put(object.InternSymbol("type"), &object.String{Value: param.Type})
+			}
 			hasDefault := param.Default != nil
 			paramMap.Put(object.InternSymbol("hasDefault"), boolObject(hasDefault))
 			if hasDefault {

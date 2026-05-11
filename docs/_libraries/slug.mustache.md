@@ -104,7 +104,7 @@ For repeated renders of the same template with partials, prefer
 
 #### `renderCached(templateOrAst, data, partials, cache)`
 ```slug
-fn slug.mustache#renderCached(templateOrAst, data, partials = nil, cache = {}):str
+fn slug.mustache#renderCached(templateOrAst, data, partials = nil, cache = {}):map<any,any>
 ```
 
 

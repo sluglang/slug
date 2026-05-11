@@ -104,12 +104,6 @@ val normalizeTypeExpr = fn(v) {
 				'[' + (inner /> split(',') /> map(fn(x) { normalizeTypeExpr(trim(x)) }) /> join(', ')) + ']'
 			} else if (indexOf(s, '|') >= 0) {
 				s /> split('|') /> map(fn(x) { normalizeTypeExpr(trim(x)) }) /> join('|')
-			} else if (startsWith(s, '@chan(') && endsWith(s, ')')) {
-				'chan<' + normalizeTypeExpr(s[6:len(s)-1]) + '>'
-			} else if (startsWith(s, 'chan(') && endsWith(s, ')')) {
-				'chan<' + normalizeTypeExpr(s[5:len(s)-1]) + '>'
-			} else if (startsWith(s, '@chan<') && endsWith(s, '>')) {
-				'chan<' + normalizeTypeExpr(s[6:len(s)-1]) + '>'
 			} else if (startsWith(s, 'chan<') && endsWith(s, '>')) {
 				'chan<' + normalizeTypeExpr(s[5:len(s)-1]) + '>'
 			} else if (startsWith(s, '@struct(') && endsWith(s, ')')) {
@@ -172,7 +166,10 @@ val renderDefault = fn(param) match {
 val renderParams = fn(params:list) {
 	params
 	/> map(fn(v) {
-		val t = renderTags(v.tags)
+		val t = match v {
+			{type} => normalizeTypeExpr(type)
+			_      => renderTags(v.tags)
+		}
 		val typePart = match t { nil => '' _ => ':' + t }
 		renderVargs(v) + v.name + typePart + renderDefault(v)
 	})
@@ -182,11 +179,14 @@ val renderParams = fn(params:list) {
 // --- return type renderer ---
 // Now returns a string for the fn signature line only (no longer inline errors)
 
-val renderReturn = fn(details:map) {
-	match details.tags['@returns'] {
-		nil  => ':any'
-		[v]  => ":{{normalizeTypeExpr(v)}}"
-		v    => ":({{v /> map(normalizeTypeExpr) /> join('|')}})"
+val renderReturn = fn(h:map) {
+	match h.details.returnType {
+		nil  => match h.tags['@returns'] {
+			nil  => ':any'
+			[v]  => ":{{normalizeTypeExpr(v)}}"
+			v    => ":({{v /> map(normalizeTypeExpr) /> join('|')}})"
+		}
+		rt   => ":{{normalizeTypeExpr(rt)}}"
 	}
 }
 

@@ -2615,3 +2615,17 @@ Validation performed:
   - `slug.path#localize` now accepts and returns `str|nil`.
   - `slug.std#toNumber` and `slug.std#toString` now declare `...|nil` return types.
 - Updated semantic conformance golden snapshot after type-flow changes.
+
+## 2026-05-11 — Channel Type Canonicalization and Doc Type Fidelity
+
+- Standardized `slug.channel` public signatures to typed channels with explicit nil-closure semantics:
+  - `chan(capacity:num = 0):chan<any|nil>`
+  - channel parameters now use `chan<any|nil>` in `close`, `send`, `trySend`, `recv`, `tryRecv`.
+- Removed legacy channel-type normalization in doc generators:
+  - dropped support for `@chan(...)`, `chan(...)`, and `@chan<...>` normalization paths.
+  - retained canonical `chan<...>` handling only.
+- Improved reflection metadata fidelity in `slug.meta.describe*`:
+  - function `details` now include `returnType` when available.
+  - parameter entries now include explicit `type` when declared.
+- Updated docs/manifests to consume explicit metadata types first (before fallback tag inference), enabling correct rendering of generic channel types.
+- Regenerated `lib/MANIFEST.ai` and `docs/_libraries/*.md` so channel signatures now render as `chan<any|nil>`.

@@ -305,6 +305,7 @@ type Function struct {
 	Tags        map[string]List
 	Parameters  []*ast.FunctionParameter
 	ParamIndex  map[string]int
+	ReturnType  string
 	Body        *ast.BlockStatement
 	Env         *Environment
 	HasTailCall bool
@@ -345,6 +346,9 @@ func (f *Function) GetSignature() ast.FSig {
 }
 func (f *Function) GetParameters() []*ast.FunctionParameter {
 	return f.Parameters
+}
+func (f *Function) GetReturnType() string {
+	return f.ReturnType
 }
 
 type FunctionGroup struct {

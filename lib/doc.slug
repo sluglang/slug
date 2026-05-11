@@ -58,7 +58,7 @@ Commands:
 	defaults: {
 		title:     'Slug API Reference',
 		multiPage: false,
-		moduleToc: false,
+		moduleToc: true,
 	},
 	desc: {
 		dir:       'source directory to scan for .slug modules',
