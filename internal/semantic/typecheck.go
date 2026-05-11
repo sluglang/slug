@@ -68,6 +68,12 @@ type callCheck struct {
 	expected *tnode
 }
 
+type declaredReturnCheck struct {
+	pos      int
+	got      *tnode
+	expected *tnode
+}
+
 type plusCheck struct {
 	pos   int
 	left  *tnode
@@ -95,6 +101,7 @@ type typeChecker struct {
 	diags       []tdiag
 	diagSeen    map[string]bool
 	callChecks  []callCheck
+	retChecks   []declaredReturnCheck
 	plusChecks  []plusCheck
 	mulChecks   []mulCheck
 	bitChecks   []bitwiseCheck
@@ -750,7 +757,19 @@ func (c *typeChecker) inferStatement(stmt ast.Statement) *tnode {
 		return c.inferBlock(s)
 	case *ast.DeferStatement:
 		if s.Call != nil {
-			c.inferStatement(s.Call)
+			if s.Mode == ast.DeferOnError && s.ErrorName != nil {
+				c.pushScope()
+				c.pushOverride()
+				// onerror payload may be a struct error object or a map-like shape,
+				// depending on throw origin/runtime bridge; keep it permissive here.
+				errType := c.scalar(typeAny)
+				c.bind(s.ErrorName.Value, errType)
+				c.inferStatement(s.Call)
+				c.popOverride()
+				c.popScope()
+			} else {
+				c.inferStatement(s.Call)
+			}
 		}
 		return c.scalar(typeNil)
 	case *ast.ForeignFunctionDeclaration:
@@ -759,6 +778,7 @@ func (c *typeChecker) inferStatement(stmt ast.Statement) *tnode {
 			pt := c.freshUnknown()
 			c.validateSpecialDeclaredType(p.Type, s.Token.Position, "parameter")
 			if tt := c.parseDeclaredType(p.Type); tt != nil {
+				pt = tt
 				c.addConstraint(pt, tt, s.Token.Position, "parameter annotation constraint")
 			}
 			for _, tag := range p.Tags {
@@ -779,6 +799,7 @@ func (c *typeChecker) inferStatement(stmt ast.Statement) *tnode {
 		c.validateSpecialDeclaredType(s.ReturnType, s.Token.Position, "function return")
 		if tt := c.parseDeclaredType(s.ReturnType); tt != nil {
 			c.addConstraint(ret, tt, s.Token.Position, "function return annotation")
+			c.retChecks = append(c.retChecks, declaredReturnCheck{pos: s.Token.Position, got: ret, expected: tt})
 		}
 		fnType := c.fnType(params, ret, len(s.Parameters) > 0 && s.Parameters[len(s.Parameters)-1].IsVariadic, s.Signature.Min, s.Signature.Max)
 		c.bind(s.Name.Value, fnType)
@@ -1117,6 +1138,7 @@ func (c *typeChecker) inferFunctionLiteral(fn *ast.FunctionLiteral) *tnode {
 		pt := c.freshUnknown()
 		c.validateSpecialDeclaredType(p.Type, p.Name.Token.Position, "parameter")
 		if tt := c.parseDeclaredType(p.Type); tt != nil {
+			pt = tt
 			c.addConstraint(pt, tt, p.Name.Token.Position, "parameter annotation constraint")
 		}
 		for _, tag := range p.Tags {
@@ -1152,6 +1174,7 @@ func (c *typeChecker) inferFunctionLiteral(fn *ast.FunctionLiteral) *tnode {
 	c.validateSpecialDeclaredType(fn.ReturnType, fn.Token.Position, "function return")
 	if tt := c.parseDeclaredType(fn.ReturnType); tt != nil {
 		c.addConstraint(ret, tt, fn.Token.Position, "function return annotation")
+		c.retChecks = append(c.retChecks, declaredReturnCheck{pos: fn.Token.Position, got: ret, expected: tt})
 	}
 	c.popOverride()
 	c.popScope()
@@ -1407,6 +1430,10 @@ func (c *typeChecker) inferInfix(e *ast.InfixExpression) *tnode {
 		rf := c.find(right)
 		if lf.kind == typeStr || rf.kind == typeStr {
 			c.addConstraint(out, c.scalar(typeStr), e.Token.Position, "string concatenation")
+			return out
+		}
+		if lf.kind == typeNum && rf.kind == typeNum {
+			c.addConstraint(out, c.scalar(typeNum), e.Token.Position, "numeric result")
 			return out
 		}
 		// Defer '+' compatibility check to runtime-aligned rule after solving.
@@ -2419,6 +2446,12 @@ func (c *typeChecker) solveConstraints() {
 			c.addDiag(cc.pos, "call argument type mismatch: expected %s, got %s", c.describe(cc.expected), c.describe(cc.got))
 		}
 	}
+	for _, rc := range c.retChecks {
+		got := c.normalizedDeclaredReturnType(rc.got)
+		if !c.isDeclaredCompatible(got, rc.expected) {
+			c.addDiag(rc.pos, "inferred type mismatch (function return annotation): %s vs %s", c.describe(got), c.describe(rc.expected))
+		}
+	}
 	for _, pc := range c.plusChecks {
 		if !c.isPlusCompatible(pc.left, pc.right) {
 			c.addDiag(pc.pos, "operator '+' type mismatch: %s vs %s", c.describe(pc.left), c.describe(pc.right))
@@ -2616,6 +2649,14 @@ func (c *typeChecker) isDeclaredCompatible(got, expected *tnode) bool {
 			}
 			return true
 		}
+		if g.kind == typeList && e.kind == typeTuple {
+			for _, et := range e.params {
+				if !c.isDeclaredCompatible(g.elem, et) {
+					return false
+				}
+			}
+			return true
+		}
 		return false
 	}
 	switch g.kind {
@@ -2654,6 +2695,28 @@ func (c *typeChecker) isDeclaredCompatible(got, expected *tnode) bool {
 	default:
 		return true
 	}
+}
+
+func (c *typeChecker) normalizedDeclaredReturnType(t *tnode) *tnode {
+	tf := c.find(t)
+	if tf == nil || tf.kind != typeUnion || len(tf.options) < 2 {
+		return tf
+	}
+	withoutNil := make([]*tnode, 0, len(tf.options))
+	for _, opt := range tf.options {
+		of := c.find(opt)
+		if of == nil {
+			continue
+		}
+		if of.kind == typeNil {
+			continue
+		}
+		withoutNil = append(withoutNil, of)
+	}
+	if len(withoutNil) == 0 || len(withoutNil) == len(tf.options) {
+		return tf
+	}
+	return c.unionType(withoutNil...)
 }
 
 func (c *typeChecker) enforceDeclaredLiteralCompatibility(expr ast.Expression, declared *tnode, pos int) {

@@ -503,6 +503,118 @@ val out:[str, str] = exec("echo hi")
 	}
 }
 
+func TestSemanticTypeCheckRejectsFunctionReturnAnnotationMismatch(t *testing.T) {
+	input := `
+val sum = fn(a:num, b:num):str {
+  a + b
+}
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
+	}
+	if len(errs) == 0 {
+		t.Fatal("expected function return annotation mismatch error, got none")
+	}
+	if !containsError(errs, "function return annotation") {
+		t.Fatalf("expected function return annotation diagnostic, got: %v", errs)
+	}
+}
+
+func TestSemanticTypeCheckAllowsFunctionReturnAnnotationMatch(t *testing.T) {
+	input := `
+val sum = fn(a:num, b:num):num {
+  a + b
+}
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
+	}
+	if len(errs) > 0 {
+		t.Fatalf("expected no semantic errors for matching function return annotation, got: %v", errs)
+	}
+}
+
+func TestSemanticTypeCheckAllowsDeferOnErrorBindingShadow(t *testing.T) {
+	input := `
+val applyTest = fn(err:str) {
+  defer onerror(err) {
+    match err {
+      {msg, ...} => msg
+      _ => nil
+    }
+  }
+  throw {"msg": "boom"}
+}
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
+	}
+	if len(errs) > 0 {
+		t.Fatalf("expected no semantic errors for defer onerror shadow binding, got: %v", errs)
+	}
+}
+
+func TestSemanticTypeCheckAllowsDeferOnErrorStructPattern(t *testing.T) {
+	input := `
+val Error = struct {
+  type:str = "Error",
+  msg:str,
+}
+
+val run = fn() {
+  defer onerror(err) {
+    match err {
+      Error{ type: "AssertionError", msg } => msg
+      _ => nil
+    }
+  }
+  throw Error { type: "AssertionError", msg: "boom" }
+}
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
+	}
+	if len(errs) > 0 {
+		t.Fatalf("expected no semantic errors for defer onerror struct pattern, got: %v", errs)
+	}
+}
+
 func TestSemanticTypeCheckTraceEmitsEvents(t *testing.T) {
 	input := `
 val f = fn(flag, x) {

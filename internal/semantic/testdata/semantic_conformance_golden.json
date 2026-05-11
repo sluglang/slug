@@ -4,7 +4,7 @@
     "warnings": 0,
     "trace_events": {
       "merge": 28,
-      "union-normalize": 10
+      "union-normalize": 13
     }
   },
   "lib/slug/json.slug": {
@@ -13,26 +13,26 @@
     "trace_events": {
       "merge": 2117,
       "refine": 4,
-      "union-normalize": 82
+      "union-normalize": 98
     }
   },
   "lib/slug/mustache.slug": {
     "errors": 0,
     "warnings": 0,
     "trace_events": {
-      "merge": 3555,
-      "refine": 73,
-      "union-normalize": 417,
-      "widen": 50
+      "merge": 3432,
+      "refine": 58,
+      "union-normalize": 365,
+      "widen": 47
     }
   },
   "lib/slug/std.slug": {
     "errors": 0,
     "warnings": 0,
     "trace_events": {
-      "merge": 806,
-      "refine": 23,
-      "union-normalize": 66,
+      "merge": 765,
+      "refine": 15,
+      "union-normalize": 54,
       "widen": 1
     }
   },

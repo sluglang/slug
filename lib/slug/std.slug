@@ -172,7 +172,7 @@ foreign sym = fn(name:str):sym
 	[sym("a b")],    "a b"
 )
 @export
-foreign label = fn(symbol):str
+foreign label = fn(symbol:sym):str
 
 /**
  * returns the value for `key` in `map`, or `nil` if absent.

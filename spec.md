@@ -2542,3 +2542,66 @@ Files updated:
 
 Validation performed:
 - `make test` (passes)
+
+### Type checker enhancement: strict function return annotation mismatch detection
+
+- Implemented strict declared-return checks for function return annotations so concrete return mismatches are reported.
+- Added return-annotation verification for both:
+  - function literals (`val f = fn(...):T { ... }`)
+  - foreign declarations (`foreign f = fn(...):T`)
+- Added post-constraint return checks in the solver phase to avoid early false positives from unresolved inference state.
+- Normalized inferred return unions for declared-return checks by removing implicit `nil` sentinel branches where other branches exist.
+- Improved numeric `+` inference when both operands are concretely numeric so return checks can catch cases like `fn(a:num,b:num):str { a + b }`.
+- Extended declared-compatibility for `list<any>` to tuple declarations in return checks to keep tuple-return annotations practical with list-literal inference.
+
+Files updated:
+- `internal/semantic/typecheck.go`
+- `internal/semantic/analyzer_test.go`
+- semantic conformance golden snapshot (updated)
+
+Tests added:
+- `TestSemanticTypeCheckRejectsFunctionReturnAnnotationMismatch`
+- `TestSemanticTypeCheckAllowsFunctionReturnAnnotationMatch`
+
+Validation performed:
+- `go test ./...`
+
+### Regression fix: `defer onerror(err)` shadow binding type in semantic checker
+
+- Fixed a semantic typing regression where `defer onerror(err)` did not introduce a scoped shadow binding for `err`.
+- Previously, inside the `onerror` block, references to `err` could resolve to an outer variable (e.g. `err:str` function param), causing false mismatches for map-pattern matching like `{msg, ...}`.
+- Updated defer inference to create a local scope for `onerror` blocks and bind the error variable name to an error-like map shape before inferring the block body.
+
+Files updated:
+- `internal/semantic/typecheck.go`
+- `internal/semantic/analyzer_test.go`
+
+Tests added:
+- `TestSemanticTypeCheckAllowsDeferOnErrorBindingShadow`
+
+Validation performed:
+- `go test ./internal/semantic -count=1`
+- `SLUG_HOME=$(pwd) go run ./cmd/app/main.go -log-level error --root ./tests tests/lib-slug/test-json.slug`
+- `go test ./...`
+
+### Regression fix: `defer onerror(err)` supports both map and struct pattern matching
+
+- Addressed new false-positive in onerror-match typing for struct patterns like:
+  - `Error{ type: 'AssertionError', msg }`
+- Root cause:
+  - semantic shadow binding for `onerror(err)` had been modeled as a map-only shape.
+  - struct-pattern narrowing against that binding produced mismatch diagnostics.
+- Fix:
+  - model `onerror(err)` shadow binding as `any` in defer inference scope, allowing both map and struct match patterns.
+
+Files updated:
+- `internal/semantic/typecheck.go`
+- `internal/semantic/analyzer_test.go`
+
+Tests added:
+- `TestSemanticTypeCheckAllowsDeferOnErrorStructPattern`
+
+Validation performed:
+- `go test ./internal/semantic -count=1`
+- `SLUG_HOME=$(pwd) go run ./cmd/app/main.go -log-level error --root ./lib lib/test.slug`
+- `go test ./...`
