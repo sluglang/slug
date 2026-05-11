@@ -550,6 +550,19 @@ func (c *typeChecker) parseDeclaredType(raw string) *tnode {
 		}
 		return c.mapType(c.freshUnknown(), c.freshUnknown())
 	}
+	if strings.HasPrefix(s, "chan<") && strings.HasSuffix(s, ">") {
+		inner := strings.TrimSpace(s[len("chan<") : len(s)-1])
+		// channel payload typing is accepted in declarations for forward compatibility.
+		// current checker treats channel as a scalar kind, consistent with existing behavior.
+		_ = c.parseDeclaredType(inner)
+		return c.scalar(typeChan)
+	}
+	if strings.HasPrefix(s, "chan(") && strings.HasSuffix(s, ")") {
+		inner := strings.TrimSpace(s[len("chan(") : len(s)-1])
+		// legacy syntax support: chan(T) -> chan<T>
+		_ = c.parseDeclaredType(inner)
+		return c.scalar(typeChan)
+	}
 	if strings.HasPrefix(s, "fn<") && strings.HasSuffix(s, ">") {
 		inner := strings.TrimSpace(s[len("fn<") : len(s)-1])
 		parts := splitTypeTopLevel(inner, ',')

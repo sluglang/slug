@@ -340,7 +340,7 @@ fn slug.io.stdin#prompt(prompt:str):str
 
 fn slug.io.stdin#readLine():any
 
-fn slug.io.stdin#readLines():chan(str)
+fn slug.io.stdin#readLines():chan<str>
   desc: "Returns a shared singleton channel of stdin line events."
 
 fn slug.io.tcp#accept(listener:num):num

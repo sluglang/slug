@@ -2354,3 +2354,25 @@ Validation performed:
 - `SLUG_HOME=$(pwd) go run ./cmd/app/main.go doc --dir ./lib --out ./lib/MANIFEST.ai manifest`
 - `SLUG_HOME=$(pwd) go run ./cmd/app/main.go doc --dir ./lib --moduleToc --multiPage --out ./docs/_libraries markdown`
 - Verified generated signatures now reflect formal type payloads (e.g. `[num, str]`, `chan(str)`, `[Request, str]`).
+
+### Formal channel generic syntax: `chan<...>`
+
+- Migrated source return annotation from legacy channel payload syntax to formal generic form:
+  - `lib/slug/io/stdin.slug`: `@returns('chan(str)')` -> `@returns('chan<str>')`
+- Added semantic type-check support for declared channel generic forms:
+  - accepts `chan<...>` in declared type expressions.
+  - retains backward compatibility for legacy `chan(...)` by parsing it equivalently.
+  - current checker still treats channel as scalar kind (`chan`) while accepting payload declarations for forward compatibility.
+- Updated doc generators to normalize/render channel payload types in angle-bracket form (`chan<...>`), including legacy inputs.
+
+Files updated:
+- `internal/semantic/typecheck.go`
+- `lib/slug/doc/markdown.slug`
+- `lib/slug/doc/manifest.slug`
+- `lib/slug/io/stdin.slug`
+
+Validation performed:
+- `go test ./internal/semantic -count=1`
+- `SLUG_HOME=$(pwd) go run ./cmd/app/main.go doc --dir ./lib --out ./lib/MANIFEST.ai manifest`
+- `SLUG_HOME=$(pwd) go run ./cmd/app/main.go doc --dir ./lib --moduleToc --multiPage --out ./docs/_libraries markdown`
+- Verified generated signatures now show `chan<str>` for `slug.io.stdin#readLines`.

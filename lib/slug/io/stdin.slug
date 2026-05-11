@@ -22,7 +22,7 @@
  * With `slug.channel#recv`, closure is observed as `nil`.
  */
 @export
-@returns('chan(str)')
+@returns('chan<str>')
 foreign readLines = fn()
 
 @export

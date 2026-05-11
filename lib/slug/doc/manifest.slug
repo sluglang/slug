@@ -106,9 +106,13 @@ val normalizeTypeExpr = fn(v) {
 			} else if (indexOf(s, '|') >= 0) {
 				s /> split('|') /> map(fn(x) { normalizeTypeExpr(trim(x)) }) /> join('|')
 			} else if (startsWith(s, '@chan(') && endsWith(s, ')')) {
-				'chan(' + normalizeTypeExpr(s[6:len(s)-1]) + ')'
+				'chan<' + normalizeTypeExpr(s[6:len(s)-1]) + '>'
 			} else if (startsWith(s, 'chan(') && endsWith(s, ')')) {
-				'chan(' + normalizeTypeExpr(s[5:len(s)-1]) + ')'
+				'chan<' + normalizeTypeExpr(s[5:len(s)-1]) + '>'
+			} else if (startsWith(s, '@chan<') && endsWith(s, '>')) {
+				'chan<' + normalizeTypeExpr(s[6:len(s)-1]) + '>'
+			} else if (startsWith(s, 'chan<') && endsWith(s, '>')) {
+				'chan<' + normalizeTypeExpr(s[5:len(s)-1]) + '>'
 			} else if (startsWith(s, '@struct(') && endsWith(s, ')')) {
 				val inner = trim(s[8:len(s)-1])
 				if (startsWith(inner, '"') && endsWith(inner, '"')) { inner[1:len(inner)-1] } else { inner }
