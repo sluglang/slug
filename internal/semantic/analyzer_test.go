@@ -260,6 +260,63 @@ val bad:num|str = true
 	}
 }
 
+func TestSemanticTypeCheckEnforcesDeclaredNilabilityOnBinding(t *testing.T) {
+	input := `
+var a:num = nil
+var b:num|nil = nil
+val c:num = nil
+val d:num|nil = nil
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
+	}
+	if len(errs) == 0 {
+		t.Fatal("expected nilability mismatch errors, got none")
+	}
+	if !containsError(errs, "nilability mismatch (var annotation)") {
+		t.Fatalf("expected var nilability mismatch, got: %v", errs)
+	}
+	if !containsError(errs, "nilability mismatch (val annotation)") {
+		t.Fatalf("expected val nilability mismatch, got: %v", errs)
+	}
+}
+
+func TestSemanticTypeCheckEnforcesDeclaredNilabilityOnAssignment(t *testing.T) {
+	input := `
+var x:num = 1
+x = nil
+var y:num|nil = 1
+y = nil
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
+	}
+	if len(errs) == 0 {
+		t.Fatal("expected assignment nilability mismatch error, got none")
+	}
+	if !containsError(errs, "nilability mismatch (assignment)") {
+		t.Fatalf("expected assignment nilability mismatch, got: %v", errs)
+	}
+}
+
 func TestSemanticTypeCheckTraceEmitsEvents(t *testing.T) {
 	input := `
 val f = fn(flag, x) {

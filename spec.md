@@ -2134,3 +2134,27 @@ Tests added/updated:
 
 Validation performed:
 - `go test ./... -count=1`
+
+### Language: declared nilability enforcement for colon annotations
+
+- Enforced explicit nilability for declared colon types:
+  - `var/val x:num = nil` now fails type checking.
+  - `var/val x:num|nil = nil` is accepted.
+  - Reassignment also honors declared nilability (`x = nil` only allowed when declared type includes `nil`).
+
+Implementation updates:
+- `internal/semantic/typecheck.go`
+  - Added declared-type scope tracking to bind identifier declarations to parsed declared types across lexical scopes.
+  - Added nilability checks for:
+    - declaration bindings (`var` / `val`)
+    - identifier reassignment paths
+  - Added helper logic for nilability evaluation (`typeAllowsNil`, `typeMayBeNil`) and pattern binding for declared types.
+
+Tests added:
+- `internal/semantic/analyzer_test.go`
+  - `TestSemanticTypeCheckEnforcesDeclaredNilabilityOnBinding`
+  - `TestSemanticTypeCheckEnforcesDeclaredNilabilityOnAssignment`
+
+Validation performed:
+- `go test ./internal/semantic -count=1`
+- `go test ./... -count=1`

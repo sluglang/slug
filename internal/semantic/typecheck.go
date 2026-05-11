@@ -98,6 +98,7 @@ type typeChecker struct {
 	mulChecks   []mulCheck
 	bitChecks   []bitwiseCheck
 	scopes      []map[string]*tnode
+	declared    []map[string]*tnode
 	overrides   []map[string]*tnode
 	schemas     map[string]map[string]*tnode
 }
@@ -144,6 +145,7 @@ func (c *typeChecker) checkProgram(program *ast.Program) {
 
 func (c *typeChecker) pushScope() {
 	c.scopes = append(c.scopes, map[string]*tnode{})
+	c.declared = append(c.declared, map[string]*tnode{})
 }
 
 func (c *typeChecker) pushOverride() {
@@ -157,6 +159,7 @@ func (c *typeChecker) pushIsolatedScopeFromVisible() {
 		cloned[name] = c.cloneForCaseScope(t, map[*tnode]*tnode{})
 	}
 	c.scopes = append(c.scopes, cloned)
+	c.declared = append(c.declared, map[string]*tnode{})
 	ov := map[string]*tnode{}
 	for name, t := range cloned {
 		ov[name] = t
@@ -167,6 +170,9 @@ func (c *typeChecker) pushIsolatedScopeFromVisible() {
 func (c *typeChecker) popScope() {
 	if len(c.scopes) > 0 {
 		c.scopes = c.scopes[:len(c.scopes)-1]
+	}
+	if len(c.declared) > 0 {
+		c.declared = c.declared[:len(c.declared)-1]
 	}
 }
 
@@ -195,6 +201,25 @@ func (c *typeChecker) bind(name string, t *tnode) {
 	}
 	scope[name] = t
 	c.setOverride(name, t)
+}
+
+func (c *typeChecker) bindDeclared(name string, t *tnode) {
+	if name == "" || t == nil {
+		return
+	}
+	if len(c.declared) == 0 {
+		c.declared = append(c.declared, map[string]*tnode{})
+	}
+	c.declared[len(c.declared)-1][name] = t
+}
+
+func (c *typeChecker) lookupDeclared(name string) *tnode {
+	for i := len(c.declared) - 1; i >= 0; i-- {
+		if t, ok := c.declared[i][name]; ok {
+			return t
+		}
+	}
+	return nil
 }
 
 func (c *typeChecker) lookup(name string) *tnode {
@@ -883,6 +908,10 @@ func (c *typeChecker) inferExpr(expr ast.Expression) *tnode {
 		rhs := c.inferExpr(e.Value)
 		if tt := c.parseDeclaredType(e.Type); tt != nil {
 			c.addConstraint(rhs, tt, e.Token.Position, "var annotation")
+			c.bindPatternDeclared(e.Pattern, tt)
+			if c.typeMayBeNil(rhs) && !c.typeAllowsNil(tt) {
+				c.addDiag(e.Token.Position, "nilability mismatch (var annotation): expected %s, got %s", c.describe(tt), c.describe(rhs))
+			}
 		}
 		c.enforceTags(rhs, e.Tags, e.Token.Position)
 		c.bindPattern(e.Pattern, rhs)
@@ -892,6 +921,10 @@ func (c *typeChecker) inferExpr(expr ast.Expression) *tnode {
 		rhs := c.inferExpr(e.Value)
 		if tt := c.parseDeclaredType(e.Type); tt != nil {
 			c.addConstraint(rhs, tt, e.Token.Position, "val annotation")
+			c.bindPatternDeclared(e.Pattern, tt)
+			if c.typeMayBeNil(rhs) && !c.typeAllowsNil(tt) {
+				c.addDiag(e.Token.Position, "nilability mismatch (val annotation): expected %s, got %s", c.describe(tt), c.describe(rhs))
+			}
 		}
 		c.enforceTags(rhs, e.Tags, e.Token.Position)
 		c.bindPattern(e.Pattern, rhs)
@@ -1420,6 +1453,11 @@ func (c *typeChecker) trackReassignmentType(lhs ast.Expression, rhs *tnode, pos 
 	if name == "" {
 		return
 	}
+	if dt := c.lookupDeclared(name); dt != nil {
+		if c.typeMayBeNil(rhs) && !c.typeAllowsNil(dt) {
+			c.addDiag(pos, "nilability mismatch (assignment): expected %s, got %s", c.describe(dt), c.describe(rhs))
+		}
+	}
 	for i := len(c.scopes) - 1; i >= 0; i-- {
 		cur, exists := c.scopes[i][name]
 		if !exists || cur == nil {
@@ -1435,6 +1473,81 @@ func (c *typeChecker) trackReassignmentType(lhs ast.Expression, rhs *tnode, pos 
 		c.scopes[i][name] = merged
 		c.setOverride(name, rhs)
 		return
+	}
+}
+
+func (c *typeChecker) bindPatternDeclared(pattern ast.MatchPattern, declared *tnode) {
+	switch p := pattern.(type) {
+	case *ast.IdentifierPattern:
+		if p != nil && p.Value != nil {
+			c.bindDeclared(p.Value.Value, declared)
+		}
+	case *ast.BindingPattern:
+		if p.Name != nil {
+			c.bindDeclared(p.Name.Value, declared)
+		}
+		if p.Pattern != nil {
+			c.bindPatternDeclared(p.Pattern, declared)
+		}
+	case *ast.ListPattern:
+		for _, el := range p.Elements {
+			c.bindPatternDeclared(el, declared)
+		}
+	case *ast.MapPattern:
+		for _, pair := range p.Pairs {
+			c.bindPatternDeclared(pair.Pattern, declared)
+		}
+		if p.Spread != nil {
+			c.bindPatternDeclared(p.Spread, declared)
+		}
+	case *ast.StructPattern:
+		for _, f := range p.Fields {
+			c.bindPatternDeclared(f.Pattern, declared)
+		}
+	case *ast.SpreadPattern:
+		if p.Value != nil {
+			c.bindDeclared(p.Value.Value, declared)
+		}
+	}
+}
+
+func (c *typeChecker) typeAllowsNil(t *tnode) bool {
+	tf := c.find(t)
+	if tf == nil {
+		return true
+	}
+	switch tf.kind {
+	case typeAny, typeUnknown, typeNil:
+		return true
+	case typeUnion:
+		for _, opt := range tf.options {
+			if c.typeAllowsNil(opt) {
+				return true
+			}
+		}
+		return false
+	default:
+		return false
+	}
+}
+
+func (c *typeChecker) typeMayBeNil(t *tnode) bool {
+	tf := c.find(t)
+	if tf == nil {
+		return false
+	}
+	switch tf.kind {
+	case typeNil, typeUnknown, typeAny:
+		return true
+	case typeUnion:
+		for _, opt := range tf.options {
+			if c.typeMayBeNil(opt) {
+				return true
+			}
+		}
+		return false
+	default:
+		return false
 	}
 }
 
