@@ -199,10 +199,14 @@ val mdCodeBlock = fn(s, lang) {
 	'```' + lang + "\n" + s + "\n```"
 }
 
+val mdCell = fn(s) {
+	toString(s) /> replaceAll('|', ' \| ')
+}
+
 val mdTable = fn(headers, rows) {
-	val headerRow = '| ' + (headers /> join(' | ')) + ' |'
+	val headerRow = '| ' + (headers /> map(mdCell) /> join(' | ')) + ' |'
 	val separator = '| ' + (headers /> map(fn(_) { '---' }) /> join(' | ')) + ' |'
-	val dataRows  = rows /> map(fn(row) { '| ' + (row /> join(' | ')) + ' |' })
+	val dataRows  = rows /> map(fn(row) { '| ' + (row /> map(mdCell) /> join(' | ')) + ' |' })
 	([headerRow, separator] + dataRows) /> join("\n")
 }
 

@@ -98,7 +98,7 @@ is a runtime error.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `channel` | chan<any|nil> | — |
+| `channel` | chan<any \| nil> | — |
 
 ---
 
@@ -115,7 +115,7 @@ milliseconds, a `TimeoutError` is thrown.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `channel` | chan<any|nil> | — |
+| `channel` | chan<any \| nil> | — |
 | `timeout` | num | `0` |
 
 **Throws:** `Error{type:TimeoutError}`
@@ -136,7 +136,7 @@ Returns the channel, allowing chains: `ch /> send("a") /> send("b")`
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `channel` | chan<any|nil> | — |
+| `channel` | chan<any \| nil> | — |
 | `payload` |  | — |
 
 ---
@@ -153,7 +153,7 @@ Returns the next value if one is immediately available, nil otherwise.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `channel` | chan<any|nil> | — |
+| `channel` | chan<any \| nil> | — |
 
 ---
 
@@ -171,5 +171,5 @@ Returns the channel if the send succeeded, nil if the channel was full.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `channel` | chan<any|nil> | — |
+| `channel` | chan<any \| nil> | — |
 | `payload` |  | — |
