@@ -2287,3 +2287,22 @@ Implementation updates:
 Validation performed:
 - `SLUG_HOME=$(pwd) go run ./cmd/app/main.go doc --dir ./lib --out ./lib/MANIFEST.ai manifest`
 - `SLUG_HOME=$(pwd) go run ./cmd/app/main.go doc --dir ./lib --moduleToc --multiPage --out ./docs/_libraries markdown`
+
+### Doc comment metadata: remove tag workaround and restore binding-sourced docs
+
+- Removed temporary function-level tag workaround from `slug.benchmark` (`@desc(...)` lines removed).
+- Restored docs generation to rely on canonical Slug doc comments (`/** ... */`) instead of fallback tag text.
+- Fixed parser separator handling so pending doc comments are not dropped on top-level `;` separators before a tagged declaration.
+- Fixed VM doc metadata application to always apply `OpSetDoc` in current environment (previously gated by `env.Outer == nil`).
+- Added `slug.meta.describeSymbol(module, symbol)` to expose symbol metadata directly from module bindings, preserving top-level doc comments for imported symbols.
+- Updated generators to use `describeSymbol` for per-symbol reflection:
+  - `lib/slug/doc/manifest.slug`
+  - `lib/slug/doc/markdown.slug`
+- Unified callable metadata handling so VM functions participate in function-group bindings and reflection paths:
+  - callable detection/merge in `internal/object/environment.go`
+  - callable signature/params accessors on object/vm function types.
+
+Validation performed:
+- `go test ./internal/foreign ./internal/object ./internal/vm ./internal/parser -count=1`
+- `SLUG_HOME=$(pwd) go run ./cmd/app/main.go doc --dir ./lib --out ./lib/MANIFEST.ai manifest`
+- `SLUG_HOME=$(pwd) go run ./cmd/app/main.go doc --dir ./lib --moduleToc --multiPage --out ./docs/_libraries markdown`

@@ -29,6 +29,9 @@ rounding, extrema, statistics, and random number generation.
 fn slug.math#ceil(n:num):num
 ```
 
+
+returns the least integer greater than or equal to `n`.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `n` | num | — |
@@ -49,6 +52,11 @@ ceil(-1.2)  // => -1
 fn slug.math#clampZero(n:num):num
 ```
 
+
+returns `n` if it is >= 0, otherwise returns 0.
+
+Useful for ensuring subtracted values never go negative.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `n` | num | — |
@@ -59,6 +67,9 @@ fn slug.math#clampZero(n:num):num
 ```slug
 fn slug.math#floor(n:num):num
 ```
+
+
+returns the greatest integer less than or equal to `n`.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -79,6 +90,11 @@ floor(-1.2)  // => -2
 ```slug
 fn slug.math#max(nil):num
 ```
+
+
+returns the largest of two or more numbers.
+
+Accepts a variadic list of additional values beyond the required first two.
 nil
 
 
@@ -97,6 +113,11 @@ max(4, 5, 3)  // => 5
 fn slug.math#mean(xs):num
 ```
 
+
+returns the arithmetic mean of a list of numbers.
+
+Returns `0` for an empty list.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `xs` |  | — |
@@ -107,6 +128,9 @@ fn slug.math#mean(xs):num
 ```slug
 fn slug.math#min(a:num, ...b):num
 ```
+
+
+returns the smallest of two or more numbers.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -129,6 +153,15 @@ min(6, 5, 4)  // => 4
 fn slug.math#percentileSorted(xs, p):num
 ```
 
+
+returns the `p`th percentile of a pre-sorted ascending list.
+
+Uses linear interpolation between adjacent values. The list must be
+sorted in ascending order before calling — use `slug.list#sort` or
+`slug.benchmark`'s internal `sortAsc` if needed.
+
+Returns `0` for an empty list and the single element for a one-element list.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `xs` |  | — |
@@ -140,6 +173,11 @@ fn slug.math#percentileSorted(xs, p):num
 ```slug
 fn slug.math#rndRange(min:num, max:num):num
 ```
+
+
+returns a random integer in the range `[min, max)` (exclusive upper bound).
+
+@effects('random')
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -154,6 +192,11 @@ fn slug.math#rndRange(min:num, max:num):num
 ```slug
 fn slug.math#sqrt(n:num):num
 ```
+
+
+returns the square root of `n`.
+
+Returns `NaN` for negative values.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -174,6 +217,13 @@ sqrt(9)  // => 3
 ```slug
 fn slug.math#stdev(xs, mean):num
 ```
+
+
+returns the sample standard deviation of a list of numbers.
+
+Uses Bessel's correction (divides by `n - 1`). Returns `0` for lists
+with fewer than two elements. Requires the precomputed `mean` as a
+second argument to avoid recomputing it internally.
 
 | Parameter | Type | Default |
 | --- | --- | --- |

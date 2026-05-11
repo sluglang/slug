@@ -51,6 +51,7 @@ constants for working with raw binding tuples returned by
 - [BINDING_PARAMS](#binding_params)
 - [BINDING_VALUE](#binding_value)
 - [`describe(value)`](#describevalue)
+- [`describeSymbol(module, symbol)`](#describesymbolmodule-symbol)
 - [`getTag(value, tag)`](#gettagvalue-tag)
 - [`hasTag(value, tag)`](#hastagvalue-tag)
 - [`moduleDocs(module)`](#moduledocsmodule)
@@ -84,9 +85,37 @@ num slug.meta#BINDING_VALUE
 fn slug.meta#describe(value):map
 ```
 
+
+returns a metadata map describing the given value.
+
+See module doc for the full shape. The `type` field indicates the
+kind of value. Functions expose their parameter list and doc comment.
+Struct schemas expose their field list. Overloaded functions are
+represented as a `:grp` with a `groups` list of individual function
+descriptors.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `value` |  | — |
+
+---
+
+#### `describeSymbol(module, symbol)`
+```slug
+fn slug.meta#describeSymbol(module:str, symbol:str):map
+```
+
+
+returns metadata for a specific symbol in a module by binding name.
+
+unlike `describe(import(module)[symbol])`, this resolves docs directly
+from module binding metadata so top-level `/** ... */` comments are
+preserved when symbols are imported via maps.
+
+| Parameter | Type | Default |
+| --- | --- | --- |
+| `module` | str | — |
+| `symbol` | str | — |
 
 ---
 
@@ -94,6 +123,12 @@ fn slug.meta#describe(value):map
 ```slug
 fn slug.meta#getTag(value, tag:str):list
 ```
+
+
+returns the list of arguments for a tag on `value`.
+
+Returns an empty list if the tag is not present.
+Returns `[""]` for tags with no arguments (e.g. `@export`).
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -107,6 +142,9 @@ fn slug.meta#getTag(value, tag:str):list
 fn slug.meta#hasTag(value, tag:str):bool
 ```
 
+
+returns `true` if `value` has the given tag annotation.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `value` |  | — |
@@ -119,6 +157,13 @@ fn slug.meta#hasTag(value, tag:str):bool
 fn slug.meta#moduleDocs(module:str):str
 ```
 
+
+returns the module-level doc comment for the given module name.
+
+Returns the raw comment text with markers stripped, or `nil` if the
+module has no doc comment. The first paragraph is suitable for use
+as a short description; subsequent paragraphs provide extended docs.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `module` | str | — |
@@ -129,6 +174,13 @@ fn slug.meta#moduleDocs(module:str):str
 ```slug
 fn slug.meta#searchModuleTags(module:str, tag:str, includePrivate:bool = false):map
 ```
+
+
+searches all exported bindings in a module for a given tag.
+
+Returns a map of binding name → binding value for all exported
+symbols that have the specified tag. Pass `includePrivate: true`
+to include non-exported bindings.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -142,6 +194,12 @@ fn slug.meta#searchModuleTags(module:str, tag:str, includePrivate:bool = false):
 ```slug
 fn slug.meta#searchScopeTags(tag:str):any
 ```
+
+
+searches all bindings in the current scope for a given tag.
+
+Returns a list of binding tuples. Use `BINDING_NAME`, `BINDING_VALUE`,
+and `BINDING_PARAMS` as indices to access tuple elements.
 
 | Parameter | Type | Default |
 | --- | --- | --- |

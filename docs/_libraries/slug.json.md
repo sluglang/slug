@@ -47,6 +47,16 @@ any string with this prefix is automatically decoded back to `@bytes`.
 fn slug.json#decode(jsonStr:str):any
 ```
 
+
+decodes a JSON string into a Slug value.
+
+Object keys are always decoded as string keys. Use dot access (`m.name`)
+or string bracket access (`m["name"]`) to read fields — never symbol
+bracket access (`m[:name]`).
+
+Strings with the `b64:` prefix are decoded to `@bytes` values.
+Throws `JsonError` on malformed input.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `jsonStr` | str | — |
@@ -73,6 +83,12 @@ decode("{"name":"Alice","age":30}")  // => {name: Alice, age: 30}
 ```slug
 fn slug.json#encode(v):str
 ```
+
+
+encodes a Slug value as a compact JSON string.
+
+Object keys are sorted alphabetically. Symbols are encoded as their label
+string. Bytes are encoded as `"b64:<base64>"`.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -102,6 +118,12 @@ encode({name: Alice, age: 30})  // => "{"age":30,"name":"Alice"}"
 ```slug
 fn slug.json#pretty(v, indent:num = 2):str
 ```
+
+
+encodes a Slug value as a pretty-printed JSON string.
+
+The `indent` parameter controls the number of spaces per indentation
+level. Follows the same type mapping as `encode`.
 
 | Parameter | Type | Default |
 | --- | --- | --- |

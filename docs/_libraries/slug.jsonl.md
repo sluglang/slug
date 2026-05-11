@@ -21,6 +21,12 @@ into lists of values. Uses `slug.json` for per-line JSON handling.
 fn slug.jsonl#decode(jsonl:str, skipEmpty:bool = true):list
 ```
 
+
+decodes JSON Lines text into a list of values.
+
+By default blank lines are ignored. Set `skipEmpty` to `false` to enforce
+strict parsing and treat empty lines as errors.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `jsonl` | str | — |
@@ -45,6 +51,14 @@ decode("{"a":1}
 ```slug
 fn slug.jsonl#encode(values:list, eol:str = "\n", trailingEol:bool = false):str
 ```
+
+
+encodes a list of values as JSON Lines text.
+
+Each value is encoded as one JSON value per line.
+
+- `eol` controls the line separator (default `"\n"`).
+- `trailingEol` appends one final `eol` when `true`.
 
 | Parameter | Type | Default |
 | --- | --- | --- |

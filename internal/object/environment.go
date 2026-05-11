@@ -177,12 +177,14 @@ func (e *Environment) Define(name string, val Object, isExported bool, isImport 
 }
 
 func isCallableObject(obj Object) bool {
-	switch obj.(type) {
-	case *Function, *Foreign, *FunctionGroup:
-		return true
-	default:
+	if obj == nil {
 		return false
 	}
+	if _, ok := obj.(*FunctionGroup); ok {
+		return true
+	}
+	_, ok := obj.(interface{ GetSignature() ast.FSig })
+	return ok
 }
 
 func signatureString(sig ast.FSig) string {
@@ -206,12 +208,8 @@ func mergeCallableIntoBinding(name string, binding *Binding, val Object) error {
 	}
 
 	switch v := val.(type) {
-	case *Function:
-		if err := addFunctionWithSignature(name, fg, v.Signature, v); err != nil {
-			return err
-		}
-	case *Foreign:
-		if err := addFunctionWithSignature(name, fg, v.Signature, v); err != nil {
+	case interface{ GetSignature() ast.FSig }:
+		if err := addFunctionWithSignature(name, fg, v.GetSignature(), val); err != nil {
 			return err
 		}
 	case *FunctionGroup:
@@ -311,29 +309,20 @@ func (e *Environment) Assign(name string, val Object) (Object, error) {
 		// since it's an assignment clear the import flag
 		binding.Meta.IsImport = false
 
-		switch val := val.(type) {
-		case *Function:
+		switch sigVal := val.(type) {
+		case interface{ GetSignature() ast.FSig }:
 			fg, ok := binding.Value.(*FunctionGroup)
 			if !ok {
 				fg = &FunctionGroup{
 					Functions: map[ast.FSig]Object{},
 				}
 			}
-			fg.Functions[val.Signature] = val
-			binding.Value = fg
-		case *Foreign:
-			fg, ok := binding.Value.(*FunctionGroup)
-			if !ok {
-				fg = &FunctionGroup{
-					Functions: map[ast.FSig]Object{},
-				}
-			}
-			fg.Functions[val.Signature] = val
+			fg.Functions[sigVal.GetSignature()] = val
 			binding.Value = fg
 		case *FunctionGroup:
-			binding.Value = val
+			binding.Value = sigVal
 		default:
-			binding.Value = val
+			binding.Value = sigVal
 		}
 		//fmt.Printf("assigning: %v %v %v %v\n", binding.Value.Type(), name, binding.Value, binding.Meta)
 		if envDebugEnabled() {

@@ -76,7 +76,7 @@ val r = router()
 - [`router()`](#router)
 - [`static(dir, cacheTimeSeconds)`](#staticdir-cachetimeseconds)
 - [`subrouter(router)`](#subrouterrouter)
-- [`withHeader(handler, header, value)`](#withheaderhandler-header-value)
+- [`withHeader(nil)`](#withheadernil)
 - [`withLog(handler)`](#withloghandler)
 - [`withMaxBody(h, maxBytes)`](#withmaxbodyh-maxbytes)
 - [`withRecover(h)`](#withrecoverh)
@@ -90,6 +90,9 @@ val r = router()
 ```slug
 fn slug.web.routes#get(nil):Router
 ```
+
+
+registers a `GET` route on `r` and returns the updated router.
 nil
 
 
@@ -107,6 +110,12 @@ get({:k: 1}, :k)  // => 1
 fn slug.web.routes#handle(request, r):Response
 ```
 
+
+dispatches `request` through the router's routes and returns a `Response`.
+
+Returns a 404 Not Found response if no route matches.
+Route handlers receive the request with `params` populated from URL pattern segments.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `request` |  | — |
@@ -118,6 +127,9 @@ fn slug.web.routes#handle(request, r):Response
 ```slug
 fn slug.web.routes#head(r, pattern:str, handler:fn):Router
 ```
+
+
+registers a `HEAD` route on `r` and returns the updated router.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -132,6 +144,9 @@ fn slug.web.routes#head(r, pattern:str, handler:fn):Router
 fn slug.web.routes#isRouter(x):bool
 ```
 
+
+returns true if `x` is a `Router` struct instance.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `x` |  | — |
@@ -142,6 +157,11 @@ fn slug.web.routes#isRouter(x):bool
 ```slug
 fn slug.web.routes#mount(r, prefix:str, handler:fn):Router
 ```
+
+
+mounts `handler` at `prefix/*`, matching any method.
+
+The path remainder after the prefix is available as `req.params["*"]`.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -156,6 +176,11 @@ fn slug.web.routes#mount(r, prefix:str, handler:fn):Router
 fn slug.web.routes#mountRouter(r, prefix:str, childRouter):Router
 ```
 
+
+mounts a child `Router` at `prefix`, handling paths relative to the prefix.
+
+Equivalent to `mount(r, prefix, subrouter(childRouter))`.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `r` |  | — |
@@ -168,6 +193,9 @@ fn slug.web.routes#mountRouter(r, prefix:str, childRouter):Router
 ```slug
 fn slug.web.routes#post(r, pattern:str, handler:fn):Router
 ```
+
+
+registers a `POST` route on `r` and returns the updated router.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -182,12 +210,25 @@ fn slug.web.routes#post(r, pattern:str, handler:fn):Router
 fn slug.web.routes#router():Router
 ```
 
+
+creates an empty `Router`.
+
 ---
 
 #### `static(dir, cacheTimeSeconds)`
 ```slug
 fn slug.web.routes#static(dir, cacheTimeSeconds = 3600):fn
 ```
+
+
+returns a handler that serves static files from `dir`.
+
+Intended for use with `mount`: `mount("/static", static("public"))`.
+Files are served with the appropriate `Content-Type` based on extension
+and cached for `cacheTimeSeconds` seconds (default 1 hour).
+
+Returns 404 for missing files, path traversal attempts (`..`), and
+non-GET/HEAD requests. `HEAD` requests return headers without a body.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -201,22 +242,26 @@ fn slug.web.routes#static(dir, cacheTimeSeconds = 3600):fn
 fn slug.web.routes#subrouter(router):fn
 ```
 
+
+wraps a `Router` as a handler function for use with `mount`.
+
+Strips the mount prefix from the path and clears the `"*"` param
+before dispatching to the inner router.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `router` |  | — |
 
 ---
 
-#### `withHeader(handler, header, value)`
+#### `withHeader(nil)`
 ```slug
-fn slug.web.routes#withHeader(handler:fn, header:str, value:str):fn
+fn slug.web.routes#withHeader(nil):fn
 ```
 
-| Parameter | Type | Default |
-| --- | --- | --- |
-| `handler` | fn | — |
-| `header` | str | — |
-| `value` | str | — |
+
+wraps `handler` to add a fixed response header to every response.
+nil
 
 ---
 
@@ -224,6 +269,12 @@ fn slug.web.routes#withHeader(handler:fn, header:str, value:str):fn
 ```slug
 fn slug.web.routes#withLog(handler):fn
 ```
+
+
+wraps `handler` with request/response logging to stdout.
+
+Logs timestamp, method, elapsed time (ms), status code, path, and
+any request ID / trace ID / span ID present on the request.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -235,6 +286,13 @@ fn slug.web.routes#withLog(handler):fn
 ```slug
 fn slug.web.routes#withMaxBody(h, maxBytes = 1048576):fn
 ```
+
+
+wraps `handler` to enforce a maximum request body size.
+
+Checks `Content-Length` for `POST`, `PUT`, and `PATCH` requests.
+Returns 413 Payload Too Large if the declared size exceeds `maxBytes`.
+Default limit is 1MB (1_048_576 bytes).
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -248,6 +306,12 @@ fn slug.web.routes#withMaxBody(h, maxBytes = 1048576):fn
 fn slug.web.routes#withRecover(h):fn
 ```
 
+
+wraps `handler` so that any thrown error returns a 500 Server Error response.
+
+Use as the outermost middleware layer to prevent unhandled errors from
+crashing the connection.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `h` |  | — |
@@ -258,6 +322,13 @@ fn slug.web.routes#withRecover(h):fn
 ```slug
 fn slug.web.routes#withRequestId(handler:fn, newRequestId:fn = fn() {randomHexString(32)}):fn
 ```
+
+
+wraps `handler` to attach a request ID to every request and response.
+
+Uses the incoming `X-Request-Id` header if present, otherwise generates
+a new random hex ID. The ID is attached to `req.requestId` and returned
+as the `X-Request-Id` response header.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -271,6 +342,11 @@ fn slug.web.routes#withRequestId(handler:fn, newRequestId:fn = fn() {randomHexSt
 fn slug.web.routes#withTimeout(h, ms):fn
 ```
 
+
+wraps `handler` with a timeout of `ms` milliseconds.
+
+If the handler does not return within the timeout, a `TimeoutError` is thrown.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `h` |  | — |
@@ -282,6 +358,15 @@ fn slug.web.routes#withTimeout(h, ms):fn
 ```slug
 fn slug.web.routes#withTraceContext(handler, newTraceId:fn = fn() {randomHexString(32)}, newSpanId:fn = fn() {randomHexString(16)}):fn
 ```
+
+
+wraps `handler` to propagate W3C `traceparent` trace context.
+
+Extracts or generates a `traceId` and creates a new `spanId` for each
+request. Attaches both to `req.traceId` and `req.spanId`. Returns the
+`traceparent` header on the response for downstream propagation.
+
+Format: `00-<traceId>-<spanId>-01`
 
 | Parameter | Type | Default |
 | --- | --- | --- |

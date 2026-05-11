@@ -89,6 +89,24 @@ Each entry in `errors` is a map with a `type` and `msg` field:
 fn slug.cli#argsWith(raw, spec):any
 ```
 
+
+parses, normalizes, validates, and coerces CLI arguments against a spec.
+
+Receives the map returned by `argm()` and returns a structured result.
+Never prints or exits — the caller decides how to handle each outcome.
+
+`--help` / `-h` are handled automatically and always take precedence.
+`--version` / `-v` are handled automatically when `spec.version` is set.
+
+Processing order:
+1. Check for `--help` / `-h` → return help action
+2. Check for `--version` / `-v` → return version action
+3. Resolve aliases to canonical option names
+4. Apply defaults for missing options
+5. Coerce option values to declared types
+6. Validate: unknown options, required options, positional bounds
+7. Return success or error result
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `raw` |  | — |
@@ -101,6 +119,12 @@ fn slug.cli#argsWith(raw, spec):any
 fn slug.cli#helpText(spec):any
 ```
 
+
+renders the help text for a spec as a string.
+
+Produces the same output that `argsWith` returns under `action: :help`.
+Useful for displaying help outside the normal argument parsing flow.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `spec` |  | — |
@@ -110,6 +134,17 @@ fn slug.cli#helpText(spec):any
 #### `opt(args)`
 ```slug
 fn slug.cli#opt(...args):any
+```
+
+
+returns the first non-nil value from `args`, coerced to the type of the last argument.
+
+The last argument acts as both the default value and the type hint.
+If all arguments are nil, returns nil. Throws `TypeError` if coercion
+is not possible.
+
+```slug
+val port = opt(args.options.port, args.options.p, 8080)
 ```
 
 | Parameter | Type | Default |
@@ -124,6 +159,11 @@ fn slug.cli#opt(...args):any
 ```slug
 fn slug.cli#versionText(spec):any
 ```
+
+
+renders the version text for a spec as a string.
+
+Produces the same output that `argsWith` returns under `action: :version`.
 
 | Parameter | Type | Default |
 | --- | --- | --- |

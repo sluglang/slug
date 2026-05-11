@@ -27,6 +27,11 @@ otherwise (e.g. `clockNanos`).
 fn slug.time#clock():num
 ```
 
+
+returns the current wall-clock time in milliseconds since the Unix epoch.
+
+@effects('time')
+
 **Effects:** `time`
 
 ---
@@ -36,6 +41,14 @@ fn slug.time#clock():num
 fn slug.time#clockNanos():num
 ```
 
+
+returns the current time as a nanosecond counter.
+
+Intended for high-resolution timing. The epoch is implementation-defined
+— use differences between two calls rather than absolute values.
+
+@effects('time')
+
 **Effects:** `time`
 
 ---
@@ -43,6 +56,21 @@ fn slug.time#clockNanos():num
 #### `delta(f)`
 ```slug
 fn slug.time#delta(f):fn
+```
+
+
+returns a function that measures elapsed time since it was created.
+
+`f` should be a time source function (e.g. `clock` or `clockNanos`).
+Each call to the returned function returns the elapsed time since `delta`
+was first called.
+
+```slug
+val { delta, clock } = import("slug.time")
+
+val elapsed = delta(clock)
+// ... do some work ...
+println(elapsed())  // => milliseconds elapsed
 ```
 
 | Parameter | Type | Default |
@@ -56,6 +84,11 @@ fn slug.time#delta(f):fn
 fn slug.time#fmtClock(millis:num, fmt:str):str
 ```
 
+
+formats a millisecond timestamp using a format string.
+
+Format follows standard Go time layout conventions.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `millis` | num | — |
@@ -67,6 +100,9 @@ fn slug.time#fmtClock(millis:num, fmt:str):str
 ```slug
 fn slug.time#minsToMillis(mins:num):num
 ```
+
+
+converts minutes to milliseconds.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -86,6 +122,9 @@ minsToMillis(1)  // => 60000
 fn slug.time#secsToMillis(secs:num):num
 ```
 
+
+converts seconds to milliseconds.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `secs` | num | — |
@@ -103,6 +142,11 @@ secsToMillis(1)  // => 1000
 ```slug
 fn slug.time#sleep(millis:num):nil
 ```
+
+
+suspends execution for `millis` milliseconds.
+
+@effects('time')
 
 | Parameter | Type | Default |
 | --- | --- | --- |

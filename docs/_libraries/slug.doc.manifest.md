@@ -50,6 +50,16 @@ Output format example:
 fn slug.doc.manifest#manifest(moduleNames:list):str
 ```
 
+
+generates a MANIFEST.ai file for the given list of module names.
+
+modules are sorted alphabetically. within each module, symbols are
+sorted alphabetically. the output contains two sections: modules:section
+lists all module names, symbols:section lists all exported symbols in
+the Option 3 block format with indented metadata sub-lines.
+
+pass the full dotted module names as they would appear in an import statement.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `moduleNames` | list | — |

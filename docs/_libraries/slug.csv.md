@@ -44,6 +44,13 @@ Quote characters within a field are escaped by doubling: `"` → `""`.
 fn slug.csv#fromCsvString(csvStr:str, sep:str = ",", quote:str = "\""):list
 ```
 
+
+parses a CSV string into a list of rows, where each row is a list of strings.
+
+Handles quoted fields (including embedded newlines and escaped quotes),
+CRLF and LF line endings, and configurable separator and quote characters.
+Access columns by index: `row[0]`, `row[1]`, etc.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `csvStr` | str | — |
@@ -67,6 +74,13 @@ d,"e
 ```slug
 fn slug.csv#toCsv(rows:list, sep:str = ",", quote:str = "\"", eol:str = "\r\n", acc:str = ""):str
 ```
+
+
+converts a list of rows (each a list of strings) to a CSV string.
+
+Fields are quoted automatically when they contain the separator, quote
+character, or newline characters. The default line ending is `\r\n`
+(RFC 4180). Each row is terminated by `eol`.
 
 | Parameter | Type | Default |
 | --- | --- | --- |

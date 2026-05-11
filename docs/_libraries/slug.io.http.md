@@ -53,6 +53,11 @@ encode(payload) /> post("https://api.example.com/data")
 fn slug.io.http#delete(url:str, headers:map = {}):[@num, @str]
 ```
 
+
+makes a DELETE request and returns `[status, body]`.
+
+@effects('net')
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `url` | str | — |
@@ -65,6 +70,11 @@ fn slug.io.http#delete(url:str, headers:map = {}):[@num, @str]
 fn slug.io.http#get(url:str, headers:map = {}):[@num, @str]
 ```
 
+
+makes a GET request and returns `[status, body]`.
+
+@effects('net')
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `url` | str | — |
@@ -76,6 +86,13 @@ fn slug.io.http#get(url:str, headers:map = {}):[@num, @str]
 ```slug
 fn slug.io.http#patch(body:str, url:str, headers:map = {}):[@num, @str]
 ```
+
+
+makes a PATCH request and returns `[status, body]`.
+
+Note: `body` is the first argument to support call-chain style.
+
+@effects('net')
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -90,6 +107,14 @@ fn slug.io.http#patch(body:str, url:str, headers:map = {}):[@num, @str]
 fn slug.io.http#post(body:str, url:str, headers:map = {}):[@num, @str]
 ```
 
+
+makes a POST request and returns `[status, body]`.
+
+Note: `body` is the first argument to support call-chain style:
+`encode(payload) /> post("https://...")`
+
+@effects('net')
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `body` | str | — |
@@ -103,6 +128,13 @@ fn slug.io.http#post(body:str, url:str, headers:map = {}):[@num, @str]
 fn slug.io.http#put(body:str, url:str, headers:map = {}):[@num, @str]
 ```
 
+
+makes a PUT request and returns `[status, body]`.
+
+Note: `body` is the first argument to support call-chain style.
+
+@effects('net')
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `body` | str | — |
@@ -115,6 +147,14 @@ fn slug.io.http#put(body:str, url:str, headers:map = {}):[@num, @str]
 ```slug
 fn slug.io.http#request(method:str, url:str, body:str = "", headers:map = {}, timeout:num = 30000):[@num, @str]
 ```
+
+
+makes an HTTP request and returns `[status, body]`.
+
+The low-level entry point — prefer the method-specific helpers for
+common cases.
+
+@effects('net')
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -130,6 +170,11 @@ fn slug.io.http#request(method:str, url:str, body:str = "", headers:map = {}, ti
 ```slug
 fn slug.io.http#urlDecode(str:str):any
 ```
+
+
+decodes a URL-encoded string.
+
+Note: not yet implemented — returns the input string unchanged.
 
 | Parameter | Type | Default |
 | --- | --- | --- |

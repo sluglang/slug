@@ -69,6 +69,9 @@ environment    = production
 struct slug.db.migration#Migration{id:num, version:str, environment:str, filename:str, checksum:str, success:bool, appliedAt:str}
 ```
 
+
+represents a migration record as stored in the tracking table.
+
 | Field | Type | Default | Description |
 | --- | --- | --- | --- |
 | `id` | num | — |  |
@@ -86,6 +89,15 @@ struct slug.db.migration#Migration{id:num, version:str, environment:str, filenam
 fn slug.db.migration#down(conn:num, step:num = 1, base:str = DefaultBase):num
 ```
 
+
+rolls back the most recently applied migrations.
+
+Applies the `-- @down` section of each rolled-back migration script
+and removes its entry from the tracking table. `step` controls how
+many migrations to roll back (default 1).
+
+Returns the connection handle for chaining.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `conn` | num | — |
@@ -98,6 +110,15 @@ fn slug.db.migration#down(conn:num, step:num = 1, base:str = DefaultBase):num
 ```slug
 fn slug.db.migration#status(conn:num, env:list = DefaultEnv, base:str = DefaultBase):num
 ```
+
+
+prints the status of all migration files against the database.
+
+Each migration is reported as APPLIED, MISSING, or INELIGIBLE (for
+environments not in `env`). Applied migrations whose checksum no longer
+matches the file will throw `MigrationError`.
+
+Returns the connection handle for chaining.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -113,6 +134,14 @@ fn slug.db.migration#status(conn:num, env:list = DefaultEnv, base:str = DefaultB
 ```slug
 fn slug.db.migration#up(conn:num, env:list = DefaultEnv, base:str = DefaultBase):num
 ```
+
+
+applies all pending eligible migrations in ascending version order.
+
+Skips already-applied migrations and migrations for ineligible environments.
+On failure, records the migration as failed and rethrows the error.
+
+Returns the connection handle for chaining.
 
 | Parameter | Type | Default |
 | --- | --- | --- |

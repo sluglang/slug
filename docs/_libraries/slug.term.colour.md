@@ -125,11 +125,15 @@ colour name → ANSI code string for programmatic use.
 map slug.term.colour#BgBrightColour
 ```
 
+map of colour name → ANSI escape code string for bright background colours.
+
 #### `BgColour`
 
 ```slug
 map slug.term.colour#BgColour
 ```
+
+map of colour name → ANSI escape code string for background colours.
 
 #### `BrightColour`
 
@@ -137,11 +141,15 @@ map slug.term.colour#BgColour
 map slug.term.colour#BrightColour
 ```
 
+map of colour name → ANSI escape code string for bright colours.
+
 #### `Colour`
 
 ```slug
 map slug.term.colour#Colour
 ```
+
+map of colour name (PascalCase) → ANSI escape code string for standard colours.
 
 #### `ColourSupport`
 
@@ -149,11 +157,20 @@ map slug.term.colour#Colour
 num slug.term.colour#ColourSupport
 ```
 
+number of colours supported by the current terminal, as reported by `tput colors`.
+
+Common values: 0 (no colour), 8, 16, 256.
+
 #### `Effects`
 
 ```slug
 map slug.term.colour#Effects
 ```
+
+map of effect name → ANSI escape code string.
+
+Keys: `Bold`, `BoldOff`, `Dim`, `DimOff`, `Underline`, `UnderlineOff`,
+`Blink`, `BlinkOff`, `Reverse`, `ReverseOff`, `Hide`, `HideOff`
 
 #### `Styles`
 
@@ -161,11 +178,17 @@ map slug.term.colour#Effects
 map slug.term.colour#Styles
 ```
 
+raw ANSI code number lists per style name.
+
+Keys include colour names, bright/bg variants, `reset`, and effects.
+
 #### `reset`
 
 ```slug
 str slug.term.colour#reset
 ```
+
+ANSI reset escape code — resets all styles to terminal default.
 
 ### Functions
 
@@ -306,6 +329,9 @@ fn slug.term.colour#bgGreen(str:str):any
 fn slug.term.colour#bgHex(str:str, code:str):any
 ```
 
+
+wraps `str` with hex background colour.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `str` | str | — |
@@ -317,6 +343,9 @@ fn slug.term.colour#bgHex(str:str, code:str):any
 ```slug
 fn slug.term.colour#bgHexCode(code:str):any
 ```
+
+
+returns the ANSI escape code string for hex background colour.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -351,6 +380,9 @@ fn slug.term.colour#bgRed(str:str):any
 fn slug.term.colour#bgRgb(str:str, r:num, g:num, b:num):any
 ```
 
+
+wraps `str` with RGB background colour.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `str` | str | — |
@@ -365,6 +397,9 @@ fn slug.term.colour#bgRgb(str:str, r:num, g:num, b:num):any
 fn slug.term.colour#bgRgbCode(r:num, g:num, b:num):any
 ```
 
+
+returns the ANSI escape code string for RGB background colour.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `r` | num | — |
@@ -378,6 +413,9 @@ fn slug.term.colour#bgRgbCode(r:num, g:num, b:num):any
 fn slug.term.colour#bgVga(str:str, code:num):any
 ```
 
+
+wraps `str` with VGA background colour `code` (0–255).
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `str` | str | — |
@@ -389,6 +427,9 @@ fn slug.term.colour#bgVga(str:str, code:num):any
 ```slug
 fn slug.term.colour#bgVgaCode(code:num):any
 ```
+
+
+returns the ANSI escape code string for VGA background colour index `code` (0–255).
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -412,6 +453,9 @@ fn slug.term.colour#bgWhite(str:str):any
 fn slug.term.colour#bgXkcd(str:str, name:sym):any
 ```
 
+
+wraps `str` with an xkcd background colour.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `str` | str | — |
@@ -423,6 +467,9 @@ fn slug.term.colour#bgXkcd(str:str, name:sym):any
 ```slug
 fn slug.term.colour#bgXkcdCode(name:sym):any
 ```
+
+
+returns the ANSI escape code string for an xkcd background colour.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -644,6 +691,9 @@ fn slug.term.colour#green(str:str):any
 fn slug.term.colour#hex(str:str, code:str):any
 ```
 
+
+wraps `str` with hex colour (e.g. `hex("Hello", "#ff5733")`).
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `str` | str | — |
@@ -655,6 +705,9 @@ fn slug.term.colour#hex(str:str, code:str):any
 ```slug
 fn slug.term.colour#hexCode(code:str):any
 ```
+
+
+returns the ANSI escape code string for hex colour `code` (e.g. `"#ff5733"`).
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -689,6 +742,9 @@ fn slug.term.colour#red(str:str):any
 fn slug.term.colour#rgb(str:str, r:num, g:num, b:num):any
 ```
 
+
+wraps `str` with RGB colour `r`, `g`, `b` (0–255 each).
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `str` | str | — |
@@ -703,6 +759,9 @@ fn slug.term.colour#rgb(str:str, r:num, g:num, b:num):any
 fn slug.term.colour#rgbCode(r:num, g:num, b:num):any
 ```
 
+
+returns the ANSI escape code string for RGB colour.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `r` | num | — |
@@ -716,6 +775,9 @@ fn slug.term.colour#rgbCode(r:num, g:num, b:num):any
 fn slug.term.colour#vga(str:str, code:num):any
 ```
 
+
+wraps `str` with VGA colour `code` (0–255).
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `str` | str | — |
@@ -727,6 +789,9 @@ fn slug.term.colour#vga(str:str, code:num):any
 ```slug
 fn slug.term.colour#vgaCode(code:num):any
 ```
+
+
+returns the ANSI escape code string for VGA colour index `code` (0–255).
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -750,6 +815,9 @@ fn slug.term.colour#white(str:str):any
 fn slug.term.colour#xkcd(str:str, name:sym):any
 ```
 
+
+wraps `str` with an xkcd colour (e.g. `xkcd("Hello", :electricLime)`).
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `str` | str | — |
@@ -761,6 +829,9 @@ fn slug.term.colour#xkcd(str:str, name:sym):any
 ```slug
 fn slug.term.colour#xkcdCode(name:sym):any
 ```
+
+
+returns the ANSI escape code string for an xkcd colour name (e.g. `:electricLime`).
 
 | Parameter | Type | Default |
 | --- | --- | --- |

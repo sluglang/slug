@@ -52,3 +52,14 @@ fn slug.io.stdin#readLine():any
 ```slug
 fn slug.io.stdin#readLines():chan(@str)
 ```
+
+
+Returns a shared singleton channel of stdin line events.
+
+Event stream:
+- each line is emitted as `@str` (without trailing newline)
+- empty lines are preserved as `""`
+- a final partial line (without trailing newline) is emitted
+- when input ends, the channel closes
+
+With `slug.channel#recv`, closure is observed as `nil`.

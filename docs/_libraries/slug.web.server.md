@@ -54,6 +54,17 @@ to dispatch to a router, or write a plain function for simple cases.
 fn slug.web.server#serve(app:fn, addr:str = cfg(address, 0.0.0.0), port:num = cfg(port, 8080)):any
 ```
 
+
+starts an HTTP/1.1 server and blocks until it is shut down.
+
+Binds to `addr:port`, accepts connections in a loop, and spawns a
+task for each connection within a nursery limited to 1000 concurrent
+connections. Each connection supports up to 100 keep-alive requests.
+
+`app` receives a `Request` and must return a `Response`.
+
+@effects('io net')
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `app` | fn | — |

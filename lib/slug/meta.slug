@@ -95,6 +95,17 @@ foreign searchModuleTags = fn(module:str, tag:str, includePrivate:bool = false)
 foreign describe = fn(value)
 
 /**
+ * returns metadata for a specific symbol in a module by binding name.
+ *
+ * unlike `describe(import(module)[symbol])`, this resolves docs directly
+ * from module binding metadata so top-level `/** ... */` comments are
+ * preserved when symbols are imported via maps.
+ */
+@export
+@returns('@map')
+foreign describeSymbol = fn(module:str, symbol:str)
+
+/**
  * returns the module-level doc comment for the given module name.
  *
  * Returns the raw comment text with markers stripped, or `nil` if the

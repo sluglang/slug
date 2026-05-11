@@ -79,6 +79,9 @@ str slug.jsonrpc#VERSION
 fn slug.jsonrpc#encode(message):str
 ```
 
+
+encodes a JSON-RPC message or batch to JSON.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `message` |  | — |
@@ -89,6 +92,9 @@ fn slug.jsonrpc#encode(message):str
 ```slug
 fn slug.jsonrpc#errorObject(code:num, message:str, data = nil):map
 ```
+
+
+builds a JSON-RPC error object.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -102,6 +108,9 @@ fn slug.jsonrpc#errorObject(code:num, message:str, data = nil):map
 ```slug
 fn slug.jsonrpc#failure(id, code:num, message:str, data = nil):map
 ```
+
+
+builds a JSON-RPC error response object.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -117,6 +126,9 @@ fn slug.jsonrpc#failure(id, code:num, message:str, data = nil):map
 fn slug.jsonrpc#isBatch(v):bool
 ```
 
+
+returns true when `v` is a JSON-RPC batch payload.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `v` |  | — |
@@ -127,6 +139,9 @@ fn slug.jsonrpc#isBatch(v):bool
 ```slug
 fn slug.jsonrpc#isErrorResponse(v):bool
 ```
+
+
+returns true when `v` is an error response.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -139,6 +154,9 @@ fn slug.jsonrpc#isErrorResponse(v):bool
 fn slug.jsonrpc#isMessage(v):bool
 ```
 
+
+returns true when `v` is a valid single JSON-RPC message object.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `v` |  | — |
@@ -149,6 +167,9 @@ fn slug.jsonrpc#isMessage(v):bool
 ```slug
 fn slug.jsonrpc#isNotification(v):bool
 ```
+
+
+returns true when `v` is a notification object.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -161,6 +182,9 @@ fn slug.jsonrpc#isNotification(v):bool
 fn slug.jsonrpc#isRequest(v):bool
 ```
 
+
+returns true when `v` is a request object (includes notifications).
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `v` |  | — |
@@ -171,6 +195,9 @@ fn slug.jsonrpc#isRequest(v):bool
 ```slug
 fn slug.jsonrpc#isResponse(v):bool
 ```
+
+
+returns true when `v` is a response object.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -183,6 +210,9 @@ fn slug.jsonrpc#isResponse(v):bool
 fn slug.jsonrpc#isSuccessResponse(v):bool
 ```
 
+
+returns true when `v` is a success response.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `v` |  | — |
@@ -193,6 +223,9 @@ fn slug.jsonrpc#isSuccessResponse(v):bool
 ```slug
 fn slug.jsonrpc#notification(method:str, params = nil):map
 ```
+
+
+builds a JSON-RPC notification object (request without `id`).
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -205,6 +238,13 @@ fn slug.jsonrpc#notification(method:str, params = nil):map
 ```slug
 fn slug.jsonrpc#parse(payload:str):any
 ```
+
+
+decodes JSON and validates it as JSON-RPC 2.0.
+
+Throws `JsonRpcError` with code:
+- `-32700` for JSON parse errors
+- `-32600` for structurally invalid JSON-RPC payloads
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -219,6 +259,9 @@ fn slug.jsonrpc#parse(payload:str):any
 fn slug.jsonrpc#request(id, method:str, params = nil):map
 ```
 
+
+builds a JSON-RPC request object.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `id` |  | — |
@@ -232,6 +275,11 @@ fn slug.jsonrpc#request(id, method:str, params = nil):map
 fn slug.jsonrpc#success(id, result = nil):map
 ```
 
+
+builds a JSON-RPC success response object.
+
+The `result` member is always present (it may be `nil`).
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `id` |  | — |
@@ -243,6 +291,12 @@ fn slug.jsonrpc#success(id, result = nil):map
 ```slug
 fn slug.jsonrpc#validate(message):any
 ```
+
+
+validates a JSON-RPC message or batch.
+
+Returns the input when valid, otherwise throws `JsonRpcError`
+with `code = -32600` (Invalid Request).
 
 | Parameter | Type | Default |
 | --- | --- | --- |

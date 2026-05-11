@@ -60,6 +60,9 @@ str slug.benchmark#UnitUs
 fn slug.benchmark#compare(benches:list, warmupMs:num = 100, sampleMs:num = 200, samples:num = 20, minIters:num = 1, maxIters:num = 10000000, subtractOverhead:bool = true, unit:str = UnitNs):map
   desc: "benchmarks a list of named functions and returns results sorted by p50."
   effects: time
+fn slug.benchmark#compare(a, b):map
+  desc: "benchmarks a list of named functions and returns results sorted by p50."
+  effects: time
 
 fn slug.benchmark#micro(name:str, workFn:fn, warmupMs:num = 100, sampleMs:num = 200, samples:num = 20, minIters:num = 1, maxIters:num = 10000000, subtractOverhead:bool = true, unit:str = UnitNs):map
   desc: "runs a single micro-benchmark and returns a result map with statistics."
@@ -69,76 +72,110 @@ fn slug.benchmark#printCompareReport(report):nil
   desc: "prints a formatted comparison report to stdout."
 
 fn slug.benchmark#printResult(res):nil
-  desc: "prints a formatted summary of a micro result to stdout."
+  desc: "prints a formatted summary of a `micro` result to stdout."
 
 fn slug.bytes#base64Decode(s:str):bytes
+  desc: "decodes a standard base64 string to a byte buffer."
 
 fn slug.bytes#base64Encode(b:bytes):str
+  desc: "encodes a byte buffer as a standard base64 string."
 
 fn slug.bytes#bytesToHexStr(b:bytes):str
+  desc: "encodes a byte buffer as a lowercase hex string."
 
 fn slug.bytes#bytesToNumbers(b:bytes, i = 0, acc = []):list
+  desc: "converts a byte buffer to a list of numeric byte values (0–255)."
 
 fn slug.bytes#bytesToStr(b:bytes):str
+  desc: "converts a byte buffer to a UTF-8 string."
 
 fn slug.bytes#hexStrToBytes(hex:str):bytes
+  desc: "decodes a lowercase hex string to a byte buffer."
 
 fn slug.bytes#repeat(b:bytes, count:num, acc:bytes = 0x""):bytes
+  desc: "repeats a byte buffer `count` times and returns the concatenated result."
 
 fn slug.bytes#strToBytes(s:str):bytes
+  desc: "converts a UTF-8 string to a byte buffer."
 
 fn slug.channel#await(handle:task, timeout:num = 0):any
+  desc: "waits for a spawned task to complete and returns its result."
   errors:
     thrown: Error{type:TimeoutError}
 
 fn slug.channel#chan(capacity:num = 0):chan
+  desc: "creates a new channel with an optional buffer capacity."
 
 fn slug.channel#close(channel:chan):nil
+  desc: "closes a channel, signalling that no more values will be sent."
 
 fn slug.channel#recv(channel:chan, timeout:num = 0):any
+  desc: "receives a value from a channel, blocking until one is available."
   errors:
     thrown: Error{type:TimeoutError}
 
 fn slug.channel#send(channel:chan, payload):any
+  desc: "sends a value to a channel, blocking until a receiver is ready."
 
 fn slug.channel#tryRecv(channel:chan):any
+  desc: "attempts to receive a value from a channel without blocking."
 
 fn slug.channel#trySend(channel:chan, payload):any
+  desc: "attempts to send a value to a channel without blocking."
 
 fn slug.cli#argsWith(raw, spec):any
+  desc: "parses, normalizes, validates, and coerces CLI arguments against a spec."
 
 fn slug.cli#helpText(spec):any
+  desc: "renders the help text for a spec as a string."
 
 fn slug.cli#opt(...args):any
+  desc: "returns the first non-nil value from `args`, coerced to the type of the last argument."
   errors:
     thrown: Error{type:TypeError}
 
 fn slug.cli#versionText(spec):any
+  desc: "renders the version text for a spec as a string."
 
 fn slug.crypto#hmacSha256(message:bytes, secret:bytes):bytes
+  desc: "returns the HMAC-SHA256 of a raw byte message using a raw byte key."
 fn slug.crypto#hmacSha256(message:str, secret:str):bytes
+  desc: "returns the HMAC-SHA256 of a raw byte message using a raw byte key."
 
 fn slug.crypto#hmacSha256Hex(message:str, secret:str):str
+  desc: "returns the HMAC-SHA256 of a message using a secret key, as a hex string."
 
 fn slug.crypto#hmacSha512(message:bytes, secret:bytes):bytes
+  desc: "returns the HMAC-SHA512 of a raw byte message using a raw byte key."
 fn slug.crypto#hmacSha512(message:str, secret:str):bytes
+  desc: "returns the HMAC-SHA512 of a raw byte message using a raw byte key."
 
 fn slug.crypto#hmacSha512Hex(message:str, secret:str):str
+  desc: "returns the HMAC-SHA512 of a message using a secret key, as a hex string."
 
 fn slug.crypto#md5(bytes:bytes):str
+  desc: "returns the MD5 hex digest of a string."
 fn slug.crypto#md5(str:str):str
+  desc: "returns the MD5 hex digest of a string."
 
 fn slug.crypto#sha256(bytes:bytes):str
+  desc: "returns the SHA-256 hex digest of a string."
 fn slug.crypto#sha256(str:str):str
+  desc: "returns the SHA-256 hex digest of a string."
 
 fn slug.crypto#sha512(bytes:bytes):str
+  desc: "returns the SHA-512 hex digest of a string."
 fn slug.crypto#sha512(str:str):str
+  desc: "returns the SHA-512 hex digest of a string."
 
 fn slug.csv#fromCsvString(csvStr:str, sep:str = ",", quote:str = "\""):list
+  desc: "parses a CSV string into a list of rows, where each row is a list of strings."
 
 fn slug.csv#toCsv(rows:list, sep:str = ",", quote:str = "\"", eol:str = "\r\n", acc:str = ""):str
+  desc: "converts a list of rows (each a list of strings) to a CSV string."
 
 struct slug.db.migration#Migration{id:num, version:str, environment:str, filename:str, checksum:str, success:bool, appliedAt:str}
+  desc: "represents a migration record as stored in the tracking table."
   field id:num
   field version:str
   field environment:str
@@ -148,53 +185,76 @@ struct slug.db.migration#Migration{id:num, version:str, environment:str, filenam
   field appliedAt:str
 
 fn slug.db.migration#down(conn:num, step:num = 1, base:str = DefaultBase):num
+  desc: "rolls back the most recently applied migrations."
 
 fn slug.db.migration#status(conn:num, env:list = DefaultEnv, base:str = DefaultBase):num
+  desc: "prints the status of all migration files against the database."
   errors:
     thrown: Error{type:MigrationError}
 
 fn slug.db.migration#up(conn:num, env:list = DefaultEnv, base:str = DefaultBase):num
+  desc: "applies all pending eligible migrations in ascending version order."
   errors:
     thrown: Error{type:MigrationError}
 
 fn slug.db.repo#into(data:list, toType, columnToFieldName:fn = fn((s)) {camelCase(s, _)}):list
+  desc: "maps a list of db result rows onto a struct or map target."
 fn slug.db.repo#into(data:map, target, columnToFieldName:fn = fn((s)) {camelCase(s, _)}):list
+  desc: "maps a list of db result rows onto a struct or map target."
 
 fn slug.db.repo#loadQueries(base:str = DefaultBase):map
+  desc: "scans `base` recursively for `.sql` files and returns a nested map of query functions."
 
 fn slug.debug#ident(value):str
+  desc: "returns a stable string identity key for any runtime value."
 
 fn slug.doc.discover#discoverModules(dir):list
+  desc: "Scans a directory recursively for .slug files and derives dotted module names from their paths relative to the base directory."
 
 fn slug.doc.manifest#manifest(moduleNames:list):str
+  desc: "generates a MANIFEST.ai file for the given list of module names."
 
 fn slug.doc.markdown#pagePerModule(moduleNames:list, moduleToc:bool = false):list
+  desc: "generates a multi-page markdown API reference for the given list of module names, returns [name, text]."
 
 fn slug.doc.markdown#singlePage(moduleNames:list, title:str = "Slug API Reference", moduleToc:bool = false):str
+  desc: "generates a single-page markdown API reference for the given list of module names."
 
 fn slug.html#extractInnerText(html, tag, start = 0):str
+  desc: "extracts the inner content of the first matching tag in an HTML string."
 
 fn slug.html#htmlUnescape(str):str
+  desc: "decodes common HTML entities in a string."
 
 str slug.io.db#MYSQL_DRIVER
+  desc: "driver string for MySQL connections."
 
 str slug.io.db#PGSQL_DRIVER
+  desc: "driver string for PostgreSQL connections."
 
 str slug.io.db#SQLITE_DRIVER
+  desc: "driver string for SQLite3 connections."
 
 fn slug.io.db#begin(connection:num):num
+  desc: "begins a transaction and returns a transaction handle."
 
 fn slug.io.db#close(connection:num):nil
+  desc: "closes a database connection or transaction handle."
 
 fn slug.io.db#commit(connection:num):num
+  desc: "commits a transaction."
 
 fn slug.io.db#connect(connectionString:str, driver:str):num
+  desc: "opens a database connection and returns a connection handle."
 
 fn slug.io.db#exec(connection:num, sql:str, ...params):map
+  desc: "executes a SQL statement and returns a result map."
 
 fn slug.io.db#query(connection:num, sql:str, ...params):list
+  desc: "executes a SQL query and returns the result rows as a list of string-keyed maps."
 
 fn slug.io.db#rollback(connection:num):num
+  desc: "rolls back a transaction."
 
 str slug.io.fs#APPEND_MODE
 
@@ -203,52 +263,76 @@ str slug.io.fs#READ_MODE
 str slug.io.fs#WRITE_MODE
 
 fn slug.io.fs#appendFile(contents:str, path:str):num
+  desc: "appends `contents` to the end of a file, creating it if absent."
 
 fn slug.io.fs#closeFile(handle:num):nil
+  desc: "closes an open file handle."
 
 fn slug.io.fs#exists(path:str):bool
+  desc: "returns true if `path` exists and is accessible."
 
 fn slug.io.fs#info(path:str):map
+  desc: "returns metadata about a file or directory as a map."
 
 fn slug.io.fs#isDir(path:str):bool
+  desc: "returns true if `path` is a directory."
 
 fn slug.io.fs#listFilesRecursive(path:list, filter:fn = fn((s)) {true}, acc = []):list
+  desc: "recursively collects all files under the given path(s) matching `filter`."
 
 fn slug.io.fs#ls(path:str):list
+  desc: "returns a list of filenames in a directory (non-recursive)."
 
 fn slug.io.fs#mkDirs(...path):bool
+  desc: "creates all directories in the given path(s), including intermediates."
 
 fn slug.io.fs#openFile(path:str, mode:str):num
+  desc: "opens a file in the specified mode and returns a file handle."
 
 fn slug.io.fs#readFile(path:str):str
+  desc: "reads the entire contents of a file and returns it as a string."
 
 fn slug.io.fs#readLine(handle:num):str
+  desc: "reads the next line from an open file handle."
 
 fn slug.io.fs#readLines(file:num, lines = []):list
+  desc: "reads all remaining lines from an open file handle into a list."
 
 fn slug.io.fs#rm(path:str):nil
+  desc: "removes a file or empty directory at `path`."
 
 fn slug.io.fs#write(handle:num, content:str):num
+  desc: "writes `content` to an open file handle."
 
 fn slug.io.fs#writeFile(contents:str, path:str):nil
+  desc: "writes `contents` to a file, creating or truncating it."
 
 fn slug.io.http#delete(url:str, headers:map = {}):[@num, @str]
+  desc: "makes a DELETE request and returns `[status, body]`."
 
 fn slug.io.http#get(url:str, headers:map = {}):[@num, @str]
+  desc: "makes a GET request and returns `[status, body]`."
 
 fn slug.io.http#patch(body:str, url:str, headers:map = {}):[@num, @str]
+  desc: "makes a PATCH request and returns `[status, body]`."
 
 fn slug.io.http#post(body:str, url:str, headers:map = {}):[@num, @str]
+  desc: "makes a POST request and returns `[status, body]`."
 
 fn slug.io.http#put(body:str, url:str, headers:map = {}):[@num, @str]
+  desc: "makes a PUT request and returns `[status, body]`."
 
 fn slug.io.http#request(method:str, url:str, body:str = "", headers:map = {}, timeout:num = 30000):[@num, @str]
+  desc: "makes an HTTP request and returns `[status, body]`."
 
 fn slug.io.http#urlDecode(str:str):any
+  desc: "decodes a URL-encoded string."
 
 fn slug.io.stderr#print(...args):any
+  desc: "writes args to stderr without a trailing newline."
 
 fn slug.io.stderr#println(...args):any
+  desc: "writes args to stderr followed by a newline."
 
 fn slug.io.stdin#confirm(message:str, default:bool = false):bool
 
@@ -257,34 +341,46 @@ fn slug.io.stdin#prompt(prompt:str):str
 fn slug.io.stdin#readLine():any
 
 fn slug.io.stdin#readLines():chan(@str)
+  desc: "Returns a shared singleton channel of stdin line events."
 
 fn slug.io.tcp#accept(listener:num):num
+  desc: "waits for an incoming connection on `listener` and returns a connection handle."
 
 fn slug.io.tcp#bind(addr:str, port:num):num
+  desc: "binds a TCP listener to `addr:port` and returns a listener handle."
 
 fn slug.io.tcp#close(handle:num):num
+  desc: "closes a TCP listener or connection handle."
 
 fn slug.io.tcp#connect(addr:str, port:num):num
+  desc: "connects to a TCP server at `addr:port` and returns a connection handle."
 
 fn slug.io.tcp#read(stream:num, maxBytes:num):str
+  desc: "reads up to `maxBytes` from a TCP stream."
 
 fn slug.io.tcp#write(stream:num, data:str):num
+  desc: "sends `data` over a TCP stream."
 
 fn slug.json#decode(jsonStr:str):any
+  desc: "decodes a JSON string into a Slug value."
   errors:
     thrown: Error{type:JsonError}
 
 fn slug.json#encode(v):str
+  desc: "encodes a Slug value as a compact JSON string."
   errors:
     thrown: Error{type:JsonError}
 
 fn slug.json#pretty(v, indent:num = 2):str
+  desc: "encodes a Slug value as a pretty-printed JSON string."
   errors:
     thrown: Error{type:JsonError}
 
 fn slug.jsonl#decode(jsonl:str, skipEmpty:bool = true):list
+  desc: "decodes JSON Lines text into a list of values."
 
 fn slug.jsonl#encode(values:list, eol:str = "\n", trailingEol:bool = false):str
+  desc: "encodes a list of values as JSON Lines text."
 
 num slug.jsonrpc#INTERNAL_ERROR
 
@@ -299,124 +395,182 @@ num slug.jsonrpc#PARSE_ERROR
 str slug.jsonrpc#VERSION
 
 fn slug.jsonrpc#encode(message):str
+  desc: "encodes a JSON-RPC message or batch to JSON."
 
 fn slug.jsonrpc#errorObject(code:num, message:str, data = nil):map
+  desc: "builds a JSON-RPC error object."
 
 fn slug.jsonrpc#failure(id, code:num, message:str, data = nil):map
+  desc: "builds a JSON-RPC error response object."
 
 fn slug.jsonrpc#isBatch(v):bool
+  desc: "returns true when `v` is a JSON-RPC batch payload."
 
 fn slug.jsonrpc#isErrorResponse(v):bool
+  desc: "returns true when `v` is an error response."
 
 fn slug.jsonrpc#isMessage(v):bool
+  desc: "returns true when `v` is a valid single JSON-RPC message object."
 
 fn slug.jsonrpc#isNotification(v):bool
+  desc: "returns true when `v` is a notification object."
 
 fn slug.jsonrpc#isRequest(v):bool
+  desc: "returns true when `v` is a request object (includes notifications)."
 
 fn slug.jsonrpc#isResponse(v):bool
+  desc: "returns true when `v` is a response object."
 
 fn slug.jsonrpc#isSuccessResponse(v):bool
+  desc: "returns true when `v` is a success response."
 
 fn slug.jsonrpc#notification(method:str, params = nil):map
+  desc: "builds a JSON-RPC notification object (request without `id`)."
 
 fn slug.jsonrpc#parse(payload:str):any
+  desc: "decodes JSON and validates it as JSON-RPC 2.0."
   errors:
     thrown: Error{type:JsonRpcError}
 
 fn slug.jsonrpc#request(id, method:str, params = nil):map
+  desc: "builds a JSON-RPC request object."
 
 fn slug.jsonrpc#success(id, result = nil):map
+  desc: "builds a JSON-RPC success response object."
 
 fn slug.jsonrpc#validate(message):any
+  desc: "validates a JSON-RPC message or batch."
   errors:
     thrown: Error{type:JsonRpcError}
 
 fn slug.list#asList(chars:str, i:num = 0, acc:list = []):list
+  desc: "converts a string into a list of single-character strings."
 
 fn slug.list#flatten(lsts:list):list
+  desc: "flattens a list of lists into a single list."
 
 fn slug.list#indexOf(list:list, value, idx:num = 0):num
+  desc: "returns the index of the first occurrence of `value` in `list`."
 
 fn slug.list#removeValue(list:list, value):list
+  desc: "returns a new list with the first occurrence of `value` removed."
 
 fn slug.list#shuffle(list:list):list
+  desc: "returns a new list with elements shuffled in random order."
   effects: random
 
 fn slug.list#sort(lst:list):list
+  desc: "sorts a list in natural ascending order."
 
 fn slug.list#sortWithComparator(lst:list, comparator:fn):list
+  desc: "sorts a list using a custom comparator function."
 
 num slug.log#Debug
+  desc: "debug-level messages; verbose operational detail"
 
 num slug.log#Error
+  desc: "errors; failures that require attention"
 
 num slug.log#Info
+  desc: "informational messages; normal operational events"
 
 num slug.log#None
+  desc: "suppress all output"
 
 num slug.log#Trace
+  desc: "minimum log level — emits everything"
 
 num slug.log#Warn
+  desc: "warnings; unexpected but recoverable situations"
 
 fn slug.log#cDebug(arg, message:str, ...args):any
+  desc: "logs a debug-level message and returns the first argument unchanged."
 
 fn slug.log#cError(arg, message:str, ...args):any
+  desc: "logs an error-level message and returns the first argument unchanged."
 
 fn slug.log#cInfo(arg, message:str, ...args):any
+  desc: "logs an info-level message and returns the first argument unchanged."
 
 fn slug.log#cTrace(arg, message:str, ...args):any
+  desc: "logs a trace-level message and returns the first argument unchanged."
 
 fn slug.log#cWarn(arg, message:str, ...args):any
+  desc: "logs a warn-level message and returns the first argument unchanged."
 
 fn slug.log#debug(message:str, ...args):str|nil
+  desc: "logs a debug-level message using the global log level."
 
 fn slug.log#error(message:str, ...args):str|nil
+  desc: "logs an error-level message using the global log level."
 
 fn slug.log#info(path:str):str|nil
+  desc: "logs an info-level message using the global log level."
 fn slug.log#info(message:str, ...args):str|nil
+  desc: "logs an info-level message using the global log level."
 
 fn slug.log#logger(src:str):map
+  desc: "creates a named logger for a specific source module."
 
 fn slug.log#none(message:str, ...args):nil
+  desc: "logs at the `none` level."
 
 fn slug.log#trace(message:str, ...args):str|nil
+  desc: "logs a trace-level message using the global log level."
 
 fn slug.log#warn(message:str, ...args):str|nil
+  desc: "logs a warn-level message using the global log level."
 
 fn slug.map#difference(s1:map, s2:map):map
+  desc: "returns `s1` with all keys that appear in `s2` removed."
 
 fn slug.map#intersect(s1:map, s2:map):map
+  desc: "returns a map containing only keys present in both maps."
 
 fn slug.map#merge(base:map, patch:map):map
+  desc: "merges two maps, with `patch` values overwriting `base` values on key conflicts."
 
 fn slug.map#patch(base:map, patchData:map):map
+  desc: "recursively merges two maps, deeply merging nested map values."
 
 fn slug.map#putNested(map:map, keys:list, value):map
+  desc: "sets a deeply nested key in a map, creating intermediate maps as needed."
 
 fn slug.map#union(s1:map, s2:map):map
+  desc: "returns a map containing all keys from both maps."
 
 fn slug.math#ceil(n:num):num
+  desc: "returns the least integer greater than or equal to `n`."
 
 fn slug.math#clampZero(n:num):num
+  desc: "returns `n` if it is >= 0, otherwise returns 0."
 
 fn slug.math#floor(n:num):num
+  desc: "returns the greatest integer less than or equal to `n`."
 
 fn slug.math#max(a:num, ...b):num
+  desc: "returns the largest of two or more numbers."
 fn slug.math#max(a:num, b:num):num
+  desc: "returns the largest of two or more numbers."
 
 fn slug.math#mean(xs):num
+  desc: "returns the arithmetic mean of a list of numbers."
 
 fn slug.math#min(a:num, ...b):num
+  desc: "returns the smallest of two or more numbers."
 
 fn slug.math#percentileSorted(xs, p):num
+  desc: "returns the `p`th percentile of a pre-sorted ascending list."
 
 fn slug.math#rndRange(min:num, max:num):num
+  desc: "returns a random integer in the range `[min, max)` (exclusive upper bound)."
   effects: random
 
 fn slug.math#sqrt(n:num):num
+  desc: "returns the square root of `n`."
 
 fn slug.math#stdev(xs, mean):num
+  desc: "returns the sample standard deviation of a list of numbers."
 
 num slug.meta#BINDING_NAME
 
@@ -425,52 +579,77 @@ num slug.meta#BINDING_PARAMS
 num slug.meta#BINDING_VALUE
 
 fn slug.meta#describe(value):map
+  desc: "returns a metadata map describing the given value."
+
+fn slug.meta#describeSymbol(module:str, symbol:str):map
+  desc: "returns metadata for a specific symbol in a module by binding name."
 
 fn slug.meta#getTag(value, tag:str):list
+  desc: "returns the list of arguments for a tag on `value`."
 
 fn slug.meta#hasTag(value, tag:str):bool
+  desc: "returns `true` if `value` has the given tag annotation."
 
 fn slug.meta#moduleDocs(module:str):str
+  desc: "returns the module-level doc comment for the given module name."
 
 fn slug.meta#searchModuleTags(module:str, tag:str, includePrivate:bool = false):map
+  desc: "searches all exported bindings in a module for a given tag."
 
 fn slug.meta#searchScopeTags(tag:str):any
+  desc: "searches all bindings in the current scope for a given tag."
 
 fn slug.mustache#parse(template:str):any
+  desc: "parses a Mustache template string into an AST."
 
 fn slug.mustache#render(templateOrAst, data, partials = nil):str
+  desc: "renders a Mustache template and returns the resulting HTML string."
   errors:
     thrown: Error{type:MustacheError}
 
 fn slug.mustache#renderCached(templateOrAst, data, partials = nil, cache = {}):str
+  desc: "renders a Mustache template with a partial cache for reuse across calls."
   errors:
     thrown: Error{type:MustacheError}
 
 fn slug.path#abs(path:str):str
+  desc: "Returns a normalized absolute path."
 
 fn slug.path#cwd():str
+  desc: "Returns the current process working directory."
 
 fn slug.path#join(...parts):str
+  desc: "Joins path elements using the platform-specific separator."
 
 fn slug.path#libRoot():str
+  desc: "Returns the library root of the current module namespace."
 
 fn slug.path#localize(path:str):str
+  desc: "If path starts with '__project__/', '__library__/' or '__module__/' returns path new path with substitution, useful for config."
 
 fn slug.path#moduleDir():str
+  desc: "Returns the directory of the current module file."
 
 fn slug.path#projectRoot():str
+  desc: "Returns the entry module directory."
 
 fn slug.regex#findAll(str:str, pattern:str):list
+  desc: "returns a list of all non-overlapping matches of `pattern` in `str`."
 
 fn slug.regex#findAllGroups(str:str, pattern:str):list
+  desc: "returns a list of all matches including capture groups."
 
 fn slug.regex#indexOf(str:str, pattern:str, index:num = 0):[@list, @list]
+  desc: "returns the byte index range of the first match of `pattern` in `str` starting from `index`, as `[start_end:list, group_ranges:list]`."
 
 fn slug.regex#matches(str:str, pattern:str):bool
+  desc: "returns true if the pattern matches anywhere in the string."
 
 fn slug.regex#replaceAll(str:str, pattern:str, repl:str):str
+  desc: "replaces all matches of `pattern` in `str` with `repl`."
 
 fn slug.regex#split(str:str, pattern:str):list
+  desc: "splits `str` into a list of substrings divided by matches of `pattern`."
 
 sym slug.std#BOOLEAN_TYPE
 
@@ -479,6 +658,7 @@ sym slug.std#BYTES_TYPE
 sym slug.std#ERROR_TYPE
 
 struct slug.std#Error{type:str = "Error", msg:str, code = nil, data = nil, cause = nil}
+  desc: "Standard error payload shape for idiomatic error handling."
   field type:str
   field msg:str
 
@@ -489,6 +669,7 @@ sym slug.std#LIST_TYPE
 sym slug.std#MAP_TYPE
 
 sym slug.std#NIL_TYPE
+  desc: "Constant for NIL_TYPE, returned by `type(nil)`"
 
 sym slug.std#NUMBER_TYPE
 
@@ -500,165 +681,242 @@ sym slug.std#SYMBOL_TYPE
 
 sym slug.std#TASK_TYPE
 
-fn slug.std#compare(a, b):num
+fn slug.std#compare(a, b):map
+  desc: "returns -1 if `a < b`, 1 if `a > b`, 0 if equal."
+  effects: time
 
 fn slug.std#compute(map:map, key, f):map
+  desc: "applies `f(key, currentValue)` to the value at `key` and returns the updated map."
 
 fn slug.std#counter(start:num = 0):fn
+  desc: "returns a function that increments and returns a counter on each call."
 
 fn slug.std#equals(m1:map, m2:map):bool
+  desc: "deep equality for maps, recursively comparing values for all keys."
 fn slug.std#equals(v1, v2):bool
+  desc: "deep equality for maps, recursively comparing values for all keys."
 fn slug.std#equals(a:list, b:list, idx:num = 0):bool
+  desc: "deep equality for maps, recursively comparing values for all keys."
 
 fn slug.std#filter(vs:list, f:fn, acc:list = []):list
+  desc: "returns a new list containing only elements for which `f` returns true."
 
 fn slug.std#find(xs:list, f:fn):any
+  desc: "returns the first element of `xs` for which `f` returns true, or `nil`."
 
 fn slug.std#flatMap(vs:list, f:fn):list
+  desc: "applies `f` to each element of `vs` and concatenates the resulting lists."
 
 fn slug.std#fmt(str:str, ...args):str
+  desc: "formats a string using `{}` placeholders and optional format specifiers."
 
 fn slug.std#get(map:map, key):any
+  desc: "returns the value for `key` in `map`, or `nil` if absent."
 
 fn slug.std#ifNil(v, f:fn):any
+  desc: "returns `default` if `v` is `nil`; returns `v` otherwise."
 fn slug.std#ifNil(v, default):any
+  desc: "returns `default` if `v` is `nil`; returns `v` otherwise."
 
 fn slug.std#isDefined(varName:str):bool
+  desc: "returns true if `varName` is defined as a binding in the current scope."
 
 fn slug.std#isStructInstance(v):bool
+  desc: "returns true if `v` is an instance of a struct (not a struct schema)."
 
 fn slug.std#keys(map):list
+  desc: "returns a list of all keys in a map."
 
 fn slug.std#label(symbol):str
+  desc: "returns the string label of a symbol."
 
 fn slug.std#map(vs:list, f:fn, acc = []):list
+  desc: "applies `f` to each element of `vs` and returns the resulting list."
 
 fn slug.std#moduleName():str
+  desc: "returns the full name of the current module."
 
 fn slug.std#nonNil(v, f:fn, default = nil):any
+  desc: "returns `default` if `v` is `nil`; calls `f(v)` and returns the result otherwise."
 
 fn slug.std#parseNumber(value:str):num
+  desc: "parses a numeric string to a number. Throws on invalid input."
 
 fn slug.std#put(map:map, key, value):map
+  desc: "returns a new map with `key` set to `value`."
 
 fn slug.std#range(start:num, end:num, step:num = 1, acc:list = []):list
+  desc: "generates a list of numbers from `start` (inclusive) to `end` (exclusive) by `step`."
 
 fn slug.std#reduce(vs:list, v, f:fn):any
+  desc: "folds `vs` left with `f`, starting from initial value `v`."
 
 fn slug.std#remove(map:map, key):map
+  desc: "returns a new map with `key` removed. No-op if key is absent."
 
 fn slug.std#structEquals(m1, m2):bool
+  desc: "deep equality for struct types and struct instances."
 
 fn slug.std#swap(list:list, index1:num, index2:num):list
+  desc: "returns a new list with elements at `index1` and `index2` swapped."
 
 fn slug.std#sym(name:str):sym
+  desc: "converts a string to a symbol."
 
 fn slug.std#then(m, f:fn):any
+  desc: "applies `f` to `m` and returns the result. Useful for call-chain threading."
 
 fn slug.std#toBoolean(v):bool
+  desc: "converts a value to `@bool`."
   errors:
     thrown: Error{type:TypeError}
 
 fn slug.std#toNumber(v):num
+  desc: "converts a value to `@num`."
   errors:
     thrown: Error{type:TypeError}
 
 fn slug.std#toString(v):str
+  desc: "converts a value to a string representation."
 
 fn slug.std#type(val):sym
+  desc: "returns a symbol indicating the runtime type of `val`."
 
 fn slug.std#update(list:list, index:num, value):list
+  desc: "returns a new list with the element at `index` replaced by `value`."
 
 fn slug.std#zeroIfAbove(a:num, b:num):num
+  desc: "returns `a` if `a < b`, otherwise returns `0`."
 
 fn slug.std#zip(lst1:list, lst2:list, acc = []):list
+  desc: "zips two lists into a list of `[a, b]` pairs."
 
 fn slug.std#zipWith(lst:list, f):list
+  desc: "zips a list with the results of calling `f` for each element."
 
 fn slug.std#zipWithIndex(lst:list):list
+  desc: "zips a list with its zero-based indices."
 
 fn slug.string#camelCase(s:str, sep:str = " "):str
+  desc: "converts a string to `camelCase`, capitalising each word except the first."
 
 fn slug.string#contains(str:str, seq:str):bool
+  desc: "returns true if `seq` appears anywhere in `str`."
 
 fn slug.string#containsAny(str:str, ...seq):bool
+  desc: "returns true if any on the `seq` strings appear in `str`."
 
 fn slug.string#endsWith(str:str, end:str):bool
+  desc: "returns true if `str` ends with `end`."
 
 fn slug.string#fromCodePoint(codePoint:num):str
+  desc: "returns the string corresponding to a Unicode code point."
 
 fn slug.string#indexOf(str:str, seq:str, index:num = 0):num
+  desc: "returns the byte index of the first occurrence of `seq` in `str` at or after `index`."
 
 fn slug.string#isLower(str:str):bool
+  desc: "returns true if `str` is non-empty and entirely lowercase."
 
 fn slug.string#isUpper(str:str):bool
+  desc: "returns true if `str` is non-empty and entirely uppercase."
 
 fn slug.string#join(strs:list, delimiter:str = "", str:str = nil):str
+  desc: "joins a list of strings with `delimiter` between each element."
 
 fn slug.string#kebabCase(s:str, sep:str = " "):str
+  desc: "converts a string to `kebab-case` by replacing `sep` with `-`."
 
 fn slug.string#lastIndexOf(str:str, seq:str, index:num = 0, prev = (-1)):num
+  desc: "returns the index of the last occurrence of `seq` in `str`."
 
 fn slug.string#padLeft(str:str, with:str, length:num):str
+  desc: "pads `str` on the left with `with` until it reaches `length`."
 
 fn slug.string#padRight(str:str, with:str, length:num):str
+  desc: "pads `str` on the right with `with` until it reaches `length`."
 
 fn slug.string#pascalCase(s:str, sep:str = " "):str
+  desc: "converts a string to `PascalCase`, capitalising the first letter of each word."
 
 fn slug.string#randomHexString(length:num):str
+  desc: "generates a random lowercase hex string of `length` characters."
   effects: random
 
 fn slug.string#randomString(length:num, chars:str, acc:str = ""):str
+  desc: "generates a random string of `length` characters drawn from `chars`."
   effects: random
 
 fn slug.string#replaceAll(str:str, replace:str, with:str):str
+  desc: "replaces all occurrences of `replace` in `str` with `with`."
 
 fn slug.string#snakeCase(s:str, sep:str = " ", screaming = false):str
+  desc: "converts a string to `snake_case` by replacing `sep` with `_`."
 
 fn slug.string#split(str:str, delimiter:str, max:num = (-1), count:num = 1, strs:list = []):list
+  desc: "splits `str` on `delimiter`, returning a list of substrings."
 
 fn slug.string#startsWith(str:str, start:str):bool
+  desc: "returns true if `str` begins with `start`."
 
 fn slug.string#toLower(str:str):str
+  desc: "converts a string to lowercase."
 
 fn slug.string#toUpper(str:str):str
+  desc: "converts a string to uppercase."
 
 fn slug.string#trim(str:str):str
+  desc: "removes all leading and trailing occurrences of `prefix` from `s`."
 fn slug.string#trim(s:str, prefix:str):str
+  desc: "removes all leading and trailing occurrences of `prefix` from `s`."
 
 fn slug.sys#env(str:str):str
+  desc: "reads an environment variable by name."
   effects: io
 
 fn slug.sys#exec(cmd:str, timeout:num = 0):[@str, @str]
+  desc: "runs a shell command synchronously and returns `[stdout, stderr]`."
   effects: io
 
 fn slug.sys#exit(exitCode:num):nil
+  desc: "terminates the current process with the given exit code."
 
 fn slug.sys#killProc(handle:num):bool
+  desc: "sends a termination signal to a spawned process."
   effects: io
 
 fn slug.sys#setEnv(key:str, value:str):str
+  desc: "sets an environment variable."
   effects: io
 
 fn slug.sys#spawnProc(cmd:list):num
+  desc: "spawns a process from a command list and returns a process handle."
   effects: io
 
 fn slug.sys#waitProc(handle:num, timeout:num = 0):num
+  desc: "waits for a spawned process to finish and returns its exit code."
   effects: io
 
 map slug.term.colour#BgBrightColour
+  desc: "map of colour name → ANSI escape code string for bright background colours."
 
 map slug.term.colour#BgColour
+  desc: "map of colour name → ANSI escape code string for background colours."
 
 map slug.term.colour#BrightColour
+  desc: "map of colour name → ANSI escape code string for bright colours."
 
 map slug.term.colour#Colour
+  desc: "map of colour name (PascalCase) → ANSI escape code string for standard colours."
 
 num slug.term.colour#ColourSupport
+  desc: "number of colours supported by the current terminal, as reported by `tput colors`."
 
 map slug.term.colour#Effects
+  desc: "map of effect name → ANSI escape code string."
 
 map slug.term.colour#Styles
+  desc: "raw ANSI code number lists per style name."
 
 fn slug.term.colour#bgBlack(str:str):any
 
@@ -685,26 +943,34 @@ fn slug.term.colour#bgCyan(str:str):any
 fn slug.term.colour#bgGreen(str:str):any
 
 fn slug.term.colour#bgHex(str:str, code:str):any
+  desc: "wraps `str` with hex background colour."
 
 fn slug.term.colour#bgHexCode(code:str):any
+  desc: "returns the ANSI escape code string for hex background colour."
 
 fn slug.term.colour#bgMagenta(str:str):any
 
 fn slug.term.colour#bgRed(str:str):any
 
 fn slug.term.colour#bgRgb(str:str, r:num, g:num, b:num):any
+  desc: "wraps `str` with RGB background colour."
 
 fn slug.term.colour#bgRgbCode(r:num, g:num, b:num):any
+  desc: "returns the ANSI escape code string for RGB background colour."
 
 fn slug.term.colour#bgVga(str:str, code:num):any
+  desc: "wraps `str` with VGA background colour `code` (0–255)."
 
 fn slug.term.colour#bgVgaCode(code:num):any
+  desc: "returns the ANSI escape code string for VGA background colour index `code` (0–255)."
 
 fn slug.term.colour#bgWhite(str:str):any
 
 fn slug.term.colour#bgXkcd(str:str, name:sym):any
+  desc: "wraps `str` with an xkcd background colour."
 
 fn slug.term.colour#bgXkcdCode(name:sym):any
+  desc: "returns the ANSI escape code string for an xkcd background colour."
 
 fn slug.term.colour#bgYellow(str:str):any
 
@@ -745,80 +1011,103 @@ fn slug.term.colour#effectUnderline(str:str):any
 fn slug.term.colour#green(str:str):any
 
 fn slug.term.colour#hex(str:str, code:str):any
+  desc: "wraps `str` with hex colour (e.g. `hex("Hello", "#ff5733")`)."
 
 fn slug.term.colour#hexCode(code:str):any
+  desc: "returns the ANSI escape code string for hex colour `code` (e.g. `"#ff5733"`)."
 
 fn slug.term.colour#magenta(str:str):any
 
 fn slug.term.colour#red(str:str):any
 
 str slug.term.colour#reset
+  desc: "ANSI reset escape code — resets all styles to terminal default."
 
 fn slug.term.colour#rgb(str:str, r:num, g:num, b:num):any
+  desc: "wraps `str` with RGB colour `r`, `g`, `b` (0–255 each)."
 
 fn slug.term.colour#rgbCode(r:num, g:num, b:num):any
+  desc: "returns the ANSI escape code string for RGB colour."
 
 fn slug.term.colour#vga(str:str, code:num):any
+  desc: "wraps `str` with VGA colour `code` (0–255)."
 
 fn slug.term.colour#vgaCode(code:num):any
+  desc: "returns the ANSI escape code string for VGA colour index `code` (0–255)."
 
 fn slug.term.colour#white(str:str):any
 
 fn slug.term.colour#xkcd(str:str, name:sym):any
+  desc: "wraps `str` with an xkcd colour (e.g. `xkcd("Hello", :electricLime)`)."
 
 fn slug.term.colour#xkcdCode(name:sym):any
+  desc: "returns the ANSI escape code string for an xkcd colour name (e.g. `:electricLime`)."
 
 fn slug.term.colour#yellow(str:str):any
 
 fn slug.term.control#clear():any
+  desc: "clears the terminal screen and moves the cursor to the top-left."
 
 fn slug.term.control#clearAll():any
+  desc: "clears the terminal screen, scrollback buffer, and moves the cursor to the top-left."
 
 fn slug.test#assert(a, msg = nil):bool
+  desc: "asserts that `a` is `true`."
   errors:
     thrown: Error{type:AssertionError}
 
 fn slug.test#assertEqual(value, expected, msg = nil):any
+  desc: "asserts that `value` equals `expected` using deep equality."
   errors:
     thrown: Error{type:AssertionError}
 
 fn slug.test#assertErrorType(f:fn, expected, msg:str = nil):bool
+  desc: "asserts that calling `f` throws a value of type `expected`."
   errors:
     thrown: Error{type:AssertionError}
 
 fn slug.test#assertFalse(a, msg = nil):bool
+  desc: "asserts that `a` is falsey."
   errors:
     thrown: Error{type:AssertionError}
 
 fn slug.test#assertGreaterThan(value, expected, msg = nil):any
+  desc: "asserts that `value > expected`. Returns `value` on success."
   errors:
     thrown: Error{type:AssertionError}
 
 fn slug.test#assertGreaterThanOrEqual(value, expected, msg = nil):any
+  desc: "asserts that `value >= expected`. Returns `value` on success."
   errors:
     thrown: Error{type:AssertionError}
 
 fn slug.test#assertLessThan(value, expected, msg = nil):any
+  desc: "asserts that `value < expected`. Returns `value` on success."
   errors:
     thrown: Error{type:AssertionError}
 
 fn slug.test#assertLessThanOrEqual(value, expected, msg = nil):any
+  desc: "asserts that `value <= expected`. Returns `value` on success."
   errors:
     thrown: Error{type:AssertionError}
 
 fn slug.test#assertNil(value, msg = nil):any
+  desc: "asserts that `value` is `nil`. Returns `value` on success."
   errors:
     thrown: Error{type:AssertionError}
 
 fn slug.test#assertNotEqual(value, expected, msg = nil):any
+  desc: "asserts that `value` does not equal `expected`. Returns `value` on success."
   errors:
     thrown: Error{type:AssertionError}
 
 fn slug.test#assertNotNil(value, msg = nil):any
+  desc: "asserts that `value` is not `nil`. Returns `value` on success."
   errors:
     thrown: Error{type:AssertionError}
 
 fn slug.test#assertThrows(f:fn, expected, msg:str = nil):bool
+  desc: "asserts that calling `f` throws a value equal to `expected`."
   errors:
     thrown: Error{type:AssertionError}
 
@@ -831,6 +1120,7 @@ fn slug.test#eq(value, expected, msg = nil):any
     thrown: Error{type:AssertionError}
 
 fn slug.test#fail(msg = nil):any
+  desc: "unconditionally throws an `AssertionError` with an optional message."
   errors:
     thrown: Error{type:AssertionError}
 
@@ -843,6 +1133,7 @@ fn slug.test#gteq(value, expected, msg = nil):any
     thrown: Error{type:AssertionError}
 
 fn slug.test#isAssertError(v):bool
+  desc: "returns true if `v` is an AssertionError thrown by this module."
 
 fn slug.test#lt(value, expected, msg = nil):any
   errors:
@@ -861,38 +1152,50 @@ fn slug.test#ok(a, msg = nil):bool
     thrown: Error{type:AssertionError}
 
 fn slug.test#runSafe(f:fn):map
+  desc: "executes `f()` and returns a result map without propagating errors."
 
 fn slug.test#throws(f:fn, expected, msg:str = nil):bool
   errors:
     thrown: Error{type:AssertionError}
 
 fn slug.thirdparty.ollama#ollamaChat(history:list, systemPrompt:str = nil, model:str = cfg(ollama-model, llama3)):any
+  desc: "sends a chat request to Ollama and returns the model's reply text."
   effects: net
 
 fn slug.thirdparty.telegram#getUpdates(offset:num, timeout:num = 30):any
+  desc: "polls Telegram for new updates starting from `offset`."
   effects: net
 
 fn slug.thirdparty.telegram#sendMessage(chatId, text, parseMode = "Markdown"):any
+  desc: "sends a text message to a Telegram chat."
   effects: net
 
 fn slug.thirdparty.telegram#sendTyping(chatId):any
+  desc: "sends a `typing` chat action to show the bot is composing a reply."
   effects: net
 
 fn slug.time#clock():num
+  desc: "returns the current wall-clock time in milliseconds since the Unix epoch."
   effects: time
 
 fn slug.time#clockNanos():num
+  desc: "returns the current time as a nanosecond counter."
   effects: time
 
 fn slug.time#delta(f):fn
+  desc: "returns a function that measures elapsed time since it was created."
 
 fn slug.time#fmtClock(millis:num, fmt:str):str
+  desc: "formats a millisecond timestamp using a format string."
 
 fn slug.time#minsToMillis(mins:num):num
+  desc: "converts minutes to milliseconds."
 
 fn slug.time#secsToMillis(secs:num):num
+  desc: "converts seconds to milliseconds."
 
 fn slug.time#sleep(millis:num):nil
+  desc: "suspends execution for `millis` milliseconds."
   effects: time
 
 struct slug.web.request#Request{method:str, path:str, version:str, headers:map, body, query:map, form:map, files:list, params:map, requestId, traceId, spanId}
@@ -906,26 +1209,36 @@ struct slug.web.request#Request{method:str, path:str, version:str, headers:map, 
   field params:map
 
 fn slug.web.request#isRequest(x):bool
+  desc: "returns true if `x` is a `Request` struct instance."
 
 fn slug.web.request#parseRequestHeaders(buf):[@struct(Request), @str]
+  desc: "parses the headers section of a raw HTTP request buffer."
   errors:
     thrown: Error{type:RequestError}
 
 fn slug.web.request#request(method, path, version = "HTTP/1.1", headers = {}, body = ""):Request
+  desc: "constructs a new `Request` with the given method, path, and optional fields."
 
 fn slug.web.request#shouldKeepAlive(req):bool
+  desc: "returns true if the connection should be kept alive after this request."
 
 fn slug.web.request#withBody(req, body):Request
+  desc: "attaches a body to a request and parses form data if applicable."
 
 fn slug.web.request#withParams(request, params:map):Request
+  desc: "returns a new request with path params map replaced."
 
 fn slug.web.request#withPath(req, path):Request
+  desc: "returns a new request with `path` replaced."
 
 fn slug.web.request#withQuery(req, query):Request
+  desc: "returns a new request with `query` replaced."
 
 fn slug.web.request#withoutParam(request, param):Request
+  desc: "returns a new request with a single param key removed from `params`."
 
 struct slug.web.response#Reply{view:str, fragment:str, data:map = {}, status:num = 200, headers:map = {}}
+  desc: "higher-level view descriptor for use with `slug.web.views#renderReply`."
   field view:str
   field fragment:str
   field data:map
@@ -933,138 +1246,206 @@ struct slug.web.response#Reply{view:str, fragment:str, data:map = {}, status:num
   field headers:map
 
 struct slug.web.response#Response{status:num, headers:map, body}
+  desc: "raw HTTP response value. Construct via the helper functions, not directly."
   field status:num
   field headers:map
 
 fn slug.web.response#accepted(body:str):Response
+  desc: "202 Accepted response."
 
 fn slug.web.response#addHeader(res, key:str, value:str):Response
+  desc: "adds a header value without replacing existing values for the same key."
 
 fn slug.web.response#badRequest(body:str):Response
+  desc: "400 Bad Request response."
 
 fn slug.web.response#body(res):any
+  desc: "returns the body of a response."
 
 fn slug.web.response#cacheSeconds(res, seconds:num):Response
+  desc: "sets `Cache-Control: public, max-age=<seconds>`."
 
 fn slug.web.response#clearCookie(res, name:str, opts:map):Response
+  desc: "expires a cookie immediately by setting `Max-Age=0`."
 
 fn slug.web.response#conflict(body:str):Response
+  desc: "409 Conflict response."
 
 fn slug.web.response#cookie(name:str, value:str, opts:map):str
+  desc: "builds a `Set-Cookie` header value string."
 
 fn slug.web.response#created(body:str):Response
+  desc: "201 Created response."
 
 fn slug.web.response#forbidden(body:str):Response
+  desc: "403 Forbidden response."
 
 fn slug.web.response#formatHead(res):str
+  desc: "formats the response head (status line + headers) as an HTTP/1.1 string."
 
 fn slug.web.response#formatResponse(res):FormattedResponse
+  desc: "formats a response into a `FormattedResponse{ head, body }`."
 
 fn slug.web.response#hasHeader(res, key):bool
+  desc: "returns true if the response has a header with the given key."
 
 fn slug.web.response#headers(res):map
+  desc: "returns the headers map of a response."
 
 fn slug.web.response#html(markup:str):Response
+  desc: "200 OK response with `Content-Type: text/html; charset=utf-8`."
 
 fn slug.web.response#hxRedirect(res, location:str):Response
+  desc: "sets the `HX-Redirect` response header for a client-side redirect."
 
 fn slug.web.response#hxRetarget(res, selector:str):Response
+  desc: "sets the `HX-Retarget` response header to override the HTMX swap target."
 
 fn slug.web.response#hxTrigger(res, eventName:str):Response
+  desc: "sets the `HX-Trigger` response header to trigger a client-side event."
 
 fn slug.web.response#isFormattedResponse(x):bool
+  desc: "returns true if `x` is a `FormattedResponse` struct instance."
 
 fn slug.web.response#isResponse(x):bool
+  desc: "returns true if `x` is a `Response` struct instance."
 
 fn slug.web.response#jsonOk(value):Response
+  desc: "200 OK response with JSON-encoded `value` and `Content-Type: application/json`."
 
 fn slug.web.response#noCache(res):Response
+  desc: "sets headers to prevent all caching."
 
 fn slug.web.response#noContent():Response
+  desc: "204 No Content response."
 
 fn slug.web.response#notFound(body:str = "404 Not Found"):Response
+  desc: "404 Not Found response."
 
 fn slug.web.response#ok(body:str):Response
+  desc: "200 OK response."
 
 fn slug.web.response#payloadTooLarge(body:str = "413 Payload Too Large"):Response
+  desc: "413 Payload Too Large response. Also sets `Connection: close`."
 
 fn slug.web.response#redirect(location:str):Response
+  desc: "302 Found redirect to `location`."
 
 fn slug.web.response#redirectPermanent(location:str):Response
+  desc: "301 Moved Permanently redirect to `location`."
 
 fn slug.web.response#renderResponse(res):str
+  desc: "renders a response to a complete HTTP/1.1 wire-format string (head + body)."
 
 fn slug.web.response#response(status:num, body:str):Response
+  desc: "constructs a `Response` with the given status and body."
 
 fn slug.web.response#serverError(body:str = "500 Server Error"):Response
+  desc: "500 Internal Server Error response."
 
 fn slug.web.response#setCookie(res, name:str, value:str, opts:map):Response
+  desc: "adds a `Set-Cookie` header to `res` using `cookie(name, value, opts)`."
 
 fn slug.web.response#status(res):num
+  desc: "returns the status code of a response."
 
 fn slug.web.response#text(txt:str):Response
+  desc: "200 OK response with `Content-Type: text/plain; charset=utf-8`."
 
 fn slug.web.response#unauthorized(body:str):Response
+  desc: "401 Unauthorized response."
 
 fn slug.web.response#withBody(res, body:str):Response
+  desc: "returns a new response with `body` replaced."
 
 fn slug.web.response#withConnClose(res):Response
+  desc: "sets `Connection: close`."
 
 fn slug.web.response#withConnKeepAlive(res):Response
+  desc: "sets `Connection: keep-alive`."
 
 fn slug.web.response#withContentType(res, ct:str):Response
+  desc: "sets the `content-type` header."
 
 fn slug.web.response#withHeader(res, key:str, value:str):Response
+  desc: "returns a new response with `key` set to `value`, replacing any existing value."
 
 fn slug.web.response#withHeaders(res, headersMap:map):Response
+  desc: "returns a new response with all headers from `headersMap` applied."
 
 fn slug.web.response#withStatus(res, status:num):Response
+  desc: "returns a new response with `status` replaced."
 
 fn slug.web.response#withoutHeader(res, key:str):Response
+  desc: "returns a new response with `key` removed from headers."
 
 fn slug.web.routes#get(map:map, key):Router
+  desc: "registers a `GET` route on `r` and returns the updated router."
 fn slug.web.routes#get(r, pattern:str, handler:fn):Router
+  desc: "registers a `GET` route on `r` and returns the updated router."
 
 fn slug.web.routes#handle(request, r):Response
+  desc: "dispatches `request` through the router's routes and returns a `Response`."
 
 fn slug.web.routes#head(r, pattern:str, handler:fn):Router
+  desc: "registers a `HEAD` route on `r` and returns the updated router."
 
 fn slug.web.routes#isRouter(x):bool
+  desc: "returns true if `x` is a `Router` struct instance."
 
 fn slug.web.routes#mount(r, prefix:str, handler:fn):Router
+  desc: "mounts `handler` at `prefix/*`, matching any method."
 
 fn slug.web.routes#mountRouter(r, prefix:str, childRouter):Router
+  desc: "mounts a child `Router` at `prefix`, handling paths relative to the prefix."
 
 fn slug.web.routes#post(r, pattern:str, handler:fn):Router
+  desc: "registers a `POST` route on `r` and returns the updated router."
 
 fn slug.web.routes#router():Router
+  desc: "creates an empty `Router`."
 
 fn slug.web.routes#static(dir, cacheTimeSeconds = 3600):fn
+  desc: "returns a handler that serves static files from `dir`."
 
 fn slug.web.routes#subrouter(router):fn
+  desc: "wraps a `Router` as a handler function for use with `mount`."
 
 fn slug.web.routes#withHeader(handler:fn, header:str, value:str):fn
+  desc: "wraps `handler` to add a fixed response header to every response."
+fn slug.web.routes#withHeader(res, key:str, value:str):fn
+  desc: "wraps `handler` to add a fixed response header to every response."
 
 fn slug.web.routes#withLog(handler):fn
+  desc: "wraps `handler` with request/response logging to stdout."
 
 fn slug.web.routes#withMaxBody(h, maxBytes = 1048576):fn
+  desc: "wraps `handler` to enforce a maximum request body size."
 
 fn slug.web.routes#withRecover(h):fn
+  desc: "wraps `handler` so that any thrown error returns a 500 Server Error response."
 
 fn slug.web.routes#withRequestId(handler:fn, newRequestId:fn = fn() {randomHexString(32)}):fn
+  desc: "wraps `handler` to attach a request ID to every request and response."
 
 fn slug.web.routes#withTimeout(h, ms):fn
+  desc: "wraps `handler` with a timeout of `ms` milliseconds."
 
 fn slug.web.routes#withTraceContext(handler, newTraceId:fn = fn() {randomHexString(32)}, newSpanId:fn = fn() {randomHexString(16)}):fn
+  desc: "wraps `handler` to propagate W3C `traceparent` trace context."
 
 fn slug.web.server#serve(app:fn, addr:str = cfg(address, 0.0.0.0), port:num = cfg(port, 8080)):any
+  desc: "starts an HTTP/1.1 server and blocks until it is shut down."
   errors:
     thrown: Error{type:ServerError}
 
 fn slug.web.views#new(root:str = "views"):Views
+  desc: "creates a new `Views` instance with the given template root directory."
 
 fn slug.web.views#render(v, name, data = {}):str
+  desc: "renders a page template by name and returns the HTML string."
 
 fn slug.web.views#renderReply(vx, req, reply):Response
+  desc: "renders a `Reply` into an HTML `Response`, with HTMX fragment support."
 
 map slug.xkcd.colours#XkcdColourIndex

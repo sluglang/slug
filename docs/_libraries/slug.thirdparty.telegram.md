@@ -62,6 +62,19 @@ italic, inline code, and code blocks from the message text. Pass
 fn slug.thirdparty.telegram#getUpdates(offset:num, timeout:num = 30):any
 ```
 
+
+polls Telegram for new updates starting from `offset`.
+
+Uses long polling — Telegram holds the connection open for up to
+`timeout` seconds waiting for new updates before returning an empty
+list. Set `offset` to the last received `update_id + 1` to acknowledge
+processed updates and avoid receiving them again.
+
+Returns the decoded Telegram response map `{ ok, result: [...] }`,
+or `nil` on error.
+
+@effects('net')
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `offset` | num | — |
@@ -75,6 +88,16 @@ fn slug.thirdparty.telegram#getUpdates(offset:num, timeout:num = 30):any
 ```slug
 fn slug.thirdparty.telegram#sendMessage(chatId, text, parseMode = "Markdown"):any
 ```
+
+
+sends a text message to a Telegram chat.
+
+`parseMode` controls text formatting; defaults to `"Markdown"` which
+renders bold (`**text**`), code (`` `text` ``), and code blocks.
+Pass `nil` to disable formatting. Returns the Telegram API response
+map, or `nil` on error.
+
+@effects('net')
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -90,6 +113,14 @@ fn slug.thirdparty.telegram#sendMessage(chatId, text, parseMode = "Markdown"):an
 ```slug
 fn slug.thirdparty.telegram#sendTyping(chatId):any
 ```
+
+
+sends a `typing` chat action to show the bot is composing a reply.
+
+The indicator displays for ~5 seconds or until the next message is
+sent. Call just before a slow operation to set user expectations.
+
+@effects('net')
 
 | Parameter | Type | Default |
 | --- | --- | --- |

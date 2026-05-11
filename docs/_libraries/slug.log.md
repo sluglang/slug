@@ -97,11 +97,15 @@ level.
 num slug.log#Debug
 ```
 
+debug-level messages; verbose operational detail
+
 #### `Error`
 
 ```slug
 num slug.log#Error
 ```
+
+errors; failures that require attention
 
 #### `Info`
 
@@ -109,11 +113,15 @@ num slug.log#Error
 num slug.log#Info
 ```
 
+informational messages; normal operational events
+
 #### `None`
 
 ```slug
 num slug.log#None
 ```
+
+suppress all output
 
 #### `Trace`
 
@@ -121,11 +129,15 @@ num slug.log#None
 num slug.log#Trace
 ```
 
+minimum log level — emits everything
+
 #### `Warn`
 
 ```slug
 num slug.log#Warn
 ```
+
+warnings; unexpected but recoverable situations
 
 ### Functions
 
@@ -133,6 +145,11 @@ num slug.log#Warn
 ```slug
 fn slug.log#cDebug(arg, message:str, ...args):any
 ```
+
+
+logs a debug-level message and returns the first argument unchanged.
+
+@effects('io')
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -147,6 +164,11 @@ fn slug.log#cDebug(arg, message:str, ...args):any
 fn slug.log#cError(arg, message:str, ...args):any
 ```
 
+
+logs an error-level message and returns the first argument unchanged.
+
+@effects('io')
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `arg` |  | — |
@@ -159,6 +181,11 @@ fn slug.log#cError(arg, message:str, ...args):any
 ```slug
 fn slug.log#cInfo(arg, message:str, ...args):any
 ```
+
+
+logs an info-level message and returns the first argument unchanged.
+
+@effects('io')
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -173,6 +200,19 @@ fn slug.log#cInfo(arg, message:str, ...args):any
 fn slug.log#cTrace(arg, message:str, ...args):any
 ```
 
+
+logs a trace-level message and returns the first argument unchanged.
+
+Designed for use in call chains — the value flows through unmodified:
+
+```slug
+val result = fetchItems()
+  /> cTrace("fetched: {}")
+  /> process
+```
+
+@effects('io')
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `arg` |  | — |
@@ -185,6 +225,11 @@ fn slug.log#cTrace(arg, message:str, ...args):any
 ```slug
 fn slug.log#cWarn(arg, message:str, ...args):any
 ```
+
+
+logs a warn-level message and returns the first argument unchanged.
+
+@effects('io')
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -199,6 +244,11 @@ fn slug.log#cWarn(arg, message:str, ...args):any
 fn slug.log#debug(message:str, ...args):str|nil
 ```
 
+
+logs a debug-level message using the global log level.
+
+@effects('io')
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `message` | str | — |
@@ -211,6 +261,11 @@ fn slug.log#debug(message:str, ...args):str|nil
 fn slug.log#error(message:str, ...args):str|nil
 ```
 
+
+logs an error-level message using the global log level.
+
+@effects('io')
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `message` | str | — |
@@ -222,6 +277,11 @@ fn slug.log#error(message:str, ...args):str|nil
 ```slug
 fn slug.log#info(nil):str|nil
 ```
+
+
+logs an info-level message using the global log level.
+
+@effects('io')
 nil
 
 ---
@@ -229,6 +289,25 @@ nil
 #### `logger(src)`
 ```slug
 fn slug.log#logger(src:str):map
+```
+
+
+creates a named logger for a specific source module.
+
+The source name is prepended to every log message, making it easy
+to filter output by module in multi-component applications.
+
+The log level can be overridden per-source via cfg:
+dots in the source name are replaced with underscores.
+e.g. `logger("slug.io.http")` reads `cfg("level__slug_io_http")`.
+
+Returns a map of logging functions: `trace`, `debug`, `info`, `warn`,
+`error` and their chainable counterparts `cTrace`…`cError`.
+
+```slug
+val log = import("slug.log").logger("myapp.worker")
+log.info("started {} workers", count)
+val result = compute() /> log.cWarn("slow result: {}")
 ```
 
 | Parameter | Type | Default |
@@ -242,6 +321,15 @@ fn slug.log#logger(src:str):map
 fn slug.log#none(message:str, ...args):nil
 ```
 
+
+logs at the `none` level.
+
+Since `none` is above all other levels, this message is only emitted
+when the configured level is also `none` — effectively never. Useful
+as a placeholder or for temporarily silencing a log call.
+
+@effects('io')
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `message` | str | — |
@@ -254,6 +342,14 @@ fn slug.log#none(message:str, ...args):nil
 fn slug.log#trace(message:str, ...args):str|nil
 ```
 
+
+logs a trace-level message using the global log level.
+
+`message` is a `fmt`-style format string; `args` are its arguments.
+Emits nothing if the configured level is above `trace`.
+
+@effects('io')
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `message` | str | — |
@@ -265,6 +361,11 @@ fn slug.log#trace(message:str, ...args):str|nil
 ```slug
 fn slug.log#warn(message:str, ...args):str|nil
 ```
+
+
+logs a warn-level message using the global log level.
+
+@effects('io')
 
 | Parameter | Type | Default |
 | --- | --- | --- |

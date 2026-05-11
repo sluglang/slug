@@ -71,11 +71,15 @@ commit(tx)
 str slug.io.db#MYSQL_DRIVER
 ```
 
+driver string for MySQL connections.
+
 #### `PGSQL_DRIVER`
 
 ```slug
 str slug.io.db#PGSQL_DRIVER
 ```
+
+driver string for PostgreSQL connections.
 
 #### `SQLITE_DRIVER`
 
@@ -83,12 +87,22 @@ str slug.io.db#PGSQL_DRIVER
 str slug.io.db#SQLITE_DRIVER
 ```
 
+driver string for SQLite3 connections.
+
 ### Functions
 
 #### `begin(connection)`
 ```slug
 fn slug.io.db#begin(connection:num):num
 ```
+
+
+begins a transaction and returns a transaction handle.
+
+Pass the transaction handle to `query`, `exec`, `commit`, or `rollback`
+in place of a connection handle.
+
+@effects('db')
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -101,6 +115,13 @@ fn slug.io.db#begin(connection:num):num
 fn slug.io.db#close(connection:num):nil
 ```
 
+
+closes a database connection or transaction handle.
+
+Always close connections when done. Use `defer close(conn)` for safety.
+
+@effects('db')
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `connection` | num | — |
@@ -111,6 +132,11 @@ fn slug.io.db#close(connection:num):nil
 ```slug
 fn slug.io.db#commit(connection:num):num
 ```
+
+
+commits a transaction.
+
+@effects('db')
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -123,6 +149,14 @@ fn slug.io.db#commit(connection:num):num
 fn slug.io.db#connect(connectionString:str, driver:str):num
 ```
 
+
+opens a database connection and returns a connection handle.
+
+`connectionString` format depends on the driver — see module doc for examples.
+Use `defer close(conn)` to ensure the connection is released.
+
+@effects('db')
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `connectionString` | str | — |
@@ -134,6 +168,14 @@ fn slug.io.db#connect(connectionString:str, driver:str):num
 ```slug
 fn slug.io.db#exec(connection:num, sql:str, ...params):map
 ```
+
+
+executes a SQL statement and returns a result map.
+
+The result map contains `rowsAffected` and `lastInsertId` where supported
+by the driver. Use `...params` to pass positional `?` parameter values.
+
+@effects('db')
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -148,6 +190,14 @@ fn slug.io.db#exec(connection:num, sql:str, ...params):map
 fn slug.io.db#query(connection:num, sql:str, ...params):list
 ```
 
+
+executes a SQL query and returns the result rows as a list of string-keyed maps.
+
+Use `...params` to pass positional `?` parameter values.
+For named parameters, use `slug.db.repo`.
+
+@effects('db')
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `connection` | num | — |
@@ -160,6 +210,11 @@ fn slug.io.db#query(connection:num, sql:str, ...params):list
 ```slug
 fn slug.io.db#rollback(connection:num):num
 ```
+
+
+rolls back a transaction.
+
+@effects('db')
 
 | Parameter | Type | Default |
 | --- | --- | --- |

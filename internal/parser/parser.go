@@ -258,9 +258,6 @@ func (p *Parser) ParseProgram() *ast.Program {
 func (p *Parser) skipStatementSeparators() {
 	for {
 		if p.curTokenIs(token.SEMICOLON) {
-			if p.scopeDepth == 0 && p.hasPendingDoc {
-				p.clearPendingDoc()
-			}
 			p.nextToken()
 			continue
 		}

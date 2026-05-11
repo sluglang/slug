@@ -73,3 +73,11 @@ func (f *VMFunction) SetTag(tag string, params object.List) {
 	}
 	f.Tags[tag] = params
 }
+
+func (f *VMFunction) GetSignature() ast.FSig {
+	return f.Signature
+}
+
+func (f *VMFunction) GetParameters() []*ast.FunctionParameter {
+	return f.Parameters
+}

@@ -222,6 +222,58 @@ func fnMetaDescribe() *object.Foreign {
 	}
 }
 
+func fnMetaDescribeSymbol() *object.Foreign {
+	return &object.Foreign{
+		Name: "describeSymbol",
+		Fn: func(ctx object.RuntimeContext, args ...object.Object) object.Object {
+			if len(args) != 2 {
+				return ctx.NewError("describeSymbol expects exactly 2 arguments: module name and symbol name")
+			}
+			moduleName, ok := args[0].(*object.String)
+			if !ok {
+				return ctx.NewError("first argument to describeSymbol must be a string module name")
+			}
+			symbolName, ok := args[1].(*object.String)
+			if !ok {
+				return ctx.NewError("second argument to describeSymbol must be a string symbol name")
+			}
+			module, err := ctx.LoadModule(moduleName.Value)
+			if err != nil {
+				return ctx.NewError("failed to load module '%s': %s", moduleName.Value, err.Error())
+			}
+			binding, ok := module.Env.GetLocalBinding(symbolName.Value)
+			if !ok || binding == nil {
+				return ctx.Nil()
+			}
+			val := binding.Value
+			if ref, ok := val.(*object.BindingRef); ok {
+				if resolved, ok := resolveBindingValue(ref); ok {
+					val = resolved
+				}
+			}
+			describeVal := val
+			if fg, ok := val.(*object.FunctionGroup); ok && len(fg.Functions) == 1 {
+				for _, fn := range fg.Functions {
+					describeVal = fn
+					break
+				}
+			}
+			result := &object.Map{}
+			result.Put(object.InternSymbol("type"), object.InternSymbol(describeType(describeVal)))
+			docs := ""
+			if binding.Meta.HasDoc {
+				docs = binding.Meta.Doc
+			} else {
+				docs = describeDocs(ctx, describeVal)
+			}
+			result.Put(object.InternSymbol("docs"), &object.String{Value: docs})
+			result.Put(object.InternSymbol("tags"), describeTags(describeVal))
+			result.Put(object.InternSymbol("details"), describeDetails(describeVal))
+			return result
+		},
+	}
+}
+
 func describeType(value object.Object) string {
 	if value == nil {
 		return "nil"
@@ -327,6 +379,11 @@ func describeDetails(value object.Object) *object.Map {
 		return describeFunctionDetails(false, v.Signature, v.Parameters)
 	case *object.Foreign:
 		return describeFunctionDetails(true, v.Signature, v.Parameters)
+	case interface {
+		GetSignature() ast.FSig
+		GetParameters() []*ast.FunctionParameter
+	}:
+		return describeFunctionDetails(false, v.GetSignature(), v.GetParameters())
 	case *object.FunctionGroup:
 		return describeFunctionGroupDetails(v)
 	case *object.Module:
@@ -459,14 +516,12 @@ type functionEntry struct {
 }
 
 func paramsFromFunctionObject(fn object.Object) []*ast.FunctionParameter {
-	switch f := fn.(type) {
-	case *object.Function:
-		return f.Parameters
-	case *object.Foreign:
-		return f.Parameters
-	default:
-		return nil
+	if f, ok := fn.(interface {
+		GetParameters() []*ast.FunctionParameter
+	}); ok {
+		return f.GetParameters()
 	}
+	return nil
 }
 
 func isForeignFunction(fn object.Object) bool {
@@ -670,6 +725,14 @@ func docFromEnvValue(env *object.Environment, value object.Object) (string, bool
 		if !ok {
 			continue
 		}
+		// Imported module maps may hold BindingRef members; map indexing resolves
+		// those refs before describe() sees the value. Recover docs by matching the
+		// resolved member value back to its source binding doc metadata.
+		if m, ok := resolved.(*object.Map); ok {
+			if doc, found := docFromMapMembers(m, value); found {
+				return doc, true
+			}
+		}
 		if resolved != value {
 			continue
 		}
@@ -684,6 +747,32 @@ func docFromEnvValue(env *object.Environment, value object.Object) (string, bool
 		return doc, true
 	}
 	return "", false
+}
+
+func docFromMapMembers(m *object.Map, value object.Object) (string, bool) {
+	if m == nil {
+		return "", false
+	}
+	found := ""
+	hasDoc := false
+	m.ForEach(func(_ object.MapKey, pair object.MapPair) bool {
+		ref, ok := pair.Value.(*object.BindingRef)
+		if !ok {
+			return true
+		}
+		resolved, ok := resolveBindingValue(ref)
+		if !ok || resolved != value {
+			return true
+		}
+		doc, ok := docFromBinding(ref.Env, ref.Name)
+		if !ok {
+			return true
+		}
+		found = doc
+		hasDoc = true
+		return false
+	})
+	return found, hasDoc
 }
 
 func resolveBindingValue(value object.Object) (object.Object, bool) {

@@ -109,6 +109,12 @@ HTMX response headers (`HX-Trigger`, `HX-Redirect`, `HX-Retarget`).
 struct slug.web.response#Reply{view:str, fragment:str, data:map = {}, status:num = 200, headers:map = {}}
 ```
 
+
+higher-level view descriptor for use with `slug.web.views#renderReply`.
+
+Set `fragment` to render an HTMX partial instead of the full page.
+Extra `headers` are merged into the final response.
+
 | Field | Type | Default | Description |
 | --- | --- | --- | --- |
 | `view` | str | — |  |
@@ -121,6 +127,11 @@ struct slug.web.response#Reply{view:str, fragment:str, data:map = {}, status:num
 ```slug
 struct slug.web.response#Response{status:num, headers:map, body}
 ```
+
+
+raw HTTP response value. Construct via the helper functions, not directly.
+
+Header names are always normalised to lowercase.
 
 | Field | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -135,6 +146,9 @@ struct slug.web.response#Response{status:num, headers:map, body}
 fn slug.web.response#accepted(body:str):Response
 ```
 
+
+202 Accepted response.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `body` | str | — |
@@ -145,6 +159,12 @@ fn slug.web.response#accepted(body:str):Response
 ```slug
 fn slug.web.response#addHeader(res, key:str, value:str):Response
 ```
+
+
+adds a header value without replacing existing values for the same key.
+
+Upgrades a single string value to a list when a second value is added.
+This is the correct way to set multiple `Set-Cookie` headers.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -159,6 +179,9 @@ fn slug.web.response#addHeader(res, key:str, value:str):Response
 fn slug.web.response#badRequest(body:str):Response
 ```
 
+
+400 Bad Request response.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `body` | str | — |
@@ -169,6 +192,9 @@ fn slug.web.response#badRequest(body:str):Response
 ```slug
 fn slug.web.response#body(res):any
 ```
+
+
+returns the body of a response.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -181,6 +207,9 @@ fn slug.web.response#body(res):any
 fn slug.web.response#cacheSeconds(res, seconds:num):Response
 ```
 
+
+sets `Cache-Control: public, max-age=<seconds>`.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `res` |  | — |
@@ -192,6 +221,9 @@ fn slug.web.response#cacheSeconds(res, seconds:num):Response
 ```slug
 fn slug.web.response#clearCookie(res, name:str, opts:map):Response
 ```
+
+
+expires a cookie immediately by setting `Max-Age=0`.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -206,6 +238,9 @@ fn slug.web.response#clearCookie(res, name:str, opts:map):Response
 fn slug.web.response#conflict(body:str):Response
 ```
 
+
+409 Conflict response.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `body` | str | — |
@@ -216,6 +251,12 @@ fn slug.web.response#conflict(body:str):Response
 ```slug
 fn slug.web.response#cookie(name:str, value:str, opts:map):str
 ```
+
+
+builds a `Set-Cookie` header value string.
+
+`opts` may contain: `path`, `domain`, `maxAge`, `expires`,
+`secure` (@bool), `httpOnly` (@bool), `sameSite` (`"Lax"|"Strict"|"None"`).
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -230,6 +271,9 @@ fn slug.web.response#cookie(name:str, value:str, opts:map):str
 fn slug.web.response#created(body:str):Response
 ```
 
+
+201 Created response.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `body` | str | — |
@@ -240,6 +284,9 @@ fn slug.web.response#created(body:str):Response
 ```slug
 fn slug.web.response#forbidden(body:str):Response
 ```
+
+
+403 Forbidden response.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -252,6 +299,11 @@ fn slug.web.response#forbidden(body:str):Response
 fn slug.web.response#formatHead(res):str
 ```
 
+
+formats the response head (status line + headers) as an HTTP/1.1 string.
+
+Automatically adds `Content-Length` if not already present.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `res` |  | — |
@@ -263,6 +315,11 @@ fn slug.web.response#formatHead(res):str
 fn slug.web.response#formatResponse(res):FormattedResponse
 ```
 
+
+formats a response into a `FormattedResponse{ head, body }`.
+
+Automatically adds `Content-Length` if not already present.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `res` |  | — |
@@ -273,6 +330,11 @@ fn slug.web.response#formatResponse(res):FormattedResponse
 ```slug
 fn slug.web.response#hasHeader(res, key):bool
 ```
+
+
+returns true if the response has a header with the given key.
+
+Key comparison is case-insensitive.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -286,6 +348,9 @@ fn slug.web.response#hasHeader(res, key):bool
 fn slug.web.response#headers(res):map
 ```
 
+
+returns the headers map of a response.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `res` |  | — |
@@ -297,6 +362,9 @@ fn slug.web.response#headers(res):map
 fn slug.web.response#html(markup:str):Response
 ```
 
+
+200 OK response with `Content-Type: text/html; charset=utf-8`.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `markup` | str | — |
@@ -307,6 +375,9 @@ fn slug.web.response#html(markup:str):Response
 ```slug
 fn slug.web.response#hxRedirect(res, location:str):Response
 ```
+
+
+sets the `HX-Redirect` response header for a client-side redirect.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -320,6 +391,9 @@ fn slug.web.response#hxRedirect(res, location:str):Response
 fn slug.web.response#hxRetarget(res, selector:str):Response
 ```
 
+
+sets the `HX-Retarget` response header to override the HTMX swap target.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `res` |  | — |
@@ -331,6 +405,9 @@ fn slug.web.response#hxRetarget(res, selector:str):Response
 ```slug
 fn slug.web.response#hxTrigger(res, eventName:str):Response
 ```
+
+
+sets the `HX-Trigger` response header to trigger a client-side event.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -344,6 +421,9 @@ fn slug.web.response#hxTrigger(res, eventName:str):Response
 fn slug.web.response#isFormattedResponse(x):bool
 ```
 
+
+returns true if `x` is a `FormattedResponse` struct instance.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `x` |  | — |
@@ -354,6 +434,9 @@ fn slug.web.response#isFormattedResponse(x):bool
 ```slug
 fn slug.web.response#isResponse(x):bool
 ```
+
+
+returns true if `x` is a `Response` struct instance.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -366,6 +449,9 @@ fn slug.web.response#isResponse(x):bool
 fn slug.web.response#jsonOk(value):Response
 ```
 
+
+200 OK response with JSON-encoded `value` and `Content-Type: application/json`.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `value` |  | — |
@@ -376,6 +462,9 @@ fn slug.web.response#jsonOk(value):Response
 ```slug
 fn slug.web.response#noCache(res):Response
 ```
+
+
+sets headers to prevent all caching.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -388,12 +477,18 @@ fn slug.web.response#noCache(res):Response
 fn slug.web.response#noContent():Response
 ```
 
+
+204 No Content response.
+
 ---
 
 #### `notFound(body)`
 ```slug
 fn slug.web.response#notFound(body:str = "404 Not Found"):Response
 ```
+
+
+404 Not Found response.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -406,6 +501,9 @@ fn slug.web.response#notFound(body:str = "404 Not Found"):Response
 fn slug.web.response#ok(body:str):Response
 ```
 
+
+200 OK response.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `body` | str | — |
@@ -416,6 +514,9 @@ fn slug.web.response#ok(body:str):Response
 ```slug
 fn slug.web.response#payloadTooLarge(body:str = "413 Payload Too Large"):Response
 ```
+
+
+413 Payload Too Large response. Also sets `Connection: close`.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -428,6 +529,9 @@ fn slug.web.response#payloadTooLarge(body:str = "413 Payload Too Large"):Respons
 fn slug.web.response#redirect(location:str):Response
 ```
 
+
+302 Found redirect to `location`.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `location` | str | — |
@@ -438,6 +542,9 @@ fn slug.web.response#redirect(location:str):Response
 ```slug
 fn slug.web.response#redirectPermanent(location:str):Response
 ```
+
+
+301 Moved Permanently redirect to `location`.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -450,6 +557,9 @@ fn slug.web.response#redirectPermanent(location:str):Response
 fn slug.web.response#renderResponse(res):str
 ```
 
+
+renders a response to a complete HTTP/1.1 wire-format string (head + body).
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `res` |  | — |
@@ -460,6 +570,9 @@ fn slug.web.response#renderResponse(res):str
 ```slug
 fn slug.web.response#response(status:num, body:str):Response
 ```
+
+
+constructs a `Response` with the given status and body.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -473,6 +586,9 @@ fn slug.web.response#response(status:num, body:str):Response
 fn slug.web.response#serverError(body:str = "500 Server Error"):Response
 ```
 
+
+500 Internal Server Error response.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `body` | str | `"500 Server Error"` |
@@ -483,6 +599,12 @@ fn slug.web.response#serverError(body:str = "500 Server Error"):Response
 ```slug
 fn slug.web.response#setCookie(res, name:str, value:str, opts:map):Response
 ```
+
+
+adds a `Set-Cookie` header to `res` using `cookie(name, value, opts)`.
+
+Multiple cookies can be set by calling `setCookie` repeatedly —
+`addHeader` semantics ensure values are not clobbered.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -498,6 +620,9 @@ fn slug.web.response#setCookie(res, name:str, value:str, opts:map):Response
 fn slug.web.response#status(res):num
 ```
 
+
+returns the status code of a response.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `res` |  | — |
@@ -508,6 +633,9 @@ fn slug.web.response#status(res):num
 ```slug
 fn slug.web.response#text(txt:str):Response
 ```
+
+
+200 OK response with `Content-Type: text/plain; charset=utf-8`.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -520,6 +648,9 @@ fn slug.web.response#text(txt:str):Response
 fn slug.web.response#unauthorized(body:str):Response
 ```
 
+
+401 Unauthorized response.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `body` | str | — |
@@ -530,6 +661,9 @@ fn slug.web.response#unauthorized(body:str):Response
 ```slug
 fn slug.web.response#withBody(res, body:str):Response
 ```
+
+
+returns a new response with `body` replaced.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -543,6 +677,9 @@ fn slug.web.response#withBody(res, body:str):Response
 fn slug.web.response#withConnClose(res):Response
 ```
 
+
+sets `Connection: close`.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `res` |  | — |
@@ -553,6 +690,9 @@ fn slug.web.response#withConnClose(res):Response
 ```slug
 fn slug.web.response#withConnKeepAlive(res):Response
 ```
+
+
+sets `Connection: keep-alive`.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -565,6 +705,9 @@ fn slug.web.response#withConnKeepAlive(res):Response
 fn slug.web.response#withContentType(res, ct:str):Response
 ```
 
+
+sets the `content-type` header.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `res` |  | — |
@@ -576,6 +719,11 @@ fn slug.web.response#withContentType(res, ct:str):Response
 ```slug
 fn slug.web.response#withHeader(res, key:str, value:str):Response
 ```
+
+
+returns a new response with `key` set to `value`, replacing any existing value.
+
+Header keys are normalised to lowercase.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -590,6 +738,12 @@ fn slug.web.response#withHeader(res, key:str, value:str):Response
 fn slug.web.response#withHeaders(res, headersMap:map):Response
 ```
 
+
+returns a new response with all headers from `headersMap` applied.
+
+Each key is normalised to lowercase. Existing headers with the same
+key are replaced.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `res` |  | — |
@@ -602,6 +756,9 @@ fn slug.web.response#withHeaders(res, headersMap:map):Response
 fn slug.web.response#withStatus(res, status:num):Response
 ```
 
+
+returns a new response with `status` replaced.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `res` |  | — |
@@ -613,6 +770,9 @@ fn slug.web.response#withStatus(res, status:num):Response
 ```slug
 fn slug.web.response#withoutHeader(res, key:str):Response
 ```
+
+
+returns a new response with `key` removed from headers.
 
 | Parameter | Type | Default |
 | --- | --- | --- |

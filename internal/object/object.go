@@ -340,6 +340,12 @@ func (f *Function) GetTags() map[string]List {
 func (f *Function) SetTag(tag string, params List) {
 	setTag(&f.Tags, tag, params)
 }
+func (f *Function) GetSignature() ast.FSig {
+	return f.Signature
+}
+func (f *Function) GetParameters() []*ast.FunctionParameter {
+	return f.Parameters
+}
 
 type FunctionGroup struct {
 	// Functions holds implementations owned by this group.
@@ -785,6 +791,12 @@ func (f *Foreign) GetTags() map[string]List {
 }
 func (f *Foreign) SetTag(tag string, params List) {
 	setTag(&f.Tags, tag, params)
+}
+func (f *Foreign) GetSignature() ast.FSig {
+	return f.Signature
+}
+func (f *Foreign) GetParameters() []*ast.FunctionParameter {
+	return f.Parameters
 }
 
 type List struct {

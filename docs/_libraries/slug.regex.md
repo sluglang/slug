@@ -28,6 +28,9 @@ Patterns use standard Go/RE2 syntax (no lookaheads or backreferences).
 fn slug.regex#findAll(str:str, pattern:str):list
 ```
 
+
+returns a list of all non-overlapping matches of `pattern` in `str`.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `str` | str | — |
@@ -48,6 +51,12 @@ findAll("(foo)", "[a-z]+")  // => ["foo"]
 fn slug.regex#findAllGroups(str:str, pattern:str):list
 ```
 
+
+returns a list of all matches including capture groups.
+
+Each entry is a list where the first element is the full match and
+subsequent elements are the capture group values.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `str` | str | — |
@@ -67,6 +76,14 @@ findAllGroups("<a href="foo">bar</a>", "<a href="(.*?)">(.*?)</a>")  // => [["<a
 fn slug.regex#indexOf(str:str, pattern:str, index:num = 0):[@list, @list]
 ```
 
+
+returns the byte index range of the first match of `pattern` in `str`
+starting from `index`, as `[start_end:list, group_ranges:list]`.
+
+Returns `nil` if no match is found. The first list contains the start
+and end byte indices of the full match. Subsequent lists contain indices
+for capture groups.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `str` | str | — |
@@ -79,6 +96,9 @@ fn slug.regex#indexOf(str:str, pattern:str, index:num = 0):[@list, @list]
 ```slug
 fn slug.regex#matches(str:str, pattern:str):bool
 ```
+
+
+returns true if the pattern matches anywhere in the string.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -101,6 +121,11 @@ matches("123", "\d+")  // => true
 fn slug.regex#replaceAll(str:str, pattern:str, repl:str):str
 ```
 
+
+replaces all matches of `pattern` in `str` with `repl`.
+
+Use `$1`, `$2` etc. in `repl` to reference capture groups.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `str` | str | — |
@@ -120,6 +145,9 @@ replaceAll("1|2|3", "\d+", "x")  // => "x|x|x"
 ```slug
 fn slug.regex#split(str:str, pattern:str):list
 ```
+
+
+splits `str` into a list of substrings divided by matches of `pattern`.
 
 | Parameter | Type | Default |
 | --- | --- | --- |

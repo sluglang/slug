@@ -75,6 +75,9 @@ a single failure should not abort the rest.
 fn slug.test#assert(a, msg = nil):bool
 ```
 
+
+asserts that `a` is `true`.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `a` |  | — |
@@ -88,6 +91,12 @@ fn slug.test#assert(a, msg = nil):bool
 ```slug
 fn slug.test#assertEqual(value, expected, msg = nil):any
 ```
+
+
+asserts that `value` equals `expected` using deep equality.
+
+Uses `equals` for lists and maps, `structEquals` for structs, and
+`==` for all other types. Returns `value` on success.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -104,6 +113,12 @@ fn slug.test#assertEqual(value, expected, msg = nil):any
 fn slug.test#assertErrorType(f:fn, expected, msg:str = nil):bool
 ```
 
+
+asserts that calling `f` throws a value of type `expected`.
+
+Throws `AssertionError` if `f` does not throw, or if the thrown
+value's type does not match `expected`.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `f` | fn | — |
@@ -119,6 +134,9 @@ fn slug.test#assertErrorType(f:fn, expected, msg:str = nil):bool
 fn slug.test#assertFalse(a, msg = nil):bool
 ```
 
+
+asserts that `a` is falsey.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `a` |  | — |
@@ -132,6 +150,9 @@ fn slug.test#assertFalse(a, msg = nil):bool
 ```slug
 fn slug.test#assertGreaterThan(value, expected, msg = nil):any
 ```
+
+
+asserts that `value > expected`. Returns `value` on success.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -148,6 +169,9 @@ fn slug.test#assertGreaterThan(value, expected, msg = nil):any
 fn slug.test#assertGreaterThanOrEqual(value, expected, msg = nil):any
 ```
 
+
+asserts that `value >= expected`. Returns `value` on success.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `value` |  | — |
@@ -162,6 +186,9 @@ fn slug.test#assertGreaterThanOrEqual(value, expected, msg = nil):any
 ```slug
 fn slug.test#assertLessThan(value, expected, msg = nil):any
 ```
+
+
+asserts that `value < expected`. Returns `value` on success.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -178,6 +205,9 @@ fn slug.test#assertLessThan(value, expected, msg = nil):any
 fn slug.test#assertLessThanOrEqual(value, expected, msg = nil):any
 ```
 
+
+asserts that `value <= expected`. Returns `value` on success.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `value` |  | — |
@@ -193,6 +223,9 @@ fn slug.test#assertLessThanOrEqual(value, expected, msg = nil):any
 fn slug.test#assertNil(value, msg = nil):any
 ```
 
+
+asserts that `value` is `nil`. Returns `value` on success.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `value` |  | — |
@@ -206,6 +239,9 @@ fn slug.test#assertNil(value, msg = nil):any
 ```slug
 fn slug.test#assertNotEqual(value, expected, msg = nil):any
 ```
+
+
+asserts that `value` does not equal `expected`. Returns `value` on success.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -222,6 +258,9 @@ fn slug.test#assertNotEqual(value, expected, msg = nil):any
 fn slug.test#assertNotNil(value, msg = nil):any
 ```
 
+
+asserts that `value` is not `nil`. Returns `value` on success.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `value` |  | — |
@@ -235,6 +274,12 @@ fn slug.test#assertNotNil(value, msg = nil):any
 ```slug
 fn slug.test#assertThrows(f:fn, expected, msg:str = nil):bool
 ```
+
+
+asserts that calling `f` throws a value equal to `expected`.
+
+Throws `AssertionError` if `f` does not throw, or if the thrown
+value is not equal to `expected`.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -280,6 +325,11 @@ fn slug.test#eq(value, expected, msg = nil):any
 fn slug.test#fail(msg = nil):any
 ```
 
+
+unconditionally throws an `AssertionError` with an optional message.
+
+Useful as a catch-all in match arms or branches that should never be reached.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `msg` |  | `nil` |
@@ -322,6 +372,9 @@ fn slug.test#gteq(value, expected, msg = nil):any
 ```slug
 fn slug.test#isAssertError(v):bool
 ```
+
+
+returns true if `v` is an AssertionError thrown by this module.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -391,6 +444,15 @@ fn slug.test#ok(a, msg = nil):bool
 ```slug
 fn slug.test#runSafe(f:fn):map
 ```
+
+
+executes `f()` and returns a result map without propagating errors.
+
+Returns `{"ok": value}` on normal return, or
+`{"error": thrownValue, "trace": stacktrace(thrownValue)}` on throw.
+
+Useful for testing that functions throw expected errors, or for running
+test suites where a single failure should not abort subsequent tests.
 
 | Parameter | Type | Default |
 | --- | --- | --- |

@@ -45,7 +45,7 @@ val {*} = import(
 	"slug.list",
 )
 
-val { describe } = import("slug.meta",)
+val { describeSymbol } = import("slug.meta",)
 
 // --- manifest entrypoint ---
 
@@ -220,12 +220,8 @@ val extractFirstParagraph = fn(docs) {
 // --- block sub-line renderers ---
 // Each produces a list of lines to be indented under the parent entry.
 
-val renderDescLine = fn(docs, tags = nil) {
-	val text = match extractFirstParagraph(docs) {
-		nil => firstTag(tags, '@desc')
-		v   => v
-	}
-	match text {
+val renderDescLine = fn(docs) {
+	match extractFirstParagraph(docs) {
 		nil => []
 		v   => ["desc: \"{{v}}\""]
 	}
@@ -263,7 +259,7 @@ val renderErrorsBlock = fn(tags) {
 // Combines all sub-lines for a fn or struct entry
 val renderBlock = fn(tags, docs) {
 	([]
-	+ renderDescLine(docs, tags)
+	+ renderDescLine(docs)
 	+ renderEffectsLine(tags)
 	+ renderErrorsBlock(tags))
 	/> indent
@@ -342,8 +338,7 @@ val symbols = fn(mod:str) {
 	/> keys
 	/> sort
 	/> flatMap(fn(k) {
-		module[k]
-		/> describe
+		describeSymbol(mod, toString(label(k)))
 		/> render(mod, label(k))
 		:+ ''    // blank line between entries for readability
 	})

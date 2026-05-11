@@ -28,6 +28,15 @@ any standard markdown renderer.
 fn slug.doc.markdown#pagePerModule(moduleNames:list, moduleToc:bool = false):list
 ```
 
+
+generates a multi-page markdown API reference for the given list of module names, returns [name, text].
+
+each module gets a level-2 section with subsections for Constants, Structs, and
+Functions. overloaded functions are grouped under a single heading. all doc
+comments are rendered in full.
+
+pass the full dotted module names as they would appear in an import statement.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `moduleNames` | list | — |
@@ -39,6 +48,15 @@ fn slug.doc.markdown#pagePerModule(moduleNames:list, moduleToc:bool = false):lis
 ```slug
 fn slug.doc.markdown#singlePage(moduleNames:list, title:str = "Slug API Reference", moduleToc:bool = false):str
 ```
+
+
+generates a single-page markdown API reference for the given list of module names.
+
+modules are sorted alphabetically. each module gets a level-2 section with
+subsections for Constants, Structs, and Functions. overloaded functions are
+grouped under a single heading. all doc comments are rendered in full.
+
+pass the full dotted module names as they would appear in an import statement.
 
 | Parameter | Type | Default |
 | --- | --- | --- |

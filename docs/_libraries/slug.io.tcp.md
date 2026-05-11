@@ -57,6 +57,14 @@ For HTTP use cases, prefer `slug.io.http`. For web servers, prefer
 fn slug.io.tcp#accept(listener:num):num
 ```
 
+
+waits for an incoming connection on `listener` and returns a connection handle.
+
+Blocks until a client connects. Use in a `spawn` or `nursery` block
+for concurrent connection handling.
+
+@effects('io net')
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `listener` | num | — |
@@ -67,6 +75,14 @@ fn slug.io.tcp#accept(listener:num):num
 ```slug
 fn slug.io.tcp#bind(addr:str, port:num):num
 ```
+
+
+binds a TCP listener to `addr:port` and returns a listener handle.
+
+Use `accept` to wait for incoming connections.
+Use `defer close(listener)` to release the port when done.
+
+@effects('io net')
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -80,6 +96,11 @@ fn slug.io.tcp#bind(addr:str, port:num):num
 fn slug.io.tcp#close(handle:num):num
 ```
 
+
+closes a TCP listener or connection handle.
+
+@effects('io net')
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `handle` | num | — |
@@ -90,6 +111,13 @@ fn slug.io.tcp#close(handle:num):num
 ```slug
 fn slug.io.tcp#connect(addr:str, port:num):num
 ```
+
+
+connects to a TCP server at `addr:port` and returns a connection handle.
+
+Use `defer close(conn)` to release the connection.
+
+@effects('io net')
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -103,6 +131,13 @@ fn slug.io.tcp#connect(addr:str, port:num):num
 fn slug.io.tcp#read(stream:num, maxBytes:num):str
 ```
 
+
+reads up to `maxBytes` from a TCP stream.
+
+Returns the data read as a string, or `nil` on EOF.
+
+@effects('io net')
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `stream` | num | — |
@@ -114,6 +149,13 @@ fn slug.io.tcp#read(stream:num, maxBytes:num):str
 ```slug
 fn slug.io.tcp#write(stream:num, data:str):num
 ```
+
+
+sends `data` over a TCP stream.
+
+Returns the number of bytes written.
+
+@effects('io net')
 
 | Parameter | Type | Default |
 | --- | --- | --- |

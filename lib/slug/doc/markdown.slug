@@ -18,7 +18,7 @@ val {*} = import(
 	"slug.list",
 )
 val re = import('slug.regex')
-val { describe, moduleDocs } = import("slug.meta")
+val { describe, describeSymbol, moduleDocs } = import("slug.meta")
 
 // Produce a GitHub-style anchor slug from a heading
 @testWith(
@@ -78,18 +78,6 @@ val renderDocs = fn(docs) {
 		nil => ''
 		''  => ''
 		_   => "\n\n" + trim(docs)
-	}
-}
-
-val renderDocsWithFallback = fn(docs, tags) {
-	match trim(toString(docs)) {
-		'' => {
-			match firstTag(tags, '@desc') {
-				nil => ''
-				v   => "\n\n" + trim(v)
-			}
-		}
-		_ => renderDocs(docs)
 	}
 }
 
@@ -270,8 +258,8 @@ val renderFnSection = fn(module, name, groups, fallbackDocs = nil) {
 	// full doc comment from first overload that has one
 	val docsSource = groups /> find(fn(h) { h.docs != nil && h.docs != '' })
 	val docText    = match docsSource {
-		nil => renderDocsWithFallback(fallbackDocs, firstGroup.tags)
-		_   => renderDocsWithFallback(docsSource.docs, docsSource.tags)
+		nil => renderDocs(fallbackDocs)
+		_   => renderDocs(docsSource.docs)
 	}
 
 	// param table, effects, throws
@@ -340,15 +328,15 @@ val renderModule = fn(mod:str, moduleToc:bool) {
 
 	// partition symbols by kind
 	val fns      = symKeys /> filter(fn(k) {
-		val d = module[k] /> describe
+		val d = describeSymbol(mod, toString(label(k)))
 		match d { {type} if type == :fn || type == :grp => true _ => false }
 	})
 	val structs  = symKeys /> filter(fn(k) {
-		val d = module[k] /> describe
+		val d = describeSymbol(mod, toString(label(k)))
 		match d { {type} if type == :struct => true _ => false }
 	})
 	val consts   = symKeys /> filter(fn(k) {
-		val d = module[k] /> describe
+		val d = describeSymbol(mod, toString(label(k)))
 		match d { {type} if type == :fn || type == :grp || type == :struct => false _ => true }
 	})
 
@@ -378,7 +366,7 @@ val renderModule = fn(mod:str, moduleToc:bool) {
 		[] => ''
 		_  => {
 			val entries = consts /> map(fn(k) {
-				module[k] /> describe /> renderConstSection(mod, label(k))
+				describeSymbol(mod, toString(label(k))) /> renderConstSection(mod, label(k))
 			})
 			"\n\n### Constants\n\n" + (entries /> join("\n\n"))
 		}
@@ -389,7 +377,7 @@ val renderModule = fn(mod:str, moduleToc:bool) {
 		[] => ''
 		_  => {
 			val entries = structs /> map(fn(k) {
-				module[k] /> describe /> renderStructSection(mod, label(k))
+				describeSymbol(mod, toString(label(k))) /> renderStructSection(mod, label(k))
 			})
 			"\n\n### Structs\n\n" + (entries /> join("\n\n"))
 		}
@@ -400,7 +388,7 @@ val renderModule = fn(mod:str, moduleToc:bool) {
 		[] => ''
 		_  => {
 			val entries = fns /> map(fn(k) {
-				val desc   = module[k] /> describe
+				val desc   = describeSymbol(mod, toString(label(k)))
 				val groups = match desc { [{type}, ...] if type == :grp => desc.details.groups _ => [desc] }
 				renderFnSection(mod, label(k), groups, desc.docs)
 			})

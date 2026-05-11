@@ -173,7 +173,7 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 			}
 			e.push(val)
 		case OpSetDoc:
-			if e.env != nil && e.env.Outer == nil && ins.StrArg != "" {
+			if e.env != nil && ins.StrArg != "" {
 				e.env.SetLocalDoc(ins.StrArg, ins.StrArg2)
 			}
 		case OpBindMapAllConst, OpBindMapAllVar:

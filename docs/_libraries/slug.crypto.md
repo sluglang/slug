@@ -43,6 +43,9 @@ hmacSha256("hello", "slug")
 ```slug
 fn slug.crypto#hmacSha256(nil):bytes
 ```
+
+
+returns the HMAC-SHA256 of a raw byte message using a raw byte key.
 nil
 
 
@@ -58,6 +61,9 @@ hmacSha256("hello", "slug")  // => "NB9NMraxEE8IBLRWWoBShv99Pclb8b2Qqt6KxykFxx0=
 ```slug
 fn slug.crypto#hmacSha256Hex(message:str, secret:str):str
 ```
+
+
+returns the HMAC-SHA256 of a message using a secret key, as a hex string.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -77,6 +83,9 @@ hmacSha256Hex("hello", "slug")  // => "341f4d32b6b1104f0804b4565a805286ff7d3dc95
 ```slug
 fn slug.crypto#hmacSha512(nil):bytes
 ```
+
+
+returns the HMAC-SHA512 of a raw byte message using a raw byte key.
 nil
 
 
@@ -92,6 +101,9 @@ hmacSha512("hello", "slug")  // => "Yddv60iFAaAuAgusykYLW2fFE1LP8t14xw2ghx0VseQJ
 ```slug
 fn slug.crypto#hmacSha512Hex(message:str, secret:str):str
 ```
+
+
+returns the HMAC-SHA512 of a message using a secret key, as a hex string.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -111,6 +123,12 @@ hmacSha512Hex("hello", "slug")  // => "61d76feb488501a02e020bacca460b5b67c51352c
 ```slug
 fn slug.crypto#md5(nil):str
 ```
+
+
+returns the MD5 hex digest of a string.
+
+MD5 is not cryptographically secure — use for checksums and legacy
+compatibility only, not for security-sensitive applications.
 nil
 
 
@@ -127,6 +145,9 @@ md5("")  // => "d41d8cd98f00b204e9800998ecf8427e"
 ```slug
 fn slug.crypto#sha256(nil):str
 ```
+
+
+returns the SHA-256 hex digest of a string.
 nil
 
 
@@ -143,6 +164,9 @@ sha256("")  // => "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b
 ```slug
 fn slug.crypto#sha512(nil):str
 ```
+
+
+returns the SHA-512 hex digest of a string.
 nil
 
 

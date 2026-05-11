@@ -128,6 +128,8 @@ sym slug.std#MAP_TYPE
 sym slug.std#NIL_TYPE
 ```
 
+Constant for NIL_TYPE, returned by `type(nil)`
+
 #### `NUMBER_TYPE`
 
 ```slug
@@ -165,6 +167,12 @@ sym slug.std#TASK_TYPE
 struct slug.std#Error{type:str = "Error", msg:str, code = nil, data = nil, cause = nil}
 ```
 
+
+Standard error payload shape for idiomatic error handling.
+
+Always set `type` to a stable PascalCase string identifying the error kind
+(e.g. `"TypeError"`, `"NotFoundError"`). Use `cause` to chain errors.
+
 | Field | Type | Default | Description |
 | --- | --- | --- | --- |
 | `type` | str | `"Error"` |  |
@@ -177,13 +185,20 @@ struct slug.std#Error{type:str = "Error", msg:str, code = nil, data = nil, cause
 
 #### `compare(a, b)`
 ```slug
-fn slug.std#compare(a, b):num
+fn slug.std#compare(a, b):map
 ```
+
+
+returns -1 if `a < b`, 1 if `a > b`, 0 if equal.
+
+Compatible with sort comparator contracts.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `a` |  | — |
 | `b` |  | — |
+
+**Effects:** `time`
 
 ---
 
@@ -191,6 +206,11 @@ fn slug.std#compare(a, b):num
 ```slug
 fn slug.std#compute(map:map, key, f):map
 ```
+
+
+applies `f(key, currentValue)` to the value at `key` and returns the updated map.
+
+If `key` is absent, `currentValue` is `nil`.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -202,8 +222,8 @@ fn slug.std#compute(map:map, key, f):map
 #### Examples
 
 ```slug
-compute({:k: 1}, :k, fn(k, v) { <vm bytecode> })  // => {:k: 2}
-compute({}, :k, fn(k, v) { <vm bytecode> })  // => {:k: true}
+compute({:k: 1}, :k, function group: [{|| 2 2 false} => fn(k, v) { <vm bytecode> }])  // => {:k: 2}
+compute({}, :k, function group: [{|| 2 2 false} => fn(k, v) { <vm bytecode> }])  // => {:k: true}
 ```
 
 ---
@@ -211,6 +231,18 @@ compute({}, :k, fn(k, v) { <vm bytecode> })  // => {:k: true}
 #### `counter(start)`
 ```slug
 fn slug.std#counter(start:num = 0):fn
+```
+
+
+returns a function that increments and returns a counter on each call.
+
+The counter starts at `start`. Each call returns the next value.
+
+```slug
+val c = counter(0)
+c()  // => 0
+c()  // => 1
+c()  // => 2
 ```
 
 | Parameter | Type | Default |
@@ -223,6 +255,9 @@ fn slug.std#counter(start:num = 0):fn
 ```slug
 fn slug.std#equals(nil):bool
 ```
+
+
+deep equality for maps, recursively comparing values for all keys.
 nil
 
 
@@ -245,6 +280,9 @@ equals({:k1: 1}, {:k2: 2})  // => false
 fn slug.std#filter(vs:list, f:fn, acc:list = []):list
 ```
 
+
+returns a new list containing only elements for which `f` returns true.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `vs` | list | — |
@@ -255,7 +293,7 @@ fn slug.std#filter(vs:list, f:fn, acc:list = []):list
 #### Examples
 
 ```slug
-filter([1, 2, 3, 4], fn(v) { <vm bytecode> })  // => [2, 4]
+filter([1, 2, 3, 4], function group: [{| 1 1 false} => fn(v) { <vm bytecode> }])  // => [2, 4]
 ```
 
 ---
@@ -264,6 +302,9 @@ filter([1, 2, 3, 4], fn(v) { <vm bytecode> })  // => [2, 4]
 ```slug
 fn slug.std#find(xs:list, f:fn):any
 ```
+
+
+returns the first element of `xs` for which `f` returns true, or `nil`.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -277,6 +318,11 @@ fn slug.std#find(xs:list, f:fn):any
 fn slug.std#flatMap(vs:list, f:fn):list
 ```
 
+
+applies `f` to each element of `vs` and concatenates the resulting lists.
+
+`f` must return a list or a single value (which is treated as a one-element list).
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `vs` | list | — |
@@ -286,8 +332,8 @@ fn slug.std#flatMap(vs:list, f:fn):list
 #### Examples
 
 ```slug
-flatMap([1, 2, 3], fn(n) { <vm bytecode> })  // => [1, 1, 2, 2, 3, 3]
-flatMap([1, 2, 3], fn(n) { <vm bytecode> })  // => [2]
+flatMap([1, 2, 3], function group: [{| 1 1 false} => fn(n) { <vm bytecode> }])  // => [1, 1, 2, 2, 3, 3]
+flatMap([1, 2, 3], function group: [{| 1 1 false} => fn(n) { <vm bytecode> }])  // => [2]
 ```
 
 ---
@@ -296,6 +342,21 @@ flatMap([1, 2, 3], fn(n) { <vm bytecode> })  // => [2]
 ```slug
 fn slug.std#fmt(str:str, ...args):str
 ```
+
+
+formats a string using `{}` placeholders and optional format specifiers.
+
+Placeholders:
+- `{}` — next positional argument
+- `{0}`, `{1}` — explicit argument index
+- `{:.2f}` — float with 2 decimal places
+- `{:d}` — integer (truncates decimals)
+- `{:,}` — number with thousands separators
+- `{:.1%}` — percentage with 1 decimal place
+- `{:>8}` — right-align in width 8
+- `{:<10s}` — left-align string in width 10
+- `{:^10s}` — centre string in width 10
+- `\{` and `\}` — literal braces
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -325,6 +386,9 @@ fmt("|{:^10s}|", "Slug")  // => "|   Slug   |"
 fn slug.std#get(map:map, key):any
 ```
 
+
+returns the value for `key` in `map`, or `nil` if absent.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `map` | map | — |
@@ -344,6 +408,9 @@ get({:k: 1}, :k)  // => 1
 ```slug
 fn slug.std#ifNil(nil):any
 ```
+
+
+returns `default` if `v` is `nil`; returns `v` otherwise.
 nil
 
 ---
@@ -352,6 +419,9 @@ nil
 ```slug
 fn slug.std#isDefined(varName:str):bool
 ```
+
+
+returns true if `varName` is defined as a binding in the current scope.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -372,6 +442,9 @@ isDefined("__not_defined__")  // => false
 fn slug.std#isStructInstance(v):bool
 ```
 
+
+returns true if `v` is an instance of a struct (not a struct schema).
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `v` |  | — |
@@ -382,6 +455,11 @@ fn slug.std#isStructInstance(v):bool
 ```slug
 fn slug.std#keys(map):list
 ```
+
+
+returns a list of all keys in a map.
+
+Key order is not guaranteed. For sorted keys use `slug.list#sort`.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -402,6 +480,9 @@ keys({:k: 1})  // => [:k]
 fn slug.std#label(symbol):str
 ```
 
+
+returns the string label of a symbol.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `symbol` |  | — |
@@ -421,6 +502,9 @@ label(:"a b")  // => "a b"
 fn slug.std#map(vs:list, f:fn, acc = []):list
 ```
 
+
+applies `f` to each element of `vs` and returns the resulting list.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `vs` | list | — |
@@ -431,7 +515,7 @@ fn slug.std#map(vs:list, f:fn, acc = []):list
 #### Examples
 
 ```slug
-map([1, 2], fn(n) { <vm bytecode> })  // => [2, 4]
+map([1, 2], function group: [{| 1 1 false} => fn(n) { <vm bytecode> }])  // => [2, 4]
 ```
 
 ---
@@ -441,12 +525,18 @@ map([1, 2], fn(n) { <vm bytecode> })  // => [2, 4]
 fn slug.std#moduleName():str
 ```
 
+
+returns the full name of the current module.
+
 ---
 
 #### `nonNil(v, f, default)`
 ```slug
 fn slug.std#nonNil(v, f:fn, default = nil):any
 ```
+
+
+returns `default` if `v` is `nil`; calls `f(v)` and returns the result otherwise.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -460,6 +550,9 @@ fn slug.std#nonNil(v, f:fn, default = nil):any
 ```slug
 fn slug.std#parseNumber(value:str):num
 ```
+
+
+parses a numeric string to a number. Throws on invalid input.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -480,6 +573,9 @@ parseNumber("1.1")  // => 1.1
 fn slug.std#put(map:map, key, value):map
 ```
 
+
+returns a new map with `key` set to `value`.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `map` | map | — |
@@ -499,6 +595,11 @@ put({}, :k, "v")  // => {:k: v}
 ```slug
 fn slug.std#range(start:num, end:num, step:num = 1, acc:list = []):list
 ```
+
+
+generates a list of numbers from `start` (inclusive) to `end` (exclusive) by `step`.
+
+Returns an empty list if the range direction contradicts the step sign.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -525,6 +626,9 @@ range(6, 0, -2)  // => [6, 4, 2]
 fn slug.std#reduce(vs:list, v, f:fn):any
 ```
 
+
+folds `vs` left with `f`, starting from initial value `v`.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `vs` | list | — |
@@ -535,9 +639,9 @@ fn slug.std#reduce(vs:list, v, f:fn):any
 #### Examples
 
 ```slug
-reduce([], 0, fn(a, b) { <vm bytecode> })  // => 0
-reduce([1, 2, 3], 0, fn(a, b) { <vm bytecode> })  // => 6
-reduce([1, 2, 3], 9, fn(a, b) { <vm bytecode> })  // => 15
+reduce([], 0, function group: [{|| 2 2 false} => fn(a, b) { <vm bytecode> }])  // => 0
+reduce([1, 2, 3], 0, function group: [{|| 2 2 false} => fn(a, b) { <vm bytecode> }])  // => 6
+reduce([1, 2, 3], 9, function group: [{|| 2 2 false} => fn(a, b) { <vm bytecode> }])  // => 15
 ```
 
 ---
@@ -546,6 +650,9 @@ reduce([1, 2, 3], 9, fn(a, b) { <vm bytecode> })  // => 15
 ```slug
 fn slug.std#remove(map:map, key):map
 ```
+
+
+returns a new map with `key` removed. No-op if key is absent.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -568,6 +675,12 @@ remove({:k: 1}, :j)  // => {:k: 1}
 fn slug.std#structEquals(m1, m2):bool
 ```
 
+
+deep equality for struct types and struct instances.
+
+Returns `false` if either value is `nil`, if their types differ, or
+if neither is a struct instance or struct schema.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `m1` |  | — |
@@ -579,6 +692,9 @@ fn slug.std#structEquals(m1, m2):bool
 ```slug
 fn slug.std#swap(list:list, index1:num, index2:num):list
 ```
+
+
+returns a new list with elements at `index1` and `index2` swapped.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -600,6 +716,9 @@ swap([1, 2], 0, 1)  // => [2, 1]
 fn slug.std#sym(name:str):sym
 ```
 
+
+converts a string to a symbol.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `name` | str | — |
@@ -620,6 +739,11 @@ sym("Content-Type")  // => :"Content-Type"
 fn slug.std#then(m, f:fn):any
 ```
 
+
+applies `f` to `m` and returns the result. Useful for call-chain threading.
+
+`m /> then(fn(v) { ... })` is equivalent to `(fn(v) { ... })(m)`.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `m` |  | — |
@@ -629,8 +753,8 @@ fn slug.std#then(m, f:fn):any
 #### Examples
 
 ```slug
-then(1, fn(v) { <vm bytecode> })  // => 2
-then({:n: Slug}, fn(v) { <vm bytecode> })  // => "Slug"
+then(1, function group: [{| 1 1 false} => fn(v) { <vm bytecode> }])  // => 2
+then({:n: Slug}, function group: [{| 1 1 false} => fn(v) { <vm bytecode> }])  // => "Slug"
 ```
 
 ---
@@ -639,6 +763,13 @@ then({:n: Slug}, fn(v) { <vm bytecode> })  // => "Slug"
 ```slug
 fn slug.std#toBoolean(v):bool
 ```
+
+
+converts a value to `@bool`.
+
+Numeric `1` → `true`, `0` → `false`. Strings `"true"`, `"yes"`, `"1"`,
+`"TRUE"`, `"YES"` → `true`; `"false"`, `"no"`, `"0"`, `"FALSE"`, `"NO"`
+→ `false`. Other string values throw `TypeError`.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -670,6 +801,12 @@ toBoolean("0")  // => false
 fn slug.std#toNumber(v):num
 ```
 
+
+converts a value to `@num`.
+
+Passes through numbers, parses numeric strings, returns `nil` for `nil`.
+Throws `TypeError` for other types.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `v` |  | — |
@@ -694,6 +831,12 @@ toNumber("1.1")  // => 1.1
 fn slug.std#toString(v):str
 ```
 
+
+converts a value to a string representation.
+
+Returns `nil` for `nil`, passes through strings, and uses string
+concatenation (`v + ""`) for all other types.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `v` |  | — |
@@ -715,6 +858,11 @@ toString(true)  // => "true"
 fn slug.std#type(val):sym
 ```
 
+
+returns a symbol indicating the runtime type of `val`.
+
+Result is one of the `*_TYPE` constants exported by this module.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `val` |  | — |
@@ -731,7 +879,7 @@ type("Hello Slug!")  // => :string
 type([1, 2])  // => :list
 type({:key: value})  // => :map
 type(0x"ff")  // => :bytes
-type(fn(a) { <vm bytecode> })  // => :function
+type(function group: [{| 1 1 false} => fn(a) { <vm bytecode> }])  // => :function
 ```
 
 ---
@@ -740,6 +888,9 @@ type(fn(a) { <vm bytecode> })  // => :function
 ```slug
 fn slug.std#update(list:list, index:num, value):list
 ```
+
+
+returns a new list with the element at `index` replaced by `value`.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -761,6 +912,9 @@ update([1, 2, 3], 1, 99)  // => [1, 99, 3]
 fn slug.std#zeroIfAbove(a:num, b:num):num
 ```
 
+
+returns `a` if `a < b`, otherwise returns `0`.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `a` | num | — |
@@ -781,6 +935,11 @@ zeroIfAbove(2, 1)  // => 0
 ```slug
 fn slug.std#zip(lst1:list, lst2:list, acc = []):list
 ```
+
+
+zips two lists into a list of `[a, b]` pairs.
+
+Stops at the shorter list. Extra elements from the longer list are discarded.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -805,6 +964,11 @@ zip([1], [2])  // => [[1, 2]]
 fn slug.std#zipWith(lst:list, f):list
 ```
 
+
+zips a list with the results of calling `f` for each element.
+
+Returns a list of `[element, f()]` pairs. `f` is called once per element.
+
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `lst` | list | — |
@@ -814,7 +978,7 @@ fn slug.std#zipWith(lst:list, f):list
 #### Examples
 
 ```slug
-zipWith(["a", "b"], fn() { <vm bytecode> })  // => [["a", 1], ["b", 1]]
+zipWith(["a", "b"], function group: [{ 0 0 false} => fn() { <vm bytecode> }])  // => [["a", 1], ["b", 1]]
 ```
 
 ---
@@ -823,6 +987,11 @@ zipWith(["a", "b"], fn() { <vm bytecode> })  // => [["a", 1], ["b", 1]]
 ```slug
 fn slug.std#zipWithIndex(lst:list):list
 ```
+
+
+zips a list with its zero-based indices.
+
+Returns a list of `[element, index]` pairs.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
