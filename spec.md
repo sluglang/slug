@@ -2399,3 +2399,46 @@ Tests added:
 
 Validation performed:
 - `go test ./internal/semantic -count=1`
+
+### Type checking enhancement: `task<...>` and `channel<...|nil>` enforcement
+
+- Extended declared-type parsing to accept generic forms:
+  - `task<...>`
+  - `channel<...>` and `channel(...)` (aliasing `chan<...>` and `chan(...)`)
+- Added channel payload nilability enforcement for declared channel payload types:
+  - Generic channel annotations must include `nil` in payload union, e.g. `channel<str|nil>`.
+  - `channel<str>` now raises a semantic diagnostic.
+- Kept runtime/inference channel representation unchanged (`chan` scalar kind) for compatibility while validating declaration syntax/constraints.
+- Updated inferred legacy tag mapping from declared types so `channel<...>` infers `@chan` like `chan<...>`.
+- Reduced nilability false positives by tightening mismatch checks to concrete nil-capable inferred types (not unresolved `unknown/any`).
+
+Files updated:
+- `internal/semantic/typecheck.go`
+- `internal/parser/parser.go`
+- `internal/semantic/analyzer_test.go`
+
+Tests added:
+- `TestSemanticTypeCheckSupportsTaskAndChannelGenericAnnotations`
+- `TestSemanticTypeCheckRejectsChannelPayloadWithoutNil`
+
+Validation performed:
+- `go test ./internal/semantic ./internal/parser -count=1`
+
+### Type declaration tightening: `chan` only (no channel aliases/legacy paren form)
+
+- Refined declared channel-type syntax to be strict and explicit:
+  - Supported: `chan<...>`
+  - Removed: `channel<...>` alias in declarations
+  - Removed: `chan(...)` and `channel(...)` declared-type forms
+- Kept payload-nilability rule intact for channel declarations:
+  - payload must include `nil`, e.g. `chan<str|nil>`.
+- Updated diagnostics/help text to use canonical syntax `chan<...|nil>`.
+- Updated parser declared-type inferred tag mapping to accept only `chan` root for channel tags.
+
+Files updated:
+- `internal/semantic/typecheck.go`
+- `internal/parser/parser.go`
+- `internal/semantic/analyzer_test.go`
+
+Validation performed:
+- `go test ./internal/semantic ./internal/parser -count=1`

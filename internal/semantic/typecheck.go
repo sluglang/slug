@@ -557,11 +557,10 @@ func (c *typeChecker) parseDeclaredType(raw string) *tnode {
 		_ = c.parseDeclaredType(inner)
 		return c.scalar(typeChan)
 	}
-	if strings.HasPrefix(s, "chan(") && strings.HasSuffix(s, ")") {
-		inner := strings.TrimSpace(s[len("chan(") : len(s)-1])
-		// legacy syntax support: chan(T) -> chan<T>
+	if strings.HasPrefix(s, "task<") && strings.HasSuffix(s, ">") {
+		inner := strings.TrimSpace(s[len("task<") : len(s)-1])
 		_ = c.parseDeclaredType(inner)
-		return c.scalar(typeChan)
+		return c.scalar(typeTask)
 	}
 	if strings.HasPrefix(s, "fn<") && strings.HasSuffix(s, ">") {
 		inner := strings.TrimSpace(s[len("fn<") : len(s)-1])
@@ -623,6 +622,32 @@ func (c *typeChecker) parseDeclaredType(raw string) *tnode {
 			return &tnode{kind: typeStruct, name: s}
 		}
 		return nil
+	}
+}
+
+func (c *typeChecker) validateSpecialDeclaredType(raw string, pos int, context string) {
+	s := strings.TrimSpace(raw)
+	if s == "" {
+		return
+	}
+	var inner string
+	switch {
+	case strings.HasPrefix(s, "chan<") && strings.HasSuffix(s, ">"):
+		inner = strings.TrimSpace(s[len("chan<") : len(s)-1])
+	default:
+		return
+	}
+	if inner == "" {
+		c.addDiag(pos, "invalid %s type annotation: channel payload type is required", context)
+		return
+	}
+	payload := c.parseDeclaredType(inner)
+	if payload == nil {
+		c.addDiag(pos, "invalid %s type annotation: unable to parse channel payload type '%s'", context, inner)
+		return
+	}
+	if !c.typeAllowsNil(payload) {
+		c.addDiag(pos, "invalid %s type annotation: channel payload must include nil (use chan<...|nil>)", context)
 	}
 }
 
@@ -919,6 +944,7 @@ func (c *typeChecker) inferExpr(expr ast.Expression) *tnode {
 		return s
 	case *ast.VarExpression:
 		rhs := c.inferExpr(e.Value)
+		c.validateSpecialDeclaredType(e.Type, e.Token.Position, "var")
 		if tt := c.parseDeclaredType(e.Type); tt != nil {
 			c.addConstraint(rhs, tt, e.Token.Position, "var annotation")
 			if !c.isDeclaredCompatible(rhs, tt) {
@@ -926,7 +952,7 @@ func (c *typeChecker) inferExpr(expr ast.Expression) *tnode {
 			}
 			c.enforceDeclaredLiteralCompatibility(e.Value, tt, e.Token.Position)
 			c.bindPatternDeclared(e.Pattern, tt)
-			if c.typeMayBeNil(rhs) && !c.typeAllowsNil(tt) {
+			if c.typeMayBeNilConcretely(rhs) && !c.typeAllowsNil(tt) {
 				c.addDiag(e.Token.Position, "nilability mismatch (var annotation): expected %s, got %s", c.describe(tt), c.describe(rhs))
 			}
 		}
@@ -936,6 +962,7 @@ func (c *typeChecker) inferExpr(expr ast.Expression) *tnode {
 		return rhs
 	case *ast.ValExpression:
 		rhs := c.inferExpr(e.Value)
+		c.validateSpecialDeclaredType(e.Type, e.Token.Position, "val")
 		if tt := c.parseDeclaredType(e.Type); tt != nil {
 			c.addConstraint(rhs, tt, e.Token.Position, "val annotation")
 			if !c.isDeclaredCompatible(rhs, tt) {
@@ -943,7 +970,7 @@ func (c *typeChecker) inferExpr(expr ast.Expression) *tnode {
 			}
 			c.enforceDeclaredLiteralCompatibility(e.Value, tt, e.Token.Position)
 			c.bindPatternDeclared(e.Pattern, tt)
-			if c.typeMayBeNil(rhs) && !c.typeAllowsNil(tt) {
+			if c.typeMayBeNilConcretely(rhs) && !c.typeAllowsNil(tt) {
 				c.addDiag(e.Token.Position, "nilability mismatch (val annotation): expected %s, got %s", c.describe(tt), c.describe(rhs))
 			}
 		}
@@ -1041,6 +1068,7 @@ func (c *typeChecker) inferFunctionLiteral(fn *ast.FunctionLiteral) *tnode {
 	c.pushOverride()
 	for _, p := range fn.Parameters {
 		pt := c.freshUnknown()
+		c.validateSpecialDeclaredType(p.Type, p.Name.Token.Position, "parameter")
 		if tt := c.parseDeclaredType(p.Type); tt != nil {
 			c.addConstraint(pt, tt, p.Name.Token.Position, "parameter annotation constraint")
 		}
@@ -1074,6 +1102,7 @@ func (c *typeChecker) inferFunctionLiteral(fn *ast.FunctionLiteral) *tnode {
 			}
 		}
 	}
+	c.validateSpecialDeclaredType(fn.ReturnType, fn.Token.Position, "function return")
 	if tt := c.parseDeclaredType(fn.ReturnType); tt != nil {
 		c.addConstraint(ret, tt, fn.Token.Position, "function return annotation")
 	}
@@ -1475,7 +1504,7 @@ func (c *typeChecker) trackReassignmentType(lhs ast.Expression, rhs *tnode, pos 
 		return
 	}
 	if dt := c.lookupDeclared(name); dt != nil {
-		if c.typeMayBeNil(rhs) && !c.typeAllowsNil(dt) {
+		if c.typeMayBeNilConcretely(rhs) && !c.typeAllowsNil(dt) {
 			c.addDiag(pos, "nilability mismatch (assignment): expected %s, got %s", c.describe(dt), c.describe(rhs))
 		}
 	}
@@ -1567,6 +1596,36 @@ func (c *typeChecker) typeMayBeNil(t *tnode) bool {
 			}
 		}
 		return false
+	default:
+		return false
+	}
+}
+
+func (c *typeChecker) typeMayBeNilConcretely(t *tnode) bool {
+	tf := c.find(t)
+	if tf == nil {
+		return false
+	}
+	switch tf.kind {
+	case typeNil:
+		return true
+	case typeUnknown, typeAny:
+		return false
+	case typeUnion:
+		hasNil := false
+		for _, opt := range tf.options {
+			of := c.find(opt)
+			if of == nil {
+				continue
+			}
+			if of.kind == typeUnknown || of.kind == typeAny {
+				return false
+			}
+			if c.typeMayBeNilConcretely(of) {
+				hasNil = true
+			}
+		}
+		return hasNil
 	default:
 		return false
 	}
@@ -1713,6 +1772,7 @@ func (c *typeChecker) registerStructSchema(pattern ast.MatchPattern, value ast.E
 			ft = c.scalar(typeAny)
 		}
 		if strings.TrimSpace(field.Type) != "" {
+			c.validateSpecialDeclaredType(field.Type, field.Token.Position, "struct field")
 			if tt := c.parseDeclaredType(field.Type); tt != nil {
 				c.addConstraint(ft, tt, field.Token.Position, fmt.Sprintf("struct schema type %s.%s", name, field.Name))
 			}

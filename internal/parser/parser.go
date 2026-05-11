@@ -2458,8 +2458,10 @@ func inferredTagsFromDeclaredType(raw string) []*ast.Tag {
 		ident = strings.TrimSpace(ident[:i])
 	}
 	switch ident {
-	case "num", "str", "bool", "list", "map", "bytes", "sym", "fn", "chan", "task", "struct":
+	case "num", "str", "bool", "list", "map", "bytes", "sym", "fn", "task", "struct":
 		return []*ast.Tag{{Name: "@" + ident}}
+	case "chan":
+		return []*ast.Tag{{Name: "@chan"}}
 	}
 	// Bare identifiers are nominal struct types, e.g. User => @struct(User)
 	if isSimpleTypeIdent(ident) {

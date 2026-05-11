@@ -364,6 +364,52 @@ var scores:map<str, num|nil> = {"a": true}
 	}
 }
 
+func TestSemanticTypeCheckSupportsTaskAndChannelGenericAnnotations(t *testing.T) {
+	input := `
+val run:task<str|nil> = spawn { "ok" }
+val q:chan<str|nil> = chan()
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
+	}
+	if len(errs) > 0 {
+		t.Fatalf("expected no semantic errors for task/channel generic annotations, got: %v", errs)
+	}
+}
+
+func TestSemanticTypeCheckRejectsChannelPayloadWithoutNil(t *testing.T) {
+	input := `
+val q:chan<str> = chan()
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
+	}
+	if len(errs) == 0 {
+		t.Fatal("expected channel payload nilability enforcement error, got none")
+	}
+	if !containsError(errs, "channel payload must include nil") {
+		t.Fatalf("expected channel payload nilability diagnostic, got: %v", errs)
+	}
+}
+
 func TestSemanticTypeCheckTraceEmitsEvents(t *testing.T) {
 	input := `
 val f = fn(flag, x) {
