@@ -385,7 +385,7 @@ val out = match xs {
 
 func TestSemanticTypeCheckHasCallArgumentMismatchMessage(t *testing.T) {
 	input := `
-val f = fn(@num n) { n + 1 }
+val f = fn(n:num) { n + 1 }
 val out = f("bad")
 `
 	l := lexer.New(input)
@@ -410,7 +410,7 @@ val out = f("bad")
 
 func TestSemanticTypeCheckAllowsTaggedDefaultNil(t *testing.T) {
 	input := `
-val assertThrows = fn(@fn f, expected, @str msg = nil) {
+val assertThrows = fn(f:fn, expected, msg:str = nil) {
   true
 }
 `
@@ -489,7 +489,7 @@ val ok3 = g(1, 4, 5)
 
 func TestSemanticTypeCheckAllowsMatchBodyFunctionWithHeterogeneousParams(t *testing.T) {
 	input := `
-val mapLike = fn(@list vs, @fn f, acc = []) match {
+val mapLike = fn(vs:list, f:fn, acc = []) match {
   [[], ...] => acc
   [[h, ...t], ...] => recur(t, f, acc :+ h /> f())
 }
@@ -513,10 +513,10 @@ val mapLike = fn(@list vs, @fn f, acc = []) match {
 
 func TestSemanticTypeCheckAllowsGenericFnTagAcrossArities(t *testing.T) {
 	input := `
-val apply = fn(@fn f) { f() }
+val apply = fn(f:fn) { f() }
 val v = apply(fn() { 1 })
 
-val useMapLike = fn(@list xs, @fn f) {
+val useMapLike = fn(xs:list, f:fn) {
   xs /> map(fn(v) { [v, f()] })
 }
 `
@@ -708,13 +708,13 @@ val b = {"k":1} /> f
 
 func TestSemanticTypeCheckAllowsFunctionTagOverloadSetCalls(t *testing.T) {
 	input := `
-var add = fn(@num b) { b + 255 }
-var add = fn(@bool b) { !b }
-var add = fn(@str b) { b + " slug" }
-var add = fn(@list b) { b :+ 255 }
-var add = fn(@map b) { b }
-var add = fn(@bytes b) { b :+ 255 }
-var add = fn(@fn b) { b() + 255 }
+var add = fn(b:num) { b + 255 }
+var add = fn(b:bool) { !b }
+var add = fn(b:str) { b + " slug" }
+var add = fn(b:list) { b :+ 255 }
+var add = fn(b:map) { b }
+var add = fn(b:bytes) { b :+ 255 }
+var add = fn(b:fn) { b() + 255 }
 
 val a = "hello" /> add
 val b = false /> add
@@ -903,7 +903,7 @@ val inner = (paddedKey ^ ipad) + message
 func TestSemanticTypeCheckTracksIfBranchUnionForCalls(t *testing.T) {
 	input := `
 val x = if (true) { 1 } else { "nope" }
-val useNum = fn(@num n) { n + 1 }
+val useNum = fn(n:num) { n + 1 }
 val out = useNum(x)
 `
 	l := lexer.New(input)
@@ -932,7 +932,7 @@ val x = match "s" {
 	"s" => 1
 	_ => true
 }
-val useNum = fn(@num n) { n + 1 }
+val useNum = fn(n:num) { n + 1 }
 val out = useNum(x)
 `
 	l := lexer.New(input)
@@ -1329,7 +1329,7 @@ println("Test executed: {{count}} / failed {{failed}}")
 
 func TestSemanticTypeCheckAllowsChainedStringTimesNumberTimesNumber(t *testing.T) {
 	input := `
-val makeIndent = fn(@num spaces, @num depth) {
+val makeIndent = fn(spaces:num, depth:num) {
   " " * spaces * depth
 }
 `

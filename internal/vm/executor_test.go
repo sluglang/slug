@@ -350,8 +350,8 @@ val u = User {
 	age: 42,
 }
 
-var f = fn(@struct v) { 'struct' }
-var f = fn(@struct(User) v) { 'user' }
+var f = fn(v:struct) { 'struct' }
+var f = fn(v:User) { 'user' }
 
 f(u)
 `
