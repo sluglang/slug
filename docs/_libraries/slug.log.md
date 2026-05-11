@@ -83,7 +83,7 @@ level.
 - [`cWarn(arg, message, args)`](#cwarnarg-message-args)
 - [`debug(message, args)`](#debugmessage-args)
 - [`error(message, args)`](#errormessage-args)
-- [`info(nil)`](#infonil)
+- [`info(path)`](#infopath)
 - [`logger(src)`](#loggersrc)
 - [`none(message, args)`](#nonemessage-args)
 - [`trace(message, args)`](#tracemessage-args)
@@ -273,16 +273,20 @@ logs an error-level message using the global log level.
 
 ---
 
-#### `info(nil)`
+#### `info(path)`
 ```slug
-fn slug.log#info(nil):str|nil
+fn slug.log#info(path:str):str|nil
+fn slug.log#info(message:str, ...args):str|nil
 ```
 
 
 logs an info-level message using the global log level.
 
 @effects('io')
-nil
+
+| Parameter | Type | Default |
+| --- | --- | --- |
+| `path` | str | — |
 
 ---
 

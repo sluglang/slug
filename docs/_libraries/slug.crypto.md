@@ -29,24 +29,29 @@ hmacSha256("hello", "slug")
 
 ### TOC
 
-- [`hmacSha256(nil)`](#hmacsha256nil)
+- [`hmacSha256(message, secret)`](#hmacsha256message-secret)
 - [`hmacSha256Hex(message, secret)`](#hmacsha256hexmessage-secret)
-- [`hmacSha512(nil)`](#hmacsha512nil)
+- [`hmacSha512(message, secret)`](#hmacsha512message-secret)
 - [`hmacSha512Hex(message, secret)`](#hmacsha512hexmessage-secret)
-- [`md5(nil)`](#md5nil)
-- [`sha256(nil)`](#sha256nil)
-- [`sha512(nil)`](#sha512nil)
+- [`md5(bytes)`](#md5bytes)
+- [`sha256(bytes)`](#sha256bytes)
+- [`sha512(bytes)`](#sha512bytes)
 
 ### Functions
 
-#### `hmacSha256(nil)`
+#### `hmacSha256(message, secret)`
 ```slug
-fn slug.crypto#hmacSha256(nil):bytes
+fn slug.crypto#hmacSha256(message:bytes, secret:bytes):bytes
+fn slug.crypto#hmacSha256(message:str, secret:str):bytes
 ```
 
 
 returns the HMAC-SHA256 of a raw byte message using a raw byte key.
-nil
+
+| Parameter | Type | Default |
+| --- | --- | --- |
+| `message` | bytes | — |
+| `secret` | bytes | — |
 
 
 #### Examples
@@ -79,14 +84,19 @@ hmacSha256Hex("hello", "slug")  // => "341f4d32b6b1104f0804b4565a805286ff7d3dc95
 
 ---
 
-#### `hmacSha512(nil)`
+#### `hmacSha512(message, secret)`
 ```slug
-fn slug.crypto#hmacSha512(nil):bytes
+fn slug.crypto#hmacSha512(message:bytes, secret:bytes):bytes
+fn slug.crypto#hmacSha512(message:str, secret:str):bytes
 ```
 
 
 returns the HMAC-SHA512 of a raw byte message using a raw byte key.
-nil
+
+| Parameter | Type | Default |
+| --- | --- | --- |
+| `message` | bytes | — |
+| `secret` | bytes | — |
 
 
 #### Examples
@@ -119,9 +129,10 @@ hmacSha512Hex("hello", "slug")  // => "61d76feb488501a02e020bacca460b5b67c51352c
 
 ---
 
-#### `md5(nil)`
+#### `md5(bytes)`
 ```slug
-fn slug.crypto#md5(nil):str
+fn slug.crypto#md5(bytes:bytes):str
+fn slug.crypto#md5(str:str):str
 ```
 
 
@@ -129,7 +140,10 @@ returns the MD5 hex digest of a string.
 
 MD5 is not cryptographically secure — use for checksums and legacy
 compatibility only, not for security-sensitive applications.
-nil
+
+| Parameter | Type | Default |
+| --- | --- | --- |
+| `bytes` | bytes | — |
 
 
 #### Examples
@@ -141,14 +155,18 @@ md5("")  // => "d41d8cd98f00b204e9800998ecf8427e"
 
 ---
 
-#### `sha256(nil)`
+#### `sha256(bytes)`
 ```slug
-fn slug.crypto#sha256(nil):str
+fn slug.crypto#sha256(bytes:bytes):str
+fn slug.crypto#sha256(str:str):str
 ```
 
 
 returns the SHA-256 hex digest of a string.
-nil
+
+| Parameter | Type | Default |
+| --- | --- | --- |
+| `bytes` | bytes | — |
 
 
 #### Examples
@@ -160,14 +178,18 @@ sha256("")  // => "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b
 
 ---
 
-#### `sha512(nil)`
+#### `sha512(bytes)`
 ```slug
-fn slug.crypto#sha512(nil):str
+fn slug.crypto#sha512(bytes:bytes):str
+fn slug.crypto#sha512(str:str):str
 ```
 
 
 returns the SHA-512 hex digest of a string.
-nil
+
+| Parameter | Type | Default |
+| --- | --- | --- |
+| `bytes` | bytes | — |
 
 
 #### Examples

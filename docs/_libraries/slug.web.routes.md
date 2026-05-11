@@ -66,7 +66,7 @@ val r = router()
 
 ### TOC
 
-- [`get(nil)`](#getnil)
+- [`get(map, key)`](#getmap-key)
 - [`handle(request, r)`](#handlerequest-r)
 - [`head(r, pattern, handler)`](#headr-pattern-handler)
 - [`isRouter(x)`](#isrouterx)
@@ -76,7 +76,7 @@ val r = router()
 - [`router()`](#router)
 - [`static(dir, cacheTimeSeconds)`](#staticdir-cachetimeseconds)
 - [`subrouter(router)`](#subrouterrouter)
-- [`withHeader(nil)`](#withheadernil)
+- [`withHeader(handler, header, value)`](#withheaderhandler-header-value)
 - [`withLog(handler)`](#withloghandler)
 - [`withMaxBody(h, maxBytes)`](#withmaxbodyh-maxbytes)
 - [`withRecover(h)`](#withrecoverh)
@@ -86,14 +86,19 @@ val r = router()
 
 ### Functions
 
-#### `get(nil)`
+#### `get(map, key)`
 ```slug
-fn slug.web.routes#get(nil):Router
+fn slug.web.routes#get(map:map, key):Router
+fn slug.web.routes#get(r, pattern:str, handler:fn):Router
 ```
 
 
 registers a `GET` route on `r` and returns the updated router.
-nil
+
+| Parameter | Type | Default |
+| --- | --- | --- |
+| `map` | map | — |
+| `key` |  | — |
 
 
 #### Examples
@@ -254,14 +259,20 @@ before dispatching to the inner router.
 
 ---
 
-#### `withHeader(nil)`
+#### `withHeader(handler, header, value)`
 ```slug
-fn slug.web.routes#withHeader(nil):fn
+fn slug.web.routes#withHeader(handler:fn, header:str, value:str):fn
+fn slug.web.routes#withHeader(res, key:str, value:str):fn
 ```
 
 
 wraps `handler` to add a fixed response header to every response.
-nil
+
+| Parameter | Type | Default |
+| --- | --- | --- |
+| `handler` | fn | — |
+| `header` | str | — |
+| `value` | str | — |
 
 ---
 

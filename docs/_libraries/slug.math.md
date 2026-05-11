@@ -14,7 +14,7 @@ rounding, extrema, statistics, and random number generation.
 - [`ceil(n)`](#ceiln)
 - [`clampZero(n)`](#clampzeron)
 - [`floor(n)`](#floorn)
-- [`max(nil)`](#maxnil)
+- [`max(a, b)`](#maxa-b)
 - [`mean(xs)`](#meanxs)
 - [`min(a, b)`](#mina-b)
 - [`percentileSorted(xs, p)`](#percentilesortedxs-p)
@@ -86,16 +86,21 @@ floor(-1.2)  // => -2
 
 ---
 
-#### `max(nil)`
+#### `max(a, b)`
 ```slug
-fn slug.math#max(nil):num
+fn slug.math#max(a:num, ...b):num
+fn slug.math#max(a:num, b:num):num
 ```
 
 
 returns the largest of two or more numbers.
 
 Accepts a variadic list of additional values beyond the required first two.
-nil
+
+| Parameter | Type | Default |
+| --- | --- | --- |
+| `a` | num | — |
+| `b` |  | — |
 
 
 #### Examples

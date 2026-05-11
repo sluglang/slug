@@ -2306,3 +2306,14 @@ Validation performed:
 - `go test ./internal/foreign ./internal/object ./internal/vm ./internal/parser -count=1`
 - `SLUG_HOME=$(pwd) go run ./cmd/app/main.go doc --dir ./lib --out ./lib/MANIFEST.ai manifest`
 - `SLUG_HOME=$(pwd) go run ./cmd/app/main.go doc --dir ./lib --moduleToc --multiPage --out ./docs/_libraries markdown`
+
+### Docs generator: stable grouped-function detection (fix `compare(nil)` headings)
+
+- Fixed grouped function detection in doc generators to avoid order-dependent map pattern matching (`[{type}, ...]`).
+- Generators now branch on `desc.type` directly (`:grp`, `:fn`, `:struct`).
+- Fixed markdown module TOC function entry generation to use `describeSymbol(...)` consistently, instead of mixed `module[k] |> describe` resolution.
+- Result: grouped functions like `slug.benchmark#compare` now render real parameter names in headings/signatures (`compare(benches, warmupMs, ...)`) instead of erroneous `compare(nil)`.
+
+Validation performed:
+- `SLUG_HOME=$(pwd) go run ./cmd/app/main.go doc --dir ./lib --out ./lib/MANIFEST.ai manifest`
+- `SLUG_HOME=$(pwd) go run ./cmd/app/main.go doc --dir ./lib --moduleToc --multiPage --out ./docs/_libraries markdown`

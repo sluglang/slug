@@ -49,14 +49,15 @@ All other statements call `exec()` (returns `@map`).
 
 ### TOC
 
-- [`into(nil)`](#intonil)
+- [`into(data, toType, columnToFieldName)`](#intodata-totype-columntofieldname)
 - [`loadQueries(base)`](#loadqueriesbase)
 
 ### Functions
 
-#### `into(nil)`
+#### `into(data, toType, columnToFieldName)`
 ```slug
-fn slug.db.repo#into(nil):list
+fn slug.db.repo#into(data:list, toType, columnToFieldName:fn = fn((s)) {camelCase(s, _)}):list
+fn slug.db.repo#into(data:map, target, columnToFieldName:fn = fn((s)) {camelCase(s, _)}):list
 ```
 
 
@@ -64,7 +65,12 @@ maps a list of db result rows onto a struct or map target.
 
 Delegates each row to the `@map` variant. Column names are normalised
 from `snake_case` to `camelCase` by default.
-nil
+
+| Parameter | Type | Default |
+| --- | --- | --- |
+| `data` | list | — |
+| `toType` |  | — |
+| `columnToFieldName` | fn | `fn((s)) {camelCase(s, _)}` |
 
 ---
 

@@ -51,13 +51,13 @@ and throw them with `throw`. There is no try/catch — handle errors via
 - [`compare(a, b)`](#comparea-b)
 - [`compute(map, key, f)`](#computemap-key-f)
 - [`counter(start)`](#counterstart)
-- [`equals(nil)`](#equalsnil)
+- [`equals(m1, m2)`](#equalsm1-m2)
 - [`filter(vs, f, acc)`](#filtervs-f-acc)
 - [`find(xs, f)`](#findxs-f)
 - [`flatMap(vs, f)`](#flatmapvs-f)
 - [`fmt(str, args)`](#fmtstr-args)
 - [`get(map, key)`](#getmap-key)
-- [`ifNil(nil)`](#ifnilnil)
+- [`ifNil(v, f)`](#ifnilv-f)
 - [`isDefined(varName)`](#isdefinedvarname)
 - [`isStructInstance(v)`](#isstructinstancev)
 - [`keys(map)`](#keysmap)
@@ -251,14 +251,20 @@ c()  // => 2
 
 ---
 
-#### `equals(nil)`
+#### `equals(m1, m2)`
 ```slug
-fn slug.std#equals(nil):bool
+fn slug.std#equals(m1:map, m2:map):bool
+fn slug.std#equals(v1, v2):bool
+fn slug.std#equals(a:list, b:list, idx:num = 0):bool
 ```
 
 
 deep equality for maps, recursively comparing values for all keys.
-nil
+
+| Parameter | Type | Default |
+| --- | --- | --- |
+| `m1` | map | — |
+| `m2` | map | — |
 
 
 #### Examples
@@ -404,14 +410,19 @@ get({:k: 1}, :k)  // => 1
 
 ---
 
-#### `ifNil(nil)`
+#### `ifNil(v, f)`
 ```slug
-fn slug.std#ifNil(nil):any
+fn slug.std#ifNil(v, f:fn):any
+fn slug.std#ifNil(v, default):any
 ```
 
 
 returns `default` if `v` is `nil`; returns `v` otherwise.
-nil
+
+| Parameter | Type | Default |
+| --- | --- | --- |
+| `v` |  | — |
+| `f` | fn | — |
 
 ---
 

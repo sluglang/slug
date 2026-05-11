@@ -36,7 +36,7 @@ relevant (e.g. `indexOf` is Unicode-aware).
 - [`startsWith(str, start)`](#startswithstr-start)
 - [`toLower(str)`](#tolowerstr)
 - [`toUpper(str)`](#toupperstr)
-- [`trim(nil)`](#trimnil)
+- [`trim(str)`](#trimstr)
 
 ### Functions
 
@@ -575,9 +575,10 @@ toUpper("slug")  // => "SLUG"
 
 ---
 
-#### `trim(nil)`
+#### `trim(str)`
 ```slug
-fn slug.string#trim(nil):str
+fn slug.string#trim(str:str):str
+fn slug.string#trim(s:str, prefix:str):str
 ```
 
 
@@ -585,7 +586,10 @@ removes all leading and trailing occurrences of `prefix` from `s`.
 
 Repeatedly strips the prefix/suffix until neither end matches.
 Note: `prefix` is stripped from both ends, not just the left.
-nil
+
+| Parameter | Type | Default |
+| --- | --- | --- |
+| `str` | str | — |
 
 
 #### Examples

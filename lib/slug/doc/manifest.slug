@@ -320,11 +320,16 @@ val renderConst = fn(desc, module, name) {
 
 // --- top-level render dispatcher ---
 
-val render = fn(desc:map, module:str, name:str) match {
-	[{type}, ...] if type == :grp    => renderFns(desc.details.groups, module, name)
-	[{type}, ...] if type == :fn     => renderFns([desc], module, name)
-	[{type}, ...] if type == :struct => renderStruct(desc, module, name)
-	_                                => renderConst(desc, module, name)
+val render = fn(desc:map, module:str, name:str) {
+	if (desc.type == :grp) {
+		renderFns(desc.details.groups, module, name)
+	} else if (desc.type == :fn) {
+		renderFns([desc], module, name)
+	} else if (desc.type == :struct) {
+		renderStruct(desc, module, name)
+	} else {
+		renderConst(desc, module, name)
+	}
 }
 
 // --- module symbols renderer ---

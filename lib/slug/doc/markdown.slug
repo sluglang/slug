@@ -243,6 +243,14 @@ val renderFnSignature = fn(module, name, h) {
 	"fn " + module + "#" + name + "(" + renderParams(h.details.params) + "):" + ret
 }
 
+val toFnGroups = fn(desc) {
+	if (desc.type == :grp) {
+		desc.details.groups
+	} else {
+		[desc]
+	}
+}
+
 // Renders all overloads of a function grouped under one heading
 val renderFnSection = fn(module, name, groups, fallbackDocs = nil) {
 	val firstGroup = groups[0]
@@ -346,8 +354,8 @@ val renderModule = fn(mod:str, moduleToc:bool) {
 	val modToc     = if(moduleToc) {
 			val basic = (consts + structs) /> map(label)
 			val fnNames = fns /> map(fn(v) {
-				val desc   = module[v] /> describe
-				val groups = match desc { [{type}, ...] if type == :grp => desc.details.groups _ => [desc] }
+				val desc   = describeSymbol(mod, toString(label(v)))
+				val groups = toFnGroups(desc)
 				val firstGroup = groups[0]
 				val paramNames = firstGroup.details.params /> map(fn(p) { p.name }) /> join(', ')
 				"`" + label(v) + "(" + paramNames + ")`"
@@ -389,7 +397,7 @@ val renderModule = fn(mod:str, moduleToc:bool) {
 		_  => {
 			val entries = fns /> map(fn(k) {
 				val desc   = describeSymbol(mod, toString(label(k)))
-				val groups = match desc { [{type}, ...] if type == :grp => desc.details.groups _ => [desc] }
+				val groups = toFnGroups(desc)
 				renderFnSection(mod, label(k), groups, desc.docs)
 			})
 			"\n\n### Functions\n\n" + (entries /> join("\n\n---\n\n"))

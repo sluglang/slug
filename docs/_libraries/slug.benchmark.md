@@ -33,7 +33,7 @@ for slower workloads.
 - [UnitMs](#unitms)
 - [UnitNs](#unitns)
 - [UnitUs](#unitus)
-- [`compare(nil)`](#comparenil)
+- [`compare(benches, warmupMs, sampleMs, samples, minIters, maxIters, subtractOverhead, unit)`](#comparebenches-warmupms-samplems-samples-miniters-maxiters-subtractoverhead-unit)
 - [`micro(name, workFn, warmupMs, sampleMs, samples, minIters, maxIters, subtractOverhead, unit)`](#microname-workfn-warmupms-samplems-samples-miniters-maxiters-subtractoverhead-unit)
 - [`printCompareReport(report)`](#printcomparereportreport)
 - [`printResult(res)`](#printresultres)
@@ -60,9 +60,10 @@ str slug.benchmark#UnitUs
 
 ### Functions
 
-#### `compare(nil)`
+#### `compare(benches, warmupMs, sampleMs, samples, minIters, maxIters, subtractOverhead, unit)`
 ```slug
-fn slug.benchmark#compare(nil):map
+fn slug.benchmark#compare(benches:list, warmupMs:num = 100, sampleMs:num = 200, samples:num = 20, minIters:num = 1, maxIters:num = 10000000, subtractOverhead:bool = true, unit:str = UnitNs):map
+fn slug.benchmark#compare(a, b):map
 ```
 
 
@@ -83,7 +84,17 @@ report /> printCompareReport
 ```
 
 @effects('time')
-nil
+
+| Parameter | Type | Default |
+| --- | --- | --- |
+| `benches` | list | — |
+| `warmupMs` | num | `100` |
+| `sampleMs` | num | `200` |
+| `samples` | num | `20` |
+| `minIters` | num | `1` |
+| `maxIters` | num | `10000000` |
+| `subtractOverhead` | bool | `true` |
+| `unit` | str | `UnitNs` |
 
 **Effects:** `time`
 
