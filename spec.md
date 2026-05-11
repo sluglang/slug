@@ -2525,3 +2525,20 @@ Files updated:
 Validation performed:
 - `go test ./internal/parser ./internal/semantic ./internal/runtime -count=1`
 - `go test ./...`
+
+### Fix: `make test` failure in JSON error tests (`defer onerror` not catching through function groups)
+
+- Root cause:
+  - VM call path for `FunctionGroup` targets returned error objects directly without passing through `unwindDeferredScopes`.
+  - This bypassed `defer onerror(...)` handlers in callers for errors thrown by functions resolved via function groups.
+- Fix applied:
+  - In `internal/vm/executor.go` (`evalCall`), when invoking a selected VM function from a function group, route error results through `e.unwindDeferredScopes(result)` (same behavior as other call paths).
+- Follow-up alignment fix uncovered by `make test`:
+  - Updated `lib/slug/io/stdin.slug` foreign return annotation from `chan<str>` to `chan<str|nil>` to satisfy enforced channel payload nilability rule.
+
+Files updated:
+- `internal/vm/executor.go`
+- `lib/slug/io/stdin.slug`
+
+Validation performed:
+- `make test` (passes)

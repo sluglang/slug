@@ -22,7 +22,7 @@
  * With `slug.channel#recv`, closure is observed as `nil`.
  */
 @export
-foreign readLines = fn():chan<str>
+foreign readLines = fn():chan<str|nil>
 
 @export
 val prompt = fn(prompt:str):str {

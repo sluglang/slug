@@ -1583,7 +1583,7 @@ func (e *Executor) evalCall(argCount int, plan []CallArgSpec, pos int) object.Ob
 		if vmFn, ok := selectVMFunctionFromGroup(fg, positional, named); ok {
 			result := e.invokeVMFunction(vmFn, positional, named, pos)
 			if result.Type() == object.ERROR_OBJ {
-				return result
+				return e.unwindDeferredScopes(result)
 			}
 			e.push(result)
 			return nil
