@@ -64,8 +64,8 @@ val renderDocs = fn(docs) {
 }
 
 
-// --- @testWith example renderer ---
-// @testWith pairs are interleaved: [inputs], expected, [inputs], expected, ...
+// --- example:testWith renderer ---
+// pairs:testWith are interleaved: [inputs], expected, [inputs], expected, ...
 // Each pair becomes one example call line: fnName(inputs...) // => expected
 
 val renderValue = fn(v) {
@@ -119,7 +119,7 @@ val renderDefault = fn(param) match {
 	_ => ''
 }
 
-val renderParams = fn(@list params) {
+val renderParams = fn(params:list) {
 	params
 	/> map(fn(v) { renderTags(v.tags) + renderVargs(v) + v.name + renderDefault(v) })
 	/> join(', ')
@@ -219,7 +219,7 @@ val renderFnSection = fn(module, name, groups) {
 	val effects    = if (firstGroup.tags == nil) {''} else {renderEffectsBadge(firstGroup.tags)}
 	val throws     = if (firstGroup.tags == nil) {''} else {renderThrowsNote(firstGroup.tags)}
 
-	// @testWith examples
+	// examples:testWith
 	val examples = renderTestWithExamples(name, firstGroup.tags)
 
 	[heading, '', sigBlock, docText, paramTable, effects, throws, examples]
@@ -271,7 +271,7 @@ val renderConstSection = fn(desc, module, name) {
 
 // --- module section ---
 
-val renderModule = fn(@str mod, @bool moduleToc) {
+val renderModule = fn(mod:str, moduleToc:bool) {
 	defer onerror(err) []
 
 	val module  = import(mod)
@@ -364,7 +364,7 @@ val renderModule = fn(@str mod, @bool moduleToc) {
  */
 @export
 @returns('@str')
-val singlePage = fn(@list moduleNames, @str title = 'Slug API Reference', @bool moduleToc = false) {
+val singlePage = fn(moduleNames:list, title:str = 'Slug API Reference', moduleToc:bool = false) {
 	val sortedMods = moduleNames /> sort
 
 	val header = [
@@ -397,7 +397,7 @@ val singlePage = fn(@list moduleNames, @str title = 'Slug API Reference', @bool 
  */
 @export
 @returns('@list')
-val pagePerModule = fn(@list moduleNames, @bool moduleToc = false) {
+val pagePerModule = fn(moduleNames:list, moduleToc:bool = false) {
 	moduleNames
 		/> sort
 		/> map(fn(m) {

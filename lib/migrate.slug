@@ -72,8 +72,7 @@ Commands
 
 // --- entrypoint ---
 
-@main
-val main = fn(args = argm()) {
+@main val main = fn(args = argm()) {
   val result = args /> argsWith(spec)
 
   match result {

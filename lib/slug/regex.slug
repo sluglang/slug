@@ -18,11 +18,11 @@
 )
 @export
 @returns('@bool')
-foreign matches = fn(@str str, @str pattern)
+foreign matches = fn(str:str, pattern:str)
 
 /**
  * returns the byte index range of the first match of `pattern` in `str`
- * starting from `index`, as `[@list start_end, @list group_ranges]`.
+ * starting from `index`, as `[start_end:list, group_ranges:list]`.
  *
  * Returns `nil` if no match is found. The first list contains the start
  * and end byte indices of the full match. Subsequent lists contain indices
@@ -30,7 +30,7 @@ foreign matches = fn(@str str, @str pattern)
  */
 @export
 @returns('[@list, @list]')
-foreign indexOf = fn(@str str, @str pattern, @num index = 0)
+foreign indexOf = fn(str:str, pattern:str, index:num = 0)
 
 /**
  * splits `str` into a list of substrings divided by matches of `pattern`.
@@ -40,7 +40,7 @@ foreign indexOf = fn(@str str, @str pattern, @num index = 0)
 )
 @export
 @returns('@list')
-foreign split = fn(@str str, @str pattern)
+foreign split = fn(str:str, pattern:str)
 
 /**
  * returns a list of all non-overlapping matches of `pattern` in `str`.
@@ -51,7 +51,7 @@ foreign split = fn(@str str, @str pattern)
 )
 @export
 @returns('@list')
-foreign findAll = fn(@str str, @str pattern)
+foreign findAll = fn(str:str, pattern:str)
 
 /**
  * returns a list of all matches including capture groups.
@@ -64,7 +64,7 @@ foreign findAll = fn(@str str, @str pattern)
 )
 @export
 @returns('@list')
-foreign findAllGroups = fn(@str str, @str pattern)
+foreign findAllGroups = fn(str:str, pattern:str)
 
 /**
  * replaces all matches of `pattern` in `str` with `repl`.
@@ -76,4 +76,4 @@ foreign findAllGroups = fn(@str str, @str pattern)
 )
 @export
 @returns('@str')
-foreign replaceAll = fn(@str str, @str pattern, @str repl)
+foreign replaceAll = fn(str:str, pattern:str, repl:str)

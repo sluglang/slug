@@ -50,7 +50,7 @@
  */
 @export
 @returns('@bool')
-foreign hasTag = fn(value, @str tag)
+foreign hasTag = fn(value, tag:str)
 
 /**
  * returns the list of arguments for a tag on `value`.
@@ -60,7 +60,7 @@ foreign hasTag = fn(value, @str tag)
  */
 @export
 @returns('@list')
-foreign getTag = fn(value, @str tag)
+foreign getTag = fn(value, tag:str)
 
 /**
  * searches all exported bindings in a module for a given tag.
@@ -71,7 +71,7 @@ foreign getTag = fn(value, @str tag)
  */
 @export
 @returns('@map')
-foreign searchModuleTags = fn(@str module, @str tag, @bool includePrivate = false)
+foreign searchModuleTags = fn(module:str, tag:str, includePrivate:bool = false)
 
 /**
  * searches all bindings in the current scope for a given tag.
@@ -79,8 +79,7 @@ foreign searchModuleTags = fn(@str module, @str tag, @bool includePrivate = fals
  * Returns a list of binding tuples. Use `BINDING_NAME`, `BINDING_VALUE`,
  * and `BINDING_PARAMS` as indices to access tuple elements.
  */
-@export
-foreign searchScopeTags = fn(@str tag)
+@export foreign searchScopeTags = fn(tag:str)
 
 /**
  * returns a metadata map describing the given value.
@@ -104,4 +103,4 @@ foreign describe = fn(value)
  */
 @export
 @returns('@str')
-foreign moduleDocs = fn(@str module)
+foreign moduleDocs = fn(module:str)

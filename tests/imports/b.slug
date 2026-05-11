@@ -6,8 +6,7 @@ var {*} = import(
     "imports.a"
 )
 
-@export
-var add = fn(a, b) {
+@export var add = fn(a, b) {
     a + b
 }
 

@@ -16,7 +16,7 @@ foreign join = fn(...parts)
  */
 @export
 @returns('@str')
-foreign abs = fn(@str path)
+foreign abs = fn(path:str)
 
 /**
  * Returns the current process working directory.
@@ -52,7 +52,7 @@ foreign moduleDir = fn()
  */
 @export
 @returns('@str')
-val localize = fn(@str path) match {
+val localize = fn(path:str) match {
 	nil => path
 	_ if path[0:12] == '__project__/' => join(projectRoot(), path[12:])
 	_ if path[0:12] == '__library__/' => join(libRoot(), path[12:])

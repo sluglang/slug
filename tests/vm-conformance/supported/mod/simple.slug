@@ -1,6 +1,4 @@
-@export
-val inc = fn(x) { x + 1 }
+@export val inc = fn(x) { x + 1 }
 
-@export
-val forty = 40
+@export val forty = 40
 

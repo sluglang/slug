@@ -21,14 +21,14 @@ val {*} = import(
 )
 @export
 @returns('@num')
-val max = fn(@num a, ...b) {
+val max = fn(a:num, ...b) {
 	val _max = fn(x, y) { if (x > y) { x } else { y } }
 	searchList(b, a, _max)
 }
 
 @export
 @returns('@num')
-val max = fn(@num a, @num b) {
+val max = fn(a:num, b:num) {
 	if (a > b) { a } else { b }
 }
 
@@ -42,7 +42,7 @@ val max = fn(@num a, @num b) {
 )
 @export
 @returns('@num')
-val min = fn(@num a, ...b) {
+val min = fn(a:num, ...b) {
 	val _min = fn(x, y) { if (x < y) { x } else { y } }
 	searchList(b, a, _min)
 }
@@ -54,7 +54,7 @@ val min = fn(@num a, ...b) {
  */
 @export
 @returns('@num')
-val clampZero = fn(@num n) {
+val clampZero = fn(n:num) {
 	if (n < 0) { 0 } else { n }
 }
 
@@ -68,7 +68,7 @@ val clampZero = fn(@num n) {
 )
 @export
 @returns('@num')
-foreign floor = fn(@num n)
+foreign floor = fn(n:num)
 
 /**
  * returns the least integer greater than or equal to `n`.
@@ -80,7 +80,7 @@ foreign floor = fn(@num n)
 )
 @export
 @returns('@num')
-foreign ceil = fn(@num n)
+foreign ceil = fn(n:num)
 
 /**
  * returns the square root of `n`.
@@ -94,7 +94,7 @@ foreign ceil = fn(@num n)
 )
 @export
 @returns('@num')
-foreign sqrt = fn(@num n)
+foreign sqrt = fn(n:num)
 
 /**
  * returns a random integer in the range `[min, max)` (exclusive upper bound).
@@ -104,7 +104,7 @@ foreign sqrt = fn(@num n)
 @export
 @effects('random')
 @returns('@num')
-foreign rndRange = fn(@num min, @num max)
+foreign rndRange = fn(min:num, max:num)
 
 /**
  * returns the arithmetic mean of a list of numbers.

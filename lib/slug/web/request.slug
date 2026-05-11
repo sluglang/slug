@@ -30,17 +30,16 @@ val {*} = import(
 	"slug.std",
 )
 
-@export
-val Request = struct {
-	@str  method,
-	@str  path,
-	@str  version,
-	@map  headers,
+@export val Request = struct {
+	@str method,
+	@str path,
+	@str version,
+	@map headers,
 	body,
-	@map  query,
-	@map  form,
+	@map query,
+	@map form,
 	@list files,
-	@map  params,
+	@map params,
 	requestId,
 	traceId,
 	spanId,
@@ -145,7 +144,7 @@ val withQuery = fn(req, query) {
  */
 @export
 @returns('@struct(Request)')
-val withParams = fn(request, @map params) {
+val withParams = fn(request, params:map) {
 	request copy { params: params }
 }
 

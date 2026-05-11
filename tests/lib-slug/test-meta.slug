@@ -9,8 +9,7 @@ var {*} = import(
  */
 val docValue = 7
 
-@custom
-val tagged = 1
+@custom val tagged = 1
 
 var taggedInfo = describe(tagged)
 taggedInfo[:type] /> assertEqual(:num)
@@ -20,7 +19,7 @@ taggedInfo[:details] /> assertEqual({})
 
 describe(docValue)[:docs] /> assertEqual("describe should surface docs from bindings.")
 
-var f = fn(@str name, @num count = 1) { count }
+var f = fn(name:str, count:num = 1) { count }
 var fInfo = describe(f)
 fInfo[:type] /> assertEqual(:fn)
 fInfo[:details][:foreign] /> assertEqual(false)
@@ -77,11 +76,11 @@ schemaFields[1][:tags] /> assertEqual({"@num": []})
 schemaFields[1][:hasDefault] /> assertEqual(true)
 schemaFields[1][:default] /> assertEqual("0")
 
-var x = fn(@num a, ...args) {
+var x = fn(a:num, ...args) {
 	len(args)
 }
 
-var x = fn(@str a, ...args) {
+var x = fn(a:str, ...args) {
 	len(args)
 }
 

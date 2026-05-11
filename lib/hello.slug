@@ -7,8 +7,7 @@
  * ```
  */
 
-@main
-var sayHi = fn(args = argv()) match {
+@main var sayHi = fn(args = argv()) match {
     [] => println("Hello Slug!")
     [n, ...] => println("Hello {{n}}!")
 }

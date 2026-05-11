@@ -85,15 +85,14 @@ val DefaultEnv  = cfg('environment', [])
 /**
  * represents a migration record as stored in the tracking table.
  */
-@export
-val Migration = struct {
-	@num  id,
-	@str  version,
-	@str  environment,
-	@str  filename,
-	@str  checksum,
+@export val Migration = struct {
+	@num id,
+	@str version,
+	@str environment,
+	@str filename,
+	@str checksum,
 	@bool success,
-	@str  appliedAt,
+	@str appliedAt,
 }
 
 /**
@@ -108,7 +107,7 @@ val Migration = struct {
 @export
 @returns('@num')
 @throws('@struct(Error{type:MigrationError})')
-val status = fn(@num conn, @list env = DefaultEnv, @str base = DefaultBase) {
+val status = fn(conn:num, env:list = DefaultEnv, base:str = DefaultBase) {
 	checkTrackingTable(conn)
 	listMigrationFiles(base, fn(m, sql) {
 		defer onerror(err) println(fmtError(m, err))
@@ -138,7 +137,7 @@ val status = fn(@num conn, @list env = DefaultEnv, @str base = DefaultBase) {
 @export
 @returns('@num')
 @throws('@struct(Error{type:MigrationError})')
-val up = fn(@num conn, @list env = DefaultEnv, @str base = DefaultBase) {
+val up = fn(conn:num, env:list = DefaultEnv, base:str = DefaultBase) {
 	checkTrackingTable(conn)
 	listMigrationFiles(base, fn(m, sql) {
 		defer onerror(err) {
@@ -169,7 +168,7 @@ val up = fn(@num conn, @list env = DefaultEnv, @str base = DefaultBase) {
  */
 @export
 @returns('@num')
-val down = fn(@num conn, @num step = 1, @str base = DefaultBase) {
+val down = fn(conn:num, step:num = 1, base:str = DefaultBase) {
 	checkTrackingTable(conn)
 	findLatestMigrations(conn, step)
 	/> map(fn(m) {
@@ -198,11 +197,11 @@ val fmtError        = fn(m, err) { fmt('{} [ ERROR      ] {}{}: {}', m.version, 
 
 // --- script slicing ---
 
-val sliceUpScript = fn(@str sql) { sql /> sliceSqlScript('up') }
+val sliceUpScript = fn(sql:str) { sql /> sliceSqlScript('up') }
 
-val readDownScript = fn(@str filepath) { readFile(filepath) /> sliceSqlScript('down') }
+val readDownScript = fn(filepath:str) { readFile(filepath) /> sliceSqlScript('down') }
 
-val sliceSqlScript = fn(@str sql, @str read) {
+val sliceSqlScript = fn(sql:str, read:str) {
 	sql
 	/> split("\n")
 	/> sliceSqlLines
@@ -218,7 +217,7 @@ val sliceSqlScript = fn(@str sql, @str read) {
 	[["-- @down", "DOWN", "-- @up", "UP"]], [["-- @up", "UP"], ["-- @down", "DOWN"]],
 	[["-- @up", "UP", "-- @down", "DOWN", "-- @up", "UP2"]], [["-- @up", "UP", "-- @up", "UP2"], ["-- @down", "DOWN"]],
 )
-val sliceSqlLines = fn(@list strs, readingUp = true, @list up = [], @list down = []) match {
+val sliceSqlLines = fn(strs:list, readingUp = true, up:list = [], down:list = []) match {
 	[[], ...]                         => [up, down]
 	[[h, ...t], ...] if startUp(h)   => recur(t, true,  up :+ h, down)
 	[[h, ...t], ...] if startDown(h) => recur(t, false, up, down :+ h)
@@ -254,7 +253,7 @@ val applyMigrationSql = fn(conn, sql) {
 	conn
 }
 
-val listMigrationFiles = fn(@str base, @fn f = fn(migration, sql) { migration }) {
+val listMigrationFiles = fn(base:str, f:fn = fn(migration, sql) { migration }) {
 	val baseLen = len(base)
 	listFilesRecursive([base], fn(s) { s[-4:] == '.sql' })
 	/> sort
@@ -280,18 +279,18 @@ val listMigrationFiles = fn(@str base, @fn f = fn(migration, sql) { migration })
 	})
 }
 
-val markApplied = fn(conn, @struct(Migration) m, @bool success) {
+val markApplied = fn(conn, m:Migration, success:bool) {
 	conn /> exec(
 		'insert into slug_schema_migrations (version, environment, filename, checksum, success) values (?, ?, ?, ?, ?)',
 		m.version, m.environment, m.filename, m.checksum, success
 	)
 }
 
-val deleteMigration = fn(conn, @struct(Migration) m) {
+val deleteMigration = fn(conn, m:Migration) {
 	conn /> exec('delete from slug_schema_migrations where version = ?', m.version)
 }
 
-val findLatestMigrations = fn(conn, @num limit = 1_000_000) {
+val findLatestMigrations = fn(conn, limit:num = 1_000_000) {
 	conn /> query('select * from slug_schema_migrations order by version desc limit ?', limit)
 	/> map(fn(v) {
 		val data = v /> keys /> reduce({}, fn(a, k) {
@@ -301,7 +300,7 @@ val findLatestMigrations = fn(conn, @num limit = 1_000_000) {
 	})
 }
 
-val checkMigrationApplied = fn(conn, @struct(Migration) m) {
+val checkMigrationApplied = fn(conn, m:Migration) {
 	conn
 	/> query('select * from slug_schema_migrations where version = ?', m.version)
 	/> match {

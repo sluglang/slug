@@ -83,9 +83,9 @@ val buildMessages = fn(history, systemPrompt) {
 @export
 @effects('net')
 val ollamaChat = fn(
-  @list history,
-  @str systemPrompt = nil,
-  @str model = cfg("ollama-model", "llama3")
+  history:list,
+  systemPrompt:str = nil,
+  model:str = cfg("ollama-model", "llama3")
 ) {
   val payload        = { model: model, messages: buildMessages(history, systemPrompt), stream: false }
   val [status, body] = post(encode(payload), OLLAMA_API, { "Content-Type": "application/json" })

@@ -75,7 +75,7 @@ val err = import('slug.io.stderr')
 val Route = struct {
 	@str method,
 	@str pattern,
-	@fn  handler,
+	@fn handler,
 }
 
 val Router = struct {
@@ -105,7 +105,7 @@ val isRouter = fn(x) match {
 
 // --- route registration ---
 
-val addRoute = fn(r, @str method, @str pattern, @fn handler) {
+val addRoute = fn(r, method:str, pattern:str, handler:fn) {
 	r copy { routes: r.routes :+ Route { method: method, pattern: pattern, handler: handler } }
 }
 
@@ -114,21 +114,21 @@ val addRoute = fn(r, @str method, @str pattern, @fn handler) {
  */
 @export
 @returns('@struct(Router)')
-val head = fn(r, @str pattern, @fn handler) { addRoute(r, "HEAD", pattern, handler) }
+val head = fn(r, pattern:str, handler:fn) { addRoute(r, "HEAD", pattern, handler) }
 
 /**
  * registers a `GET` route on `r` and returns the updated router.
  */
 @export
 @returns('@struct(Router)')
-val get = fn(r, @str pattern, @fn handler) { addRoute(r, "GET", pattern, handler) }
+val get = fn(r, pattern:str, handler:fn) { addRoute(r, "GET", pattern, handler) }
 
 /**
  * registers a `POST` route on `r` and returns the updated router.
  */
 @export
 @returns('@struct(Router)')
-val post = fn(r, @str pattern, @fn handler) { addRoute(r, "POST", pattern, handler) }
+val post = fn(r, pattern:str, handler:fn) { addRoute(r, "POST", pattern, handler) }
 
 /**
  * mounts `handler` at `prefix/*`, matching any method.
@@ -137,7 +137,7 @@ val post = fn(r, @str pattern, @fn handler) { addRoute(r, "POST", pattern, handl
  */
 @export
 @returns('@struct(Router)')
-val mount = fn(r, @str prefix, @fn handler) {
+val mount = fn(r, prefix:str, handler:fn) {
 	addRoute(r, "*", prefix + "/*", handler)
 }
 
@@ -148,7 +148,7 @@ val mount = fn(r, @str prefix, @fn handler) {
  */
 @export
 @returns('@struct(Router)')
-val mountRouter = fn(r, @str prefix, childRouter) {
+val mountRouter = fn(r, prefix:str, childRouter) {
 	mount(r, prefix, subrouter(childRouter))
 }
 
@@ -171,7 +171,7 @@ val handle = fn(request, r) {
 
 // --- internals ---
 
-val handleRequest = fn(@list routes, request) match {
+val handleRequest = fn(routes:list, request) match {
 	[[], ...] => nil
 	[[route, ...t], ...] => {
 		if (route.method == request.method || route.method == "*") {
@@ -367,7 +367,7 @@ val withRecover = fn(h) {
  */
 @export
 @returns('@fn')
-val withHeader = fn(@fn handler, @str header, @str value) {
+val withHeader = fn(handler:fn, header:str, value:str) {
 	fn(req) {
 		req /> handler /> withHeader(header, value)
 	}
@@ -382,7 +382,7 @@ val withHeader = fn(@fn handler, @str header, @str value) {
  */
 @export
 @returns('@fn')
-val withRequestId = fn(@fn handler, @fn newRequestId = fn() { randomHexString(32) }) {
+val withRequestId = fn(handler:fn, newRequestId:fn = fn() { randomHexString(32) }) {
 	fn(req) {
 		var rid = req.headers["x-request-id"]
 		if (rid == nil) { rid = newRequestId() }
@@ -410,8 +410,8 @@ val withRequestId = fn(@fn handler, @fn newRequestId = fn() { randomHexString(32
 @returns('@fn')
 val withTraceContext = fn(
 	handler,
-	@fn newTraceId = fn() { randomHexString(32) },
-	@fn newSpanId  = fn() { randomHexString(16) }
+	newTraceId:fn = fn() { randomHexString(32) },
+	newSpanId:fn  = fn() { randomHexString(16) }
 ) {
 	fn(req) {
 		val tp = req.headers["traceparent"]

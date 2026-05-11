@@ -26,13 +26,11 @@
  *
  * Behaves identically to the builtin `print` but writes to stderr.
  */
-@export
-foreign print = fn(...args)
+@export foreign print = fn(...args)
 
 /**
  * writes args to stderr followed by a newline.
  *
  * Behaves identically to the builtin `println` but writes to stderr.
  */
-@export
-foreign println = fn(...args)
+@export foreign println = fn(...args)

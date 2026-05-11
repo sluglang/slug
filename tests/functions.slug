@@ -6,11 +6,9 @@ var {*} = import(
 
 // declare a function and mark it as exported
 // this will allow it to be imported and used in other modules
-@export
-var sqr = fn(a) { a * a }
+@export var sqr = fn(a) { a * a }
 
-@export
-var sum = fn(ns, acc = 0) {
+@export var sum = fn(ns, acc = 0) {
     match ns {
         [h, ...t] => sum(t, acc + h)
         [] => acc

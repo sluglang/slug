@@ -10,8 +10,7 @@
  *
  * Equivalent to the `clear` shell command. Does not clear the scrollback buffer.
  */
-@export
-val clear = fn() {
+@export val clear = fn() {
 	print("\033[2J\033[H")
 }
 
@@ -21,7 +20,6 @@ val clear = fn() {
  * More thorough than `clear` — also wipes the scrollback history visible
  * when scrolling up in the terminal.
  */
-@export
-val clearAll = fn() {
+@export val clearAll = fn() {
 	print("\033[3J\033[2J\033[H")
 }

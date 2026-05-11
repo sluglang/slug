@@ -3,12 +3,10 @@
 val privateDefaultValue = 1
 
 
-@export
-var defaultTest = fn(a = privateDefaultValue) {
+@export var defaultTest = fn(a = privateDefaultValue) {
 	a
 }
 
-@export
-var defaultTestCfg = fn(a = cfg("test-cfg", 1)) {
+@export var defaultTestCfg = fn(a = cfg("test-cfg", 1)) {
 	a
 }

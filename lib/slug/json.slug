@@ -107,7 +107,7 @@ val encode = fn(v) {
 @export
 @returns('@str')
 @throws('@struct(Error{type:JsonError})')
-val pretty = fn(v, @num indent = 2) {
+val pretty = fn(v, indent:num = 2) {
 	prettyPrint(v, indent, 0)
 }
 
@@ -133,7 +133,7 @@ val pretty = fn(v, @num indent = 2) {
 )
 @export
 @throws('@struct(Error{type:JsonError})')
-val decode = fn(@str jsonStr) {
+val decode = fn(jsonStr:str) {
 	val tokens = tokenize(jsonStr, 0, len(jsonStr), [])
 	val result = parseValue(tokens, 0)
 
@@ -148,7 +148,7 @@ val decode = fn(@str jsonStr) {
 // Encoding Helpers
 // ===========================
 
-val encodeString = fn(@str s) {
+val encodeString = fn(s:str) {
 	val escaped = s /> replaceAll("\\", "\\\\")
 		/> replaceAll("\"", "\\\"")
 		/> replaceAll("\n", "\\n")
@@ -163,24 +163,24 @@ val encodeSymbol = fn(s) {
 	encodeString(label(s))
 }
 
-val encodeBytes = fn(@bytes b) {
+val encodeBytes = fn(b:bytes) {
 	encodeString("b64:" + base64Encode(b))
 }
 
-val encodeNumber = fn(@num n) {
+val encodeNumber = fn(n:num) {
 	toString(n)
 }
 
-val encodeBool = fn(@bool b) match {
+val encodeBool = fn(b:bool) match {
 	true => "true"
 	_ => "false"
 }
 
-val encodeList = fn(@list lst) {
+val encodeList = fn(lst:list) {
 	"[" + encodeListItems(lst, "") + "]"
 }
 
-val encodeListItems = fn(@list lst, @str acc) match {
+val encodeListItems = fn(lst:list, acc:str) match {
 	[[], ...] => acc
 	[[h], ...] => acc + encode(h)
 	[[h, ...t], ...] => recur(t, acc + encode(h) + ",")
@@ -191,7 +191,7 @@ val encodeObject = fn(obj) {
 	"{" + encodeObjectPairs(pairs, obj, "") + "}"
 }
 
-val encodeObjectPairs = fn(@list pairs, obj, @str acc) match {
+val encodeObjectPairs = fn(pairs:list, obj, acc:str) match {
 	[[], ...] => acc
 	[[p], ...] => {
 		val keyStr = p[0]
@@ -209,7 +209,7 @@ val encodeObjectPairs = fn(@list pairs, obj, @str acc) match {
 // Pretty Printing
 // ===========================
 
-val prettyPrint = fn(v, @num indent, @num depth) {
+val prettyPrint = fn(v, indent:num, depth:num) {
 	if (isStructInstance(v)) {
 		prettyObject(v, indent, depth)
 	} else {
@@ -227,7 +227,7 @@ val prettyPrint = fn(v, @num indent, @num depth) {
 	}
 }
 
-val prettyList = fn(@list lst, @num indent, @num depth) {
+val prettyList = fn(lst:list, indent:num, depth:num) {
 	if (len(lst) == 0) {
 		"[]"
 	} else {
@@ -237,13 +237,13 @@ val prettyList = fn(@list lst, @num indent, @num depth) {
 	}
 }
 
-val prettyListItems = fn(@list lst, @num indent, @num depth, @str indentStr, @str acc) match {
+val prettyListItems = fn(lst:list, indent:num, depth:num, indentStr:str, acc:str) match {
 	[[], ...] => acc
 	[[h], ...] => acc + indentStr + prettyPrint(h, indent, depth)
 	[[h, ...t], ...] => recur(t, indent, depth, indentStr, acc + indentStr + prettyPrint(h, indent, depth) + ",\n")
 }
 
-val prettyObject = fn(obj, @num indent, @num depth) {
+val prettyObject = fn(obj, indent:num, depth:num) {
 	val pairs = sortedObjectPairs(obj)
 	if (len(pairs) == 0) {
 		"{}"
@@ -254,7 +254,7 @@ val prettyObject = fn(obj, @num indent, @num depth) {
 	}
 }
 
-val prettyObjectPairs = fn(@list pairs, obj, @num indent, @num depth, @str indentStr, @str acc) {
+val prettyObjectPairs = fn(pairs:list, obj, indent:num, depth:num, indentStr:str, acc:str) {
 	match pairs {
 		[] => acc
 		[p] => {
@@ -271,11 +271,11 @@ val prettyObjectPairs = fn(@list pairs, obj, @num indent, @num depth, @str inden
 	}
 }
 
-val makeIndent = fn(@num spaces, @num depth) {
+val makeIndent = fn(spaces:num, depth:num) {
 	" " * spaces * depth
 }
 
-val decodeStringValue = fn(@str value) {
+val decodeStringValue = fn(value:str) {
 	if (value /> startsWith("b64:")) {
 		base64Decode(value[4:])
 	} else {
@@ -300,7 +300,7 @@ val sortedObjectPairs = fn(obj) {
 // Tokenizer
 // ===========================
 
-val tokenize = fn(@str s, @num i, @num n, @list tokens) {
+val tokenize = fn(s:str, i:num, n:num, tokens:list) {
 	if (i >= n) {
 		tokens
 	} else {
@@ -349,19 +349,19 @@ val tokenize = fn(@str s, @num i, @num n, @list tokens) {
 	}
 }
 
-val error = fn(@str msg) {
+val error = fn(msg:str) {
 	throw Error { type: "JsonError", msg: msg }
 }
 
-val isWhitespace = fn(@str c) {
+val isWhitespace = fn(c:str) {
 	c == " " || c == "\n" || c == "\r" || c == "\t"
 }
 
-val isDigit = fn(@str c) {
+val isDigit = fn(c:str) {
 	c >= "0" && c <= "9"
 }
 
-val parseStringToken = fn(@str s, @num i, @num n, @str acc) {
+val parseStringToken = fn(s:str, i:num, n:num, acc:str) {
 	if (i >= n) {
 		error("json: unterminated string")
 	} else {
@@ -398,7 +398,7 @@ val parseStringToken = fn(@str s, @num i, @num n, @str acc) {
 	}
 }
 
-val parseUnicodeEscape = fn(@str s, @num i, @num n) {
+val parseUnicodeEscape = fn(s:str, i:num, n:num) {
 	if (i + 4 > n) {
 		error("json: invalid unicode escape, expected 4 hex digits")
 	}
@@ -423,7 +423,7 @@ val parseUnicodeEscape = fn(@str s, @num i, @num n) {
 	}
 }
 
-val parseHexToNumber = fn(@str s, @num i, @num end, @num acc) {
+val parseHexToNumber = fn(s:str, i:num, end:num, acc:num) {
 	if (i >= end) {
 		acc
 	} else {
@@ -435,19 +435,19 @@ val parseHexToNumber = fn(@str s, @num i, @num end, @num acc) {
 	}
 }
 
-val isHexDigit = fn(@str c) {
+val isHexDigit = fn(c:str) {
 	("0123456789ABCDEF" /> indexOf(c /> toUpper())) >= 0
 }
 
-val hexDigitToNumber = fn(@str c) {
+val hexDigitToNumber = fn(c:str) {
 	"0123456789ABCDEF" /> indexOf(c /> toUpper())
 }
 
-val isHighSurrogate = fn(@num n) { n >= 55296 && n <= 56319 }
-val isLowSurrogate  = fn(@num n) { n >= 56320 && n <= 57343 }
-val isControlChar   = fn(@str c) { c < " " }
+val isHighSurrogate = fn(n:num) { n >= 55296 && n <= 56319 }
+val isLowSurrogate  = fn(n:num) { n >= 56320 && n <= 57343 }
+val isControlChar   = fn(c:str) { c < " " }
 
-val parseNumberToken = fn(@str s, @num i, @num n) {
+val parseNumberToken = fn(s:str, i:num, n:num) {
 	val afterSign = if (i < n && s[i] == "-") { i + 1 } else { i }
 
 	if (afterSign >= n || !isDigit(s[afterSign])) {
@@ -488,7 +488,7 @@ val parseNumberToken = fn(@str s, @num i, @num n) {
 	}
 }
 
-val skipDigits = fn(@str s, @num i, @num n) {
+val skipDigits = fn(s:str, i:num, n:num) {
 	if (i >= n || !isDigit(s[i])) { i } else { recur(s, i + 1, n) }
 }
 
@@ -496,7 +496,7 @@ val skipDigits = fn(@str s, @num i, @num n) {
 // Parser
 // ===========================
 
-val parseValue = fn(@list tokens, @num idx) {
+val parseValue = fn(tokens:list, idx:num) {
 	if (idx >= len(tokens)) {
 		error("json: unexpected end of input")
 	} else {
@@ -514,7 +514,7 @@ val parseValue = fn(@list tokens, @num idx) {
 	}
 }
 
-val parseArray = fn(@list tokens, @num idx, @list acc, @bool afterComma) {
+val parseArray = fn(tokens:list, idx:num, acc:list, afterComma:bool) {
 	if (idx >= len(tokens)) {
 		error("json: unexpected end of array")
 	} else {
@@ -545,7 +545,7 @@ val parseArray = fn(@list tokens, @num idx, @list acc, @bool afterComma) {
 	}
 }
 
-val parseObject = fn(@list tokens, @num idx, @map acc, @bool afterComma) {
+val parseObject = fn(tokens:list, idx:num, acc:map, afterComma:bool) {
 	if (idx >= len(tokens)) {
 		error("json: unexpected end of object")
 	} else {

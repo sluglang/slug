@@ -44,7 +44,7 @@ val {*} = import(
  */
 @export
 @returns('@chan')
-foreign chan = fn(@num capacity = 0)
+foreign chan = fn(capacity:num = 0)
 
 /**
  * closes a channel, signalling that no more values will be sent.
@@ -54,7 +54,7 @@ foreign chan = fn(@num capacity = 0)
  */
 @export
 @returns('nil')
-foreign close = fn(@chan channel)
+foreign close = fn(channel:chan)
 
 /**
  * sends a value to a channel, blocking until a receiver is ready.
@@ -63,8 +63,7 @@ foreign close = fn(@chan channel)
  *
  * Returns the channel, allowing chains: `ch /> send("a") /> send("b")`
  */
-@export
-val send = fn(@chan channel, payload) {
+@export val send = fn(channel:chan, payload) {
 	select {
 		send channel, payload /> fn(_) { channel }
 	}
@@ -77,8 +76,7 @@ val send = fn(@chan channel, payload) {
  *
  * Returns the channel if the send succeeded, nil if the channel was full.
  */
-@export
-val trySend = fn(@chan channel, payload) {
+@export val trySend = fn(channel:chan, payload) {
 	select {
 		send channel, payload /> fn(_) { channel }
 		_
@@ -93,7 +91,7 @@ val trySend = fn(@chan channel, payload) {
  */
 @export
 @throws('@struct(Error{type:TimeoutError})')
-val recv = fn(@chan channel, @num timeout = 0) {
+val recv = fn(channel:chan, timeout:num = 0) {
 	select {
 		recv channel
 		after timeout /> fn(_) { throw Error{ type: "TimeoutError", data: {ms: timeout, channel: channel} } }
@@ -105,8 +103,7 @@ val recv = fn(@chan channel, @num timeout = 0) {
  *
  * Returns the next value if one is immediately available, nil otherwise.
  */
-@export
-val tryRecv = fn(@chan channel) {
+@export val tryRecv = fn(channel:chan) {
 	select {
 		recv channel
 		_
@@ -121,7 +118,7 @@ val tryRecv = fn(@chan channel) {
  */
 @export
 @throws('@struct(Error{type:TimeoutError})')
-val await = fn(@task handle, @num timeout = 0) {
+val await = fn(handle:task, timeout:num = 0) {
 	select {
 		await handle
 		after timeout /> fn(_) { throw Error{ type: "TimeoutError", data: {ms: timeout, handle: handle} } }

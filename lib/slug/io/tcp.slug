@@ -47,7 +47,7 @@
  */
 @export
 @returns('@num')
-foreign bind = fn(@str addr, @num port)
+foreign bind = fn(addr:str, port:num)
 
 /**
  * waits for an incoming connection on `listener` and returns a connection handle.
@@ -59,7 +59,7 @@ foreign bind = fn(@str addr, @num port)
  */
 @export
 @returns('@num')
-foreign accept = fn(@num listener)
+foreign accept = fn(listener:num)
 
 /**
  * connects to a TCP server at `addr:port` and returns a connection handle.
@@ -70,7 +70,7 @@ foreign accept = fn(@num listener)
  */
 @export
 @returns('@num')
-foreign connect = fn(@str addr, @num port)
+foreign connect = fn(addr:str, port:num)
 
 /**
  * reads up to `maxBytes` from a TCP stream.
@@ -81,7 +81,7 @@ foreign connect = fn(@str addr, @num port)
  */
 @export
 @returns('@str')
-foreign read = fn(@num stream, @num maxBytes)
+foreign read = fn(stream:num, maxBytes:num)
 
 /**
  * sends `data` over a TCP stream.
@@ -92,7 +92,7 @@ foreign read = fn(@num stream, @num maxBytes)
  */
 @export
 @returns('@num')
-foreign write = fn(@num stream, @str data)
+foreign write = fn(stream:num, data:str)
 
 /**
  * closes a TCP listener or connection handle.
@@ -101,4 +101,4 @@ foreign write = fn(@num stream, @str data)
  */
 @export
 @returns('@num')
-foreign close = fn(@num handle)
+foreign close = fn(handle:num)

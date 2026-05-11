@@ -1,7 +1,7 @@
 /**
  * slug.io.http — HTTP client
  *
- * Makes outbound HTTP requests and returns `[@num status, @str body]`.
+ * Makes outbound HTTP requests and returns `[status:num, body:str]`.
  * All methods are convenience wrappers around `request`.
  *
  * ## Example
@@ -42,7 +42,7 @@
  */
 @export
 @returns('[@num, @str]')
-foreign request = fn(@str method, @str url, @str body = "", @map headers = {}, @num timeout = 30000)
+foreign request = fn(method:str, url:str, body:str = "", headers:map = {}, timeout:num = 30000)
 
 /**
  * makes a GET request and returns `[status, body]`.
@@ -51,7 +51,7 @@ foreign request = fn(@str method, @str url, @str body = "", @map headers = {}, @
  */
 @export
 @returns('[@num, @str]')
-val get = fn(@str url, @map headers = {}) {
+val get = fn(url:str, headers:map = {}) {
 	request("GET", url, "", headers)
 }
 
@@ -65,7 +65,7 @@ val get = fn(@str url, @map headers = {}) {
  */
 @export
 @returns('[@num, @str]')
-val post = fn(@str body, @str url, @map headers = {}) {
+val post = fn(body:str, url:str, headers:map = {}) {
 	request("POST", url, body, headers)
 }
 
@@ -78,7 +78,7 @@ val post = fn(@str body, @str url, @map headers = {}) {
  */
 @export
 @returns('[@num, @str]')
-val put = fn(@str body, @str url, @map headers = {}) {
+val put = fn(body:str, url:str, headers:map = {}) {
 	request("PUT", url, body, headers)
 }
 
@@ -91,7 +91,7 @@ val put = fn(@str body, @str url, @map headers = {}) {
  */
 @export
 @returns('[@num, @str]')
-val patch = fn(@str body, @str url, @map headers = {}) {
+val patch = fn(body:str, url:str, headers:map = {}) {
 	request("PATCH", url, body, headers)
 }
 
@@ -102,7 +102,7 @@ val patch = fn(@str body, @str url, @map headers = {}) {
  */
 @export
 @returns('[@num, @str]')
-val delete = fn(@str url, @map headers = {}) {
+val delete = fn(url:str, headers:map = {}) {
 	request("DELETE", url, "", headers)
 }
 
@@ -111,8 +111,7 @@ val delete = fn(@str url, @map headers = {}) {
  *
  * Note: not yet implemented — returns the input string unchanged.
  */
-@export
-val urlDecode = fn(@str str) {
+@export val urlDecode = fn(str:str) {
 	// todo implement me!
 	str
 }

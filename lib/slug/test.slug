@@ -52,7 +52,7 @@ val {*} = import(
  */
 @export
 @returns('@map')
-val runSafe = fn(@fn f) {
+val runSafe = fn(f:fn) {
 	defer onerror(err) {
 		{ error: err, trace: stacktrace(err) }
 	}
@@ -78,7 +78,7 @@ val isAssertError = fn(v) {
 @export
 @returns('@bool')
 @throws('@struct(Error{type:AssertionError})')
-val assertThrows = fn(@fn f, expected, @str msg = nil) {
+val assertThrows = fn(f:fn, expected, msg:str = nil) {
 	val r = runSafe(f)
 	if (r.error == expected) {
 		true
@@ -101,7 +101,7 @@ val assertThrows = fn(@fn f, expected, @str msg = nil) {
 @export
 @returns('@bool')
 @throws('@struct(Error{type:AssertionError})')
-val assertErrorType = fn(@fn f, expected, @str msg = nil) {
+val assertErrorType = fn(f:fn, expected, msg:str = nil) {
 	val r = runSafe(f)
 	if (r.error /> type() == expected) {
 		true

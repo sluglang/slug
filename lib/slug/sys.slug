@@ -22,7 +22,7 @@
 @export
 @effects('io')
 @returns('@str')
-foreign env = fn(@str str)
+foreign env = fn(str:str)
 
 /**
  * sets an environment variable.
@@ -34,7 +34,7 @@ foreign env = fn(@str str)
 @export
 @effects('io')
 @returns('@str')
-foreign setEnv = fn(@str key, @str value)
+foreign setEnv = fn(key:str, value:str)
 
 /**
  * terminates the current process with the given exit code.
@@ -44,7 +44,7 @@ foreign setEnv = fn(@str key, @str value)
  */
 @export
 @returns('nil')
-foreign exit = fn(@num exitCode)
+foreign exit = fn(exitCode:num)
 
 /**
  * runs a shell command synchronously and returns `[stdout, stderr]`.
@@ -58,7 +58,7 @@ foreign exit = fn(@num exitCode)
 @export
 @effects('io')
 @returns('[@str, @str]')
-foreign exec = fn(@str cmd, @num timeout = 0)
+foreign exec = fn(cmd:str, timeout:num = 0)
 
 /**
  * spawns a process from a command list and returns a process handle.
@@ -72,7 +72,7 @@ foreign exec = fn(@str cmd, @num timeout = 0)
 @export
 @effects('io')
 @returns('@num')
-foreign spawnProc = fn(@list cmd)
+foreign spawnProc = fn(cmd:list)
 
 /**
  * waits for a spawned process to finish and returns its exit code.
@@ -85,7 +85,7 @@ foreign spawnProc = fn(@list cmd)
 @export
 @effects('io')
 @returns('@num')
-foreign waitProc = fn(@num handle, @num timeout = 0)
+foreign waitProc = fn(handle:num, timeout:num = 0)
 
 /**
  * sends a termination signal to a spawned process.
@@ -97,4 +97,4 @@ foreign waitProc = fn(@num handle, @num timeout = 0)
 @export
 @effects('io')
 @returns('@bool')
-foreign killProc = fn(@num handle)
+foreign killProc = fn(handle:num)

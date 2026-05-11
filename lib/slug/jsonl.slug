@@ -31,7 +31,7 @@ val { split, join, replaceAll } = import(
 )
 @export
 @returns('@str')
-val encode = fn(@list values, @str eol = "\n", @bool trailingEol = false) {
+val encode = fn(values:list, eol:str = "\n", trailingEol:bool = false) {
 	val out = encodeLines(values, eol, [])
 	val body = out /> join(eol)
 	if (trailingEol && len(values) > 0) { body + eol } else { body }
@@ -50,7 +50,7 @@ val encode = fn(@list values, @str eol = "\n", @bool trailingEol = false) {
 )
 @export
 @returns('@list')
-val decode = fn(@str jsonl, @bool skipEmpty = true) {
+val decode = fn(jsonl:str, skipEmpty:bool = true) {
 	if (len(jsonl) == 0) {
 		[]
 	} else {
@@ -62,12 +62,12 @@ val decode = fn(@str jsonl, @bool skipEmpty = true) {
 	}
 }
 
-val encodeLines = fn(@list values, @str eol, @list acc) match {
+val encodeLines = fn(values:list, eol:str, acc:list) match {
 	[[], ...] => acc
 	[[h, ...t], ...] => recur(t, eol, acc :+ jsonEncode(h))
 }
 
-val decodeLines = fn(@list lines, @bool skipEmpty, @num i, @list acc) match {
+val decodeLines = fn(lines:list, skipEmpty:bool, i:num, acc:list) match {
 	[[], ...] => acc
 	[[line, ...rest], ...] => {
 		if (line == "" && skipEmpty) {
@@ -79,7 +79,7 @@ val decodeLines = fn(@list lines, @bool skipEmpty, @num i, @list acc) match {
 	}
 }
 
-val decodeLine = fn(@str line, @num lineNo) {
+val decodeLine = fn(line:str, lineNo:num) {
 	defer onerror(err) {
 		throw Error {
 			type: "JsonlError",

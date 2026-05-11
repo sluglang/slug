@@ -34,7 +34,7 @@ val {*} = import(
 @export val UnitMs = "ms"
 @export val UnitUs = "us"
 
-val msToNs = fn(@num ms) { ms * 1_000_000 }
+val msToNs = fn(ms:num) { ms * 1_000_000 }
 
 val scaleDivisor = fn(unit) match {
 	^UnitNs => 1
@@ -167,15 +167,15 @@ val sampleTimesPerIter = fn(workFn, iters, samples, overheadPerIter) {
 @returns('@map')
 @effects('time')
 val micro = fn(
-	@str name,
-	@fn workFn,
-	@num warmupMs = 100,
-	@num sampleMs = 200,
-	@num samples = 20,
-	@num minIters = 1,
-	@num maxIters = 10_000_000,
-	@bool subtractOverhead = true,
-	@str unit = UnitNs
+	name:str,
+	workFn:fn,
+	warmupMs:num = 100,
+	sampleMs:num = 200,
+	samples:num = 20,
+	minIters:num = 1,
+	maxIters:num = 10_000_000,
+	subtractOverhead:bool = true,
+	unit:str = UnitNs
 ) {
 	val warmupNs = msToNs(warmupMs)
 	val sampleNs = msToNs(sampleMs)
@@ -211,8 +211,7 @@ val micro = fn(
  *   iters/sample: 10000  samples: 20
  * ```
  */
-@export
-val printResult = fn(res) {
+@export val printResult = fn(res) {
 	val s = res.stats
 	println(res.name)
 	fmt("  p50: {:d} {}  p90: {:d}  p99: {:d}", s.p50, res.unit, s.p90, s.p99) /> println
@@ -242,14 +241,14 @@ val printResult = fn(res) {
 @export
 @effects('time')
 val compare = fn(
-	@list benches,
-	@num warmupMs = 100,
-	@num sampleMs = 200,
-	@num samples = 20,
-	@num minIters = 1,
-	@num maxIters = 10_000_000,
-	@bool subtractOverhead = true,
-	@str unit = UnitNs
+	benches:list,
+	warmupMs:num = 100,
+	sampleMs:num = 200,
+	samples:num = 20,
+	minIters:num = 1,
+	maxIters:num = 10_000_000,
+	subtractOverhead:bool = true,
+	unit:str = UnitNs
 ) {
 	val results =
 		benches /> map(fn(b) {
@@ -283,8 +282,7 @@ val sortByP50 = fn(results) {
  *   fmt            : p50 91 ns  x2.4
  * ```
  */
-@export
-val printCompareReport = fn(report) {
+@export val printCompareReport = fn(report) {
 	println("Benchmark report")
 	report.results /> map(fn(r) {
 		fmt("  %{:<15s}: p50 {:d} {}  x{:.1f}", r.name, r.stats.p50, r.unit, r.ratio) /> println

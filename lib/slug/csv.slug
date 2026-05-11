@@ -46,7 +46,7 @@ val {*} = import(
 )
 @export
 @returns('@str')
-val toCsv = fn(@list rows, @str sep = ",", @str quote = "\"", @str eol = "\r\n", @str acc = "") match {
+val toCsv = fn(rows:list, sep:str = ",", quote:str = "\"", eol:str = "\r\n", acc:str = "") match {
 	[[], ...] => acc
 	[[h, ...t], ...] => recur(t, sep, quote, eol, acc + rowToCsv(h, sep, quote, eol))
 }
@@ -64,19 +64,19 @@ val toCsv = fn(@list rows, @str sep = ",", @str quote = "\"", @str eol = "\r\n",
 )
 @export
 @returns('@list')
-val fromCsvString = fn(@str csvStr, @str sep = ",", @str quote = "\"") {
+val fromCsvString = fn(csvStr:str, sep:str = ",", quote:str = "\"") {
 	parseCsv(csvStr, sep, quote, 0, len(csvStr), [], [], false)
 }
 
 // --- internal helpers ---
 
-val rowToCsv = fn(@list row, @str sep, @str quote, @str eol, @str acc = "") match {
+val rowToCsv = fn(row:list, sep:str, quote:str, eol:str, acc:str = "") match {
 	[[], ...] => acc + eol
 	[[h], ...] => recur([], sep, quote, eol, acc + cellToCsv(h, sep, quote))
 	[[h, ...t], ...] => recur(t, sep, quote, eol, acc + cellToCsv(h, sep, quote) + sep)
 }
 
-val cellToCsv = fn(@str cell, @str sep, @str quote) {
+val cellToCsv = fn(cell:str, sep:str, quote:str) {
 	val needsQuote = cell /> contains(sep)
 			|| cell /> contains(quote)
 			|| cell /> contains("\n")
@@ -88,7 +88,7 @@ val cellToCsv = fn(@str cell, @str sep, @str quote) {
 	}
 }
 
-val parseCsv = fn(@str csvStr, @str sep, @str quote, @num i, @num n, @list accRows, @list accRow, @bool inQuotes, @str accField = "") {
+val parseCsv = fn(csvStr:str, sep:str, quote:str, i:num, n:num, accRows:list, accRow:list, inQuotes:bool, accField:str = "") {
 	if (i >= n) {
 		val finalRow  = flushFieldToRow(accRow, accField)
 		val finalRows = flushRow(accRows, finalRow)
@@ -128,10 +128,10 @@ val parseCsv = fn(@str csvStr, @str sep, @str quote, @num i, @num n, @list accRo
 	}
 }
 
-val flushFieldToRow = fn(@list row, @str field) {
+val flushFieldToRow = fn(row:list, field:str) {
 	if (len(field) == 0 && len(row) == 0) { row } else { row :+ field }
 }
 
-val flushRow = fn(@list rows, @list row) {
+val flushRow = fn(rows:list, row:list) {
 	if (len(row) == 0) { rows } else { rows :+ row }
 }

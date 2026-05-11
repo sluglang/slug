@@ -1547,6 +1547,11 @@ func (p *Parser) parseFunctionParameters() []*ast.FunctionParameter {
 			p.nextToken() // consume identifier
 			p.nextToken() // consume :
 			param.Type = p.parseTypeAnnotationLiteral(token.ASSIGN, token.COMMA, token.RPAREN)
+			if len(param.Tags) == 0 {
+				if inferred := inferredTagsFromDeclaredType(param.Type); len(inferred) > 0 {
+					param.Tags = append(param.Tags, inferred...)
+				}
+			}
 		}
 		if p.peekTokenIs(token.ASSIGN) {
 			p.nextToken() // consume current token
@@ -2439,6 +2444,53 @@ func (p *Parser) parseTypeAnnotationLiteral(stop ...token.TokenType) string {
 		p.nextToken()
 	}
 	return strings.TrimSpace(strings.Join(parts, ""))
+}
+
+func inferredTagsFromDeclaredType(raw string) []*ast.Tag {
+	decl := strings.TrimSpace(raw)
+	if decl == "" {
+		return nil
+	}
+	if strings.Contains(decl, "|") {
+		return nil
+	}
+	ident := decl
+	if i := strings.Index(ident, "<"); i >= 0 {
+		ident = strings.TrimSpace(ident[:i])
+	}
+	switch ident {
+	case "num", "str", "bool", "list", "map", "bytes", "sym", "fn", "chan", "task", "struct":
+		return []*ast.Tag{{Name: "@" + ident}}
+	}
+	// Bare identifiers are nominal struct types, e.g. User => @struct(User)
+	if isSimpleTypeIdent(ident) {
+		return []*ast.Tag{{
+			Name: "@struct",
+			Args: []ast.Expression{
+				&ast.Identifier{
+					Token: token.Token{Type: token.IDENT, Literal: ident},
+					Value: ident,
+				},
+			},
+		}}
+	}
+	return nil
+}
+
+func isSimpleTypeIdent(s string) bool {
+	if s == "" {
+		return false
+	}
+	for i, r := range s {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || r == '_' {
+			continue
+		}
+		if i > 0 && r >= '0' && r <= '9' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func (p *Parser) skipLeadingNewlines() {

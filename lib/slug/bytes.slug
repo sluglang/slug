@@ -16,7 +16,7 @@
 )
 @export
 @returns('@bytes')
-foreign strToBytes = fn(@str s)
+foreign strToBytes = fn(s:str)
 
 
 /**
@@ -28,7 +28,7 @@ foreign strToBytes = fn(@str s)
 )
 @export
 @returns('@str')
-foreign bytesToStr = fn(@bytes b)
+foreign bytesToStr = fn(b:bytes)
 
 
 /**
@@ -41,7 +41,7 @@ foreign bytesToStr = fn(@bytes b)
 )
 @export
 @returns('@bytes')
-foreign hexStrToBytes = fn(@str hex)
+foreign hexStrToBytes = fn(hex:str)
 
 
 /**
@@ -53,7 +53,7 @@ foreign hexStrToBytes = fn(@str hex)
 )
 @export
 @returns('@str')
-foreign bytesToHexStr = fn(@bytes b)
+foreign bytesToHexStr = fn(b:bytes)
 
 
 /**
@@ -65,7 +65,7 @@ foreign bytesToHexStr = fn(@bytes b)
 )
 @export
 @returns('@bytes')
-foreign base64Decode = fn(@str s)
+foreign base64Decode = fn(s:str)
 
 
 /**
@@ -77,7 +77,7 @@ foreign base64Decode = fn(@str s)
 )
 @export
 @returns('@str')
-foreign base64Encode = fn(@bytes b)
+foreign base64Encode = fn(b:bytes)
 
 
 /**
@@ -88,7 +88,7 @@ foreign base64Encode = fn(@bytes b)
 )
 @export
 @returns('@bytes')
-val repeat = fn(@bytes b, @num count, @bytes acc = 0x"") match {
+val repeat = fn(b:bytes, count:num, acc:bytes = 0x"") match {
     [_, 0, ...] => acc
     [...] => recur(b, count - 1, acc + b)
 }
@@ -102,7 +102,7 @@ val repeat = fn(@bytes b, @num count, @bytes acc = 0x"") match {
 )
 @export
 @returns('@list')
-val bytesToNumbers = fn(@bytes b, i = 0, acc = []) match {
+val bytesToNumbers = fn(b:bytes, i = 0, acc = []) match {
     [b, ...] if len(b) == i => acc
     [b, ...]                => recur(b, i + 1, acc :+ b[i])
 }

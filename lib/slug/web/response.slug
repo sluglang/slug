@@ -65,8 +65,7 @@ val json = import("slug.json")
  * Set `fragment` to render an HTMX partial instead of the full page.
  * Extra `headers` are merged into the final response.
  */
-@export
-val Reply = struct {
+@export val Reply = struct {
 	@str view,
 	@str fragment,
 	@map data    = {},
@@ -79,8 +78,7 @@ val Reply = struct {
  *
  * Header names are always normalised to lowercase.
  */
-@export
-val Response = struct {
+@export val Response = struct {
 	@num status,
 	@map headers,
 	body,
@@ -98,7 +96,7 @@ val FormattedResponse = struct {
  */
 @export
 @returns('@struct(Response)')
-val response = fn(@num status, @str body) {
+val response = fn(status:num, body:str) {
 	Response { status: status, headers: {}, body: body }
 }
 
@@ -107,21 +105,21 @@ val response = fn(@num status, @str body) {
  */
 @export
 @returns('@struct(Response)')
-val ok = fn(@str body) { response(200, body) }
+val ok = fn(body:str) { response(200, body) }
 
 /**
  * 201 Created response.
  */
 @export
 @returns('@struct(Response)')
-val created = fn(@str body) { response(201, body) }
+val created = fn(body:str) { response(201, body) }
 
 /**
  * 202 Accepted response.
  */
 @export
 @returns('@struct(Response)')
-val accepted = fn(@str body) { response(202, body) }
+val accepted = fn(body:str) { response(202, body) }
 
 /**
  * 204 No Content response.
@@ -135,42 +133,42 @@ val noContent = fn() { response(204, "") }
  */
 @export
 @returns('@struct(Response)')
-val badRequest = fn(@str body) { response(400, body) }
+val badRequest = fn(body:str) { response(400, body) }
 
 /**
  * 401 Unauthorized response.
  */
 @export
 @returns('@struct(Response)')
-val unauthorized = fn(@str body) { response(401, body) }
+val unauthorized = fn(body:str) { response(401, body) }
 
 /**
  * 403 Forbidden response.
  */
 @export
 @returns('@struct(Response)')
-val forbidden = fn(@str body) { response(403, body) }
+val forbidden = fn(body:str) { response(403, body) }
 
 /**
  * 404 Not Found response.
  */
 @export
 @returns('@struct(Response)')
-val notFound = fn(@str body = "404 Not Found") { response(404, body) }
+val notFound = fn(body:str = "404 Not Found") { response(404, body) }
 
 /**
  * 409 Conflict response.
  */
 @export
 @returns('@struct(Response)')
-val conflict = fn(@str body) { response(409, body) }
+val conflict = fn(body:str) { response(409, body) }
 
 /**
  * 413 Payload Too Large response. Also sets `Connection: close`.
  */
 @export
 @returns('@struct(Response)')
-val payloadTooLarge = fn(@str body = "413 Payload Too Large") {
+val payloadTooLarge = fn(body:str = "413 Payload Too Large") {
 	response(413, body) /> withHeader("Connection", "close")
 }
 
@@ -179,7 +177,7 @@ val payloadTooLarge = fn(@str body = "413 Payload Too Large") {
  */
 @export
 @returns('@struct(Response)')
-val serverError = fn(@str body = "500 Server Error") { response(500, body) }
+val serverError = fn(body:str = "500 Server Error") { response(500, body) }
 
 // --- basic modifiers ---
 
@@ -188,7 +186,7 @@ val serverError = fn(@str body = "500 Server Error") { response(500, body) }
  */
 @export
 @returns('@struct(Response)')
-val withStatus = fn(res, @num status) {
+val withStatus = fn(res, status:num) {
 	res copy { status: status }
 }
 
@@ -197,7 +195,7 @@ val withStatus = fn(res, @num status) {
  */
 @export
 @returns('@struct(Response)')
-val withBody = fn(res, @str body) {
+val withBody = fn(res, body:str) {
 	res copy { body: body }
 }
 
@@ -219,7 +217,7 @@ val hasHeader = fn(res, key) {
  */
 @export
 @returns('@struct(Response)')
-val withHeader = fn(res, @str key, @str value) {
+val withHeader = fn(res, key:str, value:str) {
 	val k  = normKey(key)
 	val hs = res.headers /> put(k, value)
 	res copy { headers: hs }
@@ -233,7 +231,7 @@ val withHeader = fn(res, @str key, @str value) {
  */
 @export
 @returns('@struct(Response)')
-val withHeaders = fn(res, @map headersMap) {
+val withHeaders = fn(res, headersMap:map) {
 	headersMap /> keys /> reduce(res, fn(acc, rawKey) {
 		acc /> withHeader(rawKey, headersMap[rawKey])
 	})
@@ -244,7 +242,7 @@ val withHeaders = fn(res, @map headersMap) {
  */
 @export
 @returns('@struct(Response)')
-val withoutHeader = fn(res, @str key) {
+val withoutHeader = fn(res, key:str) {
 	res copy { headers: remove(res.headers, normKey(key)) }
 }
 
@@ -256,7 +254,7 @@ val withoutHeader = fn(res, @str key) {
  */
 @export
 @returns('@struct(Response)')
-val addHeader = fn(res, @str key, @str value) {
+val addHeader = fn(res, key:str, value:str) {
 	val k    = normKey(key)
 	val cur  = res.headers /> get(k)
 	val next = toList(cur) :+ value
@@ -270,7 +268,7 @@ val addHeader = fn(res, @str key, @str value) {
  */
 @export
 @returns('@struct(Response)')
-val withContentType = fn(res, @str ct) {
+val withContentType = fn(res, ct:str) {
 	withHeader(res, "content-type", ct)
 }
 
@@ -279,7 +277,7 @@ val withContentType = fn(res, @str ct) {
  */
 @export
 @returns('@struct(Response)')
-val html = fn(@str markup) {
+val html = fn(markup:str) {
 	ok(markup) /> withContentType("text/html; charset=utf-8")
 }
 
@@ -288,7 +286,7 @@ val html = fn(@str markup) {
  */
 @export
 @returns('@struct(Response)')
-val text = fn(@str txt) {
+val text = fn(txt:str) {
 	ok(txt) /> withContentType("text/plain; charset=utf-8")
 }
 
@@ -308,7 +306,7 @@ val jsonOk = fn(value) {
  */
 @export
 @returns('@struct(Response)')
-val redirect = fn(@str location) {
+val redirect = fn(location:str) {
 	response(302, "") /> withHeader("location", location)
 }
 
@@ -317,7 +315,7 @@ val redirect = fn(@str location) {
  */
 @export
 @returns('@struct(Response)')
-val redirectPermanent = fn(@str location) {
+val redirectPermanent = fn(location:str) {
 	response(301, "") /> withHeader("location", location)
 }
 
@@ -340,7 +338,7 @@ val noCache = fn(res) {
  */
 @export
 @returns('@struct(Response)')
-val cacheSeconds = fn(res, @num seconds) {
+val cacheSeconds = fn(res, seconds:num) {
 	withHeader(res, "cache-control", "public, max-age=" + seconds)
 }
 
@@ -371,7 +369,7 @@ val withConnKeepAlive = fn(res) {
  */
 @export
 @returns('@struct(Response)')
-val hxTrigger = fn(res, @str eventName) {
+val hxTrigger = fn(res, eventName:str) {
 	withHeader(res, "hx-trigger", eventName)
 }
 
@@ -380,7 +378,7 @@ val hxTrigger = fn(res, @str eventName) {
  */
 @export
 @returns('@struct(Response)')
-val hxRedirect = fn(res, @str location) {
+val hxRedirect = fn(res, location:str) {
 	withHeader(res, "hx-redirect", location)
 }
 
@@ -389,7 +387,7 @@ val hxRedirect = fn(res, @str location) {
  */
 @export
 @returns('@struct(Response)')
-val hxRetarget = fn(res, @str selector) {
+val hxRetarget = fn(res, selector:str) {
 	withHeader(res, "hx-retarget", selector)
 }
 
@@ -403,7 +401,7 @@ val hxRetarget = fn(res, @str selector) {
  */
 @export
 @returns('@str')
-val cookie = fn(@str name, @str value, @map opts) {
+val cookie = fn(name:str, value:str, opts:map) {
 	var parts = [name + "=" + value]
 	if (get(opts, "path")     != nil)   { parts = parts :+ "Path="     + get(opts, "path") }
 	if (get(opts, "domain")   != nil)   { parts = parts :+ "Domain="   + get(opts, "domain") }
@@ -423,7 +421,7 @@ val cookie = fn(@str name, @str value, @map opts) {
  */
 @export
 @returns('@struct(Response)')
-val setCookie = fn(res, @str name, @str value, @map opts) {
+val setCookie = fn(res, name:str, value:str, opts:map) {
 	addHeader(res, "set-cookie", cookie(name, value, opts))
 }
 
@@ -432,7 +430,7 @@ val setCookie = fn(res, @str name, @str value, @map opts) {
  */
 @export
 @returns('@struct(Response)')
-val clearCookie = fn(res, @str name, @map opts) {
+val clearCookie = fn(res, name:str, opts:map) {
 	setCookie(res, name, "", put(opts, "maxAge", 0))
 }
 
@@ -475,8 +473,7 @@ val headers = fn(res) { res.headers }
 /**
  * returns the body of a response.
  */
-@export
-val body = fn(res) { res.body }
+@export val body = fn(res) { res.body }
 
 // --- HTTP wire format ---
 

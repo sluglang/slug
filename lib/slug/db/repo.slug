@@ -73,9 +73,9 @@ val MODE_BLOCK_CMT = :block_cmt
  * Do not construct directly; use `extractArgs`.
  */
 val SqlQuery = struct {
-	@str  sql,    // rewritten SQL with ? placeholders
+	@str sql,    // rewritten SQL with ? placeholders
 	@list args,   // ordered list of param symbols matching ? positions
-	@sym  type,   // :query (SELECT/WITH) or :exec (all other statements)
+	@sym type,   // :query (SELECT/WITH) or :exec (all other statements)
 }
 
 /**
@@ -87,7 +87,7 @@ val SqlQuery = struct {
  */
 @export
 @returns("@map")
-val loadQueries = fn(@str base = DefaultBase) {
+val loadQueries = fn(base:str = DefaultBase) {
 	val baseLen = len(base)
 	listFilesRecursive([base], fn(s) { s[-4:] == '.sql' })
 	/> reduce({}, fn(repos, path) {
@@ -112,7 +112,7 @@ val loadQueries = fn(@str base = DefaultBase) {
  */
 @export
 @returns("?")
-val into = fn(@map data, target, @fn columnToFieldName = fn(s) { camelCase(s, '_') }) {
+val into = fn(data:map, target, columnToFieldName:fn = fn(s) { camelCase(s, '_') }) {
 	val mapped = data /> keys /> reduce({}, fn(m, k) {
 		put(m, sym(columnToFieldName(k)), data[k])
 	})
@@ -131,7 +131,7 @@ val into = fn(@map data, target, @fn columnToFieldName = fn(s) { camelCase(s, '_
  */
 @export
 @returns("@list")
-val into = fn(@list data, toType, @fn columnToFieldName = fn(s) { camelCase(s, '_') }) {
+val into = fn(data:list, toType, columnToFieldName:fn = fn(s) { camelCase(s, '_') }) {
 	data /> map(fn(v) { into(v, toType, columnToFieldName) })
 }
 
@@ -166,9 +166,9 @@ val sqlType = fn(sql) {
 
 // --- character helpers ---
 
-val isAlphanumeric = fn(@str s) { isLetter(s) || isNumber(s) || s == '_' }
-val isLetter       = fn(@str s) { 'abcdefghijklmnopqrstuvwxyz' /> indexOf(s /> toLower) >= 0 }
-val isNumber       = fn(@str s) { '0123456789' /> indexOf(s) >= 0 }
+val isAlphanumeric = fn(s:str) { isLetter(s) || isNumber(s) || s == '_' }
+val isLetter       = fn(s:str) { 'abcdefghijklmnopqrstuvwxyz' /> indexOf(s /> toLower) >= 0 }
+val isNumber       = fn(s:str) { '0123456789' /> indexOf(s) >= 0 }
 
 // --- named parameter extractor ---
 

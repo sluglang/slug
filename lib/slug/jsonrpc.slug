@@ -30,7 +30,7 @@ val {*} = import(
  */
 @export
 @returns('@map')
-val request = fn(id, @str method, params = nil) {
+val request = fn(id, method:str, params = nil) {
 	assertValidMethod(method)
 	assertValidId(id)
 	assertValidParams(params)
@@ -48,7 +48,7 @@ val request = fn(id, @str method, params = nil) {
  */
 @export
 @returns('@map')
-val notification = fn(@str method, params = nil) {
+val notification = fn(method:str, params = nil) {
 	assertValidMethod(method)
 	assertValidParams(params)
 
@@ -80,7 +80,7 @@ val success = fn(id, result = nil) {
  */
 @export
 @returns('@map')
-val errorObject = fn(@num code, @str message, data = nil) {
+val errorObject = fn(code:num, message:str, data = nil) {
 	assertInteger(code, "error code must be an integer")
 	val base = {
 		"code": code,
@@ -97,7 +97,7 @@ val errorObject = fn(@num code, @str message, data = nil) {
  */
 @export
 @returns('@map')
-val failure = fn(id, @num code, @str message, data = nil) {
+val failure = fn(id, code:num, message:str, data = nil) {
 	assertValidId(id)
 	{
 		"jsonrpc": VERSION,
@@ -127,7 +127,7 @@ val encode = fn(message) {
  */
 @export
 @throws('@struct(Error{type:JsonRpcError})')
-val parse = fn(@str payload) {
+val parse = fn(payload:str) {
 	defer onerror(err) {
 		if (isJsonRpcError(err)) {
 			throw err
@@ -231,7 +231,7 @@ val isErrorResponse = fn(v) {
 
 // --- internals ---
 
-val runValidation = fn(@fn f) {
+val runValidation = fn(f:fn) {
 	defer onerror(err) {
 		{ error: err }
 	}
@@ -243,7 +243,7 @@ val isJsonRpcError = fn(err) {
 	isStructInstance(err) && err.type == "JsonRpcError"
 }
 
-val invalidRequest = fn(@str msg, data = nil) {
+val invalidRequest = fn(msg:str, data = nil) {
 	throw Error {
 		type: "JsonRpcError",
 		msg: msg,
@@ -280,7 +280,7 @@ val validateMessageObject = fn(v) {
 	v
 }
 
-val validateVersion = fn(@map v) {
+val validateVersion = fn(v:map) {
 	if (!hasField(v, "jsonrpc")) {
 		invalidRequest("missing 'jsonrpc' member")
 	}
@@ -362,14 +362,14 @@ val validateErrorObject = fn(v) {
 	v
 }
 
-val putParams = fn(@map payload, params) {
+val putParams = fn(payload:map, params) {
 	match params {
 		nil => payload
 		_ => payload /> put("params", params)
 	}
 }
 
-val assertValidMethod = fn(@str method) {
+val assertValidMethod = fn(method:str) {
 	if (len(method) >= 4 && method[0:4] == "rpc.") {
 		throw Error {
 			type: "JsonRpcError",
@@ -410,7 +410,7 @@ val assertValidId = fn(id) {
 	}
 }
 
-val assertInteger = fn(@num n, @str msg) {
+val assertInteger = fn(n:num, msg:str) {
 	if (n % 1 != 0) {
 		throw Error {
 			type: "JsonRpcError",
@@ -420,12 +420,12 @@ val assertInteger = fn(@num n, @str msg) {
 	}
 }
 
-val hasField = fn(@map m, @str key) {
+val hasField = fn(m:map, key:str) {
 	val ks = m /> keys()
 	(ks /> indexOf(key)) >= 0 || (ks /> indexOf(sym(key))) >= 0
 }
 
-val readField = fn(@map m, @str key) {
+val readField = fn(m:map, key:str) {
 	val ks = m /> keys()
 	if ((ks /> indexOf(key)) >= 0) {
 		m[key]

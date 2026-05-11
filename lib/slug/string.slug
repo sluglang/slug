@@ -25,7 +25,7 @@ val {*} = import(
 )
 @export
 @returns('@str')
-foreign trim = fn(@str str)
+foreign trim = fn(str:str)
 
 /**
  * removes all leading and trailing occurrences of `prefix` from `s`.
@@ -42,7 +42,7 @@ foreign trim = fn(@str str)
 )
 @export
 @returns('@str')
-val trim = fn(@str s, @str prefix) {
+val trim = fn(s:str, prefix:str) {
 	match s {
 		nil => nil
 		_ if s[0:len(prefix)] == prefix           => recur(s[len(prefix):], prefix)
@@ -65,7 +65,7 @@ val trim = fn(@str s, @str prefix) {
 )
 @export
 @returns('@num')
-foreign indexOf = fn(@str str, @str seq, @num index = 0)
+foreign indexOf = fn(str:str, seq:str, index:num = 0)
 
 /**
  * returns the index of the last occurrence of `seq` in `str`.
@@ -79,7 +79,7 @@ foreign indexOf = fn(@str str, @str seq, @num index = 0)
 )
 @export
 @returns('@num')
-val lastIndexOf = fn(@str str, @str seq, @num index = 0, prev = -1) {
+val lastIndexOf = fn(str:str, seq:str, index:num = 0, prev = -1) {
 	val i = indexOf(str, seq, index)
 	if (i == -1) { prev } else { recur(str, seq, i + 1, i) }
 }
@@ -94,7 +94,7 @@ val lastIndexOf = fn(@str str, @str seq, @num index = 0, prev = -1) {
 )
 @export
 @returns('@str')
-foreign toUpper = fn(@str str)
+foreign toUpper = fn(str:str)
 
 /**
  * converts a string to lowercase.
@@ -106,7 +106,7 @@ foreign toUpper = fn(@str str)
 )
 @export
 @returns('@str')
-foreign toLower = fn(@str str)
+foreign toLower = fn(str:str)
 
 /**
  * returns the string corresponding to a Unicode code point.
@@ -117,7 +117,7 @@ foreign toLower = fn(@str str)
 )
 @export
 @returns('@str')
-foreign fromCodePoint = fn(@num codePoint)
+foreign fromCodePoint = fn(codePoint:num)
 
 /**
  * returns true if `seq` appears anywhere in `str`.
@@ -128,7 +128,7 @@ foreign fromCodePoint = fn(@num codePoint)
 )
 @export
 @returns('@bool')
-val contains = fn(@str str, @str seq) {
+val contains = fn(str:str, seq:str) {
 	str /> indexOf(seq) >= 0
 }
 
@@ -141,8 +141,8 @@ val contains = fn(@str str, @str seq) {
 )
 @export
 @returns('@bool')
-val containsAny = fn(@str str, ...seq) {
-	fn(@num i) {
+val containsAny = fn(str:str, ...seq) {
+	fn(i:num) {
 		match contains(str, seq[i]) {
 			false if i <= 0 => false
 			false           => recur( i - 1 )
@@ -160,7 +160,7 @@ val containsAny = fn(@str str, ...seq) {
 )
 @export
 @returns('@bool')
-val startsWith = fn(@str str, @str start) {
+val startsWith = fn(str:str, start:str) {
 	str[0:len(start)] == start
 }
 
@@ -173,7 +173,7 @@ val startsWith = fn(@str str, @str start) {
 )
 @export
 @returns('@bool')
-val endsWith = fn(@str str, @str end) {
+val endsWith = fn(str:str, end:str) {
 	str[len(str) - len(end):] == end
 }
 
@@ -188,7 +188,7 @@ val endsWith = fn(@str str, @str end) {
 )
 @export
 @returns('@bool')
-val isUpper = fn(@str str) {
+val isUpper = fn(str:str) {
 	str != nil && len(str) > 0 && str == str /> toUpper()
 }
 
@@ -203,7 +203,7 @@ val isUpper = fn(@str str) {
 )
 @export
 @returns('@bool')
-val isLower = fn(@str str) {
+val isLower = fn(str:str) {
 	str != nil && len(str) > 0 && str == str /> toLower()
 }
 
@@ -222,7 +222,7 @@ val isLower = fn(@str str) {
 )
 @export
 @returns('@list')
-val split = fn(@str str, @str delimiter, @num max = -1, @num count = 1, @list strs = []) {
+val split = fn(str:str, delimiter:str, max:num = -1, count:num = 1, strs:list = []) {
 	match str /> indexOf(delimiter) {
 		n if n >= 0 && (max < 0 || count < max) => {
 			val i = n + delimiter /> len()
@@ -244,7 +244,7 @@ val split = fn(@str str, @str delimiter, @num max = -1, @num count = 1, @list st
 )
 @export
 @returns('@str')
-val join = fn(@list strs, @str delimiter = "", @str str = nil) match {
+val join = fn(strs:list, delimiter:str = "", str:str = nil) match {
 	[[], ...] if str == nil => ""
 	[[], ...]               => str
 	[[h, ...t], ...] if str == nil => recur(t, delimiter, h)
@@ -264,7 +264,7 @@ val join = fn(@list strs, @str delimiter = "", @str str = nil) match {
 )
 @export
 @returns('@str')
-val replaceAll = fn(@str str, @str replace, @str with) match {
+val replaceAll = fn(str:str, replace:str, with:str) match {
 	[nil, ...] => nil
 	[...]      => str /> split(replace) /> join(with)
 }
@@ -276,7 +276,7 @@ val replaceAll = fn(@str str, @str replace, @str with) match {
  */
 @export
 @returns('@str')
-val padRight = fn(@str str, @str with, @num length) {
+val padRight = fn(str:str, with:str, length:num) {
 	if (length <= len(str)) { str } else { recur(str + with, with, length) }
 }
 
@@ -287,7 +287,7 @@ val padRight = fn(@str str, @str with, @num length) {
  */
 @export
 @returns('@str')
-val padLeft = fn(@str str, @str with, @num length) {
+val padLeft = fn(str:str, with:str, length:num) {
 	if (length <= len(str)) { str } else { recur(with + str, with, length) }
 }
 
@@ -299,7 +299,7 @@ val padLeft = fn(@str str, @str with, @num length) {
 @export
 @effects('random')
 @returns('@str')
-val randomString = fn(@num length, @str chars, @str acc = "") match {
+val randomString = fn(length:num, chars:str, acc:str = "") match {
 	[0, ...] => acc
 	_        => recur(length - 1, chars, acc + chars[rndRange(0, len(chars))])
 }
@@ -312,7 +312,7 @@ val randomString = fn(@num length, @str chars, @str acc = "") match {
 @export
 @effects('random')
 @returns('@str')
-val randomHexString = fn(@num length) {
+val randomHexString = fn(length:num) {
 	randomString(length, "0123456789abcdef")
 }
 
@@ -332,7 +332,7 @@ val randomHexString = fn(@num length) {
 )
 @export
 @returns('@str')
-val snakeCase = fn(@str s, @str sep = ' ', screaming = false) {
+val snakeCase = fn(s:str, sep:str = ' ', screaming = false) {
 	s
 	/> fn(s) { if (screaming) { toUpper(s) } else { s } }
 	/> split(sep)
@@ -351,7 +351,7 @@ val snakeCase = fn(@str s, @str sep = ' ', screaming = false) {
 )
 @export
 @returns('@str')
-val kebabCase = fn(@str s, @str sep = ' ') {
+val kebabCase = fn(s:str, sep:str = ' ') {
 	s /> split(sep) /> join("-")
 }
 
@@ -367,7 +367,7 @@ val kebabCase = fn(@str s, @str sep = ' ') {
 )
 @export
 @returns('@str')
-val pascalCase = fn(@str s, @str sep = ' ') {
+val pascalCase = fn(s:str, sep:str = ' ') {
 	s
 	/> toLower
 	/> split(sep)
@@ -389,7 +389,7 @@ val pascalCase = fn(@str s, @str sep = ' ') {
 )
 @export
 @returns('@str')
-val camelCase = fn(@str s, @str sep = ' ') {
+val camelCase = fn(s:str, sep:str = ' ') {
 	s
 	/> toLower
 	/> split(sep)

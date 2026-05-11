@@ -28,13 +28,13 @@
  *   Subsequent paragraphs are ignored in MANIFEST output.
  *
  * Output format example:
- *   fn slug.repo#loadQueries(@str base = DefaultBase) -> @map
+ *   fn slug.repo#loadQueries(base:str = DefaultBase) -> @map
  *     desc: "scans base dir for .sql files; returns nested map of query functions"
  *     effects: fs
  *     errors:
  *       thrown: struct(Error) "unexpected filesystem failure"
  *
- *   struct slug.repo#SqlQuery{@str sql, @list args, @sym type}
+ *   struct slug.repo#SqlQuery{sql:str, args:list, type:sym}
  *     desc: "result of extractArgs; carries rewritten SQL and inferred statement type"
  *     field cause @str: "the original error that triggered this one"
  */
@@ -53,24 +53,24 @@ val { describe } = import("slug.meta",)
  * generates a MANIFEST.ai file for the given list of module names.
  *
  * modules are sorted alphabetically. within each module, symbols are
- * sorted alphabetically. the output contains two sections: @section modules
- * lists all module names, @section symbols lists all exported symbols in
+ * sorted alphabetically. the output contains two sections: modules:section
+ * lists all module names, symbols:section lists all exported symbols in
  * the Option 3 block format with indented metadata sub-lines.
  *
  * pass the full dotted module names as they would appear in an import statement.
  */
 @export
 @returns('@str')
-val manifest = fn(@list moduleNames) {
+val manifest = fn(moduleNames:list) {
 	val sortedMods = moduleNames /> sort
 
 	val symbolsList = sortedMods /> flatMap(symbols)
 
 	val lines = []
-	:+ '@section modules'
+	:+ 'modules:section'
 	+ sortedMods
 	:+ ''
-	:+ '@section symbols'
+	:+ 'symbols:section'
 	+ symbolsList
 
 	lines /> join("\n")
@@ -96,7 +96,7 @@ val firstTag = fn(tags, name) {
 
 // --- indent helper ---
 
-val indent = fn(lines, @str prefix="  ") {
+val indent = fn(lines, prefix:str="  ") {
 	lines /> map(fn(l) { prefix + l })
 }
 
@@ -119,7 +119,7 @@ val renderDefault = fn(param) match {
 	_ => ''
 }
 
-val renderParams = fn(@list params) {
+val renderParams = fn(params:list) {
 	params
 	/> map(fn(v) { renderTags(v.tags) + renderVargs(v) + v.name + renderDefault(v) })
 	/> join(', ')
@@ -128,7 +128,7 @@ val renderParams = fn(@list params) {
 // --- return type renderer ---
 // Now returns a string for the fn signature line only (no longer inline errors)
 
-val renderReturn = fn(@map details) {
+val renderReturn = fn(details:map) {
 	match details.tags['@returns'] {
 		nil  => ' -> ?'
 		[v]  => " -> {{v}}"
@@ -231,7 +231,7 @@ val renderFnEntry = fn(module, name, h) {
 	[sig] + block
 }
 
-val renderFns = fn(@list groups, @str module, @str name) {
+val renderFns = fn(groups:list, module:str, name:str) {
 	groups
 	/> flatMap(fn(h) { renderFnEntry(module, name, h) })
 }
@@ -277,7 +277,7 @@ val renderConst = fn(desc, module, name) {
 
 // --- top-level render dispatcher ---
 
-val render = fn(@map desc, @str module, @str name) match {
+val render = fn(desc:map, module:str, name:str) match {
 	[{type}, ...] if type == :grp    => renderFns(desc.details.groups, module, name)
 	[{type}, ...] if type == :fn     => renderFns([desc], module, name)
 	[{type}, ...] if type == :struct => renderStruct(desc, module, name)
@@ -286,7 +286,7 @@ val render = fn(@map desc, @str module, @str name) match {
 
 // --- module symbols renderer ---
 
-val symbols = fn(@str mod) {
+val symbols = fn(mod:str) {
 	defer onerror(err) []
 
 	val module = import(mod)

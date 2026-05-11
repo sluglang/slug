@@ -58,9 +58,9 @@ val response = import("slug.web.response")
 val { Reply, Response } = import("slug.web.response")
 
 val Views = struct {
-	@str  root,
+	@str root,
 	@bool dev,
-	@map  cache,
+	@map cache,
 }
 
 /**
@@ -72,7 +72,7 @@ val Views = struct {
  */
 @export
 @returns('@struct(Views)')
-val new = fn(@str root = "views") {
+val new = fn(root:str = "views") {
 	Views{
 		root:  root,
 		dev:   cfg("dev", cfg('dev', true)),
@@ -132,7 +132,7 @@ val renderReply = fn(vx, req, reply) {
 
 // --- internals ---
 
-val normalize = fn(@str base, @str name) {
+val normalize = fn(base:str, name:str) {
 	if (name[-9:] != '.mustache') {
 		base + name + '.mustache'
 	} else {
@@ -167,7 +167,7 @@ val getTemplate = fn(v, base, name) {
  *
  * Dots in partial names are converted to path separators in all cases.
  */
-val partialsLoader = fn(v, @str view) {
+val partialsLoader = fn(v, view:str) {
 	fn(n) {
 		defer onerror(err) getTemplate(v, 'partials/', n /> replaceAll('.', '/'))
 		if (n[0:7] == 'layouts') {

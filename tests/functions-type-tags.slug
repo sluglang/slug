@@ -4,31 +4,31 @@ var {*} = import(
 )
 
 
-var add = fn(@num b) {
+var add = fn(b:num) {
     b + 255
 }
 
-var add = fn(@bool b) {
+var add = fn(b:bool) {
     !b
 }
 
-var add = fn(@str b) {
+var add = fn(b:str) {
     b + " slug"
 }
 
-var add = fn(@list b) {
+var add = fn(b:list) {
     b :+ 255
 }
 
-var add = fn(@map b) {
+var add = fn(b:map) {
     put(b, "k", 255)
 }
 
-var add = fn(@bytes b) {
+var add = fn(b:bytes) {
     b :+ 255
 }
 
-var add = fn(@fn b) {
+var add = fn(b:fn) {
     b() + 255
 }
 

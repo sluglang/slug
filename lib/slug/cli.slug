@@ -446,8 +446,7 @@ val renderPositionalLine = fn(posSpec) {
  * Produces the same output that `argsWith` returns under `action: :help`.
  * Useful for displaying help outside the normal argument parsing flow.
  */
-@export
-val helpText = fn(spec) {
+@export val helpText = fn(spec) {
   val name     = spec.name    /> ifNil("program")
   val version  = spec.version /> ifNil("")
   val summary  = spec.summary /> ifNil("")
@@ -474,8 +473,7 @@ val helpText = fn(spec) {
  *
  * Produces the same output that `argsWith` returns under `action: :version`.
  */
-@export
-val versionText = fn(spec) {
+@export val versionText = fn(spec) {
   val name    = spec.name    /> ifNil("program")
   val version = spec.version /> ifNil("")
   match version { "" => name _ => name + " " + version }
@@ -503,8 +501,7 @@ val versionText = fn(spec) {
  * 6. Validate: unknown options, required options, positional bounds
  * 7. Return success or error result
  */
-@export
-val argsWith = fn(raw, spec) {
+@export val argsWith = fn(raw, spec) {
   val rawOptions    = raw.options    /> ifNil({})
   val rawPositional = raw.positional /> ifNil([])
 

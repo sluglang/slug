@@ -38,4 +38,3 @@ assert(St == St, "struct St == St")
 assert(instance == instance, "struct instance == instance")
 assert(St{} != St{}, "struct St{} == St{}")
 
-

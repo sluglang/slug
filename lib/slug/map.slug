@@ -27,7 +27,7 @@ val {*} = import(
 )
 @export
 @returns('@map')
-val putNested = fn(@map map, @list keys, value) match {
+val putNested = fn(map:map, keys:list, value) match {
 	[_, [h], ...]       => put(map, sym(h), value)
 	[_, [h, ...t], ...] if map[sym(h)] => put(map, sym(h), putNested(map[sym(h)], t, value))
 	[_, [h, ...t], ...]                => put(map, sym(h), putNested(map, t, value))
@@ -46,7 +46,7 @@ val putNested = fn(@map map, @list keys, value) match {
 )
 @export
 @returns('@map')
-val merge = fn(@map base, @map patch) {
+val merge = fn(base:map, patch:map) {
 	patch /> keys() /> reduce(base, fn(acc, k) {
 		acc /> put(k, patch[k])
 	})
@@ -66,7 +66,7 @@ val merge = fn(@map base, @map patch) {
 )
 @export
 @returns('@map')
-val patch = fn(@map base, @map patchData) {
+val patch = fn(base:map, patchData:map) {
 	patchData /> keys() /> reduce(base, fn(acc, k) {
 		val v1 = acc[k]
 		val v2 = patchData[k]
@@ -91,7 +91,7 @@ val patch = fn(@map base, @map patchData) {
 )
 @export
 @returns('@map')
-val union = fn(@map s1, @map s2) {
+val union = fn(s1:map, s2:map) {
 	s1 /> keys() /> reduce(s2, fn(s, k) {
 		s /> put(k, s1[k])
 	})
@@ -111,7 +111,7 @@ val union = fn(@map s1, @map s2) {
 )
 @export
 @returns('@map')
-val intersect = fn(@map s1, @map s2) {
+val intersect = fn(s1:map, s2:map) {
 	s1 /> keys()
 		/> filter(fn(k) { s2[k] == nil })
 		/> reduce(s1, fn(s, k) { s /> remove(k) })
@@ -126,7 +126,7 @@ val intersect = fn(@map s1, @map s2) {
 )
 @export
 @returns('@map')
-val difference = fn(@map s1, @map s2) {
+val difference = fn(s1:map, s2:map) {
 	s2 /> keys()
 		/> reduce(s1, fn(s, k) { s /> remove(k) })
 }

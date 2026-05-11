@@ -2158,3 +2158,29 @@ Tests added:
 Validation performed:
 - `go test ./internal/semantic -count=1`
 - `go test ./... -count=1`
+
+### Language: stdlib/test migration from `@tag` param hints to colon types
+
+- Migrated existing Slug source signatures from legacy parameter tags to colon type syntax.
+  - Example: `fn(@num n, @fn f)` -> `fn(n:num, f:fn)`.
+  - Applied across `lib/**/*.slug` and relevant `tests/**/*.slug` modules.
+- Preserved semantic/decorator tags (`@export`, `@main`, `@returns`, `@throws`, `@testWith`, etc.).
+- Kept struct field typing in current supported form (`@type field`) because struct-field colon syntax is not yet supported by parser.
+- Updated a few struct-ref parameters to colon form with nominal refs (e.g. `m:Migration`, `v:User`).
+
+Validation performed:
+- `go test ./... -count=1`
+
+### Migration compatibility: colon-typed params preserve overload dispatch
+
+- Fixed overload dispatch regression after migrating function parameter hints from `@tag` to `name:type` syntax.
+- Parser now infers runtime overload tags from colon parameter types when explicit parameter tags are absent.
+  - Examples:
+    - `name:str` -> `@str`
+    - `b:fn` -> `@fn`
+    - `m:User` -> `@struct(User)`
+- This keeps existing function overloading behavior compatible during migration while retaining colon syntax.
+
+Validation performed:
+- `go run ./cmd/app/main.go --root ./tests tests/functions-type-tags.slug`
+- `go test ./... -count=1`

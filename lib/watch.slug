@@ -140,7 +140,7 @@ val watch = fn(cmd, roots, exts, clear, showTime, pollMs, debounceMs) {
   [{}, {}],                  false,
   [{ "a": 2 }, { "a": 2 }], false,
 )
-val changed = fn(@map a, @map b) {
+val changed = fn(a:map, b:map) {
   match len(a) != len(b) {
     true  => true
     _     => a /> keys /> find(fn(k) { b[k] == nil || a[k] != b[k] }) /> match {
@@ -150,14 +150,14 @@ val changed = fn(@map a, @map b) {
   }
 }
 
-val snapshot = fn(@list roots, @list exts) {
+val snapshot = fn(roots:list, exts:list) {
   listFilesRecursive(roots, hasAnyExt(exts))
   /> map(fn(v) { [v, v /> info] })
   /> reduce({}, fn(a, b) { put(a, b[0], b[1].modTime) })
 }
 
-val hasAnyExt = fn(@list exts) {
-  fn(@str path) {
+val hasAnyExt = fn(exts:list) {
+  fn(path:str) {
     exts /> find(fn(v) { path /> endsWith(v) }) /> match {
       nil => false
       _   => true
@@ -167,8 +167,7 @@ val hasAnyExt = fn(@list exts) {
 
 // --- entrypoint ---
 
-@main
-val main = fn(args = argm()) {
+@main val main = fn(args = argm()) {
   val result = args /> argsWith(spec)
 
   match result {

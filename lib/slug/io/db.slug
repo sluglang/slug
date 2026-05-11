@@ -71,7 +71,7 @@
  */
 @export
 @returns('@num')
-foreign connect = fn(@str connectionString, @str driver)
+foreign connect = fn(connectionString:str, driver:str)
 
 /**
  * executes a SQL query and returns the result rows as a list of string-keyed maps.
@@ -83,7 +83,7 @@ foreign connect = fn(@str connectionString, @str driver)
  */
 @export
 @returns('@list')
-foreign query = fn(@num connection, @str sql, ...params)
+foreign query = fn(connection:num, sql:str, ...params)
 
 /**
  * executes a SQL statement and returns a result map.
@@ -95,7 +95,7 @@ foreign query = fn(@num connection, @str sql, ...params)
  */
 @export
 @returns('@map')
-foreign exec = fn(@num connection, @str sql, ...params)
+foreign exec = fn(connection:num, sql:str, ...params)
 
 /**
  * begins a transaction and returns a transaction handle.
@@ -107,7 +107,7 @@ foreign exec = fn(@num connection, @str sql, ...params)
  */
 @export
 @returns('@num')
-foreign begin = fn(@num connection)
+foreign begin = fn(connection:num)
 
 /**
  * commits a transaction.
@@ -116,7 +116,7 @@ foreign begin = fn(@num connection)
  */
 @export
 @returns('@num')
-foreign commit = fn(@num connection)
+foreign commit = fn(connection:num)
 
 /**
  * rolls back a transaction.
@@ -125,7 +125,7 @@ foreign commit = fn(@num connection)
  */
 @export
 @returns('@num')
-foreign rollback = fn(@num connection)
+foreign rollback = fn(connection:num)
 
 /**
  * closes a database connection or transaction handle.
@@ -136,4 +136,4 @@ foreign rollback = fn(@num connection)
  */
 @export
 @returns('nil')
-foreign close = fn(@num connection)
+foreign close = fn(connection:num)

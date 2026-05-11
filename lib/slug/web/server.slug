@@ -69,9 +69,9 @@ val log = import("slug.log").logger(moduleName())
 @export
 @throws('@struct(Error{type:ServerError})')
 val serve = nursery limit 1000 fn(
-	@fn app,
-	@str addr = cfg("address", "0.0.0.0"),
-	@num port = cfg("port", 8080)
+	app:fn,
+	addr:str = cfg("address", "0.0.0.0"),
+	port:num = cfg("port", 8080)
 ) {
 	"""
 #
@@ -86,13 +86,13 @@ val serve = nursery limit 1000 fn(
 
 // --- connection loop ---
 
-val acceptLoop = fn(listener, @fn app) {
+val acceptLoop = fn(listener, app:fn) {
 	val conn = tcp.accept(listener)
 	spawn { handleConn(conn, app) }
 	recur(listener, app)
 }
 
-val handleConn = fn(conn, @fn app) {
+val handleConn = fn(conn, app:fn) {
 	defer { tcp.close(conn) }
 	defer onerror(err) match {
 		Error{ type: 'TimeoutError' } => { log.error("error: {} {}", conn, err); nil }
@@ -101,7 +101,7 @@ val handleConn = fn(conn, @fn app) {
 	connLoop(conn, app, "", 0, 100, secsToMillis(10))
 }
 
-val connLoop = fn(conn, @fn app, buf, n, maxReq, idleMs) {
+val connLoop = fn(conn, app:fn, buf, n, maxReq, idleMs) {
 	if (n >= maxReq) {
 		nil
 	} else {

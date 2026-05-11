@@ -116,7 +116,7 @@ val BlockNode = struct {
 	@bool trailingNl,
 }
 
-val isWs = fn(@str s) {
+val isWs = fn(s:str) {
 	if (s == nil || len(s) == 0) {
 		true 
 	} else {
@@ -137,7 +137,7 @@ val isWs = fn(@str s) {
 	}
 }
 
-val isWsOrTags = fn(@str s, @str otag, @str ctag) {
+val isWsOrTags = fn(s:str, otag:str, ctag:str) {
 	if (s == nil || len(s) == 0) {
 		true
 	} else {
@@ -166,17 +166,17 @@ val isWsOrTags = fn(@str s, @str otag, @str ctag) {
 	}
 }
 
-val lineStart = fn(@str s, @num idx) {
+val lineStart = fn(s:str, idx:num) {
 	var k = if(idx <= 0) {-1} else {(s[0:idx] /> lastIndexOf("\n"))}
 	if(k < 0) {0} else {(k + 1)}
 }
 
-val lineEnd = fn(@str s, @num idx) {
+val lineEnd = fn(s:str, idx:num) {
 	var k = s /> indexOf("\n", idx)
 	if(k < 0) {len(s)} else {k}
 }
 
-val htmlEscape = fn(@str s) {
+val htmlEscape = fn(s:str) {
 	if (s == nil) { 
 		"" 
 	} else {
@@ -214,7 +214,7 @@ val lookupIn = fn(ctx, parts, idx = 0) {
 	}
 }
 
-val lookup = fn(@list stack, @str name, i = nil) {
+val lookup = fn(stack:list, name:str, i = nil) {
 	if (i == nil) { i = len(stack) - 1 }
 	if (i < 0) { 
 		nil 
@@ -237,7 +237,7 @@ val lookup = fn(@list stack, @str name, i = nil) {
 	}
 }
 
-val indentPartial = fn(@str partial, @str indent) {
+val indentPartial = fn(partial:str, indent:str) {
 	if (indent == "" || partial == nil || partial == "") {
 		partial /> ifNil("")
 	} else {
@@ -259,7 +259,7 @@ val indentPartial = fn(@str partial, @str indent) {
 	}
 }
 
-val indentLines = fn(@str text, @str indent) {
+val indentLines = fn(text:str, indent:str) {
 	if (indent == "" || text == nil || text == "") {
 		text /> ifNil("")
 	} else {
@@ -281,7 +281,7 @@ val indentLines = fn(@str text, @str indent) {
 	}
 }
 
-val leadingWsLen = fn(@str line) {
+val leadingWsLen = fn(line:str) {
 	var i = 0
 	fn() {
 		if (i >= len(line)) {
@@ -298,7 +298,7 @@ val leadingWsLen = fn(@str line) {
 	}()
 }
 
-val blockIndentInfo = fn(@str raw) {
+val blockIndentInfo = fn(raw:str) {
 	if (raw == nil || raw == "") {
 		{len:0, prefix:""}
 	} else {
@@ -328,7 +328,7 @@ val blockIndentInfo = fn(@str raw) {
 	}
 }
 
-val stripIndent = fn(@str text, @num count) {
+val stripIndent = fn(text:str, count:num) {
 	if (count <= 0 || text == nil || text == "") {
 		text /> ifNil("")
 	} else {
@@ -361,7 +361,7 @@ val stripIndent = fn(@str text, @num count) {
 	}
 }
 
-val resolvePartial = fn(partials, @str name) {
+val resolvePartial = fn(partials, name:str) {
 	if (partials == nil) {
 		nil
 	} else if (type(partials) == MAP_TYPE) {
@@ -373,7 +373,7 @@ val resolvePartial = fn(partials, @str name) {
 	}
 }
 
-val mapLookup = fn(@map m, @str key) {
+val mapLookup = fn(m:map, key:str) {
 	var value = m[key]
 	if (value != nil) {
 		value
@@ -389,8 +389,7 @@ val mapLookup = fn(@map m, @str key) {
  * to avoid re-parsing on repeated renders. The AST shape is an
  * implementation detail — do not rely on its structure directly.
  */
-@export
-val parse = fn(@str template) {
+@export val parse = fn(template:str) {
 	var otag = DEFAULT_OTAG
 	var ctag = DEFAULT_CTAG
 

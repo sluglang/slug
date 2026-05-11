@@ -118,8 +118,7 @@ val runMarkdown = fn(dir, outPath, title, multiPage, moduleToc) {
 
 // --- entrypoint ---
 
-@main
-val main = fn(args = argm()) {
+@main val main = fn(args = argm()) {
 
 	val result = args /> argsWith(spec)
 
