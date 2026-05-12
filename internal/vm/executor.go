@@ -888,9 +888,28 @@ func (e *Executor) run(chunk *Chunk) object.Object {
 			if !ok {
 				return e.errorAt(ins.Position, "stack underflow for throw")
 			}
+			frame := &object.StackFrame{
+				Function: "",
+				File:     "",
+				Src:      "",
+				Position: ins.Position,
+			}
+			if e.env != nil {
+				frame.File = e.env.Path
+				frame.Src = e.env.Src
+				if e.env.StackInfo != nil {
+					frame.Function = e.env.StackInfo.Function
+					if frame.File == "" {
+						frame.File = e.env.StackInfo.File
+					}
+					if frame.Src == "" {
+						frame.Src = e.env.StackInfo.Src
+					}
+				}
+			}
 			rtErr := &object.RuntimeError{
 				Payload:    val,
-				StackTrace: nil,
+				StackTrace: []*object.StackFrame{frame},
 			}
 			return e.unwindDeferredScopes(rtErr)
 		case OpReturn:

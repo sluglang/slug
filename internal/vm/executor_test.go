@@ -150,6 +150,26 @@ func TestExecutorRuntimeErrorFormattingIncludesSourceContext(t *testing.T) {
 	}
 }
 
+func TestExecutorRuntimeErrorFormattingForAssertionFailure(t *testing.T) {
+	rtErr := &object.RuntimeError{
+		Payload: &object.String{Value: "AssertionError: expected 1 got 2"},
+		StackTrace: []*object.StackFrame{
+			{
+				File:     "test.slug",
+				Src:      "assertEqual(1, 2)\n",
+				Position: 0,
+			},
+		},
+	}
+	rendered := rtErr.Inspect()
+	if !strings.Contains(rendered, "RuntimeError: AssertionError: expected 1 got 2") {
+		t.Fatalf("expected assertion error payload, got %s", rendered)
+	}
+	if !strings.Contains(rendered, "--> test.slug:1:1") || !strings.Contains(rendered, "^ unexpected here") {
+		t.Fatalf("expected source context in runtime error, got %s", rendered)
+	}
+}
+
 func TestExecutorRuntimeChecksGenericAnnotatedReturnType(t *testing.T) {
 	got := runVM(t, `
 val zipWithIndex = fn<T>(lst:list<T>):list<[T, num]> {

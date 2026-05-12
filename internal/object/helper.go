@@ -37,6 +37,11 @@ func RenderStacktrace(rtErr *RuntimeError) string {
 
 	if len(rtErr.StackTrace) > 0 {
 		l, c := util.GetLineAndColumn(rtErr.StackTrace[0].Src, rtErr.StackTrace[0].Position)
+		if strings.TrimSpace(rtErr.StackTrace[0].File) != "" {
+			fmt.Fprintf(&buf, "    --> %s:%d:%d\n", rtErr.StackTrace[0].File, l, c)
+		} else {
+			fmt.Fprintf(&buf, "    --> %d:%d\n", l, c)
+		}
 		buf.WriteString(util.GetContextLines(rtErr.StackTrace[0].Src, l, c))
 		buf.WriteString("\n")
 	}
