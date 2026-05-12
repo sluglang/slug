@@ -50,16 +50,14 @@ Slug is a small, opinionated programming language implemented in Go with its sta
 * Each commit:
 * Self-contained.
 * Includes tests.
-* Uses 50/70 commit message format.
-* Commit messages MUST use Semantic Commit Messages with one of the following types (feat, refactor, fix, chore)
+* Commit messages MUST use Semantic Commit Messages, types: feat, refactor, fix, chore
+* Uses 50/72 commit message format.
 
 ### Commit message format:
 ```text
 <type>(<scope>): <subject>
 <BLANK LINE>
 <body>
-<BLANK LINE>
-<footer>
 ```
 
 ## Safe Practices
