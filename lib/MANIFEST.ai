@@ -788,13 +788,13 @@ fn slug.std#update(list:list, index:num, value):list
 fn slug.std#zeroIfAbove(a:num, b:num):num
   desc: "returns `a` if `a < b`, otherwise returns `0`."
 
-fn slug.std#zip(lst1:list, lst2:list, acc = []):list
+fn slug.std#zip(lst1:list, lst2:list, acc = []):list<[any,any]>
   desc: "zips two lists into a list of `[a, b]` pairs."
 
-fn slug.std#zipWith(lst:list, f):list
+fn slug.std#zipWith(lst:list, f):list<[any,any]>
   desc: "zips a list with the results of calling `f` for each element."
 
-fn slug.std#zipWithIndex(lst:list):list
+fn slug.std#zipWithIndex(lst:list):list<[any,num]>
   desc: "zips a list with its zero-based indices."
 
 fn slug.string#camelCase(s:str, sep:str = " "):str

@@ -1,19 +1,23 @@
 package vm
 
 import (
+	"slug/internal/ast"
 	"slug/internal/object"
 	"sort"
 	"strings"
 )
 
 type rtType struct {
-	kind    string
-	elem    *rtType
-	key     *rtType
-	val     *rtType
-	elems   []*rtType
-	options []*rtType
-	name    string
+	kind     string
+	elem     *rtType
+	key      *rtType
+	val      *rtType
+	params   []*rtType
+	ret      *rtType
+	elems    []*rtType
+	options  []*rtType
+	name     string
+	variadic bool
 }
 
 func parseRuntimeDeclaredType(raw string) *rtType {
@@ -81,7 +85,27 @@ func parseRuntimeDeclaredType(raw string) *rtType {
 		return &rtType{kind: "task"}
 	}
 	if strings.HasPrefix(s, "fn<") && strings.HasSuffix(s, ">") {
-		return &rtType{kind: "fn"}
+		inner := strings.TrimSpace(s[len("fn<") : len(s)-1])
+		parts := splitRuntimeTypeTopLevel(inner, ',')
+		if len(parts) == 0 {
+			return nil
+		}
+		ret := parseRuntimeDeclaredType(parts[0])
+		if ret == nil {
+			ret = &rtType{kind: "any"}
+		}
+		if len(parts) == 1 {
+			return &rtType{kind: "fn", ret: ret}
+		}
+		params := make([]*rtType, 0, len(parts)-1)
+		for _, p := range parts[1:] {
+			t := parseRuntimeDeclaredType(p)
+			if t == nil {
+				t = &rtType{kind: "any"}
+			}
+			params = append(params, t)
+		}
+		return &rtType{kind: "fn", ret: ret, params: params, variadic: false}
 	}
 	if strings.HasPrefix(s, "struct<") && strings.HasSuffix(s, ">") {
 		name := strings.TrimSpace(s[len("struct<") : len(s)-1])
@@ -240,12 +264,16 @@ func runtimeObjectMatchesDeclaredType(v object.Object, t *rtType) bool {
 		})
 		return okAll
 	case "fn":
-		switch v.Type() {
-		case object.FUNCTION_OBJ, object.FUNCTION_GROUP_OBJ, object.FOREIGN_OBJ:
-			return true
-		default:
-			return false
+		actual := runtimeDeclaredTypeFromObject(v)
+		if actual == nil {
+			switch v.Type() {
+			case object.FUNCTION_OBJ, object.FUNCTION_GROUP_OBJ, object.FOREIGN_OBJ:
+				return true
+			default:
+				return false
+			}
 		}
+		return runtimeDeclaredTypeCompatible(actual, t)
 	case "task":
 		return v.Type() == object.TASK_HANDLE_OBJ
 	case "chan":
@@ -267,6 +295,148 @@ func runtimeObjectMatchesDeclaredType(v object.Object, t *rtType) bool {
 		}
 	default:
 		return true
+	}
+}
+
+func runtimeDeclaredTypeFromObject(v object.Object) *rtType {
+	switch fn := v.(type) {
+	case *object.Function:
+		return runtimeDeclaredTypeFromFunction(fn.Parameters, fn.ReturnType)
+	case *object.Foreign:
+		return runtimeDeclaredTypeFromFunction(fn.Parameters, fn.ReturnType)
+	case *VMFunction:
+		return runtimeDeclaredTypeFromVMFunction(fn)
+	case *object.FunctionGroup:
+		return &rtType{kind: "fn"}
+	default:
+		return nil
+	}
+}
+
+func runtimeDeclaredTypeFromVMFunction(fn *VMFunction) *rtType {
+	if fn == nil {
+		return nil
+	}
+	params := make([]*rtType, 0, len(fn.Parameters))
+	for _, p := range fn.Parameters {
+		t := parseRuntimeDeclaredType(p.Type)
+		if t == nil {
+			t = &rtType{kind: "any"}
+		}
+		params = append(params, t)
+	}
+	ret := parseRuntimeDeclaredType(fn.ReturnType)
+	if ret == nil {
+		ret = &rtType{kind: "any"}
+	}
+	return &rtType{kind: "fn", params: params, ret: ret, variadic: len(fn.Parameters) > 0 && fn.Parameters[len(fn.Parameters)-1].IsVariadic}
+}
+
+func runtimeDeclaredTypeFromFunction(params []*ast.FunctionParameter, returnType string) *rtType {
+	fnParams := make([]*rtType, 0, len(params))
+	for _, p := range params {
+		t := parseRuntimeDeclaredType(p.Type)
+		if t == nil {
+			t = &rtType{kind: "any"}
+		}
+		fnParams = append(fnParams, t)
+	}
+	ret := parseRuntimeDeclaredType(returnType)
+	if ret == nil {
+		ret = &rtType{kind: "any"}
+	}
+	return &rtType{kind: "fn", params: fnParams, ret: ret}
+}
+
+func runtimeDeclaredTypeCompatible(actual, expected *rtType) bool {
+	if expected == nil || expected.kind == "any" {
+		return true
+	}
+	if actual == nil || actual.kind == "any" {
+		return true
+	}
+	if actual.kind != expected.kind {
+		return false
+	}
+	switch expected.kind {
+	case "union":
+		for _, opt := range expected.options {
+			if runtimeDeclaredTypeCompatible(actual, opt) {
+				return true
+			}
+		}
+		return false
+	case "list":
+		return runtimeDeclaredTypeCompatible(actual.elem, expected.elem)
+	case "tuple":
+		if len(actual.elems) != len(expected.elems) {
+			return false
+		}
+		for i := range expected.elems {
+			if !runtimeDeclaredTypeCompatible(actual.elems[i], expected.elems[i]) {
+				return false
+			}
+		}
+		return true
+	case "map":
+		return runtimeDeclaredTypeCompatible(actual.key, expected.key) && runtimeDeclaredTypeCompatible(actual.val, expected.val)
+	case "fn":
+		if expected.ret == nil && len(expected.params) == 0 {
+			return true
+		}
+		if actual.variadic != expected.variadic || len(actual.params) != len(expected.params) {
+			return false
+		}
+		for i := range expected.params {
+			if !runtimeDeclaredTypeCompatible(actual.params[i], expected.params[i]) {
+				return false
+			}
+		}
+		return runtimeDeclaredTypeCompatible(actual.ret, expected.ret)
+	case "struct":
+		if expected.name == "" || actual.name == "" {
+			return true
+		}
+		return actual.name == expected.name
+	default:
+		return actual.kind == expected.kind
+	}
+}
+
+func describeRuntimeDeclaredType(t *rtType) string {
+	if t == nil {
+		return "any"
+	}
+	switch t.kind {
+	case "union":
+		parts := make([]string, 0, len(t.options))
+		for _, opt := range t.options {
+			parts = append(parts, describeRuntimeDeclaredType(opt))
+		}
+		return strings.Join(parts, "|")
+	case "list":
+		return "list<" + describeRuntimeDeclaredType(t.elem) + ">"
+	case "tuple":
+		parts := make([]string, 0, len(t.elems))
+		for _, el := range t.elems {
+			parts = append(parts, describeRuntimeDeclaredType(el))
+		}
+		return "[" + strings.Join(parts, ", ") + "]"
+	case "map":
+		return "map<" + describeRuntimeDeclaredType(t.key) + ", " + describeRuntimeDeclaredType(t.val) + ">"
+	case "fn":
+		out := "fn<" + describeRuntimeDeclaredType(t.ret)
+		for _, p := range t.params {
+			out += ", " + describeRuntimeDeclaredType(p)
+		}
+		return out + ">"
+	case "struct":
+		if t.name == "" {
+			return "struct"
+		}
+		return "struct(" + t.name + ")"
+	default:
+		return t.kind
 	}
 }
 
@@ -305,8 +475,12 @@ func describeRuntimeObjectType(v object.Object) string {
 		return "chan"
 	case *VMTaskHandle:
 		return "task"
+	case *object.Function:
+		return describeRuntimeDeclaredType(runtimeDeclaredTypeFromFunction(obj.Parameters, obj.ReturnType))
 	case *object.Foreign:
-		return "fn"
+		return describeRuntimeDeclaredType(runtimeDeclaredTypeFromFunction(obj.Parameters, obj.ReturnType))
+	case *VMFunction:
+		return describeRuntimeDeclaredType(runtimeDeclaredTypeFromVMFunction(obj))
 	case *object.FunctionGroup:
 		return "fn"
 	default:

@@ -2428,6 +2428,12 @@ func (p *Parser) parseTypeAnnotationLiteral(stop ...token.TokenType) string {
 			if depthAngles > 0 {
 				depthAngles--
 			}
+		case token.SHIFT_RIGHT:
+			if depthAngles > 1 {
+				depthAngles -= 2
+			} else if depthAngles > 0 {
+				depthAngles = 0
+			}
 		case token.LPAREN:
 			depthParens++
 		case token.RPAREN:

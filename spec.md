@@ -2101,7 +2101,7 @@ Validation performed:
   - variable/constant declarations: `var a:num = 1`, `val s:str = ""`
   - function parameters: `fn(x:num, y:list<num>)`
   - function return types: `fn(x:num):num { ... }`
-  - declared type forms in checker: scalars, unions (`num|str`), composites (`list<T>`, `map<K,V>`, `fn<A,B,R>`), and struct refs (`struct<User>` / bare identifiers as struct refs).
+  - declared type forms in checker: scalars, unions (`num|str`), composites (`list<T>`, `map<K,V>`, `fn<R, P1, P2...>`), and struct refs (`struct<User>` / bare identifiers as struct refs).
 
 Implementation updates:
 - `internal/ast/ast.go`
@@ -2647,3 +2647,11 @@ Validation performed:
 - Replaced raw uppercase runtime object tags in return-type mismatch messages with formal runtime type descriptions.
 - Nested list values now render as tuple-like formal shapes when appropriate, so errors report `list<[num, num]>` instead of `LIST`.
 - Added a VM regression test to verify annotated list return-type failures surface the formal runtime shape in the diagnostic.
+
+## 2026-05-12 — Formal Function Type Syntax
+
+- Introduced canonical formal function type syntax with return type first: `fn<R, P1, P2...>`.
+- Updated declared-type parsing, compatibility checks, and runtime type parsing to treat `fn<...>` as return-first and reject the old `fn<params, ret>` ordering.
+- Extended the parser so nested angle-bracket type annotations inside function types can be scanned correctly when `>>` appears in a declaration.
+- Updated docs generators to normalize and render `fn<...>` annotations consistently in generated markdown and MANIFEST output.
+- Added semantic and VM regression tests covering valid function-type annotations, parameter-typed callables, and legacy-order rejection.

@@ -944,7 +944,7 @@ zeroIfAbove(2, 1)  // => 0
 
 #### `zip(lst1, lst2, acc)`
 ```slug
-fn slug.std#zip(lst1:list, lst2:list, acc = []):list
+fn slug.std#zip(lst1:list, lst2:list, acc = []):list<[any,any]>
 ```
 
 
@@ -972,7 +972,7 @@ zip([1], [2])  // => [[1, 2]]
 
 #### `zipWith(lst, f)`
 ```slug
-fn slug.std#zipWith(lst:list, f):list
+fn slug.std#zipWith(lst:list, f):list<[any,any]>
 ```
 
 
@@ -996,7 +996,7 @@ zipWith(["a", "b"], function group: [{ 0 0 false} => fn() { <vm bytecode> }])  /
 
 #### `zipWithIndex(lst)`
 ```slug
-fn slug.std#zipWithIndex(lst:list):list
+fn slug.std#zipWithIndex(lst:list):list<[any,num]>
 ```
 
 

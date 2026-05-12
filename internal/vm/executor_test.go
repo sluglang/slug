@@ -113,6 +113,23 @@ zipWithIndex()
 	}
 }
 
+func TestExecutorRuntimeChecksAnnotatedFunctionReturnType(t *testing.T) {
+	got := runVM(t, `
+val factory = fn():fn<num, num> {
+  fn(n:num):num { n + 1 }
+}
+val inc = factory()
+inc(1)
+`)
+	num, ok := got.(*object.Number)
+	if !ok {
+		t.Fatalf("expected *object.Number, got %T (%s)", got, got.Inspect())
+	}
+	if num.Value.String() != "2" {
+		t.Fatalf("expected 2, got %s", num.Value.String())
+	}
+}
+
 func TestExecutorClosureCapture(t *testing.T) {
 	got := runVM(t, "val base = 10\nval addBase = fn(x) { x + base }\naddBase(5)")
 	num, ok := got.(*object.Number)

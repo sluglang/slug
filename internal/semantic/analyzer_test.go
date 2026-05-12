@@ -503,6 +503,55 @@ val out:[str, str] = exec("echo hi")
 	}
 }
 
+func TestSemanticTypeCheckSupportsFormalFunctionTypeAnnotation(t *testing.T) {
+	input := `
+val apply = fn(f:fn<num, num>, x:num):num { f(x) }
+val inc = fn(n:num):num { n + 1 }
+val out:num = apply(inc, 1)
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
+	}
+	if len(errs) > 0 {
+		t.Fatalf("expected no semantic errors for formal function type annotation, got: %v", errs)
+	}
+}
+
+func TestSemanticTypeCheckRejectsLegacyFunctionTypeOrdering(t *testing.T) {
+	input := `
+val sum:fn<num, str, bool> = fn(a:num, b:str):bool {
+  true
+}
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
+	}
+	if len(errs) == 0 {
+		t.Fatal("expected legacy function type ordering error, got none")
+	}
+	if !containsError(errs, "val annotation") {
+		t.Fatalf("expected val annotation mismatch for legacy function type ordering, got: %v", errs)
+	}
+}
+
 func TestSemanticTypeCheckRejectsFunctionReturnAnnotationMismatch(t *testing.T) {
 	input := `
 val sum = fn(a:num, b:num):str {

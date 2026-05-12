@@ -594,22 +594,22 @@ func (c *typeChecker) parseDeclaredType(raw string) *tnode {
 		inner := strings.TrimSpace(s[len("fn<") : len(s)-1])
 		parts := splitTypeTopLevel(inner, ',')
 		if len(parts) == 0 {
-			return c.fnType(nil, c.freshUnknown(), false, 0, -1)
+			return nil
+		}
+		ret := c.parseDeclaredType(parts[0])
+		if ret == nil {
+			ret = c.freshUnknown()
 		}
 		if len(parts) == 1 {
-			return c.fnType(nil, c.parseDeclaredType(parts[0]), false, 0, -1)
+			return c.fnType(nil, ret, false, 0, 0)
 		}
 		params := make([]*tnode, 0, len(parts)-1)
-		for _, p := range parts[:len(parts)-1] {
+		for _, p := range parts[1:] {
 			pt := c.parseDeclaredType(p)
 			if pt == nil {
 				pt = c.freshUnknown()
 			}
 			params = append(params, pt)
-		}
-		ret := c.parseDeclaredType(parts[len(parts)-1])
-		if ret == nil {
-			ret = c.freshUnknown()
 		}
 		return c.fnType(params, ret, false, len(params), len(params))
 	}
@@ -662,11 +662,35 @@ func (c *typeChecker) validateSpecialDeclaredType(raw string, pos int, context s
 	switch {
 	case strings.HasPrefix(s, "chan<") && strings.HasSuffix(s, ">"):
 		inner = strings.TrimSpace(s[len("chan<") : len(s)-1])
+	case strings.HasPrefix(s, "fn<") && strings.HasSuffix(s, ">"):
+		inner = strings.TrimSpace(s[len("fn<") : len(s)-1])
 	default:
 		return
 	}
 	if inner == "" {
-		c.addDiag(pos, "invalid %s type annotation: channel payload type is required", context)
+		if strings.HasPrefix(s, "fn<") {
+			c.addDiag(pos, "invalid %s type annotation: function type requires at least one type argument", context)
+		} else {
+			c.addDiag(pos, "invalid %s type annotation: channel payload type is required", context)
+		}
+		return
+	}
+	if strings.HasPrefix(s, "fn<") {
+		parts := splitTypeTopLevel(inner, ',')
+		if len(parts) < 1 {
+			c.addDiag(pos, "invalid %s type annotation: function type requires at least one type argument", context)
+			return
+		}
+		if tt := c.parseDeclaredType(parts[0]); tt == nil {
+			c.addDiag(pos, "invalid %s type annotation: unable to parse function return type '%s'", context, parts[0])
+			return
+		}
+		for _, p := range parts[1:] {
+			if tt := c.parseDeclaredType(p); tt == nil {
+				c.addDiag(pos, "invalid %s type annotation: unable to parse function parameter type '%s'", context, p)
+				return
+			}
+		}
 		return
 	}
 	payload := c.parseDeclaredType(inner)
@@ -2401,7 +2425,18 @@ func (c *typeChecker) matchesRefinementTarget(candidate, target *tnode) bool {
 		}
 		return keyOK && valOK
 	case typeFn:
-		return true
+		if tf.maxArgs == -1 && len(tf.params) == 0 {
+			return true
+		}
+		if cf.kind != typeFn || len(cf.params) != len(tf.params) {
+			return false
+		}
+		for i := range tf.params {
+			if !c.matchesRefinementTarget(cf.params[i], tf.params[i]) {
+				return false
+			}
+		}
+		return c.matchesRefinementTarget(cf.ret, tf.ret)
 	default:
 		return true
 	}
@@ -2437,7 +2472,15 @@ func (c *typeChecker) sameConcreteType(a, b *tnode) bool {
 	case typeMap:
 		return c.sameConcreteType(af.key, bf.key) && c.sameConcreteType(af.val, bf.val)
 	case typeFn:
-		return true
+		if len(af.params) != len(bf.params) {
+			return false
+		}
+		for i := range af.params {
+			if !c.sameConcreteType(af.params[i], bf.params[i]) {
+				return false
+			}
+		}
+		return c.sameConcreteType(af.ret, bf.ret)
 	case typeUnion:
 		if len(af.options) != len(bf.options) {
 			return false
@@ -2520,7 +2563,11 @@ func (c *typeChecker) typeSig(t *tnode) string {
 	case typeMap:
 		return "map<" + c.typeSig(t.key) + "," + c.typeSig(t.val) + ">"
 	case typeFn:
-		return "fn"
+		out := "fn<" + c.describe(t.ret)
+		for _, p := range t.params {
+			out += ", " + c.describe(p)
+		}
+		return out + ">"
 	case typeStruct:
 		if t.name == "" {
 			return "struct"
@@ -3123,7 +3170,11 @@ func (c *typeChecker) describe(t *tnode) string {
 	case typeMap:
 		return "map<" + c.describe(t.key) + ", " + c.describe(t.val) + ">"
 	case typeFn:
-		return "fn"
+		out := "fn<" + c.typeSig(t.ret)
+		for _, p := range t.params {
+			out += "," + c.typeSig(p)
+		}
+		return out + ">"
 	case typeStruct:
 		if t.name != "" {
 			return "struct(" + t.name + ")"

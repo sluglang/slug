@@ -1046,6 +1046,24 @@ foreign exec = fn(cmd:str, timeout:num = 0):[str, str];
 	}
 }
 
+func TestNestedFunctionTypeAnnotationParsing(t *testing.T) {
+	input := `
+val maker:fn<fn<num, num>> = fn() { nil }
+`
+	l := lexer.New(input)
+	p := New(l, "", input)
+	program := p.ParseProgram()
+	checkParserErrors(t, p)
+	if len(program.Statements) != 1 {
+		t.Fatalf("expected 1 statement, got=%d", len(program.Statements))
+	}
+	stmt := program.Statements[0].(*ast.ExpressionStatement)
+	valExp := stmt.Expression.(*ast.ValExpression)
+	if valExp.Type != "fn<fn<num,num>>" {
+		t.Fatalf("expected nested function type annotation, got %q", valExp.Type)
+	}
+}
+
 func TestCallExpressionParsing(t *testing.T) {
 	input := "add(1, 2 * 3, 4 + 5);"
 
