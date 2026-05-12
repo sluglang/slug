@@ -19,7 +19,7 @@ well-formed markup.
 
 #### `extractInnerText(html, tag, start)`
 ```slug
-fn slug.html#extractInnerText(html, tag, start = 0):str
+fn slug.html#extractInnerText(html:str, tag:str, start:num = 0):str
 ```
 
 
@@ -42,9 +42,9 @@ extractInnerText("<a href='h'><a>hi</a></a>", "a")
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `html` |  | — |
-| `tag` |  | — |
-| `start` |  | `0` |
+| `html` | str | — |
+| `tag` | str | — |
+| `start` | num | `0` |
 
 
 #### Examples

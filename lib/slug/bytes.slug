@@ -94,7 +94,7 @@ val repeat = fn(b:bytes, count:num, acc:bytes = 0x""):bytes match {
     [0x"a8ff04"], [168, 255, 4],
 )
 @export
-val bytesToNumbers = fn(b:bytes, i = 0, acc = []):list match {
+val bytesToNumbers = fn(b:bytes, i = 0, acc:list<num> = []):list<num> match {
     [b, ...] if len(b) == i => acc
     [b, ...]                => recur(b, i + 1, acc :+ b[i])
 }

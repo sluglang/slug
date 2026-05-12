@@ -115,7 +115,7 @@ max(4, 5, 3)  // => 5
 
 #### `mean(xs)`
 ```slug
-fn slug.math#mean(xs):num
+fn slug.math#mean(xs:list<num>):num
 ```
 
 
@@ -125,7 +125,7 @@ Returns `0` for an empty list.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `xs` |  | — |
+| `xs` | list<num> | — |
 
 ---
 
@@ -155,7 +155,7 @@ min(6, 5, 4)  // => 4
 
 #### `percentileSorted(xs, p)`
 ```slug
-fn slug.math#percentileSorted(xs, p):num
+fn slug.math#percentileSorted(xs:list<num>, p:num):num
 ```
 
 
@@ -169,8 +169,8 @@ Returns `0` for an empty list and the single element for a one-element list.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `xs` |  | — |
-| `p` |  | — |
+| `xs` | list<num> | — |
+| `p` | num | — |
 
 ---
 
@@ -220,7 +220,7 @@ sqrt(9)  // => 3
 
 #### `stdev(xs, mean)`
 ```slug
-fn slug.math#stdev(xs, mean):num
+fn slug.math#stdev(xs:list<num>, mean:num):num
 ```
 
 
@@ -232,5 +232,5 @@ second argument to avoid recomputing it internally.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `xs` |  | — |
-| `mean` |  | — |
+| `xs` | list<num> | — |
+| `mean` | num | — |

@@ -29,7 +29,7 @@ val {*} = import(
  * builds a JSON-RPC request object.
  */
 @export
-val request = fn(id, method:str, params = nil):map {
+val request = fn(id:str|num|nil, method:str, params:list|map|nil = nil):map<str, any> {
 	assertValidMethod(method)
 	assertValidId(id)
 	assertValidParams(params)
@@ -46,7 +46,7 @@ val request = fn(id, method:str, params = nil):map {
  * builds a JSON-RPC notification object (request without `id`).
  */
 @export
-val notification = fn(method:str, params = nil):map {
+val notification = fn(method:str, params:list|map|nil = nil):map<str, any> {
 	assertValidMethod(method)
 	assertValidParams(params)
 
@@ -63,7 +63,7 @@ val notification = fn(method:str, params = nil):map {
  * The `result` member is always present (it may be `nil`).
  */
 @export
-val success = fn(id, result = nil):map {
+val success = fn(id:str|num|nil, result:any = nil):map<str, any> {
 	assertValidId(id)
 	{
 		"jsonrpc": VERSION,
@@ -76,7 +76,7 @@ val success = fn(id, result = nil):map {
  * builds a JSON-RPC error object.
  */
 @export
-val errorObject = fn(code:num, message:str, data = nil):map {
+val errorObject = fn(code:num, message:str, data:any = nil):map<str, any> {
 	assertInteger(code, "error code must be an integer")
 	val base = {
 		"code": code,
@@ -92,7 +92,7 @@ val errorObject = fn(code:num, message:str, data = nil):map {
  * builds a JSON-RPC error response object.
  */
 @export
-val failure = fn(id, code:num, message:str, data = nil):map {
+val failure = fn(id:str|num|nil, code:num, message:str, data:any = nil):map<str, any> {
 	assertValidId(id)
 	{
 		"jsonrpc": VERSION,
@@ -107,7 +107,7 @@ val failure = fn(id, code:num, message:str, data = nil):map {
  * encodes a JSON-RPC message or batch to JSON.
  */
 @export
-val encode = fn(message):str {
+val encode = fn(message:list|map):str {
 	validate(message)
 	json.encode(message)
 }
@@ -147,7 +147,7 @@ val parse = fn(payload:str) {
  */
 @export
 @throws('@struct(Error{type:JsonRpcError})')
-val validate = fn(message) {
+val validate = fn(message:any):map|list {
 	match type(message) {
 		^MAP_TYPE => validateMessageObject(message)
 		^LIST_TYPE => validateBatch(message)

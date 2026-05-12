@@ -53,7 +53,7 @@ and throw them with `throw`. There is no try/catch — handle errors via
 - [`counter(start)`](#counterstart)
 - [`equals(m1, m2)`](#equalsm1-m2)
 - [`filter(vs, f, acc)`](#filtervs-f-acc)
-- [`find(xs, f)`](#findxs-f)
+- [`find<T>(xs, f)`](#findtxs-f)
 - [`flatMap(vs, f)`](#flatmapvs-f)
 - [`fmt(str, args)`](#fmtstr-args)
 - [`get(map, key)`](#getmap-key)
@@ -81,8 +81,8 @@ and throw them with `throw`. There is no try/catch — handle errors via
 - [`update(list, index, value)`](#updatelist-index-value)
 - [`zeroIfAbove(a, b)`](#zeroifabovea-b)
 - [`zip(lst1, lst2, acc)`](#ziplst1-lst2-acc)
-- [`zipWith(lst, f)`](#zipwithlst-f)
-- [`zipWithIndex(lst)`](#zipwithindexlst)
+- [`zipWith<A, B>(lst, f)`](#zipwitha-blst-f)
+- [`zipWithIndex<T>(lst)`](#zipwithindextlst)
 
 ### Constants
 
@@ -230,7 +230,7 @@ compute({}, :k, function group: [{|| 2 2 false} => fn(k, v) { <vm bytecode> }]) 
 
 #### `counter(start)`
 ```slug
-fn slug.std#counter(start:num = 0):fn
+fn slug.std#counter(start:num = 0):fn:<num>
 ```
 
 
@@ -304,9 +304,9 @@ filter([1, 2, 3, 4], function group: [{| 1 1 false} => fn(v) { <vm bytecode> }])
 
 ---
 
-#### `find(xs, f)`
+#### `find<T>(xs, f)`
 ```slug
-fn slug.std#find(xs:list, f:fn):any
+fn slug.std#find<T>(xs:list<T>, f:fn<bool, T>):T|nil
 ```
 
 
@@ -314,8 +314,8 @@ returns the first element of `xs` for which `f` returns true, or `nil`.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `xs` | list | — |
-| `f` | fn | — |
+| `xs` | list<T> | — |
+| `f` | fn<bool, T> | — |
 
 ---
 
@@ -604,7 +604,7 @@ put({}, :k, "v")  // => {:k: v}
 
 #### `range(start, end, step, acc)`
 ```slug
-fn slug.std#range(start:num, end:num, step:num = 1, acc:list = []):list
+fn slug.std#range(start:num, end:num, step:num = 1, acc:list<num> = []):list<num>
 ```
 
 
@@ -617,7 +617,7 @@ Returns an empty list if the range direction contradicts the step sign.
 | `start` | num | — |
 | `end` | num | — |
 | `step` | num | `1` |
-| `acc` | list | `[]` |
+| `acc` | list<num> | `[]` |
 
 
 #### Examples
@@ -970,9 +970,9 @@ zip([1], [2])  // => [[1, 2]]
 
 ---
 
-#### `zipWith(lst, f)`
+#### `zipWith<A, B>(lst, f)`
 ```slug
-fn slug.std#zipWith(lst:list, f):list<[any,any]>
+fn slug.std#zipWith<A, B>(lst:list<A>, f:<B>):list<[A,B]>
 ```
 
 
@@ -982,8 +982,8 @@ Returns a list of `[element, f()]` pairs. `f` is called once per element.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `lst` | list | — |
-| `f` |  | — |
+| `lst` | list<A> | — |
+| `f` | <B> | — |
 
 
 #### Examples
@@ -994,9 +994,9 @@ zipWith(["a", "b"], function group: [{ 0 0 false} => fn() { <vm bytecode> }])  /
 
 ---
 
-#### `zipWithIndex(lst)`
+#### `zipWithIndex<T>(lst)`
 ```slug
-fn slug.std#zipWithIndex(lst:list):list<[any,num]>
+fn slug.std#zipWithIndex<T>(lst:list<T>):list<[T,num]>
 ```
 
 
@@ -1006,7 +1006,7 @@ Returns a list of `[element, index]` pairs.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `lst` | list | — |
+| `lst` | list<T> | — |
 
 
 #### Examples

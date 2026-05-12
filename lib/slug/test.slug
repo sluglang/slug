@@ -51,7 +51,7 @@ val {*} = import(
  * test suites where a single failure should not abort subsequent tests.
  */
 @export
-val runSafe = fn(f:fn):map {
+val runSafe = fn(f:fn<any>):map<sym, any> {
 	defer onerror(err) {
 		{ error: err, trace: stacktrace(err) }
 	}
@@ -75,7 +75,7 @@ val isAssertError = fn(v):bool {
  */
 @export
 @throws('@struct(Error{type:AssertionError})')
-val assertThrows = fn(f:fn, expected, msg:str = nil):bool {
+val assertThrows = fn(f:fn<any>, expected, msg:str|nil = nil):bool {
 	val r = runSafe(f)
 	if (r.error == expected) {
 		true
@@ -97,7 +97,7 @@ val assertThrows = fn(f:fn, expected, msg:str = nil):bool {
  */
 @export
 @throws('@struct(Error{type:AssertionError})')
-val assertErrorType = fn(f:fn, expected, msg:str = nil):bool {
+val assertErrorType = fn(f:fn<any>, expected, msg:str|nil = nil):bool {
 	val r = runSafe(f)
 	if (r.error /> type() == expected) {
 		true
@@ -116,7 +116,7 @@ val assertErrorType = fn(f:fn, expected, msg:str = nil):bool {
  */
 @export
 @throws('@struct(Error{type:AssertionError})')
-val assert = fn(a, msg = nil):bool {
+val assert = fn(a, msg:str|nil = nil):bool {
 	if (a /> type() == BOOLEAN_TYPE && a) {
 		a
 	} else {
@@ -126,7 +126,7 @@ val assert = fn(a, msg = nil):bool {
 }
 
 @export @throws('@struct(Error{type:AssertionError})')
-val assertTrue = fn(a, msg = nil):bool {
+val assertTrue = fn(a, msg:str|nil = nil):bool {
 	assert(a, msg)
 }
 
@@ -135,7 +135,7 @@ val assertTrue = fn(a, msg = nil):bool {
  */
 @export
 @throws('@struct(Error{type:AssertionError})')
-val assertFalse = fn(a, msg = nil):bool {
+val assertFalse = fn(a, msg:str|nil = nil):bool {
 	assert(!a, msg)
 }
 
@@ -147,7 +147,7 @@ val assertFalse = fn(a, msg = nil):bool {
  */
 @export
 @throws('@struct(Error{type:AssertionError})')
-val assertEqual = fn(value, expected, msg = nil):any {
+val assertEqual = fn(value, expected, msg:str|nil = nil):any {
 	val same = match type(value) {
 		^LIST_TYPE   => equals(value, expected)
 		^MAP_TYPE    => equals(value, expected)
@@ -168,7 +168,7 @@ val assertEqual = fn(value, expected, msg = nil):any {
  */
 @export
 @throws('@struct(Error{type:AssertionError})')
-val assertNotEqual = fn(value, expected, msg = nil):any {
+val assertNotEqual = fn(value, expected, msg:str|nil = nil):any {
 	val same = match type(value) {
 		^LIST_TYPE   => equals(value, expected)
 		^MAP_TYPE    => equals(value, expected)
@@ -189,7 +189,7 @@ val assertNotEqual = fn(value, expected, msg = nil):any {
  */
 @export
 @throws('@struct(Error{type:AssertionError})')
-val assertLessThan = fn(value, expected, msg = nil):any {
+val assertLessThan = fn(value, expected, msg:str|nil = nil):any {
 	if (value < expected) { value } else {
 		val msg2 = match msg { nil => "Expected '{{value}}' is not less than '{{expected}}'" _ => msg }
 		throw Error { type: "AssertionError", msg: msg2 }
@@ -201,7 +201,7 @@ val assertLessThan = fn(value, expected, msg = nil):any {
  */
 @export
 @throws('@struct(Error{type:AssertionError})')
-val assertLessThanOrEqual = fn(value, expected, msg = nil):any {
+val assertLessThanOrEqual = fn(value, expected, msg:str|nil = nil):any {
 	if (value <= expected) { value } else {
 		val msg2 = match msg { nil => "Expected '{{value}}' is not less than or equal to '{{expected}}'" _ => msg }
 		throw Error { type: "AssertionError", msg: msg2 }
@@ -213,7 +213,7 @@ val assertLessThanOrEqual = fn(value, expected, msg = nil):any {
  */
 @export
 @throws('@struct(Error{type:AssertionError})')
-val assertGreaterThan = fn(value, expected, msg = nil):any {
+val assertGreaterThan = fn(value, expected, msg:str|nil = nil):any {
 	if (value > expected) { value } else {
 		val msg2 = match msg { nil => "Expected '{{value}}' is not greater than '{{expected}}'" _ => msg }
 		throw Error { type: "AssertionError", msg: msg2 }
@@ -225,7 +225,7 @@ val assertGreaterThan = fn(value, expected, msg = nil):any {
  */
 @export
 @throws('@struct(Error{type:AssertionError})')
-val assertGreaterThanOrEqual = fn(value, expected, msg = nil):any {
+val assertGreaterThanOrEqual = fn(value, expected, msg:str|nil = nil):any {
 	if (value >= expected) { value } else {
 		val msg2 = match msg { nil => "Expected '{{value}}' is not greater than or equal to '{{expected}}'" _ => msg }
 		throw Error { type: "AssertionError", msg: msg2 }
@@ -237,7 +237,7 @@ val assertGreaterThanOrEqual = fn(value, expected, msg = nil):any {
  */
 @export
 @throws('@struct(Error{type:AssertionError})')
-val assertNil = fn(value, msg = nil):any {
+val assertNil = fn(value, msg:str|nil = nil):any {
 	if (value == nil) { value } else {
 		val msg2 = match msg { nil => "Expected nil but got '{{value}}'" _ => msg }
 		throw Error { type: "AssertionError", msg: msg2 }
@@ -249,7 +249,7 @@ val assertNil = fn(value, msg = nil):any {
  */
 @export
 @throws('@struct(Error{type:AssertionError})')
-val assertNotNil = fn(value, msg = nil):any {
+val assertNotNil = fn(value, msg:str|nil = nil):any {
 	if (value != nil) { value } else {
 		val msg2 = match msg { nil => "Expected non-nil" _ => msg }
 		throw Error { type: "AssertionError", msg: msg2 }
@@ -263,7 +263,7 @@ val assertNotNil = fn(value, msg = nil):any {
  */
 @export
 @throws('@struct(Error{type:AssertionError})')
-val fail = fn(msg = nil) {
+val fail = fn(msg:str|nil = nil) {
 	val msg2 = match msg { nil => "Test failed!" _ => msg }
 	throw Error { type: "AssertionError", msg: msg2 }
 }

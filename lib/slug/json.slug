@@ -71,7 +71,7 @@ val ParseResult = struct {
 )
 @export
 @throws('@struct(Error{type:JsonError})')
-val encode = fn(v):str {
+val encode = fn(v:any):str {
 	if (isStructInstance(v)) {
 		encodeObject(v)
 	} else {
@@ -105,7 +105,7 @@ val encode = fn(v):str {
 )
 @export
 @throws('@struct(Error{type:JsonError})')
-val pretty = fn(v, indent:num = 2):str {
+val pretty = fn(v:any, indent:num = 2):str {
 	prettyPrint(v, indent, 0)
 }
 
@@ -131,7 +131,7 @@ val pretty = fn(v, indent:num = 2):str {
 )
 @export
 @throws('@struct(Error{type:JsonError})')
-val decode = fn(jsonStr:str) {
+val decode = fn(jsonStr:str):any {
 	val tokens = tokenize(jsonStr, 0, len(jsonStr), [])
 	val result = parseValue(tokens, 0)
 

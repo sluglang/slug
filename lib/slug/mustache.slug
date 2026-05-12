@@ -756,7 +756,7 @@ val renderNodesCached = fn(nodes, ctxStack, partials, cache, blocks, acc = "", i
  */
 @export
 @throws('@struct(Error{type:MustacheError})')
-val renderCached = fn(templateOrAst, data, partials = nil, cache = {}):map<any, any> {
+val renderCached = fn(templateOrAst:str|map, data:map<str, any>, partials:map<str,str|fn<str, str>>|nil = nil, cache:map = {}):map<sym, str|map> {
 	var ast = if(type(templateOrAst) == STRING_TYPE) {parse(templateOrAst)} else {templateOrAst}
 	renderNodesCached(ast, [data], partials, cache, {}, "")
 }
@@ -771,6 +771,6 @@ val renderCached = fn(templateOrAst, data, partials = nil, cache = {}):map<any, 
  */
 @export
 @throws('@struct(Error{type:MustacheError})')
-val render = fn(templateOrAst, data, partials = nil):str {
+val render = fn(templateOrAst:str|map, data:map<str, any>, partials:map<str,str|fn<str, str>>|nil = nil):str {
 	renderCached(templateOrAst, data, partials, {}).html
 }

@@ -55,7 +55,7 @@ Intended for high-resolution timing. The epoch is implementation-defined
 
 #### `delta(f)`
 ```slug
-fn slug.time#delta(f):fn
+fn slug.time#delta(f:fn<num>):fn
 ```
 
 
@@ -75,7 +75,7 @@ println(elapsed())  // => milliseconds elapsed
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `f` |  | — |
+| `f` | fn<num> | — |
 
 ---
 

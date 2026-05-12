@@ -177,6 +177,7 @@ Returns `-1` if not found. Unicode-aware.
 #### Examples
 
 ```slug
+indexOf("hello slug", "zoo")  // => -1
 indexOf("hello slug", "lu")  // => 7
 indexOf("hello slug", "l")  // => 2
 indexOf("hello slug", "l", 3)  // => 3
@@ -236,7 +237,7 @@ isUpper("SLUG")  // => true
 
 #### `join(strs, delimiter, str)`
 ```slug
-fn slug.string#join(strs:list, delimiter:str = "", str:str = nil):str
+fn slug.string#join(strs:list<str>, delimiter:str = "", str:str|nil = nil):str
 ```
 
 
@@ -246,9 +247,9 @@ Returns an empty string for an empty list.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `strs` | list | — |
+| `strs` | list<str> | — |
 | `delimiter` | str | `""` |
-| `str` | str | `nil` |
+| `str` | str \| nil | `nil` |
 
 
 #### Examples
@@ -289,7 +290,7 @@ kebabCase("l   n")  // => "l---n"
 
 #### `lastIndexOf(str, seq, index, prev)`
 ```slug
-fn slug.string#lastIndexOf(str:str, seq:str, index:num = 0, prev = (-1)):num
+fn slug.string#lastIndexOf(str:str, seq:str, index:num = 0, prev:num = (-1)):num
 ```
 
 
@@ -302,12 +303,13 @@ Returns `-1` if not found.
 | `str` | str | — |
 | `seq` | str | — |
 | `index` | num | `0` |
-| `prev` |  | `(-1)` |
+| `prev` | num | `(-1)` |
 
 
 #### Examples
 
 ```slug
+lastIndexOf("hello slug", "zoo")  // => -1
 lastIndexOf("hello slug", "l")  // => 7
 lastIndexOf("hello slug", "h")  // => 0
 lastIndexOf("hello slug", "g")  // => 9
@@ -427,7 +429,7 @@ Returns `nil` for `nil` input.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `str` | str&#124;nil | — |
+| `str` | str \| nil | — |
 | `replace` | str | — |
 | `with` | str | — |
 
@@ -476,7 +478,7 @@ snakeCase("l   n")  // => "l___n"
 
 #### `split(str, delimiter, max, count, strs)`
 ```slug
-fn slug.string#split(str:str, delimiter:str, max:num = (-1), count:num = 1, strs:list = []):list
+fn slug.string#split(str:str, delimiter:str, max:num = (-1), count:num = 1, strs:list<str> = []):list<str>
 ```
 
 
@@ -493,7 +495,7 @@ The remaining unsplit portion is always included as the last element.
 | `delimiter` | str | — |
 | `max` | num | `(-1)` |
 | `count` | num | `1` |
-| `strs` | list | `[]` |
+| `strs` | list<str> | `[]` |
 
 
 #### Examples

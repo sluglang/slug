@@ -30,7 +30,7 @@ For simple synchronous command execution, prefer `exec`.
 
 #### `env(str)`
 ```slug
-fn slug.sys#env(str:str):str
+fn slug.sys#env(str:str):str|nil
 ```
 
 

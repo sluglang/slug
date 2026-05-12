@@ -60,7 +60,7 @@ foreign sleep = fn(millis:num):nil
  * ```
  */
 @export
-val delta = fn(f):fn {
+val delta = fn(f:fn<num>):fn/* <num> */ {
 	val start = f()
 	fn() { f() - start }
 }

@@ -26,7 +26,7 @@ val {*} = import(
 	[["c","a","b"], compare], ["a","b","c"]
 )
 @export
-foreign sortWithComparator = fn(lst:list, comparator:fn):list
+foreign sortWithComparator = fn<T>(lst:list<T>, comparator:fn<num, T>):list<T>
 
 /**
  * sorts a list in natural ascending order.
@@ -36,7 +36,7 @@ foreign sortWithComparator = fn(lst:list, comparator:fn):list
  * `sortWithComparator` instead.
  */
 @export
-val sort = fn(lst:list):list {
+val sort = fn<T>(lst:list<T>):list<T> {
 	sortWithComparator(lst, compare)
 }
 
@@ -53,7 +53,7 @@ val sort = fn(lst:list):list {
 	[[[1, 2], [3], [4, 5]]], [1, 2, 3, 4, 5],
 )
 @export
-val flatten = fn(lsts:list):list {
+val flatten = fn<T>(lsts:list<list<T>|T>):list<T> {
 	val f = fn(a, b) {
 		match b {
 			[...v] => a + v
@@ -74,7 +74,7 @@ val flatten = fn(lsts:list):list {
 	[[1, 2], 9], -1
 )
 @export
-val indexOf = fn(list:list, value, idx:num = 0):num {
+val indexOf = fn<T>(list:list<T>, value:T, idx:num = 0):num {
 	if (idx >= len(list)) {
 		-1
 	} else if (list[idx] == value) {
@@ -94,7 +94,7 @@ val indexOf = fn(list:list, value, idx:num = 0):num {
 	[[1,2,3], 5], [1,2,3]
 )
 @export
-val removeValue = fn(list:list, value):list {
+val removeValue = fn<T>(list:list<T>, value:T):list<T> {
 	match indexOf(list, value) {
 		i if i >= 0 => list[0:i] + list[i + 1:]
 		_           => list
@@ -110,7 +110,7 @@ val removeValue = fn(list:list, value):list {
  */
 @export
 @effects('random')
-val shuffle = fn(list:list):list {
+val shuffle = fn<T>(list:list<T>):list<T> {
 	val step = fn(list, i) {
 		if (i == 0) {
 			list
@@ -133,7 +133,7 @@ val shuffle = fn(list:list):list {
 	["123"], ["1", "2", "3"]
 )
 @export
-val asList = fn(chars:str, i:num = 0, acc:list = []):list {
+val asList = fn(chars:str, i:num = 0, acc:list<str> = []):list<str> {
 	if (chars == nil) {
 		[]
 	} else if (len(chars) > i) {

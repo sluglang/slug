@@ -15,18 +15,18 @@ see `slug.std`.
 
 ### TOC
 
-- [`difference(s1, s2)`](#differences1-s2)
-- [`intersect(s1, s2)`](#intersects1-s2)
+- [`difference<K>(s1, s2)`](#differenceks1-s2)
+- [`intersect<K>(s1, s2)`](#intersectks1-s2)
 - [`merge(base, patch)`](#mergebase-patch)
 - [`patch(base, patchData)`](#patchbase-patchdata)
 - [`putNested(map, keys, value)`](#putnestedmap-keys-value)
-- [`union(s1, s2)`](#unions1-s2)
+- [`union<K>(s1, s2)`](#unionks1-s2)
 
 ### Functions
 
-#### `difference(s1, s2)`
+#### `difference<K>(s1, s2)`
 ```slug
-fn slug.map#difference(s1:map, s2:map):map
+fn slug.map#difference<K>(s1:map<K,any>, s2:map<K,any>):map<K,any>
 ```
 
 
@@ -34,8 +34,8 @@ returns `s1` with all keys that appear in `s2` removed.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `s1` | map | — |
-| `s2` | map | — |
+| `s1` | map<K,any> | — |
+| `s2` | map<K,any> | — |
 
 
 #### Examples
@@ -47,9 +47,9 @@ difference({:k1: 1, :k2: 1}, {:k2: 2})  // => {:k1: 1}
 
 ---
 
-#### `intersect(s1, s2)`
+#### `intersect<K>(s1, s2)`
 ```slug
-fn slug.map#intersect(s1:map, s2:map):map
+fn slug.map#intersect<K>(s1:map<K,any>, s2:map<K,any>):map<K,any>
 ```
 
 
@@ -60,8 +60,8 @@ in `s2` are excluded from the result.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `s1` | map | — |
-| `s2` | map | — |
+| `s1` | map<K,any> | — |
+| `s2` | map<K,any> | — |
 
 
 #### Examples
@@ -159,9 +159,9 @@ putNested({:k: {:j: 1}}, ["k", "k"], "v")  // => {:k: {:k: v, :j: 1}}
 
 ---
 
-#### `union(s1, s2)`
+#### `union<K>(s1, s2)`
 ```slug
-fn slug.map#union(s1:map, s2:map):map
+fn slug.map#union<K>(s1:map<K,any>, s2:map<K,any>):map<K,any>
 ```
 
 
@@ -171,8 +171,8 @@ On key conflicts, `s1` values take precedence over `s2` values.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `s1` | map | — |
-| `s2` | map | — |
+| `s1` | map<K,any> | — |
+| `s2` | map<K,any> | — |
 
 
 #### Examples

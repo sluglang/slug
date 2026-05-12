@@ -92,7 +92,7 @@ bytesToHexStr(0x"68656c6c6f20736c7567")  // => "68656c6c6f20736c7567"
 
 #### `bytesToNumbers(b, i, acc)`
 ```slug
-fn slug.bytes#bytesToNumbers(b:bytes, i = 0, acc = []):list
+fn slug.bytes#bytesToNumbers(b:bytes, i = 0, acc:list<num> = []):list<num>
 ```
 
 
@@ -102,7 +102,7 @@ converts a byte buffer to a list of numeric byte values (0–255).
 | --- | --- | --- |
 | `b` | bytes | — |
 | `i` |  | `0` |
-| `acc` |  | `[]` |
+| `acc` | list<num> | `[]` |
 
 
 #### Examples

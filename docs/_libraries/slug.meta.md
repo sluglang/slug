@@ -82,7 +82,7 @@ num slug.meta#BINDING_VALUE
 
 #### `describe(value)`
 ```slug
-fn slug.meta#describe(value):map
+fn slug.meta#describe(value):map<sym,any>
 ```
 
 
@@ -102,7 +102,7 @@ descriptors.
 
 #### `describeSymbol(module, symbol)`
 ```slug
-fn slug.meta#describeSymbol(module:str, symbol:str):map
+fn slug.meta#describeSymbol(module:str, symbol:str):map<sym,any>
 ```
 
 
@@ -121,7 +121,7 @@ preserved when symbols are imported via maps.
 
 #### `getTag(value, tag)`
 ```slug
-fn slug.meta#getTag(value, tag:str):list
+fn slug.meta#getTag(value, tag:str):list<any>
 ```
 
 
@@ -172,7 +172,7 @@ as a short description; subsequent paragraphs provide extended docs.
 
 #### `searchModuleTags(module, tag, includePrivate)`
 ```slug
-fn slug.meta#searchModuleTags(module:str, tag:str, includePrivate:bool = false):map
+fn slug.meta#searchModuleTags(module:str, tag:str, includePrivate:bool = false):map<str,any>
 ```
 
 
@@ -192,7 +192,7 @@ to include non-exported bindings.
 
 #### `searchScopeTags(tag)`
 ```slug
-fn slug.meta#searchScopeTags(tag:str):any
+fn slug.meta#searchScopeTags(tag:str):list<[str,any,list<any>]>
 ```
 
 

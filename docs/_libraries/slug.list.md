@@ -13,18 +13,18 @@ helpers for `list` values. Complements the core list operations in
 ### TOC
 
 - [`asList(chars, i, acc)`](#aslistchars-i-acc)
-- [`flatten(lsts)`](#flattenlsts)
-- [`indexOf(list, value, idx)`](#indexoflist-value-idx)
-- [`removeValue(list, value)`](#removevaluelist-value)
-- [`shuffle(list)`](#shufflelist)
-- [`sort(lst)`](#sortlst)
+- [`flatten<T>(lsts)`](#flattentlsts)
+- [`indexOf<T>(list, value, idx)`](#indexoftlist-value-idx)
+- [`removeValue<T>(list, value)`](#removevaluetlist-value)
+- [`shuffle<T>(list)`](#shuffletlist)
+- [`sort<T>(lst)`](#sorttlst)
 - [`sortWithComparator(lst, comparator)`](#sortwithcomparatorlst-comparator)
 
 ### Functions
 
 #### `asList(chars, i, acc)`
 ```slug
-fn slug.list#asList(chars:str, i:num = 0, acc:list = []):list
+fn slug.list#asList(chars:str, i:num = 0, acc:list<str> = []):list<str>
 ```
 
 
@@ -36,7 +36,7 @@ Returns an empty list for `nil` or an empty string.
 | --- | --- | --- |
 | `chars` | str | — |
 | `i` | num | `0` |
-| `acc` | list | `[]` |
+| `acc` | list<str> | `[]` |
 
 
 #### Examples
@@ -49,9 +49,9 @@ asList("123")  // => ["1", "2", "3"]
 
 ---
 
-#### `flatten(lsts)`
+#### `flatten<T>(lsts)`
 ```slug
-fn slug.list#flatten(lsts:list):list
+fn slug.list#flatten<T>(lsts:list<list<T>|T>):list<T>
 ```
 
 
@@ -62,7 +62,7 @@ recursively flattened.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `lsts` | list | — |
+| `lsts` | list<list<T> \| T> | — |
 
 
 #### Examples
@@ -76,9 +76,9 @@ flatten([[1, 2], [3], [4, 5]])  // => [1, 2, 3, 4, 5]
 
 ---
 
-#### `indexOf(list, value, idx)`
+#### `indexOf<T>(list, value, idx)`
 ```slug
-fn slug.list#indexOf(list:list, value, idx:num = 0):num
+fn slug.list#indexOf<T>(list:list<T>, value:T, idx:num = 0):num
 ```
 
 
@@ -88,8 +88,8 @@ Returns `-1` if the value is not found. Uses value equality (`==`).
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `list` | list | — |
-| `value` |  | — |
+| `list` | list<T> | — |
+| `value` | T | — |
 | `idx` | num | `0` |
 
 
@@ -103,9 +103,9 @@ indexOf([1, 2], 9)  // => -1
 
 ---
 
-#### `removeValue(list, value)`
+#### `removeValue<T>(list, value)`
 ```slug
-fn slug.list#removeValue(list:list, value):list
+fn slug.list#removeValue<T>(list:list<T>, value:T):list<T>
 ```
 
 
@@ -115,8 +115,8 @@ Returns the original list unchanged if the value is not present.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `list` | list | — |
-| `value` |  | — |
+| `list` | list<T> | — |
+| `value` | T | — |
 
 
 #### Examples
@@ -128,9 +128,9 @@ removeValue([1, 2, 3], 5)  // => [1, 2, 3]
 
 ---
 
-#### `shuffle(list)`
+#### `shuffle<T>(list)`
 ```slug
-fn slug.list#shuffle(list:list):list
+fn slug.list#shuffle<T>(list:list<T>):list<T>
 ```
 
 
@@ -142,15 +142,15 @@ Uses the Fisher-Yates algorithm. The original list is not modified.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `list` | list | — |
+| `list` | list<T> | — |
 
 **Effects:** `random`
 
 ---
 
-#### `sort(lst)`
+#### `sort<T>(lst)`
 ```slug
-fn slug.list#sort(lst:list):list
+fn slug.list#sort<T>(lst:list<T>):list<T>
 ```
 
 
@@ -162,13 +162,13 @@ numbers or lists of strings. For mixed or custom types, use
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `lst` | list | — |
+| `lst` | list<T> | — |
 
 ---
 
 #### `sortWithComparator(lst, comparator)`
 ```slug
-fn slug.list#sortWithComparator(lst:list, comparator:fn):list
+fn slug.list#sortWithComparator(lst:list<T>, comparator:fn<num, T>):list<T>
 ```
 
 
@@ -183,8 +183,8 @@ numbers and strings.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `lst` | list | — |
-| `comparator` | fn | — |
+| `lst` | list<T> | — |
+| `comparator` | fn<num, T> | — |
 
 
 #### Examples

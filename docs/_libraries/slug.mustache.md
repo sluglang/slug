@@ -81,7 +81,7 @@ implementation detail — do not rely on its structure directly.
 
 #### `render(templateOrAst, data, partials)`
 ```slug
-fn slug.mustache#render(templateOrAst, data, partials = nil):str
+fn slug.mustache#render(templateOrAst:str|map, data:map<str,any>, partials:map<str,str|fn<str, str>>|nil = nil):str
 ```
 
 
@@ -94,9 +94,9 @@ For repeated renders of the same template with partials, prefer
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `templateOrAst` |  | — |
-| `data` |  | — |
-| `partials` |  | `nil` |
+| `templateOrAst` | str \| map | — |
+| `data` | map<str,any> | — |
+| `partials` | map<str,str \| fn<str, str>> \| nil | `nil` |
 
 **Throws:** `Error{type:MustacheError}`
 
@@ -104,7 +104,7 @@ For repeated renders of the same template with partials, prefer
 
 #### `renderCached(templateOrAst, data, partials, cache)`
 ```slug
-fn slug.mustache#renderCached(templateOrAst, data, partials = nil, cache = {}):map<any,any>
+fn slug.mustache#renderCached(templateOrAst:str|map, data:map<str,any>, partials:map<str,str|fn<str, str>>|nil = nil, cache:map = {}):map<sym,str|map>
 ```
 
 
@@ -118,9 +118,9 @@ back on subsequent calls to avoid re-parsing partials.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `templateOrAst` |  | — |
-| `data` |  | — |
-| `partials` |  | `nil` |
-| `cache` |  | `{}` |
+| `templateOrAst` | str \| map | — |
+| `data` | map<str,any> | — |
+| `partials` | map<str,str \| fn<str, str>> \| nil | `nil` |
+| `cache` | map | `{}` |
 
 **Throws:** `Error{type:MustacheError}`

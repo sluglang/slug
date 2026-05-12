@@ -81,7 +81,7 @@ decode("{"name":"Alice","age":30}")  // => {name: Alice, age: 30}
 
 #### `encode(v)`
 ```slug
-fn slug.json#encode(v):str
+fn slug.json#encode(v:any):str
 ```
 
 
@@ -92,7 +92,7 @@ string. Bytes are encoded as `"b64:<base64>"`.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `v` |  | — |
+| `v` | any | — |
 
 **Throws:** `Error{type:JsonError}`
 
@@ -116,7 +116,7 @@ encode({name: Alice, age: 30})  // => "{"age":30,"name":"Alice"}"
 
 #### `pretty(v, indent)`
 ```slug
-fn slug.json#pretty(v, indent:num = 2):str
+fn slug.json#pretty(v:any, indent:num = 2):str
 ```
 
 
@@ -127,7 +127,7 @@ level. Follows the same type mapping as `encode`.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `v` |  | — |
+| `v` | any | — |
 | `indent` | num | `2` |
 
 **Throws:** `Error{type:JsonError}`

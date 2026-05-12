@@ -55,7 +55,7 @@ val htmlUnescape = fn(str):str {
 	["<a><a href='h'>hi</a></a>", "a"], "<a href='h'>hi</a>"
 )
 @export
-val extractInnerText = fn(html, tag, start = 0):str {
+val extractInnerText = fn(html:str, tag:str, start:num = 0):str {
 	if (start < 0) {
 		""
 	} else {

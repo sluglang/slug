@@ -22,7 +22,7 @@ stress:
 manifest:
 	go run ./cmd/app/main.go doc --dir ./lib --out ./lib/MANIFEST.ai manifest
 
-generate-docs: manifest
+docs: manifest
 	go run ./cmd/app/main.go doc --dir ./lib --moduleToc --multiPage --out ./docs/_libraries markdown
 
 test:

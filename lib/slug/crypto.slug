@@ -141,7 +141,7 @@ val hmacSha512 = fn(message:bytes, secret:bytes):bytes {
 
 // --- internal HMAC implementation ---
 
-val calculateHmacSignature = fn(message:bytes, secret:bytes, blockSize:num, algo:fn) {
+val calculateHmacSignature = fn(message:bytes, secret:bytes, blockSize:num, algo:fn<bytes, bytes>):bytes {
 	val key = if (len(secret) > blockSize) { algo(secret) } else { secret }
 	val padLen = blockSize - len(key)
 	val paddedKey = if (padLen > 0) { key + (0x"00" /> repeat(padLen)) } else { key }

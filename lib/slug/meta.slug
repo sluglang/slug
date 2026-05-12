@@ -58,7 +58,7 @@ foreign hasTag = fn(value, tag:str):bool
  * Returns `[""]` for tags with no arguments (e.g. `@export`).
  */
 @export
-foreign getTag = fn(value, tag:str):list
+foreign getTag = fn(value, tag:str):list<any>
 
 /**
  * searches all exported bindings in a module for a given tag.
@@ -68,7 +68,7 @@ foreign getTag = fn(value, tag:str):list
  * to include non-exported bindings.
  */
 @export
-foreign searchModuleTags = fn(module:str, tag:str, includePrivate:bool = false):map
+foreign searchModuleTags = fn(module:str, tag:str, includePrivate:bool = false):map<str, any>
 
 /**
  * searches all bindings in the current scope for a given tag.
@@ -76,7 +76,7 @@ foreign searchModuleTags = fn(module:str, tag:str, includePrivate:bool = false):
  * Returns a list of binding tuples. Use `BINDING_NAME`, `BINDING_VALUE`,
  * and `BINDING_PARAMS` as indices to access tuple elements.
  */
-@export foreign searchScopeTags = fn(tag:str)
+@export foreign searchScopeTags = fn(tag:str):list<[str, any, list<any>]>
 
 /**
  * returns a metadata map describing the given value.
@@ -88,7 +88,7 @@ foreign searchModuleTags = fn(module:str, tag:str, includePrivate:bool = false):
  * descriptors.
  */
 @export
-foreign describe = fn(value):map
+foreign describe = fn(value):map<sym, any>
 
 /**
  * returns metadata for a specific symbol in a module by binding name.
@@ -98,7 +98,7 @@ foreign describe = fn(value):map
  * preserved when symbols are imported via maps.
  */
 @export
-foreign describeSymbol = fn(module:str, symbol:str):map
+foreign describeSymbol = fn(module:str, symbol:str):map<sym, any>
 
 /**
  * returns the module-level doc comment for the given module name.

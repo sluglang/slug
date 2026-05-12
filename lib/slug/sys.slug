@@ -21,7 +21,7 @@
  */
 @export
 @effects('io')
-foreign env = fn(str:str):str
+foreign env = fn(str:str):str|nil
 
 /**
  * sets an environment variable.

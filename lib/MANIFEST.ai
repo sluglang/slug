@@ -83,7 +83,7 @@ fn slug.bytes#base64Encode(b:bytes):str
 fn slug.bytes#bytesToHexStr(b:bytes):str
   desc: "encodes a byte buffer as a lowercase hex string."
 
-fn slug.bytes#bytesToNumbers(b:bytes, i = 0, acc = []):list
+fn slug.bytes#bytesToNumbers(b:bytes, i = 0, acc:list<num> = []):list<num>
   desc: "converts a byte buffer to a list of numeric byte values (0–255)."
 
 fn slug.bytes#bytesToStr(b:bytes):str
@@ -168,10 +168,10 @@ fn slug.crypto#sha512(bytes:bytes):bytes
 fn slug.crypto#sha512(str:str):str
   desc: "returns the SHA-512 hex digest of a string."
 
-fn slug.csv#fromCsvString(csvStr:str, sep:str = ",", quote:str = "\""):list
+fn slug.csv#fromCsvString(csvStr:str, sep:str = ",", quote:str = "\""):list<list<str>>
   desc: "parses a CSV string into a list of rows, where each row is a list of strings."
 
-fn slug.csv#toCsv(rows:list, sep:str = ",", quote:str = "\"", eol:str = "\r\n", acc:str = ""):str
+fn slug.csv#toCsv(rows:list<list<str>>, sep:str = ",", quote:str = "\"", eol:str = "\r\n", acc:str = ""):str
   desc: "converts a list of rows (each a list of strings) to a CSV string."
 
 struct slug.db.migration#Migration{id:num, version:str, environment:str, filename:str, checksum:str, success:bool, appliedAt:str}
@@ -220,7 +220,7 @@ fn slug.doc.markdown#pagePerModule(moduleNames:list, moduleToc:bool = false):lis
 fn slug.doc.markdown#singlePage(moduleNames:list, title:str = "Slug API Reference", moduleToc:bool = false):str
   desc: "generates a single-page markdown API reference for the given list of module names."
 
-fn slug.html#extractInnerText(html, tag, start = 0):str
+fn slug.html#extractInnerText(html:str, tag:str, start:num = 0):str
   desc: "extracts the inner content of the first matching tag in an HTML string."
 
 fn slug.html#htmlUnescape(str):str
@@ -366,20 +366,20 @@ fn slug.json#decode(jsonStr:str):any
   errors:
     thrown: Error{type:JsonError}
 
-fn slug.json#encode(v):str
+fn slug.json#encode(v:any):str
   desc: "encodes a Slug value as a compact JSON string."
   errors:
     thrown: Error{type:JsonError}
 
-fn slug.json#pretty(v, indent:num = 2):str
+fn slug.json#pretty(v:any, indent:num = 2):str
   desc: "encodes a Slug value as a pretty-printed JSON string."
   errors:
     thrown: Error{type:JsonError}
 
-fn slug.jsonl#decode(jsonl:str, skipEmpty:bool = true):list
+fn slug.jsonl#decode(jsonl:str, skipEmpty:bool = true):list<any>
   desc: "decodes JSON Lines text into a list of values."
 
-fn slug.jsonl#encode(values:list, eol:str = "\n", trailingEol:bool = false):str
+fn slug.jsonl#encode(values:list<any>, eol:str = "\n", trailingEol:bool = false):str
   desc: "encodes a list of values as JSON Lines text."
 
 num slug.jsonrpc#INTERNAL_ERROR
@@ -394,13 +394,13 @@ num slug.jsonrpc#PARSE_ERROR
 
 str slug.jsonrpc#VERSION
 
-fn slug.jsonrpc#encode(message):str
+fn slug.jsonrpc#encode(message:list|map):str
   desc: "encodes a JSON-RPC message or batch to JSON."
 
-fn slug.jsonrpc#errorObject(code:num, message:str, data = nil):map
+fn slug.jsonrpc#errorObject(code:num, message:str, data:any = nil):map<str,any>
   desc: "builds a JSON-RPC error object."
 
-fn slug.jsonrpc#failure(id, code:num, message:str, data = nil):map
+fn slug.jsonrpc#failure(id:str|num|nil, code:num, message:str, data:any = nil):map<str,any>
   desc: "builds a JSON-RPC error response object."
 
 fn slug.jsonrpc#isBatch(v):bool
@@ -424,7 +424,7 @@ fn slug.jsonrpc#isResponse(v):bool
 fn slug.jsonrpc#isSuccessResponse(v):bool
   desc: "returns true when `v` is a success response."
 
-fn slug.jsonrpc#notification(method:str, params = nil):map
+fn slug.jsonrpc#notification(method:str, params:list|map|nil = nil):map<str,any>
   desc: "builds a JSON-RPC notification object (request without `id`)."
 
 fn slug.jsonrpc#parse(payload:str):any
@@ -432,37 +432,37 @@ fn slug.jsonrpc#parse(payload:str):any
   errors:
     thrown: Error{type:JsonRpcError}
 
-fn slug.jsonrpc#request(id, method:str, params = nil):map
+fn slug.jsonrpc#request(id:str|num|nil, method:str, params:list|map|nil = nil):map<str,any>
   desc: "builds a JSON-RPC request object."
 
-fn slug.jsonrpc#success(id, result = nil):map
+fn slug.jsonrpc#success(id:str|num|nil, result:any = nil):map<str,any>
   desc: "builds a JSON-RPC success response object."
 
-fn slug.jsonrpc#validate(message):any
+fn slug.jsonrpc#validate(message:any):map|list
   desc: "validates a JSON-RPC message or batch."
   errors:
     thrown: Error{type:JsonRpcError}
 
-fn slug.list#asList(chars:str, i:num = 0, acc:list = []):list
+fn slug.list#asList(chars:str, i:num = 0, acc:list<str> = []):list<str>
   desc: "converts a string into a list of single-character strings."
 
-fn slug.list#flatten(lsts:list):list
+fn slug.list#flatten<T>(lsts:list<list<T>|T>):list<T>
   desc: "flattens a list of lists into a single list."
 
-fn slug.list#indexOf(list:list, value, idx:num = 0):num
+fn slug.list#indexOf<T>(list:list<T>, value:T, idx:num = 0):num
   desc: "returns the index of the first occurrence of `value` in `list`."
 
-fn slug.list#removeValue(list:list, value):list
+fn slug.list#removeValue<T>(list:list<T>, value:T):list<T>
   desc: "returns a new list with the first occurrence of `value` removed."
 
-fn slug.list#shuffle(list:list):list
+fn slug.list#shuffle<T>(list:list<T>):list<T>
   desc: "returns a new list with elements shuffled in random order."
   effects: random
 
-fn slug.list#sort(lst:list):list
+fn slug.list#sort<T>(lst:list<T>):list<T>
   desc: "sorts a list in natural ascending order."
 
-fn slug.list#sortWithComparator(lst:list, comparator:fn):list
+fn slug.list#sortWithComparator(lst:list<T>, comparator:fn<num, T>):list<T>
   desc: "sorts a list using a custom comparator function."
 
 num slug.log#Debug
@@ -521,10 +521,10 @@ fn slug.log#trace(message:str, ...args):str|nil
 fn slug.log#warn(message:str, ...args):str|nil
   desc: "logs a warn-level message using the global log level."
 
-fn slug.map#difference(s1:map, s2:map):map
+fn slug.map#difference<K>(s1:map<K,any>, s2:map<K,any>):map<K,any>
   desc: "returns `s1` with all keys that appear in `s2` removed."
 
-fn slug.map#intersect(s1:map, s2:map):map
+fn slug.map#intersect<K>(s1:map<K,any>, s2:map<K,any>):map<K,any>
   desc: "returns a map containing only keys present in both maps."
 
 fn slug.map#merge(base:map, patch:map):map
@@ -536,7 +536,7 @@ fn slug.map#patch(base:map, patchData:map):map
 fn slug.map#putNested(map:map, keys:list, value):map
   desc: "sets a deeply nested key in a map, creating intermediate maps as needed."
 
-fn slug.map#union(s1:map, s2:map):map
+fn slug.map#union<K>(s1:map<K,any>, s2:map<K,any>):map<K,any>
   desc: "returns a map containing all keys from both maps."
 
 fn slug.math#ceil(n:num):num
@@ -553,13 +553,13 @@ fn slug.math#max(a:num, ...b):num
 fn slug.math#max(a:num, b:num):num
   desc: "returns the largest of two or more numbers."
 
-fn slug.math#mean(xs):num
+fn slug.math#mean(xs:list<num>):num
   desc: "returns the arithmetic mean of a list of numbers."
 
 fn slug.math#min(a:num, ...b):num
   desc: "returns the smallest of two or more numbers."
 
-fn slug.math#percentileSorted(xs, p):num
+fn slug.math#percentileSorted(xs:list<num>, p:num):num
   desc: "returns the `p`th percentile of a pre-sorted ascending list."
 
 fn slug.math#rndRange(min:num, max:num):num
@@ -569,7 +569,7 @@ fn slug.math#rndRange(min:num, max:num):num
 fn slug.math#sqrt(n:num):num
   desc: "returns the square root of `n`."
 
-fn slug.math#stdev(xs, mean):num
+fn slug.math#stdev(xs:list<num>, mean:num):num
   desc: "returns the sample standard deviation of a list of numbers."
 
 num slug.meta#BINDING_NAME
@@ -578,13 +578,13 @@ num slug.meta#BINDING_PARAMS
 
 num slug.meta#BINDING_VALUE
 
-fn slug.meta#describe(value):map
+fn slug.meta#describe(value):map<sym,any>
   desc: "returns a metadata map describing the given value."
 
-fn slug.meta#describeSymbol(module:str, symbol:str):map
+fn slug.meta#describeSymbol(module:str, symbol:str):map<sym,any>
   desc: "returns metadata for a specific symbol in a module by binding name."
 
-fn slug.meta#getTag(value, tag:str):list
+fn slug.meta#getTag(value, tag:str):list<any>
   desc: "returns the list of arguments for a tag on `value`."
 
 fn slug.meta#hasTag(value, tag:str):bool
@@ -593,21 +593,21 @@ fn slug.meta#hasTag(value, tag:str):bool
 fn slug.meta#moduleDocs(module:str):str
   desc: "returns the module-level doc comment for the given module name."
 
-fn slug.meta#searchModuleTags(module:str, tag:str, includePrivate:bool = false):map
+fn slug.meta#searchModuleTags(module:str, tag:str, includePrivate:bool = false):map<str,any>
   desc: "searches all exported bindings in a module for a given tag."
 
-fn slug.meta#searchScopeTags(tag:str):any
+fn slug.meta#searchScopeTags(tag:str):list<[str,any,list<any>]>
   desc: "searches all bindings in the current scope for a given tag."
 
 fn slug.mustache#parse(template:str):any
   desc: "parses a Mustache template string into an AST."
 
-fn slug.mustache#render(templateOrAst, data, partials = nil):str
+fn slug.mustache#render(templateOrAst:str|map, data:map<str,any>, partials:map<str,str|fn<str, str>>|nil = nil):str
   desc: "renders a Mustache template and returns the resulting HTML string."
   errors:
     thrown: Error{type:MustacheError}
 
-fn slug.mustache#renderCached(templateOrAst, data, partials = nil, cache = {}):map<any,any>
+fn slug.mustache#renderCached(templateOrAst:str|map, data:map<str,any>, partials:map<str,str|fn<str, str>>|nil = nil, cache:map = {}):map<sym,str|map>
   desc: "renders a Mustache template with a partial cache for reuse across calls."
   errors:
     thrown: Error{type:MustacheError}
@@ -633,14 +633,14 @@ fn slug.path#moduleDir():str
 fn slug.path#projectRoot():str
   desc: "Returns the entry module directory."
 
-fn slug.regex#findAll(str:str, pattern:str):list
+fn slug.regex#findAll(str:str, pattern:str):list<str>
   desc: "returns a list of all non-overlapping matches of `pattern` in `str`."
 
-fn slug.regex#findAllGroups(str:str, pattern:str):list
+fn slug.regex#findAllGroups(str:str, pattern:str):list<list<str>>
   desc: "returns a list of all matches including capture groups."
 
-fn slug.regex#indexOf(str:str, pattern:str, index:num = 0):[list, list]
-  desc: "returns the byte index range of the first match of `pattern` in `str` starting from `index`, as `[start_end:list, group_ranges:list]`."
+fn slug.regex#indexOf(str:str, pattern:str, index:num = 0):[num, num]|nil
+  desc: "returns the byte index range of the first match of `pattern` in `str` starting from `index`, as `[start, end]`."
 
 fn slug.regex#matches(str:str, pattern:str):bool
   desc: "returns true if the pattern matches anywhere in the string."
@@ -648,7 +648,7 @@ fn slug.regex#matches(str:str, pattern:str):bool
 fn slug.regex#replaceAll(str:str, pattern:str, repl:str):str
   desc: "replaces all matches of `pattern` in `str` with `repl`."
 
-fn slug.regex#split(str:str, pattern:str):list
+fn slug.regex#split(str:str, pattern:str):list<str>
   desc: "splits `str` into a list of substrings divided by matches of `pattern`."
 
 sym slug.std#BOOLEAN_TYPE
@@ -688,7 +688,7 @@ fn slug.std#compare(a, b):num
 fn slug.std#compute(map:map, key, f):map
   desc: "applies `f(key, currentValue)` to the value at `key` and returns the updated map."
 
-fn slug.std#counter(start:num = 0):fn
+fn slug.std#counter(start:num = 0):fn:<num>
   desc: "returns a function that increments and returns a counter on each call."
 
 fn slug.std#equals(m1:map, m2:map):bool
@@ -701,7 +701,7 @@ fn slug.std#equals(a:list, b:list, idx:num = 0):bool
 fn slug.std#filter(vs:list, f:fn, acc:list = []):list
   desc: "returns a new list containing only elements for which `f` returns true."
 
-fn slug.std#find(xs:list, f:fn):any
+fn slug.std#find<T>(xs:list<T>, f:fn<bool, T>):T|nil
   desc: "returns the first element of `xs` for which `f` returns true, or `nil`."
 
 fn slug.std#flatMap(vs:list, f:fn):list
@@ -745,7 +745,7 @@ fn slug.std#parseNumber(value:str):num
 fn slug.std#put(map:map, key, value):map
   desc: "returns a new map with `key` set to `value`."
 
-fn slug.std#range(start:num, end:num, step:num = 1, acc:list = []):list
+fn slug.std#range(start:num, end:num, step:num = 1, acc:list<num> = []):list<num>
   desc: "generates a list of numbers from `start` (inclusive) to `end` (exclusive) by `step`."
 
 fn slug.std#reduce(vs:list, v, f:fn):any
@@ -791,10 +791,10 @@ fn slug.std#zeroIfAbove(a:num, b:num):num
 fn slug.std#zip(lst1:list, lst2:list, acc = []):list<[any,any]>
   desc: "zips two lists into a list of `[a, b]` pairs."
 
-fn slug.std#zipWith(lst:list, f):list<[any,any]>
+fn slug.std#zipWith<A, B>(lst:list<A>, f:<B>):list<[A,B]>
   desc: "zips a list with the results of calling `f` for each element."
 
-fn slug.std#zipWithIndex(lst:list):list<[any,num]>
+fn slug.std#zipWithIndex<T>(lst:list<T>):list<[T,num]>
   desc: "zips a list with its zero-based indices."
 
 fn slug.string#camelCase(s:str, sep:str = " "):str
@@ -821,13 +821,13 @@ fn slug.string#isLower(str:str):bool
 fn slug.string#isUpper(str:str):bool
   desc: "returns true if `str` is non-empty and entirely uppercase."
 
-fn slug.string#join(strs:list, delimiter:str = "", str:str = nil):str
+fn slug.string#join(strs:list<str>, delimiter:str = "", str:str|nil = nil):str
   desc: "joins a list of strings with `delimiter` between each element."
 
 fn slug.string#kebabCase(s:str, sep:str = " "):str
   desc: "converts a string to `kebab-case` by replacing `sep` with `-`."
 
-fn slug.string#lastIndexOf(str:str, seq:str, index:num = 0, prev = (-1)):num
+fn slug.string#lastIndexOf(str:str, seq:str, index:num = 0, prev:num = (-1)):num
   desc: "returns the index of the last occurrence of `seq` in `str`."
 
 fn slug.string#padLeft(str:str, with:str, length:num):str
@@ -853,7 +853,7 @@ fn slug.string#replaceAll(str:str|nil, replace:str, with:str):str|nil
 fn slug.string#snakeCase(s:str, sep:str = " ", screaming = false):str
   desc: "converts a string to `snake_case` by replacing `sep` with `_`."
 
-fn slug.string#split(str:str, delimiter:str, max:num = (-1), count:num = 1, strs:list = []):list
+fn slug.string#split(str:str, delimiter:str, max:num = (-1), count:num = 1, strs:list<str> = []):list<str>
   desc: "splits `str` on `delimiter`, returning a list of substrings."
 
 fn slug.string#startsWith(str:str, start:str):bool
@@ -870,7 +870,7 @@ fn slug.string#trim(str:str):str|nil
 fn slug.string#trim(s:str|nil, prefix:str):str|nil
   desc: "removes all leading and trailing occurrences of `prefix` from `s`."
 
-fn slug.sys#env(str:str):str
+fn slug.sys#env(str:str):str|nil
   desc: "reads an environment variable by name."
   effects: io
 
@@ -1051,110 +1051,110 @@ fn slug.term.control#clear():any
 fn slug.term.control#clearAll():any
   desc: "clears the terminal screen, scrollback buffer, and moves the cursor to the top-left."
 
-fn slug.test#assert(a, msg = nil):bool
+fn slug.test#assert(a, msg:str|nil = nil):bool
   desc: "asserts that `a` is `true`."
   errors:
     thrown: Error{type:AssertionError}
 
-fn slug.test#assertEqual(value, expected, msg = nil):any
+fn slug.test#assertEqual(value, expected, msg:str|nil = nil):any
   desc: "asserts that `value` equals `expected` using deep equality."
   errors:
     thrown: Error{type:AssertionError}
 
-fn slug.test#assertErrorType(f:fn, expected, msg:str = nil):bool
+fn slug.test#assertErrorType(f:fn<any>, expected, msg:str|nil = nil):bool
   desc: "asserts that calling `f` throws a value of type `expected`."
   errors:
     thrown: Error{type:AssertionError}
 
-fn slug.test#assertFalse(a, msg = nil):bool
+fn slug.test#assertFalse(a, msg:str|nil = nil):bool
   desc: "asserts that `a` is falsey."
   errors:
     thrown: Error{type:AssertionError}
 
-fn slug.test#assertGreaterThan(value, expected, msg = nil):any
+fn slug.test#assertGreaterThan(value, expected, msg:str|nil = nil):any
   desc: "asserts that `value > expected`. Returns `value` on success."
   errors:
     thrown: Error{type:AssertionError}
 
-fn slug.test#assertGreaterThanOrEqual(value, expected, msg = nil):any
+fn slug.test#assertGreaterThanOrEqual(value, expected, msg:str|nil = nil):any
   desc: "asserts that `value >= expected`. Returns `value` on success."
   errors:
     thrown: Error{type:AssertionError}
 
-fn slug.test#assertLessThan(value, expected, msg = nil):any
+fn slug.test#assertLessThan(value, expected, msg:str|nil = nil):any
   desc: "asserts that `value < expected`. Returns `value` on success."
   errors:
     thrown: Error{type:AssertionError}
 
-fn slug.test#assertLessThanOrEqual(value, expected, msg = nil):any
+fn slug.test#assertLessThanOrEqual(value, expected, msg:str|nil = nil):any
   desc: "asserts that `value <= expected`. Returns `value` on success."
   errors:
     thrown: Error{type:AssertionError}
 
-fn slug.test#assertNil(value, msg = nil):any
+fn slug.test#assertNil(value, msg:str|nil = nil):any
   desc: "asserts that `value` is `nil`. Returns `value` on success."
   errors:
     thrown: Error{type:AssertionError}
 
-fn slug.test#assertNotEqual(value, expected, msg = nil):any
+fn slug.test#assertNotEqual(value, expected, msg:str|nil = nil):any
   desc: "asserts that `value` does not equal `expected`. Returns `value` on success."
   errors:
     thrown: Error{type:AssertionError}
 
-fn slug.test#assertNotNil(value, msg = nil):any
+fn slug.test#assertNotNil(value, msg:str|nil = nil):any
   desc: "asserts that `value` is not `nil`. Returns `value` on success."
   errors:
     thrown: Error{type:AssertionError}
 
-fn slug.test#assertThrows(f:fn, expected, msg:str = nil):bool
+fn slug.test#assertThrows(f:fn<any>, expected, msg:str|nil = nil):bool
   desc: "asserts that calling `f` throws a value equal to `expected`."
   errors:
     thrown: Error{type:AssertionError}
 
-fn slug.test#assertTrue(a, msg = nil):bool
+fn slug.test#assertTrue(a, msg:str|nil = nil):bool
   errors:
     thrown: Error{type:AssertionError}
 
-fn slug.test#eq(value, expected, msg = nil):any
+fn slug.test#eq(value, expected, msg:str|nil = nil):any
   errors:
     thrown: Error{type:AssertionError}
 
-fn slug.test#fail(msg = nil):any
+fn slug.test#fail(msg:str|nil = nil):any
   desc: "unconditionally throws an `AssertionError` with an optional message."
   errors:
     thrown: Error{type:AssertionError}
 
-fn slug.test#gt(value, expected, msg = nil):any
+fn slug.test#gt(value, expected, msg:str|nil = nil):any
   errors:
     thrown: Error{type:AssertionError}
 
-fn slug.test#gteq(value, expected, msg = nil):any
+fn slug.test#gteq(value, expected, msg:str|nil = nil):any
   errors:
     thrown: Error{type:AssertionError}
 
 fn slug.test#isAssertError(v):bool
   desc: "returns true if `v` is an AssertionError thrown by this module."
 
-fn slug.test#lt(value, expected, msg = nil):any
+fn slug.test#lt(value, expected, msg:str|nil = nil):any
   errors:
     thrown: Error{type:AssertionError}
 
-fn slug.test#lteq(value, expected, msg = nil):any
+fn slug.test#lteq(value, expected, msg:str|nil = nil):any
   errors:
     thrown: Error{type:AssertionError}
 
-fn slug.test#not(a, msg = nil):bool
+fn slug.test#not(a, msg:str|nil = nil):bool
   errors:
     thrown: Error{type:AssertionError}
 
-fn slug.test#ok(a, msg = nil):bool
+fn slug.test#ok(a, msg:str|nil = nil):bool
   errors:
     thrown: Error{type:AssertionError}
 
-fn slug.test#runSafe(f:fn):map
+fn slug.test#runSafe(f:fn<any>):map<sym,any>
   desc: "executes `f()` and returns a result map without propagating errors."
 
-fn slug.test#throws(f:fn, expected, msg:str = nil):bool
+fn slug.test#throws(f:fn<any>, expected, msg:str|nil = nil):bool
   errors:
     thrown: Error{type:AssertionError}
 
@@ -1182,7 +1182,7 @@ fn slug.time#clockNanos():num
   desc: "returns the current time as a nanosecond counter."
   effects: time
 
-fn slug.time#delta(f):fn
+fn slug.time#delta(f:fn<num>):fn
   desc: "returns a function that measures elapsed time since it was created."
 
 fn slug.time#fmtClock(millis:num, fmt:str):str

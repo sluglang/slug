@@ -2245,7 +2245,7 @@ Implementation updates:
 
 Validation performed:
 - `make manifest`
-- `make generate-docs`
+- `make docs`
 - `go test ./... -count=1`
 
 ### Docs generator: benchmark function descriptions and formal return types

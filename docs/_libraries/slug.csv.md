@@ -41,7 +41,7 @@ Quote characters within a field are escaped by doubling: `"` → `""`.
 
 #### `fromCsvString(csvStr, sep, quote)`
 ```slug
-fn slug.csv#fromCsvString(csvStr:str, sep:str = ",", quote:str = "\""):list
+fn slug.csv#fromCsvString(csvStr:str, sep:str = ",", quote:str = "\""):list<list<str>>
 ```
 
 
@@ -72,7 +72,7 @@ d,"e
 
 #### `toCsv(rows, sep, quote, eol, acc)`
 ```slug
-fn slug.csv#toCsv(rows:list, sep:str = ",", quote:str = "\"", eol:str = "\r\n", acc:str = ""):str
+fn slug.csv#toCsv(rows:list<list<str>>, sep:str = ",", quote:str = "\"", eol:str = "\r\n", acc:str = ""):str
 ```
 
 
@@ -84,7 +84,7 @@ character, or newline characters. The default line ending is `\r\n`
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `rows` | list | — |
+| `rows` | list<list<str>> | — |
 | `sep` | str | `","` |
 | `quote` | str | `"\""` |
 | `eol` | str | `"\r\n"` |

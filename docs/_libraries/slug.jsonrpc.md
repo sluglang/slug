@@ -76,7 +76,7 @@ str slug.jsonrpc#VERSION
 
 #### `encode(message)`
 ```slug
-fn slug.jsonrpc#encode(message):str
+fn slug.jsonrpc#encode(message:list|map):str
 ```
 
 
@@ -84,13 +84,13 @@ encodes a JSON-RPC message or batch to JSON.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `message` |  | — |
+| `message` | list \| map | — |
 
 ---
 
 #### `errorObject(code, message, data)`
 ```slug
-fn slug.jsonrpc#errorObject(code:num, message:str, data = nil):map
+fn slug.jsonrpc#errorObject(code:num, message:str, data:any = nil):map<str,any>
 ```
 
 
@@ -100,13 +100,13 @@ builds a JSON-RPC error object.
 | --- | --- | --- |
 | `code` | num | — |
 | `message` | str | — |
-| `data` |  | `nil` |
+| `data` | any | `nil` |
 
 ---
 
 #### `failure(id, code, message, data)`
 ```slug
-fn slug.jsonrpc#failure(id, code:num, message:str, data = nil):map
+fn slug.jsonrpc#failure(id:str|num|nil, code:num, message:str, data:any = nil):map<str,any>
 ```
 
 
@@ -114,10 +114,10 @@ builds a JSON-RPC error response object.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `id` |  | — |
+| `id` | str \| num \| nil | — |
 | `code` | num | — |
 | `message` | str | — |
-| `data` |  | `nil` |
+| `data` | any | `nil` |
 
 ---
 
@@ -221,7 +221,7 @@ returns true when `v` is a success response.
 
 #### `notification(method, params)`
 ```slug
-fn slug.jsonrpc#notification(method:str, params = nil):map
+fn slug.jsonrpc#notification(method:str, params:list|map|nil = nil):map<str,any>
 ```
 
 
@@ -230,7 +230,7 @@ builds a JSON-RPC notification object (request without `id`).
 | Parameter | Type | Default |
 | --- | --- | --- |
 | `method` | str | — |
-| `params` |  | `nil` |
+| `params` | list \| map \| nil | `nil` |
 
 ---
 
@@ -256,7 +256,7 @@ Throws `JsonRpcError` with code:
 
 #### `request(id, method, params)`
 ```slug
-fn slug.jsonrpc#request(id, method:str, params = nil):map
+fn slug.jsonrpc#request(id:str|num|nil, method:str, params:list|map|nil = nil):map<str,any>
 ```
 
 
@@ -264,15 +264,15 @@ builds a JSON-RPC request object.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `id` |  | — |
+| `id` | str \| num \| nil | — |
 | `method` | str | — |
-| `params` |  | `nil` |
+| `params` | list \| map \| nil | `nil` |
 
 ---
 
 #### `success(id, result)`
 ```slug
-fn slug.jsonrpc#success(id, result = nil):map
+fn slug.jsonrpc#success(id:str|num|nil, result:any = nil):map<str,any>
 ```
 
 
@@ -282,14 +282,14 @@ The `result` member is always present (it may be `nil`).
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `id` |  | — |
-| `result` |  | `nil` |
+| `id` | str \| num \| nil | — |
+| `result` | any | `nil` |
 
 ---
 
 #### `validate(message)`
 ```slug
-fn slug.jsonrpc#validate(message):any
+fn slug.jsonrpc#validate(message:any):map|list
 ```
 
 
@@ -300,6 +300,6 @@ with `code = -32600` (Invalid Request).
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `message` |  | — |
+| `message` | any | — |
 
 **Throws:** `Error{type:JsonRpcError}`

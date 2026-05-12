@@ -104,7 +104,7 @@ foreign rndRange = fn(min:num, max:num):num
  * Returns `0` for an empty list.
  */
 @export
-val mean = fn(xs):num match {
+val mean = fn(xs:list<num>):num match {
 	[] => 0
 	_  => (xs /> reduce(0, fn(a, x) { a + x })) / len(xs)
 }
@@ -117,7 +117,7 @@ val mean = fn(xs):num match {
  * second argument to avoid recomputing it internally.
  */
 @export
-val stdev = fn(xs, mean):num match {
+val stdev = fn(xs:list<num>, mean:num):num match {
 	[]  => 0
 	[_] => 0
 	_   => {
@@ -140,7 +140,7 @@ val stdev = fn(xs, mean):num match {
  * Returns `0` for an empty list and the single element for a one-element list.
  */
 @export
-val percentileSorted = fn(xs, p):num match {
+val percentileSorted = fn(xs:list<num>, p:num):num match {
 	[[], ...] => 0
 	[[x], ...] => x
 	_ => {

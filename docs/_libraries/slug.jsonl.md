@@ -18,7 +18,7 @@ into lists of values. Uses `slug.json` for per-line JSON handling.
 
 #### `decode(jsonl, skipEmpty)`
 ```slug
-fn slug.jsonl#decode(jsonl:str, skipEmpty:bool = true):list
+fn slug.jsonl#decode(jsonl:str, skipEmpty:bool = true):list<any>
 ```
 
 
@@ -49,7 +49,7 @@ decode("{"a":1}
 
 #### `encode(values, eol, trailingEol)`
 ```slug
-fn slug.jsonl#encode(values:list, eol:str = "\n", trailingEol:bool = false):str
+fn slug.jsonl#encode(values:list<any>, eol:str = "\n", trailingEol:bool = false):str
 ```
 
 
@@ -62,7 +62,7 @@ Each value is encoded as one JSON value per line.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
-| `values` | list | — |
+| `values` | list<any> | — |
 | `eol` | str | `"\n"` |
 | `trailingEol` | bool | `false` |
 

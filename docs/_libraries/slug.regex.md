@@ -25,7 +25,7 @@ Patterns use standard Go/RE2 syntax (no lookaheads or backreferences).
 
 #### `findAll(str, pattern)`
 ```slug
-fn slug.regex#findAll(str:str, pattern:str):list
+fn slug.regex#findAll(str:str, pattern:str):list<str>
 ```
 
 
@@ -48,7 +48,7 @@ findAll("(foo)", "[a-z]+")  // => ["foo"]
 
 #### `findAllGroups(str, pattern)`
 ```slug
-fn slug.regex#findAllGroups(str:str, pattern:str):list
+fn slug.regex#findAllGroups(str:str, pattern:str):list<list<str>>
 ```
 
 
@@ -73,16 +73,15 @@ findAllGroups("<a href="foo">bar</a>", "<a href="(.*?)">(.*?)</a>")  // => [["<a
 
 #### `indexOf(str, pattern, index)`
 ```slug
-fn slug.regex#indexOf(str:str, pattern:str, index:num = 0):[list, list]
+fn slug.regex#indexOf(str:str, pattern:str, index:num = 0):[num, num]|nil
 ```
 
 
 returns the byte index range of the first match of `pattern` in `str`
-starting from `index`, as `[start_end:list, group_ranges:list]`.
+starting from `index`, as `[start, end]`.
 
-Returns `nil` if no match is found. The first list contains the start
-and end byte indices of the full match. Subsequent lists contain indices
-for capture groups.
+Returns `nil` if no match is found. The list contains the start
+and end byte indices of the full match.
 
 | Parameter | Type | Default |
 | --- | --- | --- |
@@ -143,7 +142,7 @@ replaceAll("1|2|3", "\d+", "x")  // => "x|x|x"
 
 #### `split(str, pattern)`
 ```slug
-fn slug.regex#split(str:str, pattern:str):list
+fn slug.regex#split(str:str, pattern:str):list<str>
 ```
 
 

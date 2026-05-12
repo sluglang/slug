@@ -87,7 +87,7 @@ val patch = fn(base:map, patchData:map):map {
 	[{k1:1}, {k1:9}], {k1:1}
 )
 @export
-val union = fn(s1:map, s2:map):map {
+val union = fn<K>(s1:map<K, any>, s2:map<K, any>):map<K, any> {
 	s1 /> keys() /> reduce(s2, fn(s, k) {
 		s /> put(k, s1[k])
 	})
@@ -106,7 +106,7 @@ val union = fn(s1:map, s2:map):map {
 	[{k1:1}, {}], {}
 )
 @export
-val intersect = fn(s1:map, s2:map):map {
+val intersect = fn<K>(s1:map<K, any>, s2:map<K, any>):map<K, any> {
 	s1 /> keys()
 		/> filter(fn(k) { s2[k] == nil })
 		/> reduce(s1, fn(s, k) { s /> remove(k) })
@@ -120,7 +120,7 @@ val intersect = fn(s1:map, s2:map):map {
 	[{k1:1, k2:1}, {k2:2}], {k1:1}
 )
 @export
-val difference = fn(s1:map, s2:map):map {
+val difference = fn<K>(s1:map<K, any>, s2:map<K, any>):map<K, any> {
 	s2 /> keys()
 		/> reduce(s1, fn(s, k) { s /> remove(k) })
 }

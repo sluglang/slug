@@ -22,7 +22,7 @@
     "trace_events": {
       "merge": 3432,
       "refine": 58,
-      "union-normalize": 365,
+      "union-normalize": 377,
       "widen": 47
     }
   },
