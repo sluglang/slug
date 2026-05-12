@@ -248,11 +248,15 @@ func (rv *ReturnValue) Type() ObjectType { return RETURN_VALUE_OBJ }
 func (rv *ReturnValue) Inspect() string  { return rv.Value.Inspect() }
 
 type Error struct {
-	Message string
+	Message  string
+	Kind     string
+	Path     string
+	Src      string
+	Position int
 }
 
 func (e *Error) Type() ObjectType { return ERROR_OBJ }
-func (e *Error) Inspect() string  { return e.Message }
+func (e *Error) Inspect() string  { return RenderError(e) }
 
 // Uninitialized is a sentinel used during two-phase module loading.
 // It indicates that a top-level binding name exists (declared) but its value

@@ -130,6 +130,26 @@ inc(1)
 	}
 }
 
+func TestExecutorRuntimeErrorFormattingIncludesSourceContext(t *testing.T) {
+	exec := NewExecutor(object.NewRootEnvironment(4), nil)
+	exec.env.Path = "test.slug"
+	exec.env.Src = "val x = 1\n1 + true\n"
+	err := exec.errorAt(len("val x = 1\n"), "type mismatch: num vs bool")
+	if err == nil {
+		t.Fatal("expected runtime error")
+	}
+	rendered := err.Inspect()
+	if !strings.Contains(rendered, "RuntimeError: type mismatch: num vs bool") {
+		t.Fatalf("expected runtime error prefix, got %s", rendered)
+	}
+	if !strings.Contains(rendered, "--> test.slug:2:1") {
+		t.Fatalf("expected source location, got %s", rendered)
+	}
+	if !strings.Contains(rendered, "^ unexpected here") {
+		t.Fatalf("expected source context, got %s", rendered)
+	}
+}
+
 func TestExecutorRuntimeChecksGenericAnnotatedReturnType(t *testing.T) {
 	got := runVM(t, `
 val zipWithIndex = fn<T>(lst:list<T>):list<[T, num]> {

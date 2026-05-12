@@ -2078,10 +2078,19 @@ func bindVMArgumentsInto(
 
 func (e *Executor) errorAt(pos int, format string, args ...interface{}) *object.Error {
 	msg := fmt.Sprintf(format, args...)
-	if pos > 0 {
-		return &object.Error{Message: fmt.Sprintf("vm runtime error at pos %d: %s", pos, msg)}
+	err := &object.Error{
+		Message:  "vm runtime error: " + msg,
+		Kind:     "RuntimeError",
+		Position: pos,
 	}
-	return &object.Error{Message: "vm runtime error: " + msg}
+	if e.env != nil {
+		err.Path = e.env.Path
+		err.Src = e.env.Src
+	}
+	if pos > 0 {
+		err.Message = msg
+	}
+	return err
 }
 
 func (e *Executor) returnTypeRuntimeError(_ int, format string, args ...interface{}) *object.RuntimeError {

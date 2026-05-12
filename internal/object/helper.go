@@ -4,7 +4,31 @@ import (
 	"bytes"
 	"fmt"
 	"slug/internal/util"
+	"strings"
 )
+
+func RenderError(err *Error) string {
+	if err == nil {
+		return ""
+	}
+	kind := strings.TrimSpace(err.Kind)
+	if kind == "" {
+		kind = "Error"
+	}
+	if err.Position > 0 && strings.TrimSpace(err.Src) != "" {
+		line, col := util.GetLineAndColumn(err.Src, err.Position)
+		var buf bytes.Buffer
+		fmt.Fprintf(&buf, "%s: %s\n\n", kind, err.Message)
+		if strings.TrimSpace(err.Path) != "" {
+			fmt.Fprintf(&buf, "    --> %s:%d:%d\n", err.Path, line, col)
+		} else {
+			fmt.Fprintf(&buf, "    --> %d:%d\n", line, col)
+		}
+		buf.WriteString(util.GetContextLines(err.Src, line, col))
+		return buf.String()
+	}
+	return fmt.Sprintf("%s: %s", kind, err.Message)
+}
 
 func RenderStacktrace(rtErr *RuntimeError) string {
 	var buf bytes.Buffer

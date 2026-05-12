@@ -2669,3 +2669,9 @@ Validation performed:
 - Updated VM and foreign-function return-type validation to instantiate generic type parameters from the actual call arguments before checking the returned value.
 - Added runtime type binding inference for generic function parameters so diagnostics now compare against the concrete instantiated return type, not the raw `T` annotation.
 - Added a VM regression test covering a generic `zipWithIndex`-style function returning `list<[T, num]>` from a concrete `list<str>` call.
+
+## 2026-05-12 — Runtime Error Source Formatting
+
+- Updated VM runtime errors to carry source path and position metadata when available so unhandled runtime failures render with file/line/column context.
+- Added shared runtime error rendering in the object layer so `object.Error` values emitted by the VM can show the same caret-based source context as parser and semantic diagnostics.
+- Added a VM regression test to verify runtime error formatting includes the source location and context lines.

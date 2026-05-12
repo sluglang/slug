@@ -117,7 +117,24 @@ func (c *VMCallContext) LoadModule(modName string) (*object.Module, error) {
 }
 
 func (c *VMCallContext) NewError(format string, a ...interface{}) *object.Error {
-	return &object.Error{Message: fmt.Sprintf(format, a...)}
+	err := &object.Error{
+		Message: fmt.Sprintf(format, a...),
+		Kind:    "RuntimeError",
+	}
+	if env := c.CurrentEnv(); env != nil {
+		err.Path = env.Path
+		err.Src = env.Src
+		if env.StackInfo != nil {
+			err.Position = env.StackInfo.Position
+			if err.Path == "" {
+				err.Path = env.StackInfo.File
+			}
+			if err.Src == "" {
+				err.Src = env.StackInfo.Src
+			}
+		}
+	}
+	return err
 }
 
 func (c *VMCallContext) NativeBoolToBooleanObject(input bool) *object.Boolean {
@@ -359,9 +376,23 @@ func isError(obj object.Object) bool {
 }
 
 func (c *VMCallContext) runtimeError(pos int, typ string, payload object.Object) *object.RuntimeError {
+	frame := &object.StackFrame{Position: pos}
+	if env := c.CurrentEnv(); env != nil {
+		frame.File = env.Path
+		frame.Src = env.Src
+		if env.StackInfo != nil {
+			frame.Function = env.StackInfo.Function
+			if frame.File == "" {
+				frame.File = env.StackInfo.File
+			}
+			if frame.Src == "" {
+				frame.Src = env.StackInfo.Src
+			}
+		}
+	}
 	return &object.RuntimeError{
 		Payload:    payload,
-		StackTrace: c.GatherStackTrace(nil),
+		StackTrace: c.GatherStackTrace(frame),
 	}
 }
 
