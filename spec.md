@@ -2663,3 +2663,9 @@ Validation performed:
 - Updated the semantic checker to infer generic bindings from arguments and to preserve them through nested function-typed parameters and return types.
 - Propagated generic parameter metadata through runtime function objects, LSP signature labels, and docs rendering so generic signatures stay visible after parsing.
 - Added parser and semantic regression tests for generic declarations, higher-order generic parameters, and explicit type-argument application.
+
+## 2026-05-12 — Runtime Generic Return-Type Instantiation
+
+- Updated VM and foreign-function return-type validation to instantiate generic type parameters from the actual call arguments before checking the returned value.
+- Added runtime type binding inference for generic function parameters so diagnostics now compare against the concrete instantiated return type, not the raw `T` annotation.
+- Added a VM regression test covering a generic `zipWithIndex`-style function returning `list<[T, num]>` from a concrete `list<str>` call.

@@ -130,6 +130,21 @@ inc(1)
 	}
 }
 
+func TestExecutorRuntimeChecksGenericAnnotatedReturnType(t *testing.T) {
+	got := runVM(t, `
+val zipWithIndex = fn<T>(lst:list<T>):list<[T, num]> {
+  [[lst[0], 0]]
+}
+["a", "b", "c"] /> zipWithIndex
+`)
+	if got.Type() != object.LIST_OBJ {
+		t.Fatalf("expected list result, got %T (%s)", got, got.Inspect())
+	}
+	if got.Inspect() != "[[a, 0]]" {
+		t.Fatalf("expected concrete generic return, got %s", got.Inspect())
+	}
+}
+
 func TestExecutorClosureCapture(t *testing.T) {
 	got := runVM(t, "val base = 10\nval addBase = fn(x) { x + base }\naddBase(5)")
 	num, ok := got.(*object.Number)

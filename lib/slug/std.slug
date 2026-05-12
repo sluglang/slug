@@ -297,7 +297,7 @@ val filter = fn(vs:list, f:fn, acc:list = []):list match {
 /**
  * returns the first element of `xs` for which `f` returns true, or `nil`.
  */
-@export val find = fn(xs:list, f:fn) match {
+@export val find = fn<T>(xs:list<T>, f:fn<bool, T>):T|nil match {
 	[[], ...] => nil
 	[[h, ...t], ...] => {
 		if (f(h)) { h } else { recur(t, f) }
@@ -330,7 +330,7 @@ val filter = fn(vs:list, f:fn, acc:list = []):list match {
 	[6, 0, -2],  [6, 4, 2]
 )
 @export
-val range = fn(start:num, end:num, step:num = 1, acc:list = []):list {
+val range = fn(start:num, end:num, step:num = 1, acc:list<num> = []):list<num> {
 	if ((start < end && step > 0) || (start > end && step < 0)) {
 		recur(start + step, end, step, acc :+ start)
 	} else {
@@ -351,7 +351,7 @@ val range = fn(start:num, end:num, step:num = 1, acc:list = []):list {
  * ```
  */
 @export
-val counter = fn(start:num = 0):fn {
+val counter = fn(start:num = 0):fn:<num> {
 	var count = start - 1
 	fn() { count = count + 1 }
 }
@@ -365,7 +365,7 @@ val counter = fn(start:num = 0):fn {
 	[["a", "b"], fn(){1}], [["a", 1], ["b", 1]]
 )
 @export
-val zipWith = fn(lst:list, f):list<[any, any]> {
+val zipWith = fn<A, B>(lst:list<A>, f:<B>):list<[A, B]> {
 	lst /> map(fn(v) { [v, f()] })
 }
 
@@ -379,7 +379,7 @@ val zipWith = fn(lst:list, f):list<[any, any]> {
 	[["a", "b"]], [["a", 0], ["b", 1]]
 )
 @export
-val zipWithIndex = fn(lst:list):list<[any, num]> {
+val zipWithIndex = fn<T>(lst:list<T>):list<[T, num]> {
 	lst /> zipWith(counter(0))
 }
 

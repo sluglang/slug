@@ -1611,9 +1611,9 @@ func (e *Executor) evalCall(argCount int, plan []CallArgSpec, pos int) object.Ob
 			return e.unwindDeferredScopes(result)
 		}
 		if f, ok := callee.(*object.Foreign); ok && strings.TrimSpace(f.ReturnType) != "" {
-			rt := parseRuntimeDeclaredType(f.ReturnType)
+			rt := runtimeDeclaredTypeForCall(f.ReturnType, f.TypeParams, f.Parameters, callValuesForParameters(f.Parameters, positional, named))
 			if rt != nil && !runtimeObjectMatchesDeclaredType(result, rt) {
-				rtErr := e.returnTypeRuntimeError(pos, "foreign return type mismatch: expected %s, got %s", f.ReturnType, describeRuntimeObjectType(result))
+				rtErr := e.returnTypeRuntimeError(pos, "foreign return type mismatch: expected %s, got %s", describeRuntimeDeclaredType(rt), describeRuntimeObjectType(result))
 				return e.unwindDeferredScopes(rtErr)
 			}
 		}
@@ -1911,9 +1911,9 @@ func (e *Executor) invokeVMFunction(fn *VMFunction, positional []object.Object, 
 			return result
 		}
 		if strings.TrimSpace(fn.ReturnType) != "" {
-			rt := parseRuntimeDeclaredType(fn.ReturnType)
+			rt := runtimeDeclaredTypeForCall(fn.ReturnType, fn.TypeParams, fn.Parameters, bound)
 			if rt != nil && !runtimeObjectMatchesDeclaredType(result, rt) {
-				return e.returnTypeRuntimeError(pos, "function return type mismatch: expected %s, got %s", fn.ReturnType, describeRuntimeObjectType(result))
+				return e.returnTypeRuntimeError(pos, "function return type mismatch: expected %s, got %s", describeRuntimeDeclaredType(rt), describeRuntimeObjectType(result))
 			}
 		}
 		return result
@@ -1933,6 +1933,23 @@ func setVMCallFrameParams(callEnv *object.Environment, params []VMParam, values 
 			Meta:      object.Meta{},
 		}
 	}
+}
+
+func callValuesForParameters(params []*ast.FunctionParameter, positional []object.Object, named map[string]object.Object) []object.Object {
+	if len(params) == 0 {
+		return nil
+	}
+	values := make([]object.Object, len(params))
+	for i, param := range params {
+		if i < len(positional) {
+			values[i] = positional[i]
+			continue
+		}
+		if named != nil && param != nil {
+			values[i] = named[param.Name.Value]
+		}
+	}
+	return values
 }
 
 func bindVMArgumentsInto(

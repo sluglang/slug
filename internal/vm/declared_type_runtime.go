@@ -21,6 +21,10 @@ type rtType struct {
 }
 
 func parseRuntimeDeclaredType(raw string) *rtType {
+	return parseRuntimeDeclaredTypeWithTypeParams(raw, nil)
+}
+
+func parseRuntimeDeclaredTypeWithTypeParams(raw string, typeParams map[string]struct{}) *rtType {
 	s := strings.TrimSpace(raw)
 	if s == "" {
 		return nil
@@ -28,7 +32,7 @@ func parseRuntimeDeclaredType(raw string) *rtType {
 	if parts := splitRuntimeTypeTopLevel(s, '|'); len(parts) > 1 {
 		opts := make([]*rtType, 0, len(parts))
 		for _, p := range parts {
-			t := parseRuntimeDeclaredType(p)
+			t := parseRuntimeDeclaredTypeWithTypeParams(p, typeParams)
 			if t != nil {
 				opts = append(opts, t)
 			}
@@ -46,7 +50,7 @@ func parseRuntimeDeclaredType(raw string) *rtType {
 		parts := splitRuntimeTypeTopLevel(inner, ',')
 		elems := make([]*rtType, 0, len(parts))
 		for _, p := range parts {
-			t := parseRuntimeDeclaredType(p)
+			t := parseRuntimeDeclaredTypeWithTypeParams(p, typeParams)
 			if t == nil {
 				t = &rtType{kind: "any"}
 			}
@@ -56,7 +60,7 @@ func parseRuntimeDeclaredType(raw string) *rtType {
 	}
 	if strings.HasPrefix(s, "list<") && strings.HasSuffix(s, ">") {
 		inner := strings.TrimSpace(s[len("list<") : len(s)-1])
-		elem := parseRuntimeDeclaredType(inner)
+		elem := parseRuntimeDeclaredTypeWithTypeParams(inner, typeParams)
 		if elem == nil {
 			elem = &rtType{kind: "any"}
 		}
@@ -66,8 +70,8 @@ func parseRuntimeDeclaredType(raw string) *rtType {
 		inner := strings.TrimSpace(s[len("map<") : len(s)-1])
 		parts := splitRuntimeTypeTopLevel(inner, ',')
 		if len(parts) == 2 {
-			k := parseRuntimeDeclaredType(parts[0])
-			v := parseRuntimeDeclaredType(parts[1])
+			k := parseRuntimeDeclaredTypeWithTypeParams(parts[0], typeParams)
+			v := parseRuntimeDeclaredTypeWithTypeParams(parts[1], typeParams)
 			if k == nil {
 				k = &rtType{kind: "any"}
 			}
@@ -90,7 +94,7 @@ func parseRuntimeDeclaredType(raw string) *rtType {
 		if len(parts) == 0 {
 			return nil
 		}
-		ret := parseRuntimeDeclaredType(parts[0])
+		ret := parseRuntimeDeclaredTypeWithTypeParams(parts[0], typeParams)
 		if ret == nil {
 			ret = &rtType{kind: "any"}
 		}
@@ -99,7 +103,7 @@ func parseRuntimeDeclaredType(raw string) *rtType {
 		}
 		params := make([]*rtType, 0, len(parts)-1)
 		for _, p := range parts[1:] {
-			t := parseRuntimeDeclaredType(p)
+			t := parseRuntimeDeclaredTypeWithTypeParams(p, typeParams)
 			if t == nil {
 				t = &rtType{kind: "any"}
 			}
@@ -139,6 +143,11 @@ func parseRuntimeDeclaredType(raw string) *rtType {
 	case "struct":
 		return &rtType{kind: "struct"}
 	default:
+		if typeParams != nil {
+			if _, ok := typeParams[s]; ok {
+				return &rtType{kind: "typeparam", name: s}
+			}
+		}
 		if isRuntimeSimpleTypeIdent(s) {
 			return &rtType{kind: "struct", name: s}
 		}
@@ -201,6 +210,9 @@ func runtimeObjectMatchesDeclaredType(v object.Object, t *rtType) bool {
 		return true
 	}
 	if t.kind == "any" {
+		return true
+	}
+	if t.kind == "typeparam" {
 		return true
 	}
 	if v == nil {
@@ -301,9 +313,9 @@ func runtimeObjectMatchesDeclaredType(v object.Object, t *rtType) bool {
 func runtimeDeclaredTypeFromObject(v object.Object) *rtType {
 	switch fn := v.(type) {
 	case *object.Function:
-		return runtimeDeclaredTypeFromFunction(fn.Parameters, fn.ReturnType)
+		return runtimeDeclaredTypeFromFunction(fn.Parameters, fn.ReturnType, fn.TypeParams)
 	case *object.Foreign:
-		return runtimeDeclaredTypeFromFunction(fn.Parameters, fn.ReturnType)
+		return runtimeDeclaredTypeFromFunction(fn.Parameters, fn.ReturnType, fn.TypeParams)
 	case *VMFunction:
 		return runtimeDeclaredTypeFromVMFunction(fn)
 	case *object.FunctionGroup:
@@ -317,35 +329,375 @@ func runtimeDeclaredTypeFromVMFunction(fn *VMFunction) *rtType {
 	if fn == nil {
 		return nil
 	}
+	typeParams := runtimeTypeParamSet(fn.TypeParams)
 	params := make([]*rtType, 0, len(fn.Parameters))
 	for _, p := range fn.Parameters {
-		t := parseRuntimeDeclaredType(p.Type)
+		t := parseRuntimeDeclaredTypeWithTypeParams(p.Type, typeParams)
 		if t == nil {
 			t = &rtType{kind: "any"}
 		}
 		params = append(params, t)
 	}
-	ret := parseRuntimeDeclaredType(fn.ReturnType)
+	ret := parseRuntimeDeclaredTypeWithTypeParams(fn.ReturnType, typeParams)
 	if ret == nil {
 		ret = &rtType{kind: "any"}
 	}
 	return &rtType{kind: "fn", params: params, ret: ret, variadic: len(fn.Parameters) > 0 && fn.Parameters[len(fn.Parameters)-1].IsVariadic}
 }
 
-func runtimeDeclaredTypeFromFunction(params []*ast.FunctionParameter, returnType string) *rtType {
+func runtimeDeclaredTypeFromFunction(params []*ast.FunctionParameter, returnType string, typeParams []string) *rtType {
+	typeParamSet := runtimeTypeParamSet(typeParams)
 	fnParams := make([]*rtType, 0, len(params))
 	for _, p := range params {
-		t := parseRuntimeDeclaredType(p.Type)
+		t := parseRuntimeDeclaredTypeWithTypeParams(p.Type, typeParamSet)
 		if t == nil {
 			t = &rtType{kind: "any"}
 		}
 		fnParams = append(fnParams, t)
 	}
-	ret := parseRuntimeDeclaredType(returnType)
+	ret := parseRuntimeDeclaredTypeWithTypeParams(returnType, typeParamSet)
 	if ret == nil {
 		ret = &rtType{kind: "any"}
 	}
 	return &rtType{kind: "fn", params: fnParams, ret: ret}
+}
+
+func runtimeTypeParamSet(typeParams []string) map[string]struct{} {
+	if len(typeParams) == 0 {
+		return nil
+	}
+	out := make(map[string]struct{}, len(typeParams))
+	for _, name := range typeParams {
+		if name == "" {
+			continue
+		}
+		out[name] = struct{}{}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func runtimeTypeFromObject(v object.Object) *rtType {
+	if v == nil {
+		return &rtType{kind: "nil"}
+	}
+	switch obj := v.(type) {
+	case *object.Nil:
+		return &rtType{kind: "nil"}
+	case *object.Boolean:
+		return &rtType{kind: "bool"}
+	case *object.Number:
+		return &rtType{kind: "num"}
+	case *object.String:
+		return &rtType{kind: "str"}
+	case *object.Bytes:
+		return &rtType{kind: "bytes"}
+	case *object.Symbol:
+		return &rtType{kind: "sym"}
+	case *object.List:
+		return runtimeTypeFromList(obj)
+	case *object.Map:
+		return runtimeTypeFromMap(obj)
+	case *object.StructValue:
+		if obj.Schema != nil && obj.Schema.Name != "" {
+			return &rtType{kind: "struct", name: obj.Schema.Name}
+		}
+		return &rtType{kind: "struct"}
+	case *object.StructSchema:
+		if obj.Name != "" {
+			return &rtType{kind: "struct", name: obj.Name}
+		}
+		return &rtType{kind: "struct"}
+	case *object.Channel:
+		return &rtType{kind: "chan"}
+	case *VMTaskHandle:
+		return &rtType{kind: "task"}
+	case *object.Function:
+		return runtimeDeclaredTypeFromFunction(obj.Parameters, obj.ReturnType, obj.TypeParams)
+	case *object.Foreign:
+		return runtimeDeclaredTypeFromFunction(obj.Parameters, obj.ReturnType, obj.TypeParams)
+	case *VMFunction:
+		return runtimeDeclaredTypeFromVMFunction(obj)
+	case *object.FunctionGroup:
+		return &rtType{kind: "fn"}
+	default:
+		switch obj.Type() {
+		case object.NIL_OBJ:
+			return &rtType{kind: "nil"}
+		case object.BOOLEAN_OBJ:
+			return &rtType{kind: "bool"}
+		case object.NUMBER_OBJ:
+			return &rtType{kind: "num"}
+		case object.STRING_OBJ:
+			return &rtType{kind: "str"}
+		case object.BYTE_OBJ:
+			return &rtType{kind: "bytes"}
+		case object.SYMBOL_OBJ:
+			return &rtType{kind: "sym"}
+		case object.LIST_OBJ:
+			return &rtType{kind: "list", elem: &rtType{kind: "any"}}
+		case object.MAP_OBJ:
+			return &rtType{kind: "map", key: &rtType{kind: "any"}, val: &rtType{kind: "any"}}
+		case object.STRUCT_OBJ, object.STRUCT_SCHEMA_OBJ:
+			return &rtType{kind: "struct"}
+		case object.CHANNEL_OBJ:
+			return &rtType{kind: "chan"}
+		case object.TASK_HANDLE_OBJ:
+			return &rtType{kind: "task"}
+		case object.FUNCTION_OBJ, object.FUNCTION_GROUP_OBJ, object.FOREIGN_OBJ:
+			return &rtType{kind: "fn"}
+		default:
+			return nil
+		}
+	}
+}
+
+func runtimeTypeFromList(list *object.List) *rtType {
+	if list == nil || len(list.Elements) == 0 {
+		return &rtType{kind: "list", elem: &rtType{kind: "any"}}
+	}
+	elems := make([]*rtType, 0, len(list.Elements))
+	for _, el := range list.Elements {
+		t := runtimeTypeFromObject(el)
+		if t == nil {
+			t = &rtType{kind: "any"}
+		}
+		elems = append(elems, t)
+	}
+	if allRuntimeTypesEqual(elems) {
+		return &rtType{kind: "list", elem: elems[0]}
+	}
+	if len(elems) <= 4 {
+		return &rtType{kind: "tuple", elems: elems}
+	}
+	return &rtType{kind: "list", elem: runtimeRuntimeTypeUnion(elems)}
+}
+
+func runtimeTypeFromMap(m *object.Map) *rtType {
+	if m == nil || m.Len() == 0 {
+		return &rtType{kind: "map", key: &rtType{kind: "any"}, val: &rtType{kind: "any"}}
+	}
+	keys := make([]*rtType, 0, m.Len())
+	vals := make([]*rtType, 0, m.Len())
+	m.ForEach(func(_ object.MapKey, p object.MapPair) bool {
+		kt := runtimeTypeFromObject(p.Key)
+		vt := runtimeTypeFromObject(p.Value)
+		if kt == nil {
+			kt = &rtType{kind: "any"}
+		}
+		if vt == nil {
+			vt = &rtType{kind: "any"}
+		}
+		keys = append(keys, kt)
+		vals = append(vals, vt)
+		return true
+	})
+	return &rtType{kind: "map", key: runtimeRuntimeTypeUnion(keys), val: runtimeRuntimeTypeUnion(vals)}
+}
+
+func runtimeRuntimeTypeUnion(types []*rtType) *rtType {
+	if len(types) == 0 {
+		return &rtType{kind: "any"}
+	}
+	uniq := map[string]*rtType{}
+	for _, t := range types {
+		if t == nil {
+			t = &rtType{kind: "any"}
+		}
+		uniq[describeRuntimeDeclaredType(t)] = t
+	}
+	if len(uniq) == 1 {
+		for _, t := range uniq {
+			return t
+		}
+	}
+	parts := make([]string, 0, len(uniq))
+	for k := range uniq {
+		parts = append(parts, k)
+	}
+	sort.Strings(parts)
+	opts := make([]*rtType, 0, len(parts))
+	for _, k := range parts {
+		opts = append(opts, uniq[k])
+	}
+	return &rtType{kind: "union", options: opts}
+}
+
+func allRuntimeTypesEqual(types []*rtType) bool {
+	if len(types) <= 1 {
+		return true
+	}
+	first := describeRuntimeDeclaredType(types[0])
+	for _, t := range types[1:] {
+		if describeRuntimeDeclaredType(t) != first {
+			return false
+		}
+	}
+	return true
+}
+
+func inferRuntimeTypeBindings(expected, actual *rtType, bindings map[string]*rtType) bool {
+	if expected == nil || actual == nil {
+		return true
+	}
+	if expected.kind == "typeparam" {
+		if existing, ok := bindings[expected.name]; ok {
+			return runtimeDeclaredTypeCompatible(actual, existing) && runtimeDeclaredTypeCompatible(existing, actual)
+		}
+		bindings[expected.name] = actual
+		return true
+	}
+	if actual.kind == "typeparam" {
+		return true
+	}
+	if expected.kind == "union" {
+		for _, opt := range expected.options {
+			trial := cloneRuntimeTypeBindings(bindings)
+			if inferRuntimeTypeBindings(opt, actual, trial) {
+				replaceRuntimeTypeBindings(bindings, trial)
+				return true
+			}
+		}
+		return false
+	}
+	if actual.kind == "union" {
+		return false
+	}
+	if expected.kind != actual.kind {
+		return false
+	}
+	switch expected.kind {
+	case "list":
+		return inferRuntimeTypeBindings(expected.elem, actual.elem, bindings)
+	case "tuple":
+		if len(expected.elems) != len(actual.elems) {
+			return false
+		}
+		for i := range expected.elems {
+			if !inferRuntimeTypeBindings(expected.elems[i], actual.elems[i], bindings) {
+				return false
+			}
+		}
+		return true
+	case "map":
+		return inferRuntimeTypeBindings(expected.key, actual.key, bindings) && inferRuntimeTypeBindings(expected.val, actual.val, bindings)
+	case "fn":
+		if actual.variadic != expected.variadic || len(actual.params) != len(expected.params) {
+			return false
+		}
+		for i := range expected.params {
+			if !inferRuntimeTypeBindings(expected.params[i], actual.params[i], bindings) {
+				return false
+			}
+		}
+		return inferRuntimeTypeBindings(expected.ret, actual.ret, bindings)
+	case "struct":
+		if expected.name == "" || actual.name == "" {
+			return true
+		}
+		return expected.name == actual.name
+	default:
+		return true
+	}
+}
+
+func cloneRuntimeTypeBindings(bindings map[string]*rtType) map[string]*rtType {
+	out := make(map[string]*rtType, len(bindings))
+	for k, v := range bindings {
+		out[k] = v
+	}
+	return out
+}
+
+func replaceRuntimeTypeBindings(dst, src map[string]*rtType) {
+	for k := range dst {
+		delete(dst, k)
+	}
+	for k, v := range src {
+		dst[k] = v
+	}
+}
+
+func substituteRuntimeDeclaredType(t *rtType, bindings map[string]*rtType) *rtType {
+	if t == nil {
+		return nil
+	}
+	switch t.kind {
+	case "typeparam":
+		if bindings != nil {
+			if v, ok := bindings[t.name]; ok && v != nil {
+				return v
+			}
+		}
+		return t
+	case "union":
+		opts := make([]*rtType, 0, len(t.options))
+		for _, opt := range t.options {
+			opts = append(opts, substituteRuntimeDeclaredType(opt, bindings))
+		}
+		return &rtType{kind: "union", options: opts}
+	case "list":
+		return &rtType{kind: "list", elem: substituteRuntimeDeclaredType(t.elem, bindings)}
+	case "tuple":
+		elems := make([]*rtType, 0, len(t.elems))
+		for _, el := range t.elems {
+			elems = append(elems, substituteRuntimeDeclaredType(el, bindings))
+		}
+		return &rtType{kind: "tuple", elems: elems}
+	case "map":
+		return &rtType{kind: "map", key: substituteRuntimeDeclaredType(t.key, bindings), val: substituteRuntimeDeclaredType(t.val, bindings)}
+	case "fn":
+		params := make([]*rtType, 0, len(t.params))
+		for _, p := range t.params {
+			params = append(params, substituteRuntimeDeclaredType(p, bindings))
+		}
+		return &rtType{kind: "fn", ret: substituteRuntimeDeclaredType(t.ret, bindings), params: params, variadic: t.variadic}
+	default:
+		return t
+	}
+}
+
+func runtimeDeclaredTypeForCall(returnType string, typeParams []string, params []*ast.FunctionParameter, values []object.Object) *rtType {
+	if strings.TrimSpace(returnType) == "" {
+		return nil
+	}
+	typeParamSet := runtimeTypeParamSet(typeParams)
+	expected := parseRuntimeDeclaredTypeWithTypeParams(returnType, typeParamSet)
+	if expected == nil {
+		return nil
+	}
+	if len(params) == 0 || len(values) == 0 {
+		return expected
+	}
+	bindings := runtimeTypeBindingsFromCall(params, typeParamSet, values)
+	return substituteRuntimeDeclaredType(expected, bindings)
+}
+
+func runtimeTypeBindingsFromCall(params []*ast.FunctionParameter, typeParams map[string]struct{}, values []object.Object) map[string]*rtType {
+	bindings := map[string]*rtType{}
+	for i, p := range params {
+		if i >= len(values) {
+			break
+		}
+		if p == nil || strings.TrimSpace(p.Type) == "" {
+			continue
+		}
+		actual := runtimeTypeFromObject(values[i])
+		if actual == nil {
+			continue
+		}
+		expected := parseRuntimeDeclaredTypeWithTypeParams(p.Type, typeParams)
+		if expected == nil {
+			continue
+		}
+		trial := cloneRuntimeTypeBindings(bindings)
+		if inferRuntimeTypeBindings(expected, actual, trial) {
+			replaceRuntimeTypeBindings(bindings, trial)
+		}
+	}
+	return bindings
 }
 
 func runtimeDeclaredTypeCompatible(actual, expected *rtType) bool {
@@ -353,6 +705,9 @@ func runtimeDeclaredTypeCompatible(actual, expected *rtType) bool {
 		return true
 	}
 	if actual == nil || actual.kind == "any" {
+		return true
+	}
+	if expected.kind == "typeparam" || actual.kind == "typeparam" {
 		return true
 	}
 	if actual.kind != expected.kind {
@@ -430,6 +785,11 @@ func describeRuntimeDeclaredType(t *rtType) string {
 			out += ", " + describeRuntimeDeclaredType(p)
 		}
 		return out + ">"
+	case "typeparam":
+		if t.name != "" {
+			return t.name
+		}
+		return "typeparam"
 	case "struct":
 		if t.name == "" {
 			return "struct"
@@ -476,9 +836,9 @@ func describeRuntimeObjectType(v object.Object) string {
 	case *VMTaskHandle:
 		return "task"
 	case *object.Function:
-		return describeRuntimeDeclaredType(runtimeDeclaredTypeFromFunction(obj.Parameters, obj.ReturnType))
+		return describeRuntimeDeclaredType(runtimeDeclaredTypeFromFunction(obj.Parameters, obj.ReturnType, obj.TypeParams))
 	case *object.Foreign:
-		return describeRuntimeDeclaredType(runtimeDeclaredTypeFromFunction(obj.Parameters, obj.ReturnType))
+		return describeRuntimeDeclaredType(runtimeDeclaredTypeFromFunction(obj.Parameters, obj.ReturnType, obj.TypeParams))
 	case *VMFunction:
 		return describeRuntimeDeclaredType(runtimeDeclaredTypeFromVMFunction(obj))
 	case *object.FunctionGroup:
