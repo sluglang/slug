@@ -73,6 +73,23 @@ val build = fn(input:list<str|nil>):chan<any|nil> { input }
 //                                            ^^^ storage.type.annotation.slug
 //                                                ^ punctuation.definition.type.generic.end.slug
 
+val identity = fn<T>(x:T):T { x }
+//              ^^ keyword.control.slug
+//                ^ punctuation.definition.type.generic.begin.slug
+//                 ^ entity.name.type.parameter.slug
+//                  ^ punctuation.definition.type.generic.end.slug
+//                    ^ variable.parameter.slug
+//                      ^ support.type.slug
+//                       ^ punctuation.separator.parameter.slug
+//                         ^ punctuation.separator.return-type.slug
+//                          ^ support.type.slug
+
+var applied = identity<num>(1)
+//            ^^^^^^^^^ variable.function.slug
+//                    ^ punctuation.definition.type.generic.begin.slug
+//                     ^^^ support.type.slug
+//                        ^ punctuation.definition.type.generic.end.slug
+
 var person = Person{ name: "a" }
 //^^^ storage.type.slug
 //                ^ punctuation.section.braces.begin.slug

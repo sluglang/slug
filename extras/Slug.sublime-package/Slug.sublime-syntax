@@ -130,6 +130,11 @@ contexts:
       scope: support.function.stdlib.slug
 
     # Function calls
+    - match: \b([_\p{L}\p{M}][_\p{L}\p{M}\p{Nd}]*)\s*(<)
+      captures:
+        1: variable.function.slug
+        2: punctuation.definition.type.generic.begin.slug
+      push: generic_function_call_type_params
     - match: \b([_\p{L}\p{M}][_\p{L}\p{M}\p{Nd}]*)\s*\(
       captures:
         1: variable.function.slug
@@ -198,6 +203,11 @@ contexts:
       scope: punctuation.section.brackets.end.slug
 
     # Function definition
+    - match: \b(fn)\s*(<)
+      captures:
+        1: keyword.control.slug
+        2: punctuation.definition.type.generic.begin.slug
+      push: function_type_params
     - match: \b(fn)\s*\(
       captures:
         1: keyword.control.slug
@@ -344,6 +354,44 @@ contexts:
     - match: ':'
       scope: punctuation.separator.parameter.slug
       push: type_expression
+    - include: main
+
+  function_type_params:
+    - meta_scope: meta.function.type-parameters.slug
+    - match: '>'
+      scope: punctuation.definition.type.generic.end.slug
+      set: function_after_type_params
+    - match: ','
+      scope: punctuation.separator.comma.slug
+    - match: \b[_\p{L}\p{M}][_\p{L}\p{M}\p{Nd}]*\b
+      scope: entity.name.type.parameter.slug
+    - include: main
+
+  function_after_type_params:
+    - match: \(
+      scope: punctuation.section.parens.begin.slug
+      push: function_params
+    - match: (?=\S)
+      pop: true
+    - include: main
+
+  generic_function_call_type_params:
+    - meta_scope: meta.function-call.generic.slug
+    - match: '>'
+      scope: punctuation.definition.type.generic.end.slug
+      set: generic_function_call_after_type_params
+    - match: ','
+      scope: punctuation.separator.comma.slug
+    - match: \b[_\p{L}\p{M}][_\p{L}\p{M}\p{Nd}]*\b
+      scope: entity.name.type.parameter.slug
+    - include: main
+
+  generic_function_call_after_type_params:
+    - match: \(
+      scope: punctuation.section.parens.begin.slug
+      pop: true
+    - match: (?=\S)
+      pop: true
     - include: main
 
   var_val_declaration:

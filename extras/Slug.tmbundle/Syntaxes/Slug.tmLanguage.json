@@ -8,11 +8,13 @@
     {"include": "#strings"},
     {"include": "#numbers"},
     {"include": "#select_block"},
+    {"include": "#function_declarations"},
     {"include": "#keywords"},
     {"include": "#tags"},
     {"include": "#builtin_functions"},
     {"include": "#stdlib_functions"},
     {"include": "#operators"},
+    {"include": "#generic_function_calls"},
     {"include": "#function_calls"},
     {"include": "#identifiers"}
   ],
@@ -102,11 +104,13 @@
             {"include": "#symbols"},
             {"include": "#strings"},
             {"include": "#numbers"},
+            {"include": "#function_declarations"},
             {"include": "#keywords"},
             {"include": "#tags"},
             {"include": "#builtin_functions"},
             {"include": "#stdlib_functions"},
             {"include": "#operators"},
+            {"include": "#generic_function_calls"},
             {"include": "#function_calls"},
             {"include": "#identifiers"}
           ]
@@ -181,13 +185,121 @@
         {"include": "#symbols"},
         {"include": "#strings"},
         {"include": "#numbers"},
+        {"include": "#function_declarations"},
         {"include": "#keywords"},
         {"include": "#tags"},
         {"include": "#builtin_functions"},
         {"include": "#stdlib_functions"},
         {"include": "#operators"},
+        {"include": "#generic_function_calls"},
         {"include": "#function_calls"},
         {"include": "#identifiers"}
+      ]
+    },
+    "function_declarations": {
+      "patterns": [
+        {
+          "name": "meta.function.declaration.slug",
+          "begin": "\\b(fn)\\b",
+          "beginCaptures": {
+            "1": {
+              "name": "keyword.control.slug"
+            }
+          },
+          "end": "(?=\\{)",
+          "patterns": [
+            {
+              "name": "punctuation.definition.type.generic.begin.slug",
+              "match": "<"
+            },
+            {
+              "name": "punctuation.definition.type.generic.end.slug",
+              "match": ">"
+            },
+            {
+              "name": "entity.name.type.parameter.slug",
+              "match": "\\b[_\\p{L}\\p{M}][_\\p{L}\\p{M}\\p{Nd}]*\\b"
+            },
+            {
+              "name": "variable.parameter.slug",
+              "match": "\\b[_\\p{L}\\p{M}][_\\p{L}\\p{M}\\p{Nd}]*\\b"
+            },
+            {
+              "name": "punctuation.section.parens.begin.slug",
+              "match": "\\("
+            },
+            {
+              "name": "punctuation.section.parens.end.slug",
+              "match": "\\)"
+            },
+            {
+              "name": "punctuation.separator.parameter.slug",
+              "match": ":"
+            },
+            {
+              "name": "punctuation.separator.comma.slug",
+              "match": ","
+            },
+            {
+              "name": "keyword.operator.assignment.slug",
+              "match": "="
+            },
+            {"include": "#comments"},
+            {"include": "#strings"},
+            {"include": "#numbers"},
+            {"include": "#keywords"},
+            {"include": "#tags"},
+            {"include": "#builtin_functions"},
+            {"include": "#stdlib_functions"},
+            {"include": "#operators"},
+            {"include": "#identifiers"}
+          ]
+        }
+      ]
+    },
+    "generic_function_calls": {
+      "patterns": [
+        {
+          "name": "meta.function-call.generic.slug",
+          "begin": "\\b([_\\p{L}\\p{M}][_\\p{L}\\p{M}\\p{Nd}]*)\\s*(<)",
+          "beginCaptures": {
+            "1": {
+              "name": "variable.function.slug"
+            },
+            "2": {
+              "name": "punctuation.definition.type.generic.begin.slug"
+            }
+          },
+          "end": "\\(",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.section.parens.begin.slug"
+            }
+          },
+          "patterns": [
+            {
+              "name": "punctuation.definition.type.generic.end.slug",
+              "match": ">"
+            },
+            {
+              "name": "entity.name.type.parameter.slug",
+              "match": "\\b[_\\p{L}\\p{M}][_\\p{L}\\p{M}\\p{Nd}]*\\b"
+            },
+            {
+              "name": "punctuation.separator.comma.slug",
+              "match": ","
+            },
+            {"include": "#comments"},
+            {"include": "#strings"},
+            {"include": "#numbers"},
+            {"include": "#keywords"},
+            {"include": "#tags"},
+            {"include": "#builtin_functions"},
+            {"include": "#stdlib_functions"},
+            {"include": "#operators"},
+            {"include": "#identifiers"}
+          ]
+        }
       ]
     },
     "function_calls": {
