@@ -149,12 +149,29 @@ func WalkAST(node ast.Node) interface{} {
 		for i, p := range n.Parameters {
 			params[i] = WalkAST(p)
 		}
+		typeParams := make([]interface{}, len(n.TypeParams))
+		for i, tp := range n.TypeParams {
+			typeParams[i] = tp
+		}
 		return map[string]interface{}{
 			"type":        "FunctionLiteral",
 			"token":       n.TokenLiteral(),
+			"typeParams":  typeParams,
 			"parameters":  params,
 			"body":        WalkAST(n.Body),
 			"hasTailCall": n.HasTailCall,
+		}
+
+	case *ast.TypeApplicationExpression:
+		args := make([]interface{}, len(n.TypeArgs))
+		for i, arg := range n.TypeArgs {
+			args[i] = arg
+		}
+		return map[string]interface{}{
+			"type":     "TypeApplicationExpression",
+			"token":    n.TokenLiteral(),
+			"function": WalkAST(n.Function),
+			"typeArgs": args,
 		}
 
 	case *ast.CallExpression:

@@ -360,6 +360,8 @@ func (c *compiler) compileExpression(expr ast.Expression) error {
 		idx := c.addConstant(fnObj)
 		c.emit(Instruction{Op: OpConstant, IntArg: idx, Position: node.Token.Position})
 		return nil
+	case *ast.TypeApplicationExpression:
+		return c.compileExpression(node.Function)
 	case *ast.CallExpression:
 		if err := c.compileExpression(node.Function); err != nil {
 			return err
@@ -993,6 +995,7 @@ func (c *compiler) compileFunctionLiteral(node *ast.FunctionLiteral) (*VMFunctio
 	child.emit(Instruction{Op: OpReturn, Position: node.Token.Position})
 
 	return &VMFunction{
+		TypeParams: node.TypeParams,
 		Params:     params,
 		ParamIndex: paramIndex,
 		ReturnType: node.ReturnType,

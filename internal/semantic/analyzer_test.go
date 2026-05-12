@@ -526,6 +526,51 @@ val out:num = apply(inc, 1)
 	}
 }
 
+func TestSemanticTypeCheckSupportsGenericFunctionParameters(t *testing.T) {
+	input := `
+val apply = fn<T>(x:T, f:fn<T, T>):T { f(x) }
+val inc = fn(n:num):num { n + 1 }
+val out:num = apply(1, inc)
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
+	}
+	if len(errs) > 0 {
+		t.Fatalf("expected no semantic errors for generic function parameters, got: %v", errs)
+	}
+}
+
+func TestSemanticTypeCheckSupportsExplicitGenericTypeApplication(t *testing.T) {
+	input := `
+val id = fn<T>(x:T):T { x }
+val out:str = id<str>("hello")
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
+	}
+	if len(errs) > 0 {
+		t.Fatalf("expected no semantic errors for explicit generic type application, got: %v", errs)
+	}
+}
+
 func TestSemanticTypeCheckRejectsLegacyFunctionTypeOrdering(t *testing.T) {
 	input := `
 val sum:fn<num, str, bool> = fn(a:num, b:str):bool {

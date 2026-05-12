@@ -194,6 +194,14 @@ val renderReturn = fn(h:map) {
 	}
 }
 
+val renderTypeParams = fn(h) {
+	match h.details.typeParams {
+		nil => ''
+		[]  => ''
+		tps => "<{{tps /> join(', ')}}>"
+	}
+}
+
 // --- doc comment extraction ---
 // slug.meta#describe strips comment markers and returns clean text.
 // Paragraphs are separated by blank lines — only the first is rendered
@@ -285,7 +293,7 @@ val renderBlock = fn(tags, docs) {
 // Produces the signature line + indented block
 
 val renderFnEntry = fn(module, name, h) {
-	val sig   = "fn {{module}}#{{name}}({{renderParams(h.details.params)}}){{renderReturn(h)}}"
+	val sig   = "fn {{module}}#{{name}}{{renderTypeParams(h)}}({{renderParams(h.details.params)}}){{renderReturn(h)}}"
 	val block = renderBlock(h.tags, h.docs)
 	[sig] + block
 }

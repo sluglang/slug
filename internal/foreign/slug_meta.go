@@ -376,20 +376,22 @@ func describeDetails(value object.Object) *object.Map {
 	case *object.StructSchema:
 		return describeStructSchemaDetails(v)
 	case *object.Function:
-		return describeFunctionDetails(false, v.Signature, v.Parameters, "")
+		return describeFunctionDetails(false, v.Signature, v.TypeParams, v.Parameters, "")
 	case *object.Foreign:
-		return describeFunctionDetails(true, v.Signature, v.Parameters, v.ReturnType)
+		return describeFunctionDetails(true, v.Signature, v.TypeParams, v.Parameters, v.ReturnType)
 	case interface {
 		GetSignature() ast.FSig
+		GetTypeParams() []string
 		GetParameters() []*ast.FunctionParameter
 		GetReturnType() string
 	}:
-		return describeFunctionDetails(false, v.GetSignature(), v.GetParameters(), v.GetReturnType())
+		return describeFunctionDetails(false, v.GetSignature(), v.GetTypeParams(), v.GetParameters(), v.GetReturnType())
 	case interface {
 		GetSignature() ast.FSig
+		GetTypeParams() []string
 		GetParameters() []*ast.FunctionParameter
 	}:
-		return describeFunctionDetails(false, v.GetSignature(), v.GetParameters(), "")
+		return describeFunctionDetails(false, v.GetSignature(), v.GetTypeParams(), v.GetParameters(), "")
 	case *object.FunctionGroup:
 		return describeFunctionGroupDetails(v)
 	case *object.Module:
@@ -464,13 +466,13 @@ func describeStructSchemaDetails(schema *object.StructSchema) *object.Map {
 
 func describeFunctionGroupDetails(group *object.FunctionGroup) *object.Map {
 	if group == nil || len(group.Functions) == 0 {
-		return describeFunctionDetails(false, ast.FSig{}, nil, "")
+		return describeFunctionDetails(false, ast.FSig{}, nil, nil, "")
 	}
 
 	entries := collectFunctionEntries(group.Functions)
 	if len(entries) == 1 {
 		entry := entries[0]
-		return describeFunctionDetails(isForeignFunction(entry.fn), entry.sig, paramsFromFunctionObject(entry.fn), returnTypeFromFunctionObject(entry.fn))
+		return describeFunctionDetails(isForeignFunction(entry.fn), entry.sig, typeParamsFromFunctionObject(entry.fn), paramsFromFunctionObject(entry.fn), returnTypeFromFunctionObject(entry.fn))
 	}
 
 	groups := make([]object.Object, 0, len(entries))
@@ -483,7 +485,7 @@ func describeFunctionGroupDetails(group *object.FunctionGroup) *object.Map {
 			fnMap.Put(object.InternSymbol("docs"), &object.String{Value: ""})
 		}
 		fnMap.Put(object.InternSymbol("tags"), describeTags(entry.fn))
-		fnMap.Put(object.InternSymbol("details"), describeFunctionDetails(isForeignFunction(entry.fn), entry.sig, paramsFromFunctionObject(entry.fn), returnTypeFromFunctionObject(entry.fn)))
+		fnMap.Put(object.InternSymbol("details"), describeFunctionDetails(isForeignFunction(entry.fn), entry.sig, typeParamsFromFunctionObject(entry.fn), paramsFromFunctionObject(entry.fn), returnTypeFromFunctionObject(entry.fn)))
 		groups = append(groups, fnMap)
 	}
 
@@ -530,6 +532,15 @@ func paramsFromFunctionObject(fn object.Object) []*ast.FunctionParameter {
 	return nil
 }
 
+func typeParamsFromFunctionObject(fn object.Object) []string {
+	if f, ok := fn.(interface {
+		GetTypeParams() []string
+	}); ok {
+		return f.GetTypeParams()
+	}
+	return nil
+}
+
 func returnTypeFromFunctionObject(fn object.Object) string {
 	switch f := fn.(type) {
 	case *object.Foreign:
@@ -548,11 +559,18 @@ func isForeignFunction(fn object.Object) bool {
 	return ok
 }
 
-func describeFunctionDetails(isForeign bool, sig ast.FSig, params []*ast.FunctionParameter, returnType string) *object.Map {
+func describeFunctionDetails(isForeign bool, sig ast.FSig, typeParams []string, params []*ast.FunctionParameter, returnType string) *object.Map {
 	details := &object.Map{}
 	details.Put(object.InternSymbol("foreign"), boolObject(isForeign))
 	details.Put(object.InternSymbol("arityMin"), &object.Number{Value: dec64.FromInt(sig.Min)})
 	details.Put(object.InternSymbol("arityMax"), &object.Number{Value: dec64.FromInt(sig.Max)})
+	if len(typeParams) > 0 {
+		elems := make([]object.Object, 0, len(typeParams))
+		for _, name := range typeParams {
+			elems = append(elems, &object.String{Value: name})
+		}
+		details.Put(object.InternSymbol("typeParams"), &object.List{Elements: elems})
+	}
 	if strings.TrimSpace(returnType) != "" {
 		details.Put(object.InternSymbol("returnType"), &object.String{Value: returnType})
 	}

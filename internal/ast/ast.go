@@ -135,6 +135,7 @@ type ForeignFunctionDeclaration struct {
 	Tags       []*Tag
 	Token      token.Token // The `FOREIGN` token
 	Name       *Identifier // Name of the foreign function
+	TypeParams []string
 	Parameters []*FunctionParameter
 	ReturnType string
 	Signature  FSig
@@ -154,6 +155,11 @@ func (ffd *ForeignFunctionDeclaration) String() string {
 
 	out.WriteString("foreign ")
 	out.WriteString(ffd.Name.String())
+	if len(ffd.TypeParams) > 0 {
+		out.WriteString("<")
+		out.WriteString(strings.Join(ffd.TypeParams, ", "))
+		out.WriteString(">")
+	}
 	out.WriteString(" = ")
 
 	params := []string{}
@@ -352,6 +358,7 @@ func (ie *IfExpression) String() string {
 
 type FunctionLiteral struct {
 	Token       token.Token // The 'fn' token
+	TypeParams  []string
 	Signature   FSig
 	Parameters  []*FunctionParameter
 	ReturnType  string
@@ -364,12 +371,19 @@ func (fl *FunctionLiteral) TokenLiteral() string { return fl.Token.Literal }
 func (fl *FunctionLiteral) String() string {
 	var out bytes.Buffer
 
+	if len(fl.TypeParams) > 0 {
+		out.WriteString(fl.TokenLiteral())
+		out.WriteString("<")
+		out.WriteString(strings.Join(fl.TypeParams, ", "))
+		out.WriteString(">")
+	} else {
+		out.WriteString(fl.TokenLiteral())
+	}
 	params := []string{}
 	for _, p := range fl.Parameters {
 		params = append(params, p.String())
 	}
 
-	out.WriteString(fl.TokenLiteral())
 	out.WriteString("(")
 	out.WriteString(strings.Join(params, ", "))
 	out.WriteString(") ")
@@ -380,6 +394,23 @@ func (fl *FunctionLiteral) String() string {
 	}
 	out.WriteString(fl.Body.String())
 
+	return out.String()
+}
+
+type TypeApplicationExpression struct {
+	Token    token.Token // The '<' token
+	Function Expression
+	TypeArgs []string
+}
+
+func (ta *TypeApplicationExpression) expressionNode()      {}
+func (ta *TypeApplicationExpression) TokenLiteral() string { return ta.Token.Literal }
+func (ta *TypeApplicationExpression) String() string {
+	var out bytes.Buffer
+	out.WriteString(ta.Function.String())
+	out.WriteString("<")
+	out.WriteString(strings.Join(ta.TypeArgs, ", "))
+	out.WriteString(">")
 	return out.String()
 }
 

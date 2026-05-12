@@ -2655,3 +2655,11 @@ Validation performed:
 - Extended the parser so nested angle-bracket type annotations inside function types can be scanned correctly when `>>` appears in a declaration.
 - Updated docs generators to normalize and render `fn<...>` annotations consistently in generated markdown and MANIFEST output.
 - Added semantic and VM regression tests covering valid function-type annotations, parameter-typed callables, and legacy-order rejection.
+
+## 2026-05-12 — Generic Function Parameters
+
+- Added function-scoped generic type parameters on declarations and literals using `fn<T>(...)`.
+- Added explicit generic call-site application syntax using angle brackets, e.g. `f<num>(...)`.
+- Updated the semantic checker to infer generic bindings from arguments and to preserve them through nested function-typed parameters and return types.
+- Propagated generic parameter metadata through runtime function objects, LSP signature labels, and docs rendering so generic signatures stay visible after parsing.
+- Added parser and semantic regression tests for generic declarations, higher-order generic parameters, and explicit type-argument application.

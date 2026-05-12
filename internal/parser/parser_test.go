@@ -967,6 +967,30 @@ func TestFunctionLiteralParsing(t *testing.T) {
 	testInfixExpression(t, bodyStmt.Expression, "x", "+", "y")
 }
 
+func TestGenericFunctionLiteralParsing(t *testing.T) {
+	input := `fn<T, U>(x:T, y:U):list<T> { x }`
+
+	l := lexer.New(input)
+	p := New(l, "", input)
+	program := p.ParseProgram()
+	checkParserErrors(t, p)
+
+	stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
+	if !ok {
+		t.Fatalf("program.Statements[0] is not ast.ExpressionStatement. got=%T", program.Statements[0])
+	}
+	function, ok := stmt.Expression.(*ast.FunctionLiteral)
+	if !ok {
+		t.Fatalf("stmt.Expression is not ast.FunctionLiteral. got=%T", stmt.Expression)
+	}
+	if len(function.TypeParams) != 2 || function.TypeParams[0] != "T" || function.TypeParams[1] != "U" {
+		t.Fatalf("unexpected generic type params: %#v", function.TypeParams)
+	}
+	if function.ReturnType != "list<T>" {
+		t.Fatalf("unexpected return type: %q", function.ReturnType)
+	}
+}
+
 func TestFunctionParameterParsing(t *testing.T) {
 	tests := []struct {
 		input          string
@@ -1046,6 +1070,26 @@ foreign exec = fn(cmd:str, timeout:num = 0):[str, str];
 	}
 }
 
+func TestGenericForeignFunctionDeclarationParsing(t *testing.T) {
+	input := `foreign identity = fn<T>(x:T):T;`
+
+	l := lexer.New(input)
+	p := New(l, "", input)
+	program := p.ParseProgram()
+	checkParserErrors(t, p)
+
+	stmt, ok := program.Statements[0].(*ast.ForeignFunctionDeclaration)
+	if !ok {
+		t.Fatalf("program statement is not a foreign declaration. got=%T", program.Statements[0])
+	}
+	if len(stmt.TypeParams) != 1 || stmt.TypeParams[0] != "T" {
+		t.Fatalf("unexpected type params: %#v", stmt.TypeParams)
+	}
+	if stmt.ReturnType != "T" {
+		t.Fatalf("unexpected return type: %q", stmt.ReturnType)
+	}
+}
+
 func TestNestedFunctionTypeAnnotationParsing(t *testing.T) {
 	input := `
 val maker:fn<fn<num, num>> = fn() { nil }
@@ -1100,6 +1144,34 @@ func TestCallExpressionParsing(t *testing.T) {
 	testLiteralExpression(t, exp.Arguments[0], 1)
 	testInfixExpression(t, exp.Arguments[1], 2, "*", 3)
 	testInfixExpression(t, exp.Arguments[2], 4, "+", 5)
+}
+
+func TestTypeApplicationCallParsing(t *testing.T) {
+	input := "id<num>(1);"
+
+	l := lexer.New(input)
+	p := New(l, "", input)
+	program := p.ParseProgram()
+	checkParserErrors(t, p)
+
+	stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
+	if !ok {
+		t.Fatalf("stmt is not ast.ExpressionStatement. got=%T", program.Statements[0])
+	}
+	call, ok := stmt.Expression.(*ast.CallExpression)
+	if !ok {
+		t.Fatalf("stmt.Expression is not ast.CallExpression. got=%T", stmt.Expression)
+	}
+	typeApp, ok := call.Function.(*ast.TypeApplicationExpression)
+	if !ok {
+		t.Fatalf("call.Function is not ast.TypeApplicationExpression. got=%T", call.Function)
+	}
+	if len(typeApp.TypeArgs) != 1 || typeApp.TypeArgs[0] != "num" {
+		t.Fatalf("unexpected type arguments: %#v", typeApp.TypeArgs)
+	}
+	if !testIdentifier(t, typeApp.Function, "id") {
+		return
+	}
 }
 
 func TestCallExpressionParameterParsing(t *testing.T) {

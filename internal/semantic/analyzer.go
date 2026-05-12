@@ -157,6 +157,8 @@ func (a *analyzer) walkExpressionForFunctions(expr ast.Expression) {
 		for _, arg := range e.Arguments {
 			a.walkExpressionForFunctions(arg)
 		}
+	case *ast.TypeApplicationExpression:
+		a.walkExpressionForFunctions(e.Function)
 	case *ast.InfixExpression:
 		a.walkExpressionForFunctions(e.Left)
 		a.walkExpressionForFunctions(e.Right)
@@ -332,6 +334,8 @@ func (a *analyzer) validateRecurInExpr(expr ast.Expression, inTail bool) {
 		for _, arg := range e.Arguments {
 			a.validateRecurInExpr(arg, false)
 		}
+	case *ast.TypeApplicationExpression:
+		a.validateRecurInExpr(e.Function, false)
 	case *ast.PrefixExpression:
 		a.validateRecurInExpr(e.Right, false)
 	case *ast.InfixExpression:
@@ -460,6 +464,8 @@ func (a *analyzer) containsStructSchema(expr ast.Expression) bool {
 			}
 		}
 		return false
+	case *ast.TypeApplicationExpression:
+		return a.containsStructSchema(e.Function)
 	case *ast.InfixExpression:
 		return a.containsStructSchema(e.Left) || a.containsStructSchema(e.Right)
 	case *ast.PrefixExpression:

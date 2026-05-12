@@ -147,6 +147,7 @@ func adaptVMObjectForForeignBridge(obj object.Object, env *object.Environment) o
 		return &object.Function{
 			Signature:  v.Signature,
 			Tags:       v.Tags,
+			TypeParams: v.TypeParams,
 			Parameters: v.Parameters,
 			ParamIndex: buildParamIndexForVMBridge(v.Parameters),
 			ReturnType: v.ReturnType,

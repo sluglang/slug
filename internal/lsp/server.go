@@ -296,6 +296,7 @@ type moduleSymbolIdentity struct {
 
 type functionSignature struct {
 	Name       string
+	TypeParams []string
 	Params     []string
 	ReturnType string
 	Detail     string
@@ -1106,7 +1107,11 @@ func (s *Server) resolveSignatureForName(originURI string, src string, name stri
 }
 
 func formatSignatureLabel(sig functionSignature) string {
-	label := sig.Name + "(" + strings.Join(sig.Params, ", ") + ")"
+	label := sig.Name
+	if len(sig.TypeParams) > 0 {
+		label += "<" + strings.Join(sig.TypeParams, ", ") + ">"
+	}
+	label += "(" + strings.Join(sig.Params, ", ") + ")"
 	if rt := strings.TrimSpace(sig.ReturnType); rt != "" {
 		label += ":" + rt
 	}
@@ -2216,7 +2221,7 @@ func collectFunctionSignatures(src string) []functionSignature {
 				start := s.Name.Token.Position
 				end := start + len(s.Name.Token.Literal)
 				detail := buildFunctionDocMarkdown(s.Name.Value, s.Doc, s.HasDoc, s.Tags)
-				sig := functionSignature{Name: s.Name.Value, Detail: detail, ReturnType: strings.TrimSpace(s.ReturnType), ScopeDepth: scopeDepth, Start: start, End: end}
+				sig := functionSignature{Name: s.Name.Value, TypeParams: append([]string(nil), s.TypeParams...), Detail: detail, ReturnType: strings.TrimSpace(s.ReturnType), ScopeDepth: scopeDepth, Start: start, End: end}
 				pn := make([]string, 0, len(s.Parameters))
 				paramDocsByName := parseParamDocs(detail)
 				pdocs := make([]string, 0, len(s.Parameters))
@@ -2240,7 +2245,7 @@ func collectFunctionSignatures(src string) []functionSignature {
 			if fn, ok := e.Value.(*ast.FunctionLiteral); ok {
 				for _, n := range topLevelPatternNames(e.Pattern) {
 					detail := buildFunctionDocMarkdown(n.Name, e.Doc, e.HasDoc, e.Tags)
-					sig := functionSignature{Name: n.Name, Detail: detail, ReturnType: strings.TrimSpace(fn.ReturnType), ScopeDepth: scopeDepth, Start: n.Start, End: n.End}
+					sig := functionSignature{Name: n.Name, TypeParams: append([]string(nil), fn.TypeParams...), Detail: detail, ReturnType: strings.TrimSpace(fn.ReturnType), ScopeDepth: scopeDepth, Start: n.Start, End: n.End}
 					pn := make([]string, 0, len(fn.Parameters))
 					paramDocsByName := parseParamDocs(detail)
 					pdocs := make([]string, 0, len(fn.Parameters))
@@ -2261,7 +2266,7 @@ func collectFunctionSignatures(src string) []functionSignature {
 			if fn, ok := e.Value.(*ast.FunctionLiteral); ok {
 				for _, n := range topLevelPatternNames(e.Pattern) {
 					detail := buildFunctionDocMarkdown(n.Name, e.Doc, e.HasDoc, e.Tags)
-					sig := functionSignature{Name: n.Name, Detail: detail, ReturnType: strings.TrimSpace(fn.ReturnType), ScopeDepth: scopeDepth, Start: n.Start, End: n.End}
+					sig := functionSignature{Name: n.Name, TypeParams: append([]string(nil), fn.TypeParams...), Detail: detail, ReturnType: strings.TrimSpace(fn.ReturnType), ScopeDepth: scopeDepth, Start: n.Start, End: n.End}
 					pn := make([]string, 0, len(fn.Parameters))
 					paramDocsByName := parseParamDocs(detail)
 					pdocs := make([]string, 0, len(fn.Parameters))

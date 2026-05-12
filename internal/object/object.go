@@ -303,6 +303,7 @@ func (m *Module) Inspect() string {
 type Function struct {
 	Signature   ast.FSig
 	Tags        map[string]List
+	TypeParams  []string
 	Parameters  []*ast.FunctionParameter
 	ParamIndex  map[string]int
 	ReturnType  string
@@ -343,6 +344,9 @@ func (f *Function) SetTag(tag string, params List) {
 }
 func (f *Function) GetSignature() ast.FSig {
 	return f.Signature
+}
+func (f *Function) GetTypeParams() []string {
+	return f.TypeParams
 }
 func (f *Function) GetParameters() []*ast.FunctionParameter {
 	return f.Parameters
@@ -774,6 +778,7 @@ func evaluateFunctionMatch(params []*ast.FunctionParameter, bound *BoundArgument
 type Foreign struct {
 	Signature  ast.FSig
 	Tags       map[string]List
+	TypeParams []string
 	Parameters []*ast.FunctionParameter
 	ParamIndex map[string]int
 	ReturnType string
@@ -799,6 +804,9 @@ func (f *Foreign) SetTag(tag string, params List) {
 }
 func (f *Foreign) GetSignature() ast.FSig {
 	return f.Signature
+}
+func (f *Foreign) GetTypeParams() []string {
+	return f.TypeParams
 }
 func (f *Foreign) GetParameters() []*ast.FunctionParameter {
 	return f.Parameters

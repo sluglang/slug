@@ -65,7 +65,13 @@ func RenderASTAsText(node ast.Node, indent int) string {
 			params = append(params, RenderASTAsText(p, 0))
 		}
 		// Body block aligns its closing brace with 'indent'
+		if len(n.TypeParams) > 0 {
+			return fmt.Sprintf("fn<%s>(%s) %s", strings.Join(n.TypeParams, ", "), strings.Join(params, ", "), RenderASTAsText(n.Body, indent))
+		}
 		return fmt.Sprintf("fn(%s) %s", strings.Join(params, ", "), RenderASTAsText(n.Body, indent))
+
+	case *ast.TypeApplicationExpression:
+		return fmt.Sprintf("%s<%s>", RenderASTAsText(n.Function, 0), strings.Join(n.TypeArgs, ", "))
 
 	case *ast.FunctionParameter:
 		tags := renderTags(n.Tags)

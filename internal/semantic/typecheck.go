@@ -22,6 +22,7 @@ const (
 	typeStr     typeKind = "str"
 	typeBytes   typeKind = "bytes"
 	typeSym     typeKind = "sym"
+	typeParam   typeKind = "typeparam"
 	typeList    typeKind = "list"
 	typeTuple   typeKind = "tuple"
 	typeMap     typeKind = "map"
@@ -35,19 +36,20 @@ const (
 const maxUnionOptions = 8
 
 type tnode struct {
-	kind     typeKind
-	id       int
-	parent   *tnode
-	elem     *tnode
-	key      *tnode
-	val      *tnode
-	params   []*tnode
-	options  []*tnode
-	ret      *tnode
-	variadic bool
-	minArgs  int
-	maxArgs  int
-	name     string
+	kind       typeKind
+	id         int
+	parent     *tnode
+	elem       *tnode
+	key        *tnode
+	val        *tnode
+	params     []*tnode
+	typeParams []*tnode
+	options    []*tnode
+	ret        *tnode
+	variadic   bool
+	minArgs    int
+	maxArgs    int
+	name       string
 }
 
 type tconstraint struct {
@@ -108,6 +110,7 @@ type typeChecker struct {
 	scopes      []map[string]*tnode
 	declared    []map[string]*tnode
 	overrides   []map[string]*tnode
+	generics    []map[string]*tnode
 	schemas     map[string]map[string]*tnode
 }
 
@@ -158,6 +161,39 @@ func (c *typeChecker) pushScope() {
 
 func (c *typeChecker) pushOverride() {
 	c.overrides = append(c.overrides, map[string]*tnode{})
+}
+
+func (c *typeChecker) pushGenericScope(bindings map[string]*tnode) {
+	scope := map[string]*tnode{}
+	for k, v := range bindings {
+		scope[k] = v
+	}
+	c.generics = append(c.generics, scope)
+}
+
+func (c *typeChecker) popGenericScope() {
+	if len(c.generics) > 0 {
+		c.generics = c.generics[:len(c.generics)-1]
+	}
+}
+
+func (c *typeChecker) currentGenericScope() map[string]*tnode {
+	out := map[string]*tnode{}
+	for i := 0; i < len(c.generics); i++ {
+		for k, v := range c.generics[i] {
+			out[k] = v
+		}
+	}
+	return out
+}
+
+func (c *typeChecker) lookupGeneric(name string) *tnode {
+	for i := len(c.generics) - 1; i >= 0; i-- {
+		if t, ok := c.generics[i][name]; ok {
+			return t
+		}
+	}
+	return nil
 }
 
 func (c *typeChecker) pushIsolatedScopeFromVisible() {
@@ -306,12 +342,18 @@ func (c *typeChecker) cloneForCaseScope(t *tnode, memo map[*tnode]*tnode) *tnode
 		for i := range t.params {
 			cp.params[i] = c.cloneForCaseScope(t.params[i], memo)
 		}
+		cp.typeParams = make([]*tnode, len(t.typeParams))
+		for i := range t.typeParams {
+			cp.typeParams[i] = c.cloneForCaseScope(t.typeParams[i], memo)
+		}
 		cp.ret = c.cloneForCaseScope(t.ret, memo)
 	case typeUnion:
 		cp.options = make([]*tnode, 0, len(t.options))
 		for _, opt := range t.options {
 			cp.options = append(cp.options, c.cloneForCaseScope(opt, memo))
 		}
+	case typeParam:
+		cp.id = t.id
 	}
 	return cp
 }
@@ -347,6 +389,129 @@ func (c *typeChecker) fnType(params []*tnode, ret *tnode, variadic bool, minArgs
 		ret = c.freshUnknown()
 	}
 	return &tnode{kind: typeFn, params: params, ret: ret, variadic: variadic, minArgs: minArgs, maxArgs: maxArgs}
+}
+
+func (c *typeChecker) typeParam(name string) *tnode {
+	return &tnode{kind: typeParam, name: name}
+}
+
+func (c *typeChecker) containsTypeParam(t *tnode) bool {
+	seen := map[*tnode]bool{}
+	var walk func(*tnode) bool
+	walk = func(n *tnode) bool {
+		n = c.find(n)
+		if n == nil || seen[n] {
+			return false
+		}
+		seen[n] = true
+		switch n.kind {
+		case typeParam:
+			return true
+		case typeList:
+			return walk(n.elem)
+		case typeTuple:
+			for _, p := range n.params {
+				if walk(p) {
+					return true
+				}
+			}
+		case typeMap:
+			return walk(n.key) || walk(n.val)
+		case typeFn:
+			for _, tp := range n.typeParams {
+				if walk(tp) {
+					return true
+				}
+			}
+			for _, p := range n.params {
+				if walk(p) {
+					return true
+				}
+			}
+			return walk(n.ret)
+		case typeUnion:
+			for _, opt := range n.options {
+				if walk(opt) {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	return walk(t)
+}
+
+func (c *typeChecker) cloneTypeWithSubst(t *tnode, subst map[*tnode]*tnode, memo map[*tnode]*tnode) *tnode {
+	t = c.find(t)
+	if t == nil {
+		return nil
+	}
+	if repl, ok := subst[t]; ok {
+		return repl
+	}
+	if memo == nil {
+		memo = map[*tnode]*tnode{}
+	}
+	if existing, ok := memo[t]; ok {
+		return existing
+	}
+	cp := &tnode{
+		kind:     t.kind,
+		id:       t.id,
+		variadic: t.variadic,
+		minArgs:  t.minArgs,
+		maxArgs:  t.maxArgs,
+		name:     t.name,
+	}
+	memo[t] = cp
+	switch t.kind {
+	case typeList:
+		cp.elem = c.cloneTypeWithSubst(t.elem, subst, memo)
+	case typeTuple:
+		cp.params = make([]*tnode, len(t.params))
+		for i := range t.params {
+			cp.params[i] = c.cloneTypeWithSubst(t.params[i], subst, memo)
+		}
+	case typeMap:
+		cp.key = c.cloneTypeWithSubst(t.key, subst, memo)
+		cp.val = c.cloneTypeWithSubst(t.val, subst, memo)
+	case typeFn:
+		cp.typeParams = make([]*tnode, len(t.typeParams))
+		for i := range t.typeParams {
+			cp.typeParams[i] = c.cloneTypeWithSubst(t.typeParams[i], subst, memo)
+		}
+		cp.params = make([]*tnode, len(t.params))
+		for i := range t.params {
+			cp.params[i] = c.cloneTypeWithSubst(t.params[i], subst, memo)
+		}
+		cp.ret = c.cloneTypeWithSubst(t.ret, subst, memo)
+	case typeUnion:
+		cp.options = make([]*tnode, len(t.options))
+		for i := range t.options {
+			cp.options[i] = c.cloneTypeWithSubst(t.options[i], subst, memo)
+		}
+	}
+	return cp
+}
+
+func (c *typeChecker) instantiateFunctionType(fn *tnode, explicit []*tnode) *tnode {
+	ff := c.find(fn)
+	if ff == nil || ff.kind != typeFn {
+		return ff
+	}
+	subst := map[*tnode]*tnode{}
+	for i, tp := range ff.typeParams {
+		if explicit != nil && i < len(explicit) && explicit[i] != nil {
+			subst[tp] = explicit[i]
+		} else {
+			subst[tp] = c.freshUnknown()
+		}
+	}
+	inst := c.cloneTypeWithSubst(ff, subst, map[*tnode]*tnode{})
+	if inst != nil && inst.kind == typeFn {
+		inst.typeParams = nil
+	}
+	return inst
 }
 
 func (c *typeChecker) unionType(types ...*tnode) *tnode {
@@ -517,6 +682,10 @@ func (c *typeChecker) cloneScalarTagType(tag string) *tnode {
 }
 
 func (c *typeChecker) parseDeclaredType(raw string) *tnode {
+	return c.parseDeclaredTypeWithScope(raw, c.currentGenericScope())
+}
+
+func (c *typeChecker) parseDeclaredTypeWithScope(raw string, generics map[string]*tnode) *tnode {
 	s := strings.TrimSpace(raw)
 	if s == "" {
 		return nil
@@ -524,7 +693,7 @@ func (c *typeChecker) parseDeclaredType(raw string) *tnode {
 	if parts := splitTypeTopLevel(s, '|'); len(parts) > 1 {
 		opts := make([]*tnode, 0, len(parts))
 		for _, p := range parts {
-			t := c.parseDeclaredType(p)
+			t := c.parseDeclaredTypeWithScope(p, generics)
 			if t != nil {
 				opts = append(opts, t)
 			}
@@ -540,7 +709,7 @@ func (c *typeChecker) parseDeclaredType(raw string) *tnode {
 		if len(parts) != 1 {
 			return nil
 		}
-		elem := c.parseDeclaredType(inner)
+		elem := c.parseDeclaredTypeWithScope(inner, generics)
 		if elem == nil {
 			elem = c.freshUnknown()
 		}
@@ -554,7 +723,7 @@ func (c *typeChecker) parseDeclaredType(raw string) *tnode {
 		parts := splitTypeTopLevel(inner, ',')
 		elems := make([]*tnode, 0, len(parts))
 		for _, p := range parts {
-			et := c.parseDeclaredType(p)
+			et := c.parseDeclaredTypeWithScope(p, generics)
 			if et == nil {
 				et = c.freshUnknown()
 			}
@@ -568,8 +737,8 @@ func (c *typeChecker) parseDeclaredType(raw string) *tnode {
 		if len(parts) != 2 {
 			return nil
 		}
-		k := c.parseDeclaredType(parts[0])
-		v := c.parseDeclaredType(parts[1])
+		k := c.parseDeclaredTypeWithScope(parts[0], generics)
+		v := c.parseDeclaredTypeWithScope(parts[1], generics)
 		if k == nil {
 			k = c.freshUnknown()
 		}
@@ -582,12 +751,12 @@ func (c *typeChecker) parseDeclaredType(raw string) *tnode {
 		inner := strings.TrimSpace(s[len("chan<") : len(s)-1])
 		// channel payload typing is accepted in declarations for forward compatibility.
 		// current checker treats channel as a scalar kind, consistent with existing behavior.
-		_ = c.parseDeclaredType(inner)
+		_ = c.parseDeclaredTypeWithScope(inner, generics)
 		return c.scalar(typeChan)
 	}
 	if strings.HasPrefix(s, "task<") && strings.HasSuffix(s, ">") {
 		inner := strings.TrimSpace(s[len("task<") : len(s)-1])
-		_ = c.parseDeclaredType(inner)
+		_ = c.parseDeclaredTypeWithScope(inner, generics)
 		return c.scalar(typeTask)
 	}
 	if strings.HasPrefix(s, "fn<") && strings.HasSuffix(s, ">") {
@@ -596,7 +765,7 @@ func (c *typeChecker) parseDeclaredType(raw string) *tnode {
 		if len(parts) == 0 {
 			return nil
 		}
-		ret := c.parseDeclaredType(parts[0])
+		ret := c.parseDeclaredTypeWithScope(parts[0], generics)
 		if ret == nil {
 			ret = c.freshUnknown()
 		}
@@ -605,7 +774,7 @@ func (c *typeChecker) parseDeclaredType(raw string) *tnode {
 		}
 		params := make([]*tnode, 0, len(parts)-1)
 		for _, p := range parts[1:] {
-			pt := c.parseDeclaredType(p)
+			pt := c.parseDeclaredTypeWithScope(p, generics)
 			if pt == nil {
 				pt = c.freshUnknown()
 			}
@@ -645,6 +814,11 @@ func (c *typeChecker) parseDeclaredType(raw string) *tnode {
 	case "any", "?":
 		return c.scalar(typeAny)
 	default:
+		if generics != nil {
+			if tp, ok := generics[s]; ok {
+				return tp
+			}
+		}
 		// Treat unknown bare names as struct references.
 		if isSimpleTypeIdent(s) {
 			return &tnode{kind: typeStruct, name: s}
@@ -654,6 +828,10 @@ func (c *typeChecker) parseDeclaredType(raw string) *tnode {
 }
 
 func (c *typeChecker) validateSpecialDeclaredType(raw string, pos int, context string) {
+	c.validateSpecialDeclaredTypeWithScope(raw, pos, context, c.currentGenericScope())
+}
+
+func (c *typeChecker) validateSpecialDeclaredTypeWithScope(raw string, pos int, context string, generics map[string]*tnode) {
 	s := strings.TrimSpace(raw)
 	if s == "" {
 		return
@@ -681,12 +859,12 @@ func (c *typeChecker) validateSpecialDeclaredType(raw string, pos int, context s
 			c.addDiag(pos, "invalid %s type annotation: function type requires at least one type argument", context)
 			return
 		}
-		if tt := c.parseDeclaredType(parts[0]); tt == nil {
+		if tt := c.parseDeclaredTypeWithScope(parts[0], generics); tt == nil {
 			c.addDiag(pos, "invalid %s type annotation: unable to parse function return type '%s'", context, parts[0])
 			return
 		}
 		for _, p := range parts[1:] {
-			if tt := c.parseDeclaredType(p); tt == nil {
+			if tt := c.parseDeclaredTypeWithScope(p, generics); tt == nil {
 				c.addDiag(pos, "invalid %s type annotation: unable to parse function parameter type '%s'", context, p)
 				return
 			}
@@ -820,11 +998,23 @@ func (c *typeChecker) inferStatement(stmt ast.Statement) *tnode {
 		}
 		return c.scalar(typeNil)
 	case *ast.ForeignFunctionDeclaration:
+		genericBindings := map[string]*tnode{}
+		genericOrder := make([]*tnode, 0, len(s.TypeParams))
+		for _, name := range s.TypeParams {
+			if name == "" {
+				continue
+			}
+			tp := c.typeParam(name)
+			genericBindings[name] = tp
+			genericOrder = append(genericOrder, tp)
+		}
+		c.pushGenericScope(genericBindings)
+		defer c.popGenericScope()
 		params := make([]*tnode, 0, len(s.Parameters))
 		for _, p := range s.Parameters {
 			pt := c.freshUnknown()
 			c.validateDeclaredTypeShape(p.Type, s.Token.Position, "parameter")
-			c.validateSpecialDeclaredType(p.Type, s.Token.Position, "parameter")
+			c.validateSpecialDeclaredTypeWithScope(p.Type, s.Token.Position, "parameter", c.currentGenericScope())
 			if tt := c.parseDeclaredType(p.Type); tt != nil {
 				pt = tt
 				c.addConstraint(pt, tt, s.Token.Position, "parameter annotation constraint")
@@ -845,12 +1035,13 @@ func (c *typeChecker) inferStatement(stmt ast.Statement) *tnode {
 		}
 		ret := c.freshUnknown()
 		c.validateDeclaredTypeShape(s.ReturnType, s.Token.Position, "function return")
-		c.validateSpecialDeclaredType(s.ReturnType, s.Token.Position, "function return")
+		c.validateSpecialDeclaredTypeWithScope(s.ReturnType, s.Token.Position, "function return", c.currentGenericScope())
 		if tt := c.parseDeclaredType(s.ReturnType); tt != nil {
 			c.addConstraint(ret, tt, s.Token.Position, "function return annotation")
 			c.retChecks = append(c.retChecks, declaredReturnCheck{pos: s.Token.Position, got: ret, expected: tt})
 		}
 		fnType := c.fnType(params, ret, len(s.Parameters) > 0 && s.Parameters[len(s.Parameters)-1].IsVariadic, s.Signature.Min, s.Signature.Max)
+		fnType.typeParams = genericOrder
 		c.bind(s.Name.Value, fnType)
 		return fnType
 	default:
@@ -1019,6 +1210,31 @@ func (c *typeChecker) inferExpr(expr ast.Expression) *tnode {
 		return c.unionType(thenType, elseType)
 	case *ast.FunctionLiteral:
 		return c.inferFunctionLiteral(e)
+	case *ast.TypeApplicationExpression:
+		base := c.inferExpr(e.Function)
+		fnType := c.find(base)
+		if fnType == nil || fnType.kind != typeFn {
+			return base
+		}
+		explicit := make([]*tnode, 0, len(e.TypeArgs))
+		for _, arg := range e.TypeArgs {
+			tt := c.parseDeclaredTypeWithScope(arg, c.currentGenericScope())
+			if tt == nil {
+				tt = c.freshUnknown()
+			}
+			explicit = append(explicit, tt)
+		}
+		if len(fnType.typeParams) > 0 && len(explicit) != len(fnType.typeParams) {
+			c.addDiag(e.Token.Position, "generic type argument mismatch: expected %d arguments, got %d", len(fnType.typeParams), len(explicit))
+			return c.instantiateFunctionType(fnType, nil)
+		}
+		if len(fnType.typeParams) > 0 {
+			return c.instantiateFunctionType(fnType, explicit)
+		}
+		if len(explicit) > 0 {
+			c.addDiag(e.Token.Position, "type application requires a generic function")
+		}
+		return base
 	case *ast.CallExpression:
 		return c.inferCall(e)
 	case *ast.NamedArgument:
@@ -1183,12 +1399,24 @@ func (c *typeChecker) inferExpr(expr ast.Expression) *tnode {
 func (c *typeChecker) inferFunctionLiteral(fn *ast.FunctionLiteral) *tnode {
 	params := make([]*tnode, 0, len(fn.Parameters))
 	paramNames := make([]string, 0, len(fn.Parameters))
+	genericBindings := map[string]*tnode{}
+	genericOrder := make([]*tnode, 0, len(fn.TypeParams))
+	for _, name := range fn.TypeParams {
+		if name == "" {
+			continue
+		}
+		tp := c.typeParam(name)
+		genericBindings[name] = tp
+		genericOrder = append(genericOrder, tp)
+	}
+	c.pushGenericScope(genericBindings)
+	defer c.popGenericScope()
 	c.pushScope()
 	c.pushOverride()
 	for _, p := range fn.Parameters {
 		pt := c.freshUnknown()
 		c.validateDeclaredTypeShape(p.Type, p.Name.Token.Position, "parameter")
-		c.validateSpecialDeclaredType(p.Type, p.Name.Token.Position, "parameter")
+		c.validateSpecialDeclaredTypeWithScope(p.Type, p.Name.Token.Position, "parameter", c.currentGenericScope())
 		if tt := c.parseDeclaredType(p.Type); tt != nil {
 			pt = tt
 			c.addConstraint(pt, tt, p.Name.Token.Position, "parameter annotation constraint")
@@ -1224,7 +1452,7 @@ func (c *typeChecker) inferFunctionLiteral(fn *ast.FunctionLiteral) *tnode {
 		}
 	}
 	c.validateDeclaredTypeShape(fn.ReturnType, fn.Token.Position, "function return")
-	c.validateSpecialDeclaredType(fn.ReturnType, fn.Token.Position, "function return")
+	c.validateSpecialDeclaredTypeWithScope(fn.ReturnType, fn.Token.Position, "function return", c.currentGenericScope())
 	if tt := c.parseDeclaredType(fn.ReturnType); tt != nil {
 		c.addConstraint(ret, tt, fn.Token.Position, "function return annotation")
 		c.enforceFunctionReturnLiteralCompatibility(fn.Body, tt)
@@ -1237,7 +1465,9 @@ func (c *typeChecker) inferFunctionLiteral(fn *ast.FunctionLiteral) *tnode {
 	if maxArgs > 1_000_000 {
 		maxArgs = -1
 	}
-	return c.fnType(params, ret, len(fn.Parameters) > 0 && fn.Parameters[len(fn.Parameters)-1].IsVariadic, minArgs, maxArgs)
+	ft := c.fnType(params, ret, len(fn.Parameters) > 0 && fn.Parameters[len(fn.Parameters)-1].IsVariadic, minArgs, maxArgs)
+	ft.typeParams = genericOrder
+	return ft
 }
 
 func (c *typeChecker) inferFunctionIteration(body *ast.BlockStatement, paramNames []string, params []*tnode) (*tnode, bool) {
@@ -1402,6 +1632,10 @@ func (c *typeChecker) inferCall(call *ast.CallExpression) *tnode {
 	}
 	ct := c.find(callee)
 	if ct.kind == typeFn {
+		useConstraints := len(ct.typeParams) > 0 || c.containsTypeParam(ct)
+		if len(ct.typeParams) > 0 {
+			ct = c.instantiateFunctionType(ct, nil)
+		}
 		hasSpread := false
 		fixedArgs := 0
 		for _, a := range args {
@@ -1439,11 +1673,15 @@ func (c *typeChecker) inferCall(call *ast.CallExpression) *tnode {
 				break
 			}
 			if !arg.isSpread {
-				c.callChecks = append(c.callChecks, callCheck{
-					pos:      call.Token.Position,
-					got:      arg.t,
-					expected: ct.params[paramIdx],
-				})
+				if useConstraints {
+					c.addConstraint(arg.t, ct.params[paramIdx], call.Token.Position, "call argument type")
+				} else {
+					c.callChecks = append(c.callChecks, callCheck{
+						pos:      call.Token.Position,
+						got:      arg.t,
+						expected: ct.params[paramIdx],
+					})
+				}
 				paramIdx++
 				continue
 			}
@@ -1458,11 +1696,15 @@ func (c *typeChecker) inferCall(call *ast.CallExpression) *tnode {
 				elem = c.scalar(typeStr)
 			}
 			for ; paramIdx < len(ct.params); paramIdx++ {
-				c.callChecks = append(c.callChecks, callCheck{
-					pos:      call.Token.Position,
-					got:      elem,
-					expected: ct.params[paramIdx],
-				})
+				if useConstraints {
+					c.addConstraint(elem, ct.params[paramIdx], call.Token.Position, "call argument type")
+				} else {
+					c.callChecks = append(c.callChecks, callCheck{
+						pos:      call.Token.Position,
+						got:      elem,
+						expected: ct.params[paramIdx],
+					})
+				}
 			}
 		}
 		c.addConstraint(result, ct.ret, call.Token.Position, "call return type")
@@ -2437,6 +2679,8 @@ func (c *typeChecker) matchesRefinementTarget(candidate, target *tnode) bool {
 			}
 		}
 		return c.matchesRefinementTarget(cf.ret, tf.ret)
+	case typeParam:
+		return cf == tf
 	default:
 		return true
 	}
@@ -2481,6 +2725,8 @@ func (c *typeChecker) sameConcreteType(a, b *tnode) bool {
 			}
 		}
 		return c.sameConcreteType(af.ret, bf.ret)
+	case typeParam:
+		return af == bf
 	case typeUnion:
 		if len(af.options) != len(bf.options) {
 			return false
@@ -2568,6 +2814,11 @@ func (c *typeChecker) typeSig(t *tnode) string {
 			out += ", " + c.describe(p)
 		}
 		return out + ">"
+	case typeParam:
+		if t.name != "" {
+			return t.name
+		}
+		return fmt.Sprintf("t%d", t.id)
 	case typeStruct:
 		if t.name == "" {
 			return "struct"
@@ -2600,6 +2851,9 @@ func (c *typeChecker) isCompatible(got, expected *tnode) bool {
 		return true
 	}
 	if g.kind == typeAny || e.kind == typeAny || g.kind == typeUnknown || e.kind == typeUnknown {
+		return true
+	}
+	if g.kind == typeParam || e.kind == typeParam {
 		return true
 	}
 	if g.kind == typeUnion {
@@ -2671,6 +2925,8 @@ func (c *typeChecker) isCompatible(got, expected *tnode) bool {
 			}
 		}
 		return c.isCompatible(g.ret, e.ret)
+	case typeParam:
+		return true
 	case typeStruct:
 		if g.name != "" && e.name != "" && g.name != e.name {
 			return false
@@ -2697,6 +2953,9 @@ func (c *typeChecker) isDeclaredCompatible(got, expected *tnode) bool {
 		return true
 	}
 	if g.kind == typeAny || e.kind == typeAny || g.kind == typeUnknown || e.kind == typeUnknown {
+		return true
+	}
+	if g.kind == typeParam || e.kind == typeParam {
 		return true
 	}
 	if g.kind == typeUnion {
@@ -2765,6 +3024,8 @@ func (c *typeChecker) isDeclaredCompatible(got, expected *tnode) bool {
 			}
 		}
 		return c.isDeclaredCompatible(g.ret, e.ret)
+	case typeParam:
+		return true
 	case typeStruct:
 		if g.name != "" && e.name != "" && g.name != e.name {
 			return false
@@ -3086,6 +3347,12 @@ func (c *typeChecker) unify(a, b *tnode) bool {
 	if b.kind == typeUnknown {
 		return c.bindUnknown(b, a)
 	}
+	if a.kind == typeParam {
+		return c.bindUnknown(a, b)
+	}
+	if b.kind == typeParam {
+		return c.bindUnknown(b, a)
+	}
 	if a.kind != b.kind {
 		if a.kind == typeTuple && b.kind == typeList {
 			for _, et := range a.params {
@@ -3175,6 +3442,11 @@ func (c *typeChecker) describe(t *tnode) string {
 			out += "," + c.typeSig(p)
 		}
 		return out + ">"
+	case typeParam:
+		if t.name != "" {
+			return t.name
+		}
+		return fmt.Sprintf("t%d", t.id)
 	case typeStruct:
 		if t.name != "" {
 			return "struct(" + t.name + ")"

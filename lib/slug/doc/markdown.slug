@@ -195,6 +195,14 @@ val renderReturnType = fn(h) {
 	}
 }
 
+val renderTypeParams = fn(h) {
+	match h.details.typeParams {
+		nil => ''
+		[]  => ''
+		tps => '<' + (tps /> join(', ')) + '>'
+	}
+}
+
 // --- markdown primitives ---
 
 val mdCode = fn(s) { '`' + s + '`' }
@@ -266,7 +274,7 @@ val renderThrowsNote = fn(tags) {
 
 val renderFnSignature = fn(module, name, h) {
 	val ret = renderReturnType(h)
-	"fn " + module + "#" + name + "(" + renderParams(h.details.params) + "):" + ret
+	"fn " + module + "#" + name + renderTypeParams(h) + "(" + renderParams(h.details.params) + "):" + ret
 }
 
 val toFnGroups = fn(desc) {
@@ -281,7 +289,7 @@ val toFnGroups = fn(desc) {
 val renderFnSection = fn(module, name, groups, fallbackDocs = nil) {
 	val firstGroup = groups[0]
 	val paramNames = firstGroup.details.params /> map(fn(p) { p.name }) /> join(', ')
-	val heading    = "#### `" + name + "(" + paramNames + ")`"
+	val heading    = "#### `" + name + renderTypeParams(firstGroup) + "(" + paramNames + ")`"
 
 	// one code block per overload signature
 	val signatures = groups
@@ -384,7 +392,7 @@ val renderModule = fn(mod:str, moduleToc:bool) {
 				val groups = toFnGroups(desc)
 				val firstGroup = groups[0]
 				val paramNames = firstGroup.details.params /> map(fn(p) { p.name }) /> join(', ')
-				"`" + label(v) + "(" + paramNames + ")`"
+				"`" + label(v) + renderTypeParams(firstGroup) + "(" + paramNames + ")`"
 			})
 
 			val entries = (basic + fnNames) /> map(fn(m) { '- [' + m + '](' + slugify(m) + ')' })

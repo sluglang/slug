@@ -550,7 +550,87 @@ func (p *Parser) parseIdentifier() ast.Expression {
 		return p.parseAssignmentExpression(ident)
 	}
 
+	if p.peekTokenIs(token.LT) && p.looksLikeTypeApplicationSuffix(ident) {
+		return p.parseTypeApplicationExpression(ident)
+	}
+
 	return ident
+}
+
+func (p *Parser) looksLikeTypeApplicationSuffix(ident *ast.Identifier) bool {
+	if ident == nil {
+		return false
+	}
+	start := ident.Token.Position + len(ident.Token.Literal)
+	if start >= len(p.src) {
+		return false
+	}
+	i := start
+	for i < len(p.src) {
+		switch p.src[i] {
+		case ' ', '\t', '\r', '\n':
+			i++
+			continue
+		}
+		break
+	}
+	if i >= len(p.src) || p.src[i] != '<' {
+		return false
+	}
+	depth := 0
+	for j := i; j < len(p.src); j++ {
+		switch p.src[j] {
+		case '<':
+			depth++
+		case '>':
+			depth--
+			if depth == 0 {
+				k := j + 1
+				for k < len(p.src) {
+					switch p.src[k] {
+					case ' ', '\t', '\r', '\n':
+						k++
+						continue
+					}
+					break
+				}
+				return k < len(p.src) && p.src[k] == '('
+			}
+		}
+	}
+	return false
+}
+
+func (p *Parser) parseTypeApplicationExpression(function ast.Expression) ast.Expression {
+	exp := &ast.TypeApplicationExpression{
+		Token:    p.peekToken,
+		Function: function,
+	}
+	p.nextToken() // consume '<'
+	if p.peekTokenIs(token.GT) {
+		p.addErrorAt(p.peekToken.Position, "expected at least one type argument")
+		return nil
+	}
+	for {
+		p.nextToken()
+		arg := p.parseTypeAnnotationLiteral(token.COMMA, token.GT)
+		if arg == "" {
+			p.addErrorAt(p.curToken.Position, "expected type argument")
+			return nil
+		}
+		exp.TypeArgs = append(exp.TypeArgs, arg)
+		if p.peekTokenIs(token.COMMA) {
+			p.nextToken()
+			continue
+		}
+		if p.peekTokenIs(token.GT) {
+			p.nextToken()
+			break
+		}
+		p.addErrorAt(p.curToken.Position, "expected ',' or '>' in type argument list")
+		return nil
+	}
+	return exp
 }
 
 func (p *Parser) parseSymbolLiteral() ast.Expression {
@@ -1448,6 +1528,14 @@ func (p *Parser) parseBlockStatement() *ast.BlockStatement {
 func (p *Parser) parseFunctionLiteral() ast.Expression {
 	lit := &ast.FunctionLiteral{Token: p.curToken}
 
+	if p.peekTokenIs(token.LT) {
+		before := len(p.errors)
+		lit.TypeParams = p.parseGenericTypeParameters()
+		if len(p.errors) > before {
+			return nil
+		}
+	}
+
 	if !p.expectPeek(token.LPAREN) {
 		return nil
 	}
@@ -1498,6 +1586,34 @@ func (p *Parser) parseFunctionLiteral() ast.Expression {
 	}
 
 	return lit
+}
+
+func (p *Parser) parseGenericTypeParameters() []string {
+	params := []string{}
+	p.nextToken() // consume '<'
+	if p.peekTokenIs(token.GT) {
+		p.addErrorAt(p.peekToken.Position, "expected at least one generic type parameter")
+		return nil
+	}
+	for {
+		p.nextToken()
+		if p.curToken.Type != token.IDENT {
+			p.addErrorAt(p.curToken.Position, "expected generic type parameter name, got %s", p.curToken.Literal)
+			return nil
+		}
+		params = append(params, p.curToken.Literal)
+		if p.peekTokenIs(token.COMMA) {
+			p.nextToken()
+			continue
+		}
+		if p.peekTokenIs(token.GT) {
+			p.nextToken()
+			break
+		}
+		p.addErrorAt(p.curToken.Position, "expected ',' or '>' after generic type parameter")
+		return nil
+	}
+	return params
 }
 
 // setTailCallFlags analyzes a function literal and marks call expressions in tail position
@@ -2301,6 +2417,14 @@ func (p *Parser) parseForeignFunctionDeclaration() *ast.ForeignFunctionDeclarati
 
 	if !p.expectPeek(token.FUNCTION) {
 		return nil
+	}
+
+	if p.peekTokenIs(token.LT) {
+		before := len(p.errors)
+		foreignFunction.TypeParams = p.parseGenericTypeParameters()
+		if len(p.errors) > before {
+			return nil
+		}
 	}
 
 	if !p.expectPeek(token.LPAREN) {

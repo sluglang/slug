@@ -1545,6 +1545,7 @@ func (e *Executor) bindClosureIfNeeded(obj object.Object) object.Object {
 		return &VMFunction{
 			Name:       fn.Name,
 			Tags:       fn.Tags,
+			TypeParams: fn.TypeParams,
 			Params:     append([]VMParam(nil), fn.Params...),
 			ParamIndex: fn.ParamIndex,
 			ReturnType: fn.ReturnType,
@@ -1560,6 +1561,7 @@ func (e *Executor) bindClosureIfNeeded(obj object.Object) object.Object {
 		return &object.Function{
 			Signature:   fn.Signature,
 			Tags:        fn.Tags,
+			TypeParams:  fn.TypeParams,
 			Parameters:  fn.Parameters,
 			ParamIndex:  fn.ParamIndex,
 			ReturnType:  fn.ReturnType,

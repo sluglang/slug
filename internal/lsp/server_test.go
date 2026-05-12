@@ -1233,6 +1233,46 @@ func TestServerSignatureHelpShowsColonTypedParameters(t *testing.T) {
 	t.Fatal("signatureHelp response not found")
 }
 
+func TestServerSignatureHelpShowsGenericTypeParams(t *testing.T) {
+	src := "val apply = fn<T>(x:T, f:fn<T, T>):T { f(x) }\napply(1, fn(n:num):num { n })\n"
+	srcJSON := strings.ReplaceAll(src, "\"", "\\\"")
+	srcJSON = strings.ReplaceAll(srcJSON, "\n", "\\n")
+	in := strings.NewReader(
+		frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///a.slug","version":1,"text":"`+srcJSON+`"}}}`) +
+			frame(`{"jsonrpc":"2.0","id":136,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":"file:///a.slug"},"position":{"line":1,"character":7}}}`) +
+			frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}`) +
+			frame(`{"jsonrpc":"2.0","method":"exit"}`),
+	)
+	var out bytes.Buffer
+	s := NewServer(in, &out, func(path, src string) ([]string, []string) { return nil, nil })
+	if err := s.Run(); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	msgs := readAllMessages(t, out.String())
+	for _, m := range msgs {
+		id, ok := m["id"].(float64)
+		if !ok || int(id) != 136 {
+			continue
+		}
+		res, ok := m["result"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("signatureHelp result missing: %#v", m)
+		}
+		sigs, _ := res["signatures"].([]interface{})
+		if len(sigs) == 0 {
+			t.Fatalf("expected signatures, got %#v", res)
+		}
+		s0, _ := sigs[0].(map[string]interface{})
+		lbl, _ := s0["label"].(string)
+		if !strings.Contains(lbl, "apply<T>(x:T, f:fn<T,T>):T") {
+			t.Fatalf("unexpected generic signature label: %q", lbl)
+		}
+		return
+	}
+	t.Fatal("signatureHelp response not found")
+}
+
 func TestServerSignatureHelpIncludesReturnTypeInLabel(t *testing.T) {
 	src := "val sum = fn(a:num, b:str):str { a }\nsum(1, \"x\")\n"
 	srcJSON := strings.ReplaceAll(src, "\"", "\\\"")

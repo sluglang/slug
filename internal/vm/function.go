@@ -11,6 +11,7 @@ import (
 type VMFunction struct {
 	Name       string
 	Tags       map[string]object.List
+	TypeParams []string
 	Params     []VMParam
 	ParamIndex map[string]int
 	ReturnType string
@@ -77,6 +78,10 @@ func (f *VMFunction) SetTag(tag string, params object.List) {
 
 func (f *VMFunction) GetSignature() ast.FSig {
 	return f.Signature
+}
+
+func (f *VMFunction) GetTypeParams() []string {
+	return f.TypeParams
 }
 
 func (f *VMFunction) GetParameters() []*ast.FunctionParameter {
