@@ -38,8 +38,7 @@ Slug is a small, opinionated programming language implemented in Go with its sta
 * Short functions, no overengineering.
 
 ## Workflow
-* Read `spec.md` before coding.
-* Append changes to the bottom of `spec.md` after task (log changes).
+* Append changes to the bottom of `changelog.md` after task (log changes).
 * Write and pass tests before finalizing.
 * Keep a `README.md` with setup/run info.
 * Ensure language changes are reflected in `typecheck.go`, `slug.ebnf`, `SLUG.ai`, Slug.sublime-package and Slug.tmLanguage.
