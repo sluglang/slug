@@ -1147,11 +1147,22 @@ func (c *typeChecker) inferExpr(expr ast.Expression) *tnode {
 		c.bind(e.Value, unknown)
 		return unknown
 	case *ast.ListLiteral:
-		// Slug lists are heterogeneous at runtime. Infer each element for local
-		// constraints/side effects, but do not force all elements to unify.
-		elemType := c.scalar(typeAny)
+		// Infer a list element type from observed literal elements when the
+		// literal is homogeneous. Mixed lists remain permissive to avoid
+		// over-constraining dynamic collection use.
+		elemTypes := make([]*tnode, 0, len(e.Elements))
 		for _, item := range e.Elements {
-			_ = c.inferExpr(item)
+			elemTypes = append(elemTypes, c.inferExpr(item))
+		}
+		elemType := c.scalar(typeAny)
+		if len(elemTypes) > 0 {
+			elemType = elemTypes[0]
+			for _, next := range elemTypes[1:] {
+				if c.typeSig(next) != c.typeSig(elemType) {
+					elemType = c.scalar(typeAny)
+					break
+				}
+			}
 		}
 		return c.listType(elemType)
 	case *ast.MapLiteral:

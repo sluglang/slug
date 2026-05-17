@@ -2681,4 +2681,6 @@ Validation performed:
 - Preserved per-call generic markers during function instantiation so bare type parameters remain visible to the semantic checker.
 - Tightened compatibility checks so a plain `T` parameter no longer accepts `nil` unless the declared type explicitly allows it, such as `T|nil`.
 - Added a semantic regression test covering `fn<T>(x:T)` called with `nil`.
+- Made homogeneous list literals infer their observed element type so helpers like `removeValue` reject mismatched scalar arguments for singleton numeric lists.
+- Added a semantic regression test covering a nil-returning callback passed through a nilable generic function parameter.
 - Updated the `tests/types.slug` smoke fixture to keep the generic example passing while documenting the nilability rule.

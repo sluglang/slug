@@ -596,6 +596,33 @@ val out = id(nil)
 	}
 }
 
+func TestSemanticTypeCheckRejectsNilReturnFromNilableGenericCallback(t *testing.T) {
+	input := `
+val f4 = fn<T>(a:T|nil, f:fn<T, T|nil>): T {
+  f(a)
+}
+val out = f4(nil, fn(a) { nil })
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
+	}
+	if len(errs) == 0 {
+		t.Fatal("expected nil-return mismatch error, got none")
+	}
+	if !containsError(errs, "call argument type mismatch") && !containsError(errs, "function return annotation") {
+		t.Fatalf("expected nil-return diagnostic for nilable generic callback, got: %v", errs)
+	}
+}
+
 func TestSemanticTypeCheckRejectsLegacyFunctionTypeOrdering(t *testing.T) {
 	input := `
 val sum:fn<num, str, bool> = fn(a:num, b:str):bool {
@@ -848,6 +875,31 @@ val out = f("bad")
 	}
 	if !containsError(errs, "call argument type mismatch") {
 		t.Fatalf("expected call argument type mismatch message, got: %v", errs)
+	}
+}
+
+func TestSemanticTypeCheckRejectsRemoveValueStringAgainstNumericList(t *testing.T) {
+	input := `
+val removeValue = fn<T>(list:list<T>, value:T):list<T> { list }
+var out = [1] /> removeValue("1")
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
+	}
+	if len(errs) == 0 {
+		t.Fatal("expected removeValue type mismatch error, got none")
+	}
+	if !containsError(errs, "call argument type mismatch") {
+		t.Fatalf("expected call argument type mismatch for removeValue string on numeric list, got: %v", errs)
 	}
 }
 
