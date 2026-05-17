@@ -571,6 +571,31 @@ val out:str = id<str>("hello")
 	}
 }
 
+func TestSemanticTypeCheckRejectsNilForBareGenericTypeParameter(t *testing.T) {
+	input := `
+val id = fn<T>(x:T):T { x }
+val out = id(nil)
+`
+	l := lexer.New(input)
+	p := parser.New(l, "semantic-test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	errs, warns := semantic.AnalyzeWithOptions("semantic-test.slug", input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
+	}
+	if len(errs) == 0 {
+		t.Fatal("expected generic nilability mismatch error, got none")
+	}
+	if !containsError(errs, "call argument type mismatch") {
+		t.Fatalf("expected call argument type mismatch for bare generic nil, got: %v", errs)
+	}
+}
+
 func TestSemanticTypeCheckRejectsLegacyFunctionTypeOrdering(t *testing.T) {
 	input := `
 val sum:fn<num, str, bool> = fn(a:num, b:str):bool {

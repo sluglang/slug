@@ -504,7 +504,7 @@ func (c *typeChecker) instantiateFunctionType(fn *tnode, explicit []*tnode) *tno
 		if explicit != nil && i < len(explicit) && explicit[i] != nil {
 			subst[tp] = explicit[i]
 		} else {
-			subst[tp] = c.freshUnknown()
+			subst[tp] = c.typeParam(tp.name)
 		}
 	}
 	inst := c.cloneTypeWithSubst(ff, subst, map[*tnode]*tnode{})
@@ -2854,6 +2854,9 @@ func (c *typeChecker) isCompatible(got, expected *tnode) bool {
 		return true
 	}
 	if g.kind == typeParam || e.kind == typeParam {
+		if g.kind == typeNil || e.kind == typeNil {
+			return false
+		}
 		return true
 	}
 	if g.kind == typeUnion {
@@ -2956,6 +2959,9 @@ func (c *typeChecker) isDeclaredCompatible(got, expected *tnode) bool {
 		return true
 	}
 	if g.kind == typeParam || e.kind == typeParam {
+		if g.kind == typeNil || e.kind == typeNil {
+			return false
+		}
 		return true
 	}
 	if g.kind == typeUnion {
@@ -3320,6 +3326,12 @@ func (c *typeChecker) unify(a, b *tnode) bool {
 	if a.kind == typeAny || b.kind == typeAny {
 		return true
 	}
+	if a.kind == typeParam && b.kind == typeNil {
+		return false
+	}
+	if b.kind == typeParam && a.kind == typeNil {
+		return false
+	}
 	if a.kind == typeUnion {
 		for _, opt := range a.options {
 			if c.isCompatible(opt, b) {
@@ -3348,9 +3360,15 @@ func (c *typeChecker) unify(a, b *tnode) bool {
 		return c.bindUnknown(b, a)
 	}
 	if a.kind == typeParam {
+		if b.kind == typeNil {
+			return false
+		}
 		return c.bindUnknown(a, b)
 	}
 	if b.kind == typeParam {
+		if a.kind == typeNil {
+			return false
+		}
 		return c.bindUnknown(b, a)
 	}
 	if a.kind != b.kind {

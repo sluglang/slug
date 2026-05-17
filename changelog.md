@@ -2675,3 +2675,10 @@ Validation performed:
 - Updated VM runtime errors to carry source path and position metadata when available so unhandled runtime failures render with file/line/column context.
 - Added shared runtime error rendering in the object layer so `object.Error` values emitted by the VM can show the same caret-based source context as parser and semantic diagnostics.
 - Added a VM regression test to verify runtime error formatting includes the source location and context lines.
+
+## 2026-05-17 — Generic Nilability Tightening
+
+- Preserved per-call generic markers during function instantiation so bare type parameters remain visible to the semantic checker.
+- Tightened compatibility checks so a plain `T` parameter no longer accepts `nil` unless the declared type explicitly allows it, such as `T|nil`.
+- Added a semantic regression test covering `fn<T>(x:T)` called with `nil`.
+- Updated the `tests/types.slug` smoke fixture to keep the generic example passing while documenting the nilability rule.
