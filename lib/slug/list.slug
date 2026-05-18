@@ -26,7 +26,7 @@ val {*} = import(
 	[["c","a","b"], compare], ["a","b","c"]
 )
 @export
-foreign sortWithComparator = fn<T>(lst:list<T>, comparator:fn<num, T>):list<T>
+foreign sortWithComparator = fn<T>(lst:list<T>, comparator:fn<num, T, T>):list<T>
 
 /**
  * sorts a list in natural ascending order.

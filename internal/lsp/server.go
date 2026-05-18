@@ -15,6 +15,7 @@ import (
 	"runtime"
 	"slug/internal/ast"
 	"slug/internal/lexer"
+	"slug/internal/modulemeta"
 	"slug/internal/parser"
 	"slug/internal/token"
 	"sort"
@@ -1798,46 +1799,15 @@ func findTopLevelSymbolsByName(syms []symbolDef, name string) []symbolDef {
 }
 
 func collectExportedTopLevelSymbols(src string) []symbolDef {
-	l := lexer.New(src)
-	p := parser.New(l, "<lsp>", src)
-	program := p.ParseProgram()
 	out := []symbolDef{}
-
-	for _, st := range program.Statements {
-		if ff, ok := st.(*ast.ForeignFunctionDeclaration); ok {
-			if !hasTag(ff.Tags, "@export") || ff.Name == nil {
-				continue
-			}
-			start := ff.Name.Token.Position
-			end := start + len(ff.Name.Token.Literal)
-			out = append(out, symbolDef{Name: ff.Name.Value, Kind: "function", Start: start, End: end, ScopeDepth: 0})
-			continue
-		}
-
-		es, ok := st.(*ast.ExpressionStatement)
-		if !ok || es.Expression == nil {
-			continue
-		}
-		switch e := es.Expression.(type) {
-		case *ast.ValExpression:
-			if !hasTag(e.Tags, "@export") {
-				continue
-			}
-			kind := "constant"
-			if _, ok := e.Value.(*ast.FunctionLiteral); ok {
-				kind = "function"
-			}
-			for _, n := range topLevelPatternNames(e.Pattern) {
-				out = append(out, symbolDef{Name: n.Name, Kind: kind, Start: n.Start, End: n.End, ScopeDepth: 0})
-			}
-		case *ast.VarExpression:
-			if !hasTag(e.Tags, "@export") {
-				continue
-			}
-			for _, n := range topLevelPatternNames(e.Pattern) {
-				out = append(out, symbolDef{Name: n.Name, Kind: "variable", Start: n.Start, End: n.End, ScopeDepth: 0})
-			}
-		}
+	for _, sym := range modulemeta.CollectExportedSymbols(src) {
+		out = append(out, symbolDef{
+			Name:       sym.Name,
+			Kind:       sym.Kind,
+			Start:      sym.Start,
+			End:        sym.End,
+			ScopeDepth: sym.ScopeDepth,
+		})
 	}
 	return out
 }
@@ -2156,23 +2126,12 @@ func (s *Server) resolveModuleExportSignature(originURI string, module string, n
 	if docURI, ok := s.findOpenDocURIByModule(module); ok {
 		src = s.docs[docURI].Text
 	} else {
-		candidates := modulePathCandidatesFromURI(originURI, module)
-		if len(candidates) == 0 {
+		_, local := normalizeURI(originURI)
+		_, loadedSrc, err := modulemeta.ResolveModuleSource(local, module)
+		if err != nil {
 			return functionSignature{}, false
 		}
-		var loaded bool
-		for _, path := range candidates {
-			b, err := os.ReadFile(path)
-			if err != nil {
-				continue
-			}
-			src = string(b)
-			loaded = true
-			break
-		}
-		if !loaded {
-			return functionSignature{}, false
-		}
+		src = loadedSrc
 	}
 	sigs := collectFunctionSignatures(src)
 	for _, sig := range sigs {

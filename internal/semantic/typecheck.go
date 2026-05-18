@@ -3,7 +3,9 @@ package semantic
 import (
 	"fmt"
 	"io"
+	"path/filepath"
 	"slug/internal/ast"
+	"slug/internal/modulemeta"
 	"slug/internal/object"
 	"slug/internal/util"
 	"sort"
@@ -36,20 +38,21 @@ const (
 const maxUnionOptions = 8
 
 type tnode struct {
-	kind       typeKind
-	id         int
-	parent     *tnode
-	elem       *tnode
-	key        *tnode
-	val        *tnode
-	params     []*tnode
-	typeParams []*tnode
-	options    []*tnode
-	ret        *tnode
-	variadic   bool
-	minArgs    int
-	maxArgs    int
-	name       string
+	kind        typeKind
+	id          int
+	parent      *tnode
+	placeholder bool
+	elem        *tnode
+	key         *tnode
+	val         *tnode
+	params      []*tnode
+	typeParams  []*tnode
+	options     []*tnode
+	ret         *tnode
+	variadic    bool
+	minArgs     int
+	maxArgs     int
+	name        string
 }
 
 type tconstraint struct {
@@ -112,6 +115,7 @@ type typeChecker struct {
 	overrides   []map[string]*tnode
 	generics    []map[string]*tnode
 	schemas     map[string]map[string]*tnode
+	moduleCache map[string][]modulemeta.Symbol
 }
 
 func (a *analyzer) runInferredTypeChecks(program *ast.Program, trace bool, traceWriter io.Writer) {
@@ -148,10 +152,50 @@ func (c *typeChecker) tracef(pos int, event string, details string) {
 }
 
 func (c *typeChecker) checkProgram(program *ast.Program) {
+	c.predeclareTopLevelCallables(program)
 	for _, stmt := range program.Statements {
 		c.inferStatement(stmt)
 	}
 	c.solveConstraints()
+}
+
+func (c *typeChecker) predeclareTopLevelCallables(program *ast.Program) {
+	if program == nil || len(c.scopes) == 0 {
+		return
+	}
+	scope := c.scopes[len(c.scopes)-1]
+	for _, stmt := range program.Statements {
+		switch s := stmt.(type) {
+		case *ast.ExpressionStatement:
+			switch expr := s.Expression.(type) {
+			case *ast.ValExpression:
+				if fn, ok := expr.Value.(*ast.FunctionLiteral); ok {
+					for _, n := range topLevelPatternNames(expr.Pattern) {
+						ph := c.fnType(nil, c.freshUnknown(), false, fn.Signature.Min, fn.Signature.Max)
+						ph.placeholder = true
+						scope[n.Name] = ph
+						c.setOverride(n.Name, ph)
+					}
+				}
+			case *ast.VarExpression:
+				if fn, ok := expr.Value.(*ast.FunctionLiteral); ok {
+					for _, n := range topLevelPatternNames(expr.Pattern) {
+						ph := c.fnType(nil, c.freshUnknown(), false, fn.Signature.Min, fn.Signature.Max)
+						ph.placeholder = true
+						scope[n.Name] = ph
+						c.setOverride(n.Name, ph)
+					}
+				}
+			}
+		case *ast.ForeignFunctionDeclaration:
+			if s.Name != nil {
+				ph := c.fnType(nil, c.freshUnknown(), false, s.Signature.Min, s.Signature.Max)
+				ph.placeholder = true
+				scope[s.Name.Value] = ph
+				c.setOverride(s.Name.Value, ph)
+			}
+		}
+	}
 }
 
 func (c *typeChecker) pushScope() {
@@ -234,6 +278,11 @@ func (c *typeChecker) bind(name string, t *tnode) {
 	if existing, ok := scope[name]; ok {
 		ef := c.find(existing)
 		tf := c.find(t)
+		if ef != nil && ef.placeholder && tf != nil && tf.kind == typeFn {
+			scope[name] = t
+			c.setOverride(name, t)
+			return
+		}
 		// Mirror runtime overload-merging semantics for repeated function bindings:
 		// keep a generic function-group-like view instead of letting the latest
 		// overload erase prior ones for call-site checks.
@@ -372,6 +421,13 @@ func (c *typeChecker) listType(elem *tnode) *tnode {
 		elem = c.freshUnknown()
 	}
 	return &tnode{kind: typeList, elem: elem}
+}
+
+func (c *typeChecker) tupleType(params ...*tnode) *tnode {
+	if len(params) == 0 {
+		return &tnode{kind: typeTuple, params: []*tnode{}}
+	}
+	return &tnode{kind: typeTuple, params: params}
 }
 
 func (c *typeChecker) mapType(key, val *tnode) *tnode {
@@ -1049,6 +1105,227 @@ func (c *typeChecker) inferStatement(stmt ast.Statement) *tnode {
 	}
 }
 
+func (c *typeChecker) bindImportedPattern(pattern ast.MatchPattern, value ast.Expression, pos int) bool {
+	if strings.Contains(filepath.ToSlash(c.a.path), "/lib/") {
+		return false
+	}
+	call, ok := value.(*ast.CallExpression)
+	if !ok || !isImportCall(call) {
+		return false
+	}
+	modules := importModuleArgs(call.Arguments)
+	if len(modules) == 0 {
+		return true
+	}
+
+	switch p := pattern.(type) {
+	case *ast.MapPattern:
+		exports := c.importedSymbolsForModules(modules)
+		if len(exports) == 0 {
+			return true
+		}
+		seen := map[string]bool{}
+		if p.SelectAll {
+			for _, sym := range exports {
+				if seen[sym.Name] {
+					continue
+				}
+				seen[sym.Name] = true
+				c.bindImportedSymbol(sym.Name, sym, pos)
+			}
+			return true
+		}
+		for _, entry := range p.Pairs {
+			source := patternEntryKeyName(entry.Key)
+			local := patternBindingName(entry.Pattern)
+			if source == "" || local == "" {
+				continue
+			}
+			if seen[local] {
+				continue
+			}
+			if sym, ok := c.importedSymbolByName(modules, source); ok {
+				c.bindImportedSymbol(local, sym, pos)
+				seen[local] = true
+			}
+		}
+		return true
+	default:
+		return false
+	}
+}
+
+func (c *typeChecker) importedSymbolsForModules(modules []string) []modulemeta.Symbol {
+	if len(modules) == 0 {
+		return nil
+	}
+	out := make([]modulemeta.Symbol, 0, 8)
+	seen := map[string]bool{}
+	for _, module := range modules {
+		for _, sym := range c.importedSymbolsForModule(module) {
+			if seen[sym.Name] {
+				continue
+			}
+			seen[sym.Name] = true
+			out = append(out, sym)
+		}
+	}
+	return out
+}
+
+func (c *typeChecker) importedSymbolByName(modules []string, name string) (modulemeta.Symbol, bool) {
+	for _, module := range modules {
+		for _, sym := range c.importedSymbolsForModule(module) {
+			if sym.Name == name {
+				return sym, true
+			}
+		}
+	}
+	return modulemeta.Symbol{}, false
+}
+
+func (c *typeChecker) importedSymbolsForModule(module string) []modulemeta.Symbol {
+	if c.moduleCache == nil {
+		c.moduleCache = map[string][]modulemeta.Symbol{}
+	}
+	if syms, ok := c.moduleCache[module]; ok {
+		return syms
+	}
+	_, src, err := modulemeta.ResolveModuleSource(c.a.path, module)
+	if err != nil {
+		c.moduleCache[module] = nil
+		return nil
+	}
+	syms := modulemeta.CollectExportedSymbols(src)
+	c.moduleCache[module] = syms
+	return syms
+}
+
+func (c *typeChecker) bindImportedSymbol(name string, sym modulemeta.Symbol, pos int) {
+	if name == "" {
+		return
+	}
+	if len(sym.Callables) == 0 {
+		c.bind(name, c.freshUnknown())
+		return
+	}
+	callable := sym.Callables[0]
+	fnType := c.callableType(callable)
+	if fnType == nil {
+		c.addDiag(pos, "imported callable `%s` has an invalid type signature", name)
+		return
+	}
+	c.bind(name, fnType)
+}
+
+func (c *typeChecker) callableType(callable modulemeta.Callable) *tnode {
+	genericBindings := map[string]*tnode{}
+	genericOrder := make([]*tnode, 0, len(callable.TypeParams))
+	for _, name := range callable.TypeParams {
+		if name == "" {
+			continue
+		}
+		tp := c.typeParam(name)
+		genericBindings[name] = tp
+		genericOrder = append(genericOrder, tp)
+	}
+	params := make([]*tnode, 0, len(callable.Parameters))
+	for _, p := range callable.Parameters {
+		pt := c.freshUnknown()
+		if p != nil && strings.TrimSpace(p.Type) != "" {
+			if tt := c.parseDeclaredTypeWithScope(p.Type, genericBindings); tt != nil {
+				pt = tt
+			}
+		}
+		params = append(params, pt)
+	}
+	ret := c.freshUnknown()
+	if strings.TrimSpace(callable.ReturnType) != "" {
+		if tt := c.parseDeclaredTypeWithScope(callable.ReturnType, genericBindings); tt != nil {
+			ret = tt
+		}
+	}
+	ft := c.fnType(params, ret, callable.Signature.IsVariadic, callable.Signature.Min, callable.Signature.Max)
+	ft.typeParams = genericOrder
+	return ft
+}
+
+func isImportCall(expr ast.Expression) bool {
+	call, ok := expr.(*ast.CallExpression)
+	if !ok || call == nil {
+		return false
+	}
+	fn, ok := call.Function.(*ast.Identifier)
+	if !ok || fn == nil {
+		return false
+	}
+	return fn.Value == "import"
+}
+
+func importModuleArgs(args []ast.Expression) []string {
+	out := make([]string, 0, len(args))
+	for _, a := range args {
+		s, ok := a.(*ast.StringLiteral)
+		if !ok {
+			return nil
+		}
+		out = append(out, s.Value)
+	}
+	return out
+}
+
+func patternEntryKeyName(key ast.Expression) string {
+	switch k := key.(type) {
+	case *ast.Identifier:
+		return k.Value
+	case *ast.StringLiteral:
+		return k.Value
+	case *ast.SymbolLiteral:
+		return k.Value
+	default:
+		return ""
+	}
+}
+
+func patternBindingName(pat ast.MatchPattern) string {
+	switch p := pat.(type) {
+	case *ast.IdentifierPattern:
+		if p != nil && p.Value != nil {
+			return p.Value.Value
+		}
+	case *ast.BindingPattern:
+		if p != nil && p.Name != nil {
+			return p.Name.Value
+		}
+	}
+	return ""
+}
+
+type patternNameRef struct {
+	Name  string
+	Start int
+	End   int
+}
+
+func topLevelPatternNames(pat ast.MatchPattern) []patternNameRef {
+	out := []patternNameRef{}
+	switch p := pat.(type) {
+	case *ast.IdentifierPattern:
+		if p != nil && p.Value != nil {
+			start := p.Value.Token.Position
+			end := start + len(p.Value.Token.Literal)
+			out = append(out, patternNameRef{Name: p.Value.Value, Start: start, End: end})
+		}
+	case *ast.BindingPattern:
+		if p != nil && p.Name != nil {
+			start := p.Name.Token.Position
+			end := start + len(p.Name.Token.Literal)
+			out = append(out, patternNameRef{Name: p.Name.Value, Start: start, End: end})
+		}
+	}
+	return out
+}
+
 func (c *typeChecker) inferBlock(block *ast.BlockStatement) *tnode {
 	if block == nil {
 		return c.scalar(typeNil)
@@ -1287,6 +1564,34 @@ func (c *typeChecker) inferExpr(expr ast.Expression) *tnode {
 		_ = c.inferExpr(e.Fields)
 		return s
 	case *ast.VarExpression:
+		if fn, ok := e.Value.(*ast.FunctionLiteral); ok {
+			if name := patternBindingName(e.Pattern); name != "" {
+				c.pushOverride()
+				placeholder := c.fnType(nil, c.freshUnknown(), len(fn.Parameters) > 0 && fn.Parameters[len(fn.Parameters)-1].IsVariadic, fn.Signature.Min, fn.Signature.Max)
+				c.setOverride(name, placeholder)
+				rhs := c.inferExpr(e.Value)
+				c.popOverride()
+				c.validateDeclaredTypeShape(e.Type, e.Token.Position, "var")
+				c.validateSpecialDeclaredType(e.Type, e.Token.Position, "var")
+				if tt := c.parseDeclaredType(e.Type); tt != nil {
+					c.addConstraint(rhs, tt, e.Token.Position, "var annotation")
+					if !c.isDeclaredCompatible(rhs, tt) {
+						c.addDiag(e.Token.Position, "inferred type mismatch (var annotation): %s vs %s", c.describe(rhs), c.describe(tt))
+					}
+					c.enforceDeclaredLiteralCompatibility(e.Value, tt, e.Token.Position)
+					c.bindPatternDeclared(e.Pattern, tt)
+					if c.typeMayBeNilConcretely(rhs) && !c.typeAllowsNil(tt) {
+						c.addDiag(e.Token.Position, "nilability mismatch (var annotation): expected %s, got %s", c.describe(tt), c.describe(rhs))
+					}
+				}
+				c.enforceTags(rhs, e.Tags, e.Token.Position)
+				if !c.bindImportedPattern(e.Pattern, e.Value, e.Token.Position) {
+					c.bindPattern(e.Pattern, rhs)
+				}
+				c.registerStructSchema(e.Pattern, e.Value)
+				return rhs
+			}
+		}
 		rhs := c.inferExpr(e.Value)
 		c.validateDeclaredTypeShape(e.Type, e.Token.Position, "var")
 		c.validateSpecialDeclaredType(e.Type, e.Token.Position, "var")
@@ -1302,10 +1607,40 @@ func (c *typeChecker) inferExpr(expr ast.Expression) *tnode {
 			}
 		}
 		c.enforceTags(rhs, e.Tags, e.Token.Position)
-		c.bindPattern(e.Pattern, rhs)
+		if !c.bindImportedPattern(e.Pattern, e.Value, e.Token.Position) {
+			c.bindPattern(e.Pattern, rhs)
+		}
 		c.registerStructSchema(e.Pattern, e.Value)
 		return rhs
 	case *ast.ValExpression:
+		if fn, ok := e.Value.(*ast.FunctionLiteral); ok {
+			if name := patternBindingName(e.Pattern); name != "" {
+				c.pushOverride()
+				placeholder := c.fnType(nil, c.freshUnknown(), len(fn.Parameters) > 0 && fn.Parameters[len(fn.Parameters)-1].IsVariadic, fn.Signature.Min, fn.Signature.Max)
+				c.setOverride(name, placeholder)
+				rhs := c.inferExpr(e.Value)
+				c.popOverride()
+				c.validateDeclaredTypeShape(e.Type, e.Token.Position, "val")
+				c.validateSpecialDeclaredType(e.Type, e.Token.Position, "val")
+				if tt := c.parseDeclaredType(e.Type); tt != nil {
+					c.addConstraint(rhs, tt, e.Token.Position, "val annotation")
+					if !c.isDeclaredCompatible(rhs, tt) {
+						c.addDiag(e.Token.Position, "inferred type mismatch (val annotation): %s vs %s", c.describe(rhs), c.describe(tt))
+					}
+					c.enforceDeclaredLiteralCompatibility(e.Value, tt, e.Token.Position)
+					c.bindPatternDeclared(e.Pattern, tt)
+					if c.typeMayBeNilConcretely(rhs) && !c.typeAllowsNil(tt) {
+						c.addDiag(e.Token.Position, "nilability mismatch (val annotation): expected %s, got %s", c.describe(tt), c.describe(rhs))
+					}
+				}
+				c.enforceTags(rhs, e.Tags, e.Token.Position)
+				if !c.bindImportedPattern(e.Pattern, e.Value, e.Token.Position) {
+					c.bindPattern(e.Pattern, rhs)
+				}
+				c.registerStructSchema(e.Pattern, e.Value)
+				return rhs
+			}
+		}
 		rhs := c.inferExpr(e.Value)
 		c.validateDeclaredTypeShape(e.Type, e.Token.Position, "val")
 		c.validateSpecialDeclaredType(e.Type, e.Token.Position, "val")
@@ -1321,7 +1656,9 @@ func (c *typeChecker) inferExpr(expr ast.Expression) *tnode {
 			}
 		}
 		c.enforceTags(rhs, e.Tags, e.Token.Position)
-		c.bindPattern(e.Pattern, rhs)
+		if !c.bindImportedPattern(e.Pattern, e.Value, e.Token.Position) {
+			c.bindPattern(e.Pattern, rhs)
+		}
 		c.registerStructSchema(e.Pattern, e.Value)
 		return rhs
 	case *ast.MatchExpression:
@@ -1448,7 +1785,7 @@ func (c *typeChecker) inferFunctionLiteral(fn *ast.FunctionLiteral) *tnode {
 		c.bind(p.Name.Value, pt)
 		paramNames = append(paramNames, p.Name.Value)
 	}
-	ret := c.scalar(typeNil)
+	ret := c.scalar(typeNever)
 	if fn.Body != nil {
 		iterations := 1
 		if containsRecurInCurrentFunction(fn.Body) {
@@ -1465,8 +1802,11 @@ func (c *typeChecker) inferFunctionLiteral(fn *ast.FunctionLiteral) *tnode {
 	c.validateDeclaredTypeShape(fn.ReturnType, fn.Token.Position, "function return")
 	c.validateSpecialDeclaredTypeWithScope(fn.ReturnType, fn.Token.Position, "function return", c.currentGenericScope())
 	if tt := c.parseDeclaredType(fn.ReturnType); tt != nil {
-		c.addConstraint(ret, tt, fn.Token.Position, "function return annotation")
+		if !(tt.kind == typeTuple && c.bodyReturnsListLiteral(fn.Body)) {
+			c.addConstraint(ret, tt, fn.Token.Position, "function return annotation")
+		}
 		c.enforceFunctionReturnLiteralCompatibility(fn.Body, tt)
+		ret = tt
 		c.retChecks = append(c.retChecks, declaredReturnCheck{pos: fn.Token.Position, got: ret, expected: tt})
 	}
 	c.popOverride()
@@ -2938,7 +3278,7 @@ func (c *typeChecker) isCompatible(got, expected *tnode) bool {
 				return false
 			}
 		}
-		return c.isCompatible(g.ret, e.ret)
+		return c.isCompatible(c.normalizedDeclaredReturnType(g.ret), c.normalizedDeclaredReturnType(e.ret))
 	case typeParam:
 		return true
 	case typeStruct:
@@ -3040,7 +3380,7 @@ func (c *typeChecker) isDeclaredCompatible(got, expected *tnode) bool {
 				return false
 			}
 		}
-		return c.isDeclaredCompatible(g.ret, e.ret)
+		return c.isDeclaredCompatible(c.normalizedDeclaredReturnType(g.ret), c.normalizedDeclaredReturnType(e.ret))
 	case typeParam:
 		return true
 	case typeStruct:
@@ -3073,6 +3413,22 @@ func (c *typeChecker) normalizedDeclaredReturnType(t *tnode) *tnode {
 		return tf
 	}
 	return c.unionType(withoutNil...)
+}
+
+func (c *typeChecker) bodyReturnsListLiteral(body *ast.BlockStatement) bool {
+	if body == nil || len(body.Statements) == 0 {
+		return false
+	}
+	switch last := body.Statements[len(body.Statements)-1].(type) {
+	case *ast.ExpressionStatement:
+		_, ok := last.Expression.(*ast.ListLiteral)
+		return ok
+	case *ast.ReturnStatement:
+		_, ok := last.ReturnValue.(*ast.ListLiteral)
+		return ok
+	default:
+		return false
+	}
 }
 
 func (c *typeChecker) enforceDeclaredLiteralCompatibility(expr ast.Expression, declared *tnode, pos int) {
@@ -3433,7 +3789,7 @@ func (c *typeChecker) unify(a, b *tnode) bool {
 				return false
 			}
 		}
-		return c.unify(a.ret, b.ret)
+		return c.unify(c.normalizedDeclaredReturnType(a.ret), c.normalizedDeclaredReturnType(b.ret))
 	default:
 		if a.kind == typeStruct && a.name != "" && b.name != "" && a.name != b.name {
 			return false

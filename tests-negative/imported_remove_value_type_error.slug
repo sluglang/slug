@@ -1,0 +1,3 @@
+### Imported removeValue should reject mismatched scalar element types
+var {*} = import("slug.list")
+[1] /> removeValue('1') /> println()

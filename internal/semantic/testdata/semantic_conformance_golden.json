@@ -3,26 +3,26 @@
     "errors": 0,
     "warnings": 0,
     "trace_events": {
-      "merge": 28,
-      "union-normalize": 13
+      "merge": 30,
+      "union-normalize": 3
     }
   },
   "lib/slug/json.slug": {
     "errors": 0,
     "warnings": 0,
     "trace_events": {
-      "merge": 2117,
+      "merge": 2745,
       "refine": 4,
-      "union-normalize": 98
+      "union-normalize": 76
     }
   },
   "lib/slug/mustache.slug": {
     "errors": 0,
     "warnings": 0,
     "trace_events": {
-      "merge": 3432,
+      "merge": 4370,
       "refine": 58,
-      "union-normalize": 377,
+      "union-normalize": 350,
       "widen": 47
     }
   },
@@ -30,9 +30,9 @@
     "errors": 0,
     "warnings": 0,
     "trace_events": {
-      "merge": 765,
+      "merge": 873,
       "refine": 15,
-      "union-normalize": 57,
+      "union-normalize": 33,
       "widen": 1
     }
   },
@@ -40,8 +40,8 @@
     "errors": 0,
     "warnings": 0,
     "trace_events": {
-      "merge": 346,
-      "union-normalize": 75,
+      "merge": 468,
+      "union-normalize": 25,
       "widen": 7
     }
   }

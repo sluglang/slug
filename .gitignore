@@ -1,5 +1,6 @@
 # IntelliJ IDEA settings directory
 .idea/
+.gocache/
 
 # Binary output directory
 bin/

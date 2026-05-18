@@ -2684,3 +2684,10 @@ Validation performed:
 - Made homogeneous list literals infer their observed element type so helpers like `removeValue` reject mismatched scalar arguments for singleton numeric lists.
 - Added a semantic regression test covering a nil-returning callback passed through a nilable generic function parameter.
 - Updated the `tests/types.slug` smoke fixture to keep the generic example passing while documenting the nilability rule.
+
+## 2026-05-18 — Shared Export Metadata
+
+- Added a shared module-export metadata helper so semantic analysis and LSP both recover exported callable signatures from source.
+- Made imported wildcard and named bindings preserve callable type information across `import(...)` boundaries, including generic list helpers like `removeValue`.
+- Added semantic regressions for imported wildcard and named function bindings, plus a negative fixture for the mismatched `removeValue('1')` call.
+- Corrected `slug.list.sortWithComparator` so its exported comparator signature matches the runtime callback arity.

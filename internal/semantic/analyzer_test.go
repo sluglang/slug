@@ -2,6 +2,8 @@ package semantic_test
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"slug/internal/ast"
 	"slug/internal/lexer"
 	"slug/internal/parser"
@@ -17,6 +19,16 @@ func parseProgram(t *testing.T, input string) (*ast.Program, []string) {
 	program := p.ParseProgram()
 	errs := p.Errors()
 	errs = append(errs, semantic.Analyze("semantic-test.slug", input, program)...)
+	return program, errs
+}
+
+func parseProgramAt(t *testing.T, path, input string) (*ast.Program, []string) {
+	t.Helper()
+	l := lexer.New(input)
+	p := parser.New(l, path, input)
+	program := p.ParseProgram()
+	errs := p.Errors()
+	errs = append(errs, semantic.Analyze(path, input, program)...)
 	return program, errs
 }
 
@@ -900,6 +912,75 @@ var out = [1] /> removeValue("1")
 	}
 	if !containsError(errs, "call argument type mismatch") {
 		t.Fatalf("expected call argument type mismatch for removeValue string on numeric list, got: %v", errs)
+	}
+}
+
+func TestSemanticTypeCheckRejectsImportedRemoveValueStringAgainstNumericList(t *testing.T) {
+	root := t.TempDir()
+	moduleDir := filepath.Join(root, "slug")
+	if err := os.MkdirAll(moduleDir, 0o755); err != nil {
+		t.Fatalf("failed to create module dir: %v", err)
+	}
+	modulePath := filepath.Join(moduleDir, "list.slug")
+	moduleSrc := `@export val removeValue = fn<T>(list:list<T>, value:T):list<T> { list }`
+	if err := os.WriteFile(modulePath, []byte(moduleSrc), 0o644); err != nil {
+		t.Fatalf("failed to write module source: %v", err)
+	}
+
+	path := filepath.Join(root, "main.slug")
+	input := `
+var {*} = import("slug.list")
+[1] /> removeValue('1') /> println()
+`
+	program, errs := parseProgramAt(t, path, input)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected parse/semantic errors before type check: %v", errs)
+	}
+
+	errs, warns := semantic.AnalyzeWithOptions(path, input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
+	}
+	if len(errs) == 0 {
+		t.Fatal("expected imported removeValue type mismatch error, got none")
+	}
+	if !containsError(errs, "call argument type mismatch") {
+		t.Fatalf("expected call argument type mismatch for imported removeValue string on numeric list, got: %v", errs)
+	}
+}
+
+func TestSemanticTypeCheckPreservesImportedNamedFunctionSignature(t *testing.T) {
+	root := t.TempDir()
+	moduleDir := filepath.Join(root, "slug")
+	if err := os.MkdirAll(moduleDir, 0o755); err != nil {
+		t.Fatalf("failed to create module dir: %v", err)
+	}
+	modulePath := filepath.Join(moduleDir, "list.slug")
+	moduleSrc := `@export val removeValue = fn<T>(list:list<T>, value:T):list<T> { list }`
+	if err := os.WriteFile(modulePath, []byte(moduleSrc), 0o644); err != nil {
+		t.Fatalf("failed to write module source: %v", err)
+	}
+
+	path := filepath.Join(root, "main.slug")
+	input := `
+val { removeValue } = import("slug.list")
+removeValue([1], 1)
+`
+	program, errs := parseProgramAt(t, path, input)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected parse/semantic errors before type check: %v", errs)
+	}
+
+	errs, warns := semantic.AnalyzeWithOptions(path, input, program, semantic.AnalyzeOptions{
+		EnableTypeCheck: true,
+	})
+	if len(warns) != 0 {
+		t.Fatalf("expected no warnings in type-check enabled, got: %v", warns)
+	}
+	if len(errs) > 0 {
+		t.Fatalf("expected imported named function call to type-check, got: %v", errs)
 	}
 }
 
