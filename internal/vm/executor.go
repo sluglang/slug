@@ -2112,12 +2112,9 @@ func (e *Executor) errorAt(pos int, format string, args ...interface{}) *object.
 	return err
 }
 
-func (e *Executor) returnTypeRuntimeError(_ int, format string, args ...interface{}) *object.RuntimeError {
+func (e *Executor) returnTypeRuntimeError(pos int, format string, args ...interface{}) *object.Error {
 	msg := fmt.Sprintf(format, args...)
-	payload := (&object.Map{}).
-		Put(&object.String{Value: "type"}, &object.String{Value: "TypeError"}).
-		Put(&object.String{Value: "msg"}, &object.String{Value: msg})
-	return &object.RuntimeError{Payload: payload}
+	return e.errorAt(pos, "%s", msg)
 }
 
 func isTruthy(obj object.Object) bool {

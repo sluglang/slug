@@ -1,0 +1,5 @@
+### Function return type mismatch should render standard Slug runtime formatting
+val f2 = fn<T>(xs:list<T>):list<T> {
+	xs
+}
+var [a, b] = f2(nil)

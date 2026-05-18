@@ -2691,3 +2691,9 @@ Validation performed:
 - Made imported wildcard and named bindings preserve callable type information across `import(...)` boundaries, including generic list helpers like `removeValue`.
 - Added semantic regressions for imported wildcard and named function bindings, plus a negative fixture for the mismatched `removeValue('1')` call.
 - Corrected `slug.list.sortWithComparator` so its exported comparator signature matches the runtime callback arity.
+
+## 2026-05-19 — Runtime Return Error Formatting
+
+- Rendered function and foreign return-type mismatches through the standard Slug runtime error path instead of a raw payload map.
+- Added a VM regression covering return-type mismatch formatting with source context.
+- Added a negative fixture for the generic `f2(nil)` return mismatch case.

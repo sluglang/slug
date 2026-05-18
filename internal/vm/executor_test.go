@@ -98,6 +98,35 @@ func TestExecutorRuntimeChecksAnnotatedReturnType(t *testing.T) {
 	}
 }
 
+func TestExecutorRuntimeChecksAnnotatedReturnTypeUsesStandardSlugFormat(t *testing.T) {
+	input := "val id = fn(x):num { x }\nid(nil)"
+	l := lexer.New(input)
+	p := parser.New(l, "test.slug", input)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("parse errors: %v", p.Errors())
+	}
+	if errs := semantic.Analyze("test.slug", input, program); len(errs) > 0 {
+		t.Fatalf("semantic errors: %v", errs)
+	}
+
+	exec := NewExecutor(object.NewRootEnvironment(4), nil)
+	exec.env.Path = "test.slug"
+	exec.env.Src = input
+
+	got := exec.EvalProgram(program)
+	if got.Type() != object.ERROR_OBJ {
+		t.Fatalf("expected error object, got %T (%s)", got, got.Inspect())
+	}
+	rendered := got.Inspect()
+	if !strings.Contains(rendered, "RuntimeError: function return type mismatch") {
+		t.Fatalf("expected runtime error prefix, got %s", rendered)
+	}
+	if !strings.Contains(rendered, "--> test.slug:2:3") {
+		t.Fatalf("expected source context, got %s", rendered)
+	}
+}
+
 func TestExecutorRuntimeChecksAnnotatedListReturnTypeUsesFormalShape(t *testing.T) {
 	got := runVM(t, `
 val zipWithIndex = fn():list<[any, str]> {
